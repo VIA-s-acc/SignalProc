@@ -4,6 +4,7 @@ import random
 # Создаем сигнал
 import sympy
 
+
 signal_values = [0,3,2,1,5] #степени во возрастанию  
 signal = sg.Signal(signal_values)
 x = sympy.Symbol("x")
@@ -32,17 +33,16 @@ h0, f0, h1, f1 = signal.generate_filters(factorized_polynomial)
 # f0 = sg.Signal([1/sq, 1/sq],-1,0, sig_name = 'f0')
 # f1 = sg.Signal([-1/sq, 1/sq],-1,0, sig_name = 'f1')
 
-lst1= [4,3,2,1,10,1,2,3,4]
-x = sg.Signal(lst1, 0, sig_name='Начальный сигнал')
+lst1= [1,2,1,4,1,1,1,3,1]
+
+x = sg.Signal(lst1, -8, sig_name='Начальный сигнал')
+
 x.round(3)
-result = x.recursive_analysis(x, max_depth=3, h0=h0, h1=h1)
+result = x.recursive_analysis(x, max_depth=4, h0=h0, h1=h1)
 temp = x.recursive_synthesis(sig_list = result, f0=f0,f1=f1)
 
-
-print(a)
 # y0,y1 = x.Analysis(h0,h1)
-
-
+print(temp)
 
 # y0_0,y0_1 = y0.Analysis(h0,h1)
 

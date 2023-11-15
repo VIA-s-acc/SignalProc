@@ -1,6 +1,6 @@
 import sympy
-
-
+from icecream import ic
+ic.disable()
 
 class Signal:
     """
@@ -117,6 +117,7 @@ class Signal:
         else:
             raise ValueError("sig_name_err")
         self.length = self.end_index - start_index + 1
+        ic()
 
     def downsample(self, factor):
         """
@@ -136,7 +137,9 @@ class Signal:
         if factor <= 0:
             raise ValueError("Compression factor should be greater than 0")
         compressed_values = [self.values[i] for i in range(0, self.length, factor)]
+        ic()
         return Signal(compressed_values, self.start_index)
+        
 
     def upsample(self, factor) -> 'Signal':
         """
@@ -160,12 +163,15 @@ class Signal:
             stretched_values.append(self.values[i])
             if i != self.length-1: 
                 stretched_values.extend([0] * (factor - 1))  # Insert zeros
+        ic()
         return Signal(stretched_values, self.start_index)
 
 
 
-    def convolve(self, kernel) -> 'Signal':
+    def _old_convolve(self, kernel) -> 'Signal':
         """
+            OLD VERSION WARNING
+
             Convolve the signal with another signal (kernel).
 
             Example:
@@ -195,7 +201,40 @@ class Signal:
                 Z_set[j] =  Y_set[k]
             for l in range(len(Z_set)):
                 result_values[i] += Z_set[l]*X_set[l]
-        return Signal(result_values[1:], convolve_start_index)
+        ic()
+        return Signal(result_values, convolve_start_index)
+
+    def convolve(self, kernel) -> 'Signal':
+        """
+            Convolve the signal with another signal (kernel).
+
+            Example:
+            ```
+            convolved_signal = signal.convolve(kernel_signal)
+            ```
+
+            Args:
+                kernel (Signal): The kernel signal for convolution.
+
+            Returns:
+                Signal: The convolved signal.
+        """
+        matrix = []
+        result_list = [] 
+        convolve_start_index = self.start_index + kernel.start_index
+        result_length = self.length + kernel.length - 1
+        result_values = [0] * (result_length)
+        for val in kernel:
+            matrix.append([val*item for item in self])
+        rows, cols = len(matrix), len(matrix[0])
+
+        for sum_indices in range(rows + cols - 1):
+            for i in range(max(0, sum_indices - cols + 1), min(sum_indices + 1, rows)):
+                j = sum_indices - i
+                result_values[sum_indices] += matrix[i][j]
+        ic()
+        
+        return Signal(result_values, convolve_start_index)
 
 
     def Analysis(self,h0,h1):
@@ -213,12 +252,9 @@ class Signal:
         """
         r0 = self.convolve(h0)
         r1 = self.convolve(h1)
-        r0.set_name('r0')
-        r1.set_name('r1')
         y0 = r0.downsample(2)
         y1 = r1.downsample(2)
-        y0.set_name('y1')
-        y1.set_name('y1')
+        ic()
         return y0, y1
     
     def recursive_analysis(self, x, h0, h1, depth=0, max_depth=10,result = []):
@@ -245,7 +281,7 @@ class Signal:
         y0, y1 = x.Analysis(h0, h1)
         y0_result = x.recursive_analysis(x= y0, h0=h0, h1=h1,depth = depth + 1, max_depth=max_depth, result = result)
         y1_result = x.recursive_analysis(x= y1, h0=h0, h1=h1,depth = depth + 1, max_depth=max_depth, result = result)
-        
+        ic()
         return result
     
 
@@ -270,11 +306,12 @@ class Signal:
                 temp_list.append(self.Synthesis(sig_list[i:i+2][0],sig_list[i:i+2][1],f0,f1))
             
             if len(temp_list) == 1:
+                ic()
                 return temp_list[0]
             else: 
                 sig_list = temp_list
                 temp_list = []
-
+        
     def Synthesis(self, y0,y1,f0,f1):
         """
         Recursively synthesize signals from a list using 
@@ -282,21 +319,22 @@ class Signal:
 
         Args:
 
-            sig_list: List of signals to be synthesized.
+            y0,y1: signals to be synthesized.
             f0: Signal for convolution.
             f1: Signal for convolution.
         Returns:
 
             The synthesized signal.
         """
+
         t0 = y0.upsample(2)
         t1 = y1.upsample(2)
-        t0.set_name('t0')
-        t1.set_name('t1')
         v0 = t0.convolve(f0)
         v1 = t1.convolve(f1)
-        v0.set_name('v0')
-        v1.set_name('v1')
+        start_index = min(v0.start_index, v1.start_index)
+        v0 = Signal(v0.values[3:],v0.start_index)
+        v1 = Signal(v1.values[3:],v0.start_index)
+        ic()
         return v0+v1
 
 
@@ -318,6 +356,7 @@ class Signal:
         else:
             polynomial = Poly
         factorized_polynomial = sympy.Poly(polynomial).factor_list()
+        ic()
         return factorized_polynomial
 
     def generate_filters(self,HF):
@@ -353,7 +392,8 @@ class Signal:
         F0 = Signal([c2 * coef for coef in (HF[1][1][0]**HF[1][1][1]).coeffs()],sig_name="F0") 
         F1 = Signal([coef * (-1)**(n+1) for coef, n in zip(H0.values, range(len(H0.values)))], sig_name = 'F1')
         H1 = Signal([coef * (-1)**(n) for coef, n in zip(F0.values, range(len(F0.values)))], sig_name = "H1")
-        return H0,F0,H1, F1
+        ic()
+        return H0,F0,H1,F1
 
     # def filter_bank_6th_degree(self, HF):
     #     """
@@ -388,6 +428,7 @@ class Signal:
         Args:
             ndigits (int, optional): Number of decimal places. Defaults to 0.
         """
+        ic()
         if ndigits>=0:
             if ndigits == 0: self.values = [round(value) for value in self.values] 
             else: self.values = [round(value,ndigits) for value in self.values]
@@ -411,7 +452,8 @@ class Signal:
         Returns:
             Signal: The result of element-wise addition.
         """
-
+        ic()
+        
         return Signal([x+y for x,y in zip(self.values,other.values)], self.start_index)
 
     def __len__(self):
@@ -421,6 +463,7 @@ class Signal:
         Returns:
             int: The length of the Signal, which is the number of elements it contains.
         """
+        ic()
         return len(self.values)
 
     def __str__(self):
@@ -435,7 +478,7 @@ class Signal:
         Returns:
             str: A string containing signal information.
         """
-        
+        ic()
         return (
             f'Name: {self.name}\n'
             f"Signal: {self.values}\n"
@@ -448,6 +491,7 @@ class Signal:
         """
         Get item from Signal.values by Key
         """
+        ic()
         return self.values[key]
     
     def __iter__(self):
@@ -456,6 +500,7 @@ class Signal:
         Returns:
             iterator: An iterator over the elements in the vector.
         """
+        ic()
         return iter(self.values)
     
 
@@ -468,4 +513,5 @@ class Signal:
         Args:
             name (str): name of signal to set
         """
+        ic()
         self.name = name;
