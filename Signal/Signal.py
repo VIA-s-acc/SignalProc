@@ -1,6 +1,86 @@
 import sympy
 from icecream import ic
-ic.disable()
+import time 
+
+DEBUG = False
+if DEBUG != True:
+    ic.disable()
+
+
+# Эта функция memoize представляет собой декоратор, который добавляет мемоизацию (кэширование) к функции, которую вы передаете в качестве аргумента.
+# Мемоизация - это техника оптимизации, при которой результаты выполнения функции сохраняются, чтобы избежать повторных вычислений при одинаковых входных аргументах.
+
+# Давайте рассмотрим пошагово, как это работает:
+
+# make_immutable(obj): Эта вспомогательная функция используется для 
+# рекурсивного преобразования изменяемых объектов в неизменяемые типы. 
+# Это важно для того, чтобы объекты могли быть использованы в качестве ключей в словаре cache.
+
+# **wrapper(*args, kwargs): Это оберточная функция, которая 
+# заменяет оригинальную функцию. Она создает ключ key из входных аргументов 
+# args и kwargs, где аргументы преобразуются в неизменяемые объекты с использованием make_immutable.
+
+# Если ключ key отсутствует в кэше, выполняется оригинальная 
+# функция (func(*args, **kwargs)), и результат сохраняется в кэше под ключом key. 
+# После этого значение возвращается.
+
+# Если ключ key уже есть в кэше, функция просто возвращает сохраненное значение, 
+# избегая повторного выполнения функции для тех же входных аргументов.
+
+# Время выполнения функции замеряется с использованием time.time(), и если переменная recursion_depth равна 0, то 
+# есть функция не вызывается из других функций (т.е. это самый верхний уровень рекурсии), выводится общее время выполнения функции.
+def memoize(func):
+    """Memoize decorator to cache results of function calls.
+
+    This decorator is used to store and retrieve the results of function calls
+    based on their input arguments. It helps in optimizing functions by avoiding
+    redundant calculations for the same input arguments.
+
+    Args:
+        func (callable): The function to be memoized.
+
+    Returns:
+        callable: A wrapped function that caches and returns results based on
+                  input arguments.
+    """
+    cache = {}
+    recursion_depth = 0  # Track recursion depth
+
+    def make_immutable(obj):
+        """Recursively convert mutable objects to immutable types."""
+        if isinstance(obj, list):
+            return tuple(map(make_immutable, obj))
+        elif isinstance(obj, dict):
+            return frozenset((key, make_immutable(value)) for key, value in obj.items())
+        else:
+            return obj
+
+    def wrapper(*args, **kwargs):
+        """Wrapper function for memoization.
+
+        Args:
+            *args: Variable-length argument list.
+            **kwargs: Variable-length keyword argument list.
+
+        Returns:
+            Any: Result of the original function for the given arguments.
+        """
+        start_time = time.time()
+        nonlocal recursion_depth
+        key = (make_immutable(args), frozenset((key, make_immutable(value)) for key, value in kwargs.items()))
+        if key not in cache:
+            recursion_depth += 1
+            cache[key] = func(*args, **kwargs)           
+            recursion_depth -= 1
+
+        end_time = time.time()
+        if recursion_depth == 0:
+            execution_time = end_time - start_time
+            print(f"Total Execution time: {execution_time:.6f} seconds")
+
+        return cache[key]
+
+    return wrapper
 
 class Signal:
     """
@@ -257,6 +337,7 @@ class Signal:
         ic()
         return y0, y1
     
+    @memoize
     def recursive_analysis(self, x, h0, h1, depth=0, max_depth=10,result = []):
         """
         Recursively perform analysis of the signal by applying the
