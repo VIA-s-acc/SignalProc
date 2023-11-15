@@ -154,11 +154,11 @@ class Signal:
             Signal: An upsampled signal.
         """
         if factor <= 0:
-            raise ValueError("Stretch factor should be greater tha[n 0")
+            raise ValueError("Stretch factor should be greater than 0")
         stretched_values = []
         for i in range(self.length):
             stretched_values.append(self.values[i])
-            if i!=self.length-1:          
+            if i != self.length-1: 
                 stretched_values.extend([0] * (factor - 1))  # Insert zeros
         return Signal(stretched_values, self.start_index)
 
@@ -194,16 +194,111 @@ class Signal:
             for j,k in zip(range(i, i+kernel.length), range(len(Y_set))):
                 Z_set[j] =  Y_set[k]
             for l in range(len(Z_set)):
-                result_values[i] += Z_set[l]*X_set[l]      
-        return Signal(result_values, convolve_start_index)
+                result_values[i] += Z_set[l]*X_set[l]
+        return Signal(result_values[1:], convolve_start_index)
 
 
-    # def test(self, kernel):
+    def Analysis(self,h0,h1):
+        """
+            Perform analysis of the signal by convolving it
+            with two given signals (h0 and h1). The result is downsampled
+            by a factor of 2, and the intermediate signals are named and returned.
 
-    #     calc_matrix = []
-    #     for i in range(kernel.length):
-    #         calc_matrix.append([kernel.values[i] * value for value in self.values])
-    #     print(calc_matrix)
+        Args:
+            h0: Signal for convolution.
+            h1: Signal for convolution.
+        Returns:
+
+            Tuple of two downsampled signals (y0, y1).
+        """
+        r0 = self.convolve(h0)
+        r1 = self.convolve(h1)
+        r0.set_name('r0')
+        r1.set_name('r1')
+        y0 = r0.downsample(2)
+        y1 = r1.downsample(2)
+        y0.set_name('y1')
+        y1.set_name('y1')
+        return y0, y1
+    
+    def recursive_analysis(self, x, h0, h1, depth=0, max_depth=10,result = []):
+        """
+        Recursively perform analysis of the signal by applying the
+         Analysis method. This is useful for multi-level signal processing.
+
+        Args:
+
+            x: Signal object to be recursively analyzed.
+            h0: Signal for convolution.
+            h1: Signal for convolution.
+            depth: Current depth in recursion (default is 0).
+            max_depth: Maximum recursion depth (default is 10).
+            result: List to store results.
+        Returns:
+
+            List of recursively analyzed signals.
+        """
+        if depth == max_depth:
+            result.append(x)
+            return x
+
+        y0, y1 = x.Analysis(h0, h1)
+        y0_result = x.recursive_analysis(x= y0, h0=h0, h1=h1,depth = depth + 1, max_depth=max_depth, result = result)
+        y1_result = x.recursive_analysis(x= y1, h0=h0, h1=h1,depth = depth + 1, max_depth=max_depth, result = result)
+        
+        return result
+    
+
+    def recursive_synthesis(self,sig_list,f0, f1):
+        """
+        Recursively synthesize signals from a list using the 
+        Synthesis method until a single signal is obtained.
+
+        Args:
+
+            sig_list: List of signals to be synthesized.
+            f0: Signal for convolution.
+            f1: Signal for convolution.
+        Returns:
+
+            The synthesized signal.
+        """
+        temp_list = []
+        while True:
+            a = 1
+            for i in range(0,len(sig_list),2):
+                temp_list.append(self.Synthesis(sig_list[i:i+2][0],sig_list[i:i+2][1],f0,f1))
+            
+            if len(temp_list) == 1:
+                return temp_list[0]
+            else: 
+                sig_list = temp_list
+                temp_list = []
+
+    def Synthesis(self, y0,y1,f0,f1):
+        """
+        Recursively synthesize signals from a list using 
+        the Synthesis method until a single signal is obtained.
+
+        Args:
+
+            sig_list: List of signals to be synthesized.
+            f0: Signal for convolution.
+            f1: Signal for convolution.
+        Returns:
+
+            The synthesized signal.
+        """
+        t0 = y0.upsample(2)
+        t1 = y1.upsample(2)
+        t0.set_name('t0')
+        t1.set_name('t1')
+        v0 = t0.convolve(f0)
+        v1 = t1.convolve(f1)
+        v0.set_name('v0')
+        v1.set_name('v1')
+        return v0+v1
+
 
     def factorize_polynomial(self, Poly:sympy.Poly=None):
         """
@@ -348,6 +443,21 @@ class Signal:
             f"Finish Index: {self.end_index}\n"
             f"Signal Length: {self.length}\n"
         )
+
+    def __getitem__(self,key):
+        """
+        Get item from Signal.values by Key
+        """
+        return self.values[key]
+    
+    def __iter__(self):
+        """Return an iterator over the elements in the vector.
+
+        Returns:
+            iterator: An iterator over the elements in the vector.
+        """
+        return iter(self.values)
+    
 
     def set_name(self,name:str):
         """Set Signal Name
