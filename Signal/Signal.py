@@ -413,8 +413,8 @@ class Signal:
         v0 = t0.convolve(f0)
         v1 = t1.convolve(f1)
         start_index = min(v0.start_index, v1.start_index)
-        v0 = Signal(v0.values[3:],v0.start_index)
-        v1 = Signal(v1.values[3:],v0.start_index)
+        v0 = Signal(v0.values[3:-2],v0.start_index)
+        v1 = Signal(v1.values[3:-2],v0.start_index)
         ic()
         return v0+v1
 
