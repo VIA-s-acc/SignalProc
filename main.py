@@ -13,7 +13,8 @@ wavfile_path = os.path.join(current_directory, 'test.wav')
 
 mvlst = sg.wav_to_list(wavfile_path=wavfile_path)
 mvdata = mvlst[0].tolist()
-frametime = mvlst[1]
+nframes = mvlst[1]
+frametime = mvlst[2]
 
 signal_values = [0,3,2,1,5] #степени во возрастанию  
 signal = sg.Signal(signal_values)
@@ -53,7 +54,7 @@ result = x.recursive_analysis(x, max_depth=1, h0=h0, h1=h1)
 temp = x.recursive_synthesis(sig_list = result, f0=f0,f1=f1)
 
 
-sg.list_to_wav("result.wav", temp.values, frametime)
+sg.list_to_wav("result.wav", audio_data = temp.values, num_frames = nframes, frame_rate = frametime)
 
 # y0,y1 = x.Analysis(h0,h1)
 # print(temp)

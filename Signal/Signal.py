@@ -79,7 +79,9 @@ def memoize(func):
         end_time = time.time()
         if recursion_depth == 0:
             execution_time = end_time - start_time
+            ic.enable()
             ic(f"Function: {func.__name__}, Args: {args}, Kwargs: {kwargs}, Execution Time: {execution_time:.6f} seconds")
+            ic.disable()
         return cache[key]
 
     return wrapper
@@ -622,28 +624,43 @@ class Signal:
         self.name = name;
 
 def wav_to_list(wavfile_path):
+    """Converts a WAV file to a list of audio data.
+
+    Args:
+        wavfile_path (str): The file path to the input WAV file.
+
+    Returns:
+        tuple: A tuple containing the following elements:
+            - numpy.ndarray: An array containing the audio data.
+            - int: The number of frames in the audio file.
+            - int: The frame rate of the audio file.
+    """
     wav_data = []
 
     # Открываем WAV-файл
     with wave.open(wavfile_path, 'rb') as wavfile:
         # Получаем параметры аудио
-        framerate = wavfile.getframerate()
-        nframes = wavfile.getnframes()
+        params = wavfile.getparams()
+        framerate = params.framerate
+        nframes = params.nframes
+        wav_data = np.frombuffer(wavfile.readframes(nframes), dtype=np.int16)
 
-        # Читаем аудиоданные и добавляем их в список
-        frames = wavfile.readframes(nframes)
-        wav_data = np.frombuffer(frames, dtype=np.int16)
-
-    return wav_data, framerate
+    return wav_data, nframes, framerate
 
 
-def list_to_wav(wavfile_path, wav_data, framerate):
-    # Открываем WAV-файл для записи
-    with wave.open(wavfile_path, 'wb') as wavfile:
+
+def save_wav_file(file_path, audio_data, num_frames, frame_rate):
+    """Saves audio data to a WAV file.
+
+    Args:
+        file_path (str): The file path to save the output WAV file.
+        audio_data (numpy.ndarray): An array containing the audio data.
+        num_frames (int): The number of frames in the audio data.
+        frame_rate (int): The frame rate of the audio data.
+    """
+    with wave.open(file_path, 'wb') as wav_file:
         # Устанавливаем параметры аудио
-        wavfile.setnchannels(1)  # Монофонический звук
-        wavfile.setsampwidth(2)  # 16 бит на отсчет
-        wavfile.setframerate(framerate)
+        wav_file.setparams((1, 2, frame_rate, num_frames, 'NONE', 'not compressed'))
 
-        # Преобразуем данные в байты и записываем их в WAV-файл
-        wavfile.writeframes(np.int16(wav_data).tobytes())
+        # Записываем аудио в файл
+        wav_file.writeframes(audio_data.tobytes())
