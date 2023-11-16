@@ -1,6 +1,9 @@
 import sympy
 from icecream import ic
 import time 
+import os
+import wave
+import numpy as np
 
 DEBUG = False
 if DEBUG != True:
@@ -596,3 +599,18 @@ class Signal:
         """
         ic()
         self.name = name;
+
+def wav_to_list(wavfile_path):
+    wav_data = []
+
+    # Открываем WAV-файл
+    with wave.open(wavfile_path, 'rb') as wavfile:
+        # Получаем параметры аудио
+        framerate = wavfile.getframerate()
+        nframes = wavfile.getnframes()
+
+        # Читаем аудиоданные и добавляем их в список
+        frames = wavfile.readframes(nframes)
+        wav_data = np.frombuffer(frames, dtype=np.int16)
+
+    return wav_data, framerate
