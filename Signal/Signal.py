@@ -368,7 +368,7 @@ class Signal:
         y1_result = x.recursive_analysis(x= y1, h0=h0, h1=h1,depth = depth + 1, max_depth=max_depth, result = result)
         ic()
         return result
-
+    
     @memoize
     def recursive_synthesis(self,sig_list,f0, f1):
         """
@@ -640,27 +640,31 @@ def wav_to_list(wavfile_path):
     # Открываем WAV-файл
     with wave.open(wavfile_path, 'rb') as wavfile:
         # Получаем параметры аудио
-        params = wavfile.getparams()
-        framerate = params.framerate
-        nframes = params.nframes
-        wav_data = np.frombuffer(wavfile.readframes(nframes), dtype=np.int16)
+        framerate = wavfile.getframerate()
+        nframes = wavfile.getnframes()
 
-    return wav_data, nframes, framerate
+        # Читаем аудиоданные и добавляем их в список
+        frames = wavfile.readframes(nframes)
+        wav_data = np.frombuffer(frames, dtype=np.int16)
+
+    return wav_data, framerate
 
 
-
-def list_to_wav(file_path, audio_data, num_frames, frame_rate):
+def list_to_wav(wavfile_path, wav_data, framerate):
     """Saves audio data to a WAV file.
 
     Args:
         file_path (str): The file path to save the output WAV file.
-        audio_data (numpy.ndarray): An array containing the audio data.
-        num_frames (int): The number of frames in the audio data.
-        frame_rate (int): The frame rate of the audio data.
+        wav_data (list): An array containing the audio data.
+        framerate (int): The frame rate of the audio data.
     """
-    with wave.open(file_path, 'wb') as wav_file:
-        # Устанавливаем параметры аудио
-        wav_file.setparams((1, 2, frame_rate, num_frames, 'NONE', 'not compressed'))
 
-        # Записываем аудио в файл
-        wav_file.writeframes(audio_data.tobytes())
+    # Открываем WAV-файл для записи
+    with wave.open(wavfile_path, 'wb') as wavfile:
+        # Устанавливаем параметры аудио
+        wavfile.setnchannels(1)  # Монофонический звук
+        wavfile.setsampwidth(2)  # 16 бит на отсчет
+        wavfile.setframerate(framerate)
+
+        # Преобразуем данные в байты и записываем их в WAV-файл
+        wavfile.writeframes(np.int16(wav_data).tobytes())

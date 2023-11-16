@@ -4,7 +4,7 @@ import random
 # Создаем сигнал
 import sympy
 import os
-import numpy
+import numpy as np
 from icecream import ic
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
@@ -13,8 +13,7 @@ wavfile_path = os.path.join(current_directory, 'test.wav')
 
 mvlst = sg.wav_to_list(wavfile_path=wavfile_path)
 mvdata = mvlst[0].tolist()
-nframes = mvlst[1]
-frametime = mvlst[2]
+framerate = mvlst[1]
 
 signal_values = [0,3,2,1,5] #степени во возрастанию  
 signal = sg.Signal(signal_values)
@@ -46,7 +45,7 @@ h0, f0, h1, f1 = signal.generate_filters(factorized_polynomial)
 
 h0, f0, h1, f1 = factors[0]
 
-x = sg.Signal(mvdata, 0, sig_name='Начальный сигнал')
+x = sg.Signal(mvdata[:100000], 0, sig_name='Начальный сигнал')
 
 
 x.round(3)
@@ -54,7 +53,7 @@ result = x.recursive_analysis(x, max_depth=1, h0=h0, h1=h1)
 temp = x.recursive_synthesis(sig_list = result, f0=f0,f1=f1)
 
 
-sg.list_to_wav("result.wav", audio_data = temp.values, num_frames = nframes, frame_rate = frametime)
+sg.list_to_wav("result.wav", temp.values, framerate)
 
 # y0,y1 = x.Analysis(h0,h1)
 # print(temp)
