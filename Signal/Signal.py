@@ -4,7 +4,7 @@ import time
 import os
 import wave
 import numpy as np
-
+import copy
 DEBUG = False
 if DEBUG != True:
     ic.disable()
@@ -79,8 +79,7 @@ def memoize(func):
         end_time = time.time()
         if recursion_depth == 0:
             execution_time = end_time - start_time
-            print(f"Total Execution time: {execution_time:.6f} seconds")
-
+            ic(f"Function: {func.__name__}, Args: {args}, Kwargs: {kwargs}, Execution Time: {execution_time:.6f} seconds")
         return cache[key]
 
     return wrapper
@@ -367,8 +366,8 @@ class Signal:
         y1_result = x.recursive_analysis(x= y1, h0=h0, h1=h1,depth = depth + 1, max_depth=max_depth, result = result)
         ic()
         return result
-    
 
+    @memoize
     def recursive_synthesis(self,sig_list,f0, f1):
         """
         Recursively synthesize signals from a list using the 
@@ -479,24 +478,46 @@ class Signal:
         ic()
         return H0,F0,H1,F1
 
-    # def filter_bank_6th_degree(self, HF):
-    #     """
-    #     Implement a filter bank for a polynomial of 6th degree.
+    def filter_bank_6th_degree(self, HF):
+        """
+        Implement a filter bank for a polynomial of 6th degree.
 
-    #     Example:
-    #     ```
-    #     signal.filter_bank_6th_degree()
-    #     ```
+        Example:
+        ```
+        signal.filter_bank_6th_degree()
+        ```
 
-    #     Returns:
-    #         list: A list of six filtered signals.
-    #     """
-    #     filters = []
-    #     for i in range(6):
-    #         h1, f1 = self.generate_filters(HF)
-    #         filtered_signal = self.convolve(h1) + self.convolve(f1)
-    #         filters.append(filtered_signal)
-    #     return filters
+        Returns:
+            list: A list of six filtered signals.
+        """
+        c1=1
+        c2=1
+        try:
+            HF[0]
+            c1=HF[0]
+        except:
+            pass
+        try:
+            HF[2]
+            c2=HF[2]
+        except:
+            pass
+        rest = copy.deepcopy(HF)
+        cop = copy.deepcopy(HF)
+        result = []
+        for i in range(HF[1][0][1]):
+            result.append(self.generate_filters(HF))
+            temp = (HF[1][0][0],HF[1][0][1]-1)
+            HF[1][0] = temp
+            temp1 = (HF[1][1][0] * HF[1][0][0],1)
+            HF[1][1] = temp1
+            if HF[1][0][1] < 0:
+                break
+
+        HF = rest
+        return result
+ 
+    
  
 
     
@@ -614,3 +635,15 @@ def wav_to_list(wavfile_path):
         wav_data = np.frombuffer(frames, dtype=np.int16)
 
     return wav_data, framerate
+
+
+def list_to_wav(wavfile_path, wav_data, framerate):
+    # Открываем WAV-файл для записи
+    with wave.open(wavfile_path, 'wb') as wavfile:
+        # Устанавливаем параметры аудио
+        wavfile.setnchannels(1)  # Монофонический звук
+        wavfile.setsampwidth(2)  # 16 бит на отсчет
+        wavfile.setframerate(framerate)
+
+        # Преобразуем данные в байты и записываем их в WAV-файл
+        wavfile.writeframes(np.int16(wav_data).tobytes())

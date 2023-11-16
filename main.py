@@ -12,7 +12,8 @@ current_directory = os.path.dirname(os.path.abspath(__file__))
 wavfile_path = os.path.join(current_directory, 'test.wav')
 
 mvlst = sg.wav_to_list(wavfile_path=wavfile_path)
-
+mvdata = mvlst[0].tolist()
+frametime = mvlst[1]
 
 signal_values = [0,3,2,1,5] #степени во возрастанию  
 signal = sg.Signal(signal_values)
@@ -20,9 +21,8 @@ x = sympy.Symbol("x")
 poly = sympy.Poly('-1/16+9/16*x**(-2)+16/16*x**(-3)+9/16*x**(-4)-1/16*x**(-6)')
 # Применяем функции
 factorized_polynomial = signal.factorize_polynomial(Poly=poly)
+factors = signal.filter_bank_6th_degree(factorized_polynomial)
 h0, f0, h1, f1 = signal.generate_filters(factorized_polynomial)
-
-
 
 
 
@@ -43,12 +43,17 @@ h0, f0, h1, f1 = signal.generate_filters(factorized_polynomial)
 # f1 = sg.Signal([-1/sq, 1/sq],-1,0, sig_name = 'f1')
 
 
-x = sg.Signal(mvlst[0].tolist(), 0, sig_name='Начальный сигнал')
+h0, f0, h1, f1 = factors[0]
+
+x = sg.Signal(mvdata, 0, sig_name='Начальный сигнал')
 
 
 x.round(3)
 result = x.recursive_analysis(x, max_depth=1, h0=h0, h1=h1)
 temp = x.recursive_synthesis(sig_list = result, f0=f0,f1=f1)
+
+
+sg.list_to_wav("result.wav", temp.values, frametime)
 
 # y0,y1 = x.Analysis(h0,h1)
 # print(temp)
