@@ -649,7 +649,7 @@ def wav_to_list(wavfile_path):
 
 
 
-def save_wav_file(file_path, audio_data, num_frames, frame_rate):
+def list_to_wav(file_path, audio_data, num_frames, frame_rate):
     """Saves audio data to a WAV file.
 
     Args:
