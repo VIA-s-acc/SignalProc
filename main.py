@@ -12,6 +12,7 @@ current_directory = os.path.dirname(os.path.abspath(__file__))
 wavfile_path = os.path.join(current_directory, 'test.wav')
 
 mvlst = sg.wav_to_list(wavfile_path=wavfile_path)
+print(len(mvlst[0]))
 mvdata = mvlst[0].tolist()
 framerate = mvlst[1]
 
@@ -45,11 +46,11 @@ h0, f0, h1, f1 = signal.generate_filters(factorized_polynomial)
 
 h0, f0, h1, f1 = factors[0]
 
-x = sg.Signal(mvdata[:100000], 0, sig_name='Начальный сигнал')
+x = sg.Signal(mvdata, 0, sig_name='Начальный сигнал')
 
 
 x.round(3)
-result = x.recursive_analysis(x, max_depth=1, h0=h0, h1=h1)
+result = x.recursive_analysis(x, max_depth=10, h0=h0, h1=h1)
 temp = x.recursive_synthesis(sig_list = result, f0=f0,f1=f1)
 
 

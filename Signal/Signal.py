@@ -79,9 +79,7 @@ def memoize(func):
         end_time = time.time()
         if recursion_depth == 0:
             execution_time = end_time - start_time
-            ic.enable()
             ic(f"Function: {func.__name__}, Args: {args}, Kwargs: {kwargs}, Execution Time: {execution_time:.6f} seconds")
-            ic.disable()
         return cache[key]
 
     return wrapper
@@ -391,7 +389,7 @@ class Signal:
                 temp_list.append(self.Synthesis(sig_list[i:i+2][0],sig_list[i:i+2][1],f0,f1))
             
             if len(temp_list) == 1:
-                ic()
+                ic()    
                 return temp_list[0]
             else: 
                 sig_list = temp_list
@@ -664,7 +662,7 @@ def list_to_wav(wavfile_path, wav_data, framerate):
         # Устанавливаем параметры аудио
         wavfile.setnchannels(1)  # Монофонический звук
         wavfile.setsampwidth(2)  # 16 бит на отсчет
-        wavfile.setframerate(framerate)
+        wavfile.setframerate(framerate*2)
 
         # Преобразуем данные в байты и записываем их в WAV-файл
         wavfile.writeframes(np.int16(wav_data).tobytes())
