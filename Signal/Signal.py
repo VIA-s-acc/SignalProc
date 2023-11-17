@@ -79,9 +79,10 @@ def memoize(func):
         end_time = time.time()
         if recursion_depth == 0:
             execution_time = end_time - start_time
+            ic.enable()
             ic(f"Function: {func.__name__}, Args: {args}, Kwargs: {kwargs}, Execution Time: {execution_time:.6f} seconds")
+            ic.disable()
         return cache[key]
-
     return wrapper
 
 class Signal:
@@ -340,7 +341,7 @@ class Signal:
         return y0, y1
     
     @memoize
-    def recursive_analysis(self, x, h0, h1, depth=0, max_depth=10,result = []):
+    def recursive_analysis(self, x, h0, h1, max_depth=10,result = []):
         """
         Recursively perform analysis of the signal by applying the
          Analysis method. This is useful for multi-level signal processing.
@@ -357,14 +358,12 @@ class Signal:
 
             List of recursively analyzed signals.
         """
-        if depth == max_depth:
-            result.append(x)
-            return x
-
-        y0, y1 = x.Analysis(h0, h1)
-        y0_result = x.recursive_analysis(x= y0, h0=h0, h1=h1,depth = depth + 1, max_depth=max_depth, result = result)
-        y1_result = x.recursive_analysis(x= y1, h0=h0, h1=h1,depth = depth + 1, max_depth=max_depth, result = result)
-        ic()
+        sig = copy.deepcopy(x)
+        for i in range(max_depth):
+            y0, y1 = sig.Analysis(h0,h1)
+            result.append(y1)
+            sig = y0
+        result.append(y0)
         return result
     
     @memoize
@@ -382,19 +381,15 @@ class Signal:
 
             The synthesized signal.
         """
-        temp_list = []
-        while True:
-            a = 1
-            for i in range(0,len(sig_list),2):
-                temp_list.append(self.Synthesis(sig_list[i:i+2][0],sig_list[i:i+2][1],f0,f1))
-            
-            if len(temp_list) == 1:
-                ic()    
-                return temp_list[0]
-            else: 
-                sig_list = temp_list
-                temp_list = []
-        
+        iter_list = copy.deepcopy(sig_list)
+        while len(iter_list) != 1:
+            y0 = iter_list[len(iter_list)-1]
+            y1 = iter_list[len(iter_list)-2]
+            result = self.Synthesis(y0,y1,f0,f1)
+            iter_list.pop()
+            iter_list[len(iter_list)-1] = result
+        return iter_list[0]
+    
     def Synthesis(self, y0,y1,f0,f1):
         """
         Recursively synthesize signals from a list using 
@@ -490,20 +485,8 @@ class Signal:
         Returns:
             list: A list of six filtered signals.
         """
-        c1=1
-        c2=1
-        try:
-            HF[0]
-            c1=HF[0]
-        except:
-            pass
-        try:
-            HF[2]
-            c2=HF[2]
-        except:
-            pass
+
         rest = copy.deepcopy(HF)
-        cop = copy.deepcopy(HF)
         result = []
         for i in range(HF[1][0][1]):
             result.append(self.generate_filters(HF))
@@ -511,9 +494,10 @@ class Signal:
             HF[1][0] = temp
             temp1 = (HF[1][1][0] * HF[1][0][0],1)
             HF[1][1] = temp1
-            if HF[1][0][1] < 0:
+            
+            if HF[1][0][1] == 0:
+                result.append(self.generate_filters(HF))
                 break
-
         HF = rest
         return result
  
