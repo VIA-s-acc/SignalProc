@@ -10,7 +10,7 @@ from icecream import ic
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
 
-wavfile_path = os.path.join(current_directory, 'champ1.wav')
+wavfile_path = os.path.join(current_directory, 'notr.wav')
 
 mvlst = sg.wav_to_list(wavfile_path=wavfile_path)
 mvdata = mvlst[0].tolist()
@@ -38,16 +38,17 @@ h0, f0, h1, f1 = factors[0]
 x = sg.Signal(mvdata, 0, sig_name='Начальный сигнал')
 
 x.round(3)
-result = x.recursive_analysis(x, max_depth=8, h0=h0, h1=h1)
-for i in range(1,5):
-    result[i].values = [0 for i in range(len(result[1].values))]
+result = x.recursive_analysis(x, max_depth=10, h0=h0, h1=h1)
+# num = 4
+# for i in range(1,num+1):
+#     result[i].values = [0 for i in range(len(result[1].values))]
 
     
 for i in range(len(result)):
     
-    sg.list_to_wav(f"res00/4/result{i}.wav",result[i].values, framerate/((i+1)*2))
+    sg.list_to_wav(f"res00/00/result{i}.wav",result[i].values, framerate/((i+1)*2))
 
 
 temp = x.recursive_synthesis(sig_list = result, f0=f0,f1=f1)
-sg.list_to_wav("res00/4/result.wav", temp.values, framerate)
+sg.list_to_wav(f"res00/00/result.wav", temp.values, framerate)
 
