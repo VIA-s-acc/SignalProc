@@ -91,27 +91,34 @@ def main():
     start1_d = datetime.datetime.now()
     start1_t = time.time()
     result = x.recursive_analysis(x, max_depth=max_dep, h0=h0, h1=h1)
-    print(f"\n[T] END recursive_analysis:\nSTART: {start1_d}\nEND: {datetime.datetime.now()}\nExecution Time: {start1_t-time.time()} ")
+    print(colors.GREEN)
+    print(f"\n[T] END recursive_analysis:\nSTART: {start1_d}\nEND: {datetime.datetime.now()}\nExecution Time: {time.time()-start1_t} ")
+    print(colors.RESET)
     if mode_ == "F":
         for i in range(len(result)):    
             start2_d = datetime.datetime.now()
             start2_t = time.time()
             sg.list_to_wav(f"result{i}.wav",result[i].values, framerate/((i+1)*2))
-            print(f"\n[T] END list_to_wav{i}:\nSTART: {start2_d}\nEND: {datetime.datetime.now()}\nExecution Time: {start2_t-time.time()} ")
-
+            print(colors.GREEN)
+            print(f"\n[T] END list_to_wav{i}:\nSTART: {start2_d}\nEND: {datetime.datetime.now()}\nExecution Time: {time.time()-start2_t} ")
+            print(colors.RESET)
     start1_d = datetime.datetime.now()
     start1_t = time.time()
     temp = x.recursive_synthesis(sig_list = result, f0=f0,f1=f1)
-    print(f"\n[T] END recursive_analysis:\nSTART: {start1_d}\nEND: {datetime.datetime.now()}\nExecution Time: {start1_t-time.time()} ")
-
+    
+    print(colors.GREEN)
+    print(f"\n[T] END recursive_analysis:\nSTART: {start1_d}\nEND: {datetime.datetime.now()}\nExecution Time: {time.time()-start1_t} ")
+    print(colors.RESET)
     if mode_ == "F":
         for i in range(len(result)):    
             start2_d = datetime.datetime.now()
             start2_t = time.time()
+            print(colors.GREEN)
             sg.list_to_wav(f"result.wav", temp.values, framerate)
-            print(f"\n[T] END list_to_wav:\nSTART: {start2_d}\nEND: {datetime.datetime.now()}\nExecution Time: {start2_t-time.time()} ")
+            print(f"\n[T] END list_to_wav:\nSTART: {start2_d}\nEND: {datetime.datetime.now()}\nExecution Time: {time.time()-start2_t} ")
+            print(colors.RESET)
     print(colors.YELLOW)
-    tprint("DONE", font = 'bulbhead')
+    tprint("[D] DONE", font = 'bulbhead')
     print(colors.RESET)
     return temp
 
