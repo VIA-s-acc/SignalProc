@@ -52,43 +52,51 @@ def main():
     print(colors.YELLOW)
     tprint("[S] SIGNAL PROCESSING", font = "bulbhead")
     print(colors.RESET)
-    fac_num = int(input("\n[I] CHOOSE FILTER NUM (FROM 0 TO 6): ")) or 0
+    fac_num = input("\n[I] CHOOSE FILTER NUM (FROM 0 TO 6): ")
+    if not fac_num.isdigit():
+        fac_num = 0
     h0, f0, h1, f1 = factors[fac_num]
     if fac_num > 6 or fac_num < 0:
-        raise ValueError("Filter_num error")
+        raise IndexError("FILTER_NUM error")
     mode_ = input("\n[I] INPUT MODE 'L','F' ('L' - list mode, 'F' - file mode): ") or "F"
     if mode_ == "L":
-        len_ = int(input("\n[I] List Len: ")) or 1
+        len_ = input("\n[I] List Len: ")
+        if not len_.isdigit():
+            len_ = 1
         mvlst = []
         for i in len_:
             el = input(f'\n[I] {i} elem : ')
             if isinstance(el, (int,float)):
                 mvlst.append(el)
             else:
-                raise ValueError("[E] el must be int or float")
+                raise ValueError("[E] ELEMENT TYPE MUST BE INT OR FLOAT")
             
     elif mode_ == "F":
-        wavfile_path = input("\n[I] input file path: ")
+        wavfile_path = input("\n[I] INPUT FILE PATH: ")
         if Path(wavfile_path).is_file() and Path(wavfile_path).suffix == '.wav':
-            print(f"\n[+] Original File: {Path(wavfile_path).name}")
-            print(f"\n[+] Processing...")
+            print(f"\n[+] ORIGINAL FILE: {Path(wavfile_path).name}")
+            print(f"\n[+] PROCESSING...")
             start1_d = datetime.datetime.now()
             start1_t = time.time()
             mvlst = sg.wav_to_list(wavfile_path=wavfile_path)
             mvdata = mvlst[0].tolist()
             framerate = mvlst[1]
             print(colors.GREEN)
-            print(f"\n[T] END wav_to_list:\nSTART: {start1_d}\nEND: {datetime.datetime.now()}\nExecution Time: {time.time()-start1_t} ")
+            print(f"\n[T] END wav_to_list:\nSTART: {start1_d}\nEND: {datetime.datetime.now()}\nEXECUTION TIME: {time.time()-start1_t} ")
             print(colors.RESET)
         else:
-            raise FileExistsError("\n[E] File not exists, check the file path.")
+            raise FileExistsError("\n[E] FILE NOT EXISTS, CHECK THE FILE PATH.")
 
     else: 
         raise NameError("[E] Mode error")
 
     x = sg.Signal(mvdata, 0, sig_name='Начальный сигнал')
-    r_mode = int(input("\n[I] Round_Mode int num: ")) or 1
-    max_dep = int(input("\n[I] max depth input: ")) or 3
+    r_mode = input("\n[I] ROUND DIGITS NUM: ")
+    if not r_mode.isdigit():
+        r_mode = 0
+    max_dep = input("\n[I] MAX DEPTH INPUT: ")
+    if not max_dep.isdigit():
+        max_dep = 3
     x.round(r_mode)
     start1_d = datetime.datetime.now()
     start1_t = time.time()
@@ -97,6 +105,23 @@ def main():
     print(f"\n[T] END recursive_analysis:\nSTART: {start1_d}\nEND: {datetime.datetime.now()}\nExecution Time: {time.time()-start1_t} ")
     print(colors.RESET)
     if mode_ == "F":
+        del_mode_ = input("\n[I] DO YOU WANT TO SET SOME COMPONENTS TO 0? (Y|N): ") or 'n'
+        if del_mode_.lower() == "y":
+            del_range_1 = int(input("\n[I] RANGE FIRST BOARD: ")) 
+            del_range_2 = int(input("\n[I] RANGE SECOND BOARD: "))
+            if del_range_2 < del_range_1:
+                raise ValueError("\n[E] SECOND BOARD MUST BE >= FIRST BOARD.")
+            elif del_range_1 < 1 or del_range_2 < 1:
+                raise ValueError('\n[E] RANGE BOARDS MUST BE >= 1')
+            elif del_range_2 > max_dep-1:
+                raise ValueError("\n[E] FIRST BOARD MUST BE >= MAX DEPTH.")
+            for i in range(del_range_1, del_range_2):
+                result[i].values = [0 for i in range(len(result[i].values))]
+            print(f"\n[+] COMPONENTS FROM {del_range_1} TO {del_range_2} SET TO 0.")            
+        elif del_mode_.lower() == "n":
+            pass
+        else:
+            raise ValueError("[E] Y or N")
         for i in range(len(result)):    
             start2_d = datetime.datetime.now()
             start2_t = time.time()
