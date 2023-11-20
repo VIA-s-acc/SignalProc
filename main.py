@@ -77,7 +77,9 @@ def main():
             mvlst = sg.wav_to_list(wavfile_path=wavfile_path)
             mvdata = mvlst[0].tolist()
             framerate = mvlst[1]
-            print(f"\n[T] END wav_to_list:\nSTART: {start1_d}\nEND: {datetime.datetime.now()}\nExecution Time: {start1_t-time.time()} ")
+            print(colors.GREEN)
+            print(f"\n[T] END wav_to_list:\nSTART: {start1_d}\nEND: {datetime.datetime.now()}\nExecution Time: {time.time()-start1_t} ")
+            print(colors.RESET)
         else:
             raise FileExistsError("\n[E] File not exists, check the file path.")
 
@@ -113,8 +115,8 @@ def main():
         for i in range(len(result)):    
             start2_d = datetime.datetime.now()
             start2_t = time.time()
-            print(colors.GREEN)
             sg.list_to_wav(f"result.wav", temp.values, framerate)
+            print(colors.GREEN)
             print(f"\n[T] END list_to_wav:\nSTART: {start2_d}\nEND: {datetime.datetime.now()}\nExecution Time: {time.time()-start2_t} ")
             print(colors.RESET)
     print(colors.YELLOW)

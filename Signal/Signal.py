@@ -79,9 +79,7 @@ def memoize(func):
         end_time = time.time()
         if recursion_depth == 0:
             execution_time = end_time - start_time
-            ic.enable()
             ic(f"Function: {func.__name__}, Args: {args}, Kwargs: {kwargs}, Execution Time: {execution_time:.6f} seconds")
-            ic.disable()
         return cache[key]
     return wrapper
 
