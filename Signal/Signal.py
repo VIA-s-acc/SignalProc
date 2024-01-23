@@ -342,7 +342,7 @@ class Signal:
     def recursive_analysis(self, x, h0, h1, max_depth=10,result = []):
         """
         Recursively perform analysis of the signal by applying the
-         Analysis method. This is useful for multi-level signal processing.
+        Analysis method. This is useful for multi-level signal processing.
 
         Args:
 

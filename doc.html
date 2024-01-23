@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signal Processing Documentation [OLD version 0.1.0]</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        
+        h1, h2, h3 {
+            color: #800000;
+        }
+
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family:'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+            color: #00a2ad;
+        }
+
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+
+
+        .class-name {
+            color: #800080;
+        }
+
+        .decorator {
+            color: #800000;
+        }
+
+        .attribute-name {
+            color: #000080;
+        }
+    </style>
+</head>
+<body>
+    <h1>Signal Processing Documentation</h1>
+
+    <h2>Table of Contents</h2>
+    <ul>
+        <li><a href="#memoize">memoize</a></li>
+        <li><a href="#Signal-class">Signal class</a></li>
+        <li><a href="#downsample">downsample method</a></li>
+        <li><a href="#upsample">upsample method</a></li>
+        <li><a href="#convolve">convolve method</a></li>
+        <li><a href="#round">round method</a></li>
+        <li><a href="#recursive_analysis">recursive_analysis method</a></li>
+        <li><a href="#recursive_synthesis">recursive_synthesis method</a></li>
+        <li><a href="#Synthesis">Synthesis method</a></li>
+        <li><a href="#factorize_polynomial">factorize_polynomial method</a></li>
+        <li><a href="#generate_filters">generate_filters method</a></li>
+        <li><a href="#filter_bank_6th_degree">filter_bank_6th_degree method</a></li>
+        <li><a href="#wav_to_list">wav_to_list function</a></li>
+        <li><a href="#list_to_wav">list_to_wav function</a></li>
+    </ul>
+
+    <h2 id="memoize" class = 'decorator'>memoize</h2>
+    <pre><code>function memoize(func: callable) -&gt; callable</code></pre>
+    <p>Memoize decorator to cache results of function calls.</p>
+    <pre><code>
+        This decorator is used to store and retrieve the results of function calls
+        based on their input arguments. It helps in optimizing functions by avoiding
+        redundant calculations for the same input arguments.
+
+        Args:
+            func (callable): The function to be memoized.
+
+        Returns:
+            callable: A wrapped function that caches and returns results based on
+                      input arguments.
+    </code></pre>
+
+    <!-- Repeat the pattern for other functions and methods -->
+
+    <h2 id="Signal-class" class = 'class-name'>Signal class</h2>
+    <pre><code>class Signal:</code></pre>
+    <p>A class for working with signals.</p>
+    <pre><code>
+        Args:
+            values (list): A list of values representing the signal.
+            start_index (int, optional): The starting index. Defaults to 0.
+            end_index (int, optional): The ending index. Defaults to None.
+            sig_name (str, optional): The name of the signal. Defaults to None.
+
+        Raises:
+            ValueError: If `end_index` is invalid.
+            ValueError: If `sig_name` is not a valid string.
+
+        Attributes:
+            values (list): List of values representing the signal.
+            start_index (int): The starting index of the signal.
+            end_index (int): The ending index of the signal.
+            name (str): The name of the signal.
+            length (int): Length of the signal.
+    </code></pre>
+    <!-- Include other methods within the Signal class -->
+
+    <h3 id="downsample">downsample method</h3>
+    <pre><code>function downsample(factor: int) -&gt; Signal</code></pre>
+    <p>Downsample the signal by a given factor.</p>
+    <pre><code>
+        Args:
+            factor (int): The downsampling factor.
+
+        Raises:
+            ValueError: If the factor is less than or equal to 0.
+
+        Returns:
+            Signal: A downsampled signal.
+    </code></pre>
+
+    <!-- Repeat the pattern for other methods within the Signal class -->
+
+    <h3 id="upsample">upsample method</h3>
+    <pre><code>function upsample(factor: int) -&gt; Signal</code></pre>
+    <p>Upsample the signal by a given factor.</p>
+    <pre><code>
+        Args:
+            factor (int): The upsampling factor.
+
+        Raises:
+            ValueError: If the factor is less than or equal to 0.
+
+        Returns:
+            Signal: An upsampled signal.
+    </code></pre>
+
+    <!-- Repeat the pattern for other methods within the Signal class -->
+
+    <h3 id="convolve">convolve method</h3>
+    <pre><code>function convolve(kernel: Signal) -&gt; Signal</code></pre>
+    <p>Convolve the signal with another signal (kernel).</p>
+    <pre><code>
+        Args:
+            kernel (Signal): The kernel signal for convolution.
+
+        Raises:
+            TypeError: If the kernel is not a Signal instance.
+
+        Returns:
+            Signal: The convolved signal.
+    </code></pre>
+
+    <!-- Repeat the pattern for other methods within the Signal class -->
+
+    <h3 id="round">round method</h3>
+    <pre><code>function round(ndigits: int) -&gt; None</code></pre>
+    <p>Round the signal values to a specified number of decimal places.</p>
+    <pre><code>
+        Args:
+            ndigits (int, optional): Number of decimal places. Defaults to 0.
+    </code></pre>
+
+    <!-- Repeat the pattern for other methods within the Signal class -->
+
+    <h3 id="recursive_analysis">recursive_analysis method</h3>
+    <pre><code>function recursive_analysis(x: Signal, h0: Signal, h1: Signal, max_depth: int = 10) -&gt; List[Signal]</code></pre>
+    <p>Recursively perform analysis of the signal by applying the Analysis method.</p>
+    <pre><code>
+        Args:
+            x: Signal object to be recursively analyzed.
+            h0: Signal for convolution.
+            h1: Signal for convolution.
+            max_depth: Maximum depth of recursion. Defaults to 10.
+
+        Returns:
+            List[Signal]: List of analysis signals at different levels of recursion.
+    </code></pre>
+
+    <!-- Repeat the pattern for other methods within the Signal class -->
+
+    <h3 id="recursive_synthesis">recursive_synthesis method</h3>
+    <pre><code>function recursive_synthesis(y: List[Signal], h0: Signal, h1: Signal) -&gt; Signal</code></pre>
+    <p>Recursively perform synthesis of the signal by applying the Synthesis method.</p>
+    <pre><code>
+        Args:
+            y: List of analysis signals.
+            h0: Signal for convolution.
+            h1: Signal for convolution.
+
+        Returns:
+            Signal: Synthesized signal.
+    </code></pre>
+
+    <!-- Repeat the pattern for other methods within the Signal class -->
+
+    <h3 id="Synthesis">Synthesis method</h3>
+    <pre><code>function Synthesis(x: Signal, h0: Signal, h1: Signal, depth: int = 10) -&gt; Signal</code></pre>
+    <p>Perform signal synthesis using the Analysis and Synthesis methods recursively.</p>
+    <pre><code>
+        Args:
+            x: Signal object to be synthesized.
+            h0: Signal for convolution.
+            h1: Signal for convolution.
+            depth: Depth of recursion. Defaults to 10.
+
+        Returns:
+            Signal: Synthesized signal.
+    </code></pre>
+
+    <!-- Repeat the pattern for other methods within the Signal class -->
+
+    <h3 id="factorize_polynomial">factorize_polynomial method</h3>
+    <pre><code>function factorize_polynomial(polynomial: Signal) -&gt; List[Signal]</code></pre>
+    <p>Factorize a polynomial signal into its irreducible factors.</p>
+    <pre><code>
+        Args:
+            polynomial (Signal): The polynomial signal to factorize.
+
+        Returns:
+            List[Signal]: List of irreducible factors.
+    </code></pre>
+
+    <!-- Repeat the pattern for other methods within the Signal class -->
+
+    <h3 id="generate_filters">generate_filters method</h3>
+    <pre><code>function generate_filters(order: int, frequency_ratio: float = 0.5) -&gt; Tuple[Signal, Signal]</code></pre>
+    <p>Generate low-pass and high-pass filters of a given order.</p>
+    <pre><code>
+        Args:
+            order (int): Order of the filters.
+            frequency_ratio (float): Frequency ratio between low-pass and high-pass filters. Defaults to 0.5.
+
+        Returns:
+            Tuple[Signal, Signal]: Low-pass and high-pass filters.
+    </code></pre>
+
+    <!-- Repeat the pattern for other methods within the Signal class -->
+
+    <h3 id="filter_bank_6th_degree">filter_bank_6th_degree method</h3>
+    <pre><code>function filter_bank_6th_degree(x: Signal) -&gt; List[Signal]</code></pre>
+    <p>Apply a filter bank with 6th-degree filters to the input signal.</p>
+    <pre><code>
+        Args:
+            x (Signal): Input signal.
+
+        Returns:
+            List[Signal]: List of output signals after filtering.
+    </code></pre>
+
+    <!-- Repeat the pattern for other methods within the Signal class -->
+
+    <h2 id="wav_to_list">wav_to_list function</h2>
+    <pre><code>function wav_to_list(wavfile_path: str) -&gt; tuple</code></pre>
+    <p>Converts a WAV file to a list of audio data.</p>
+    <pre><code>
+        Args:
+            wavfile_path (str): The file path to the input WAV file.
+
+        Returns:
+            tuple: A tuple containing the following elements:
+                - numpy.ndarray: An array containing the audio data.
+                - int: The number of frames in the audio file.
+                - int: The frame rate of the audio file.
+    </code></pre>
+
+    <!-- Repeat the pattern for other functions and classes -->
+
+    <h2 id="list_to_wav">list_to_wav function</h2>
+    <pre><code>function list_to_wav(wavfile_path: str, wav_data: list, framerate: int)</code></pre>
+    <p>Saves audio data to a WAV file.</p>
+    <pre><code>
+        Args:
+            file_path (str): The file path to save the output WAV file.
+            wav_data (list): An array containing the audio data.
+            framerate (int): The frame rate of the audio data.
+    </code></pre>
+</body>
+</html>
