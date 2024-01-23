@@ -89,7 +89,7 @@ Removed the `DEBUG variable` as it was not actively used in the code.
 ### Added 
 - The `make_immutable` function within the `memoize decorator` to *recursively convert mutable objects to immutable types*.
 
-## Version [0.0.2] - 2023-07-4
+## Version [0.0.1] - 2023-07-4
 
 ### Added
 - Initial development of the code.
