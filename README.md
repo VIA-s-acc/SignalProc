@@ -30,8 +30,11 @@ signal = Signal()
 signal.recursive_analysis()
 # Perform signal synthesis
 signal.recursive_synthesis()
+...
+```
 
 ## Dependencies
+
 Python 3.10
 art 6.1
 asttokens 2.4.1
