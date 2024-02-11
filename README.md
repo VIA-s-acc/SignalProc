@@ -21,16 +21,8 @@ To use this library, ensure you have Python 3.10 installed. You can install the 
 
 ## Usage
 
-```python
-from signal_processing import Signal
-
-# Example usage
-signal = Signal()
-# Perform signal analysis
-signal.recursive_analysis()
-# Perform signal synthesis
-signal.recursive_synthesis()
-...
+```py
+Usage Example [Link](https://github.com/VIA-s-acc/SignalProc/blob/main/process.py)
 ```
 
 ## Dependencies
