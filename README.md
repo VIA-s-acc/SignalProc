@@ -21,9 +21,9 @@ To use this library, ensure you have Python 3.10 installed. You can install the 
 
 ## Usage
 
-```py
+
 Usage Example [Link](https://github.com/VIA-s-acc/SignalProc/blob/main/process.py)
-```
+
 
 ## Dependencies
 ```python
