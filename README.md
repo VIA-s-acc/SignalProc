@@ -1,11 +1,10 @@
 # Signal Processing Library
 
-[Features](#Features) | [Installation](#Installation) | [Usage](#Usage) | [Dependencies](#Dependencies) | [Contributing](#Contributing) | [License](#License)
+[Features](#Features) | [Installation](#Installation) | [Usage](#Usage) | [Dependencies](#Dependencies) | [Contributing](#Contributing) | [License](#License) | [Changelog](https://github.com/VIA-s-acc/SignalProc/blob/main/CHANGELOG.md) | [doc](https://viag.pythonanywhere.com/article/65)
+
 
 This is a Python library for signal processing tasks, including analysis, synthesis, and various signal transformations. The library provides functionality for reading and writing WAV files, signal analysis through convolution and downsampling, recursive analysis and synthesis methods, and more.
 
-[Changelog](https://github.com/VIA-s-acc/SignalProc/blob/main/CHANGELOG.md) | 
-[doc](https://viag.pythonanywhere.com/article/65)
 
 ## Features
 
