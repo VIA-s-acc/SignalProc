@@ -50,7 +50,7 @@ six 1.16.0
 sympy 1.12
 Wave 0.0.2
 
-##Contributing
+## Contributing
 
 Contributions are welcome! Feel free to open an issue or submit a pull request.
 
