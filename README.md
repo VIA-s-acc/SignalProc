@@ -34,7 +34,7 @@ signal.recursive_synthesis()
 ```
 
 ## Dependencies
-```css
+```python
 Python 3.10
 art 6.1
 asttokens 2.4.1
