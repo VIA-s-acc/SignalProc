@@ -2,6 +2,7 @@ include(Catch)
 
 add_executable(signals_tests
   test_toolchain.cpp
+  core/test_laurent.cpp
   cli/test_cli.cpp
   test_golden_files.cpp
   support/golden.cpp
