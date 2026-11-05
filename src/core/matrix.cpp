@@ -3,7 +3,7 @@
 #include <cmath>
 #include <complex>
 
-#include <pocketfft_hdronly.h>
+#include "core/detail/pocketfft.hpp"
 
 #include "core/wavedec.hpp"
 

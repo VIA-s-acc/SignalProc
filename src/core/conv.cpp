@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <complex>
 
-#include <pocketfft_hdronly.h>
+#include "core/detail/pocketfft.hpp"
 
 namespace signals::core {
 namespace {
