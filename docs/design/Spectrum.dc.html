@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Signals — спектр и спектрограмма</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07090D}
+a{color:#56B4E9}a:hover{color:#A9D6F5}
+.t{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:13px;line-height:18px;color:#C9D1D9}
+.l{white-space:pre}
+.pn{position:relative;border:1px solid #2A3240;border-radius:7px;padding:10px 7.8px 6px 7.8px;box-sizing:border-box}
+.pf{border-color:#E8C547}
+.pt{position:absolute;top:-10px;left:10px;background:#0D1117;padding:0 6px;color:#E6EDF3;font-weight:700;white-space:pre}
+.pc{position:absolute;top:-10px;right:10px;background:#0D1117;padding:0 6px;color:#8B949E;white-space:pre}
+.dim{color:#8B949E}
+.tab{color:#9AA4B1;text-decoration:none;padding:0 7.8px;white-space:pre}
+.tab:hover{color:#E6EDF3;background:#1C2230}
+.on{color:#0D1117;background:#E8C547;font-weight:700}
+.key{color:#0D1117;background:#8B949E;padding:0 3px;border-radius:3px;font-weight:700;white-space:pre}
+.cb{font:inherit;background:transparent;border:0;margin:0;padding:0 5px;cursor:pointer;white-space:pre;color:#9AA4B1;line-height:18px}
+.cb:hover{color:#E6EDF3;background:#1C2230}
+.cbon{color:#0D1117;background:#56B4E9;font-weight:700}
+.cbon:hover{color:#0D1117;background:#A9D6F5}
+.hit{position:absolute;left:0;top:0;background:transparent;border:0;padding:0;margin:0;cursor:crosshair}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 840px; background: #0D1117; display: flex; flex-direction: column; overflow: hidden">
+  <div class="l dim" style="height: 28px; line-height: 28px; background: #161B22; text-align: center; font-size: 12px">signals — ~/GITHUB/Signals — 150×44</div>
+  <div style="flex: 1; display: flex; flex-direction: column; padding: 0 15px; min-height: 0">
+    <div style="height: 18px; display: flex; align-items: center; margin-top: 4px">
+      <span class="l" style="color: #E8C547; font-weight: 700"> ◆ Signals </span><span class="l dim">│</span>
+      <a class="tab" href="Main.dc.html">1 Сигнал</a><a class="tab on" href="Spectrum.dc.html">2 Спектр</a><a class="tab" href="Filters.dc.html">3 Фильтры</a><a class="tab" href="Designer.dc.html">4 Банк</a><a class="tab" href="Decomposition.dc.html">5 Разлож.</a><a class="tab" href="Matrix.dc.html">6 Матрица</a><a class="tab" href="Processing.dc.html">7 Обраб.</a><a class="tab" href="Pipeline.dc.html">8 Конвейер</a><a class="tab" href="Theory.dc.html">9 Теория</a>
+      <span style="flex: 1"></span>
+      <span class="l dim">test.wav · L · 44,1 кГц · 10,22 с  </span><span class="key">?</span>
+    </div>
+    <div class="l" style="height: 18px; margin-top: 8px; display: flex; align-items: center">
+      <span class="dim">Окно </span><sc-for list="{{presets}}" as="c" hint-placeholder-count="2"><button class="cb {{c.cls}}" onClick="{{c.pick}}">{{c.label}}</button></sc-for>
+      <span class="dim">  │ Ханн · 75 %  │ ось </span><sc-for list="{{axes}}" as="c" hint-placeholder-count="2"><button class="cb {{c.cls}}" onClick="{{c.pick}}">{{c.label}}</button></sc-for>
+      <span class="dim">  │ </span><button class="cb {{harm.cls}}" onClick="{{harm.pick}}">{{harm.label}}</button>
+      <span class="dim">  │ складывание </span><sc-for list="{{folds}}" as="c" hint-placeholder-count="3"><button class="cb {{c.cls}}" onClick="{{c.pick}}">{{c.label}}</button></sc-for>
+      <span class="dim">  │ пол −90 дБ</span>
+    </div>
+    <div style="flex: 1; display: flex; gap: 7.8px; padding-top: 16px; min-height: 0">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0">
+        <div class="pn pf">
+          <div class="pt" style="color: #E8C547">Спектрограмма · L · {{winTitle}}</div><div class="pc">клик — курсор · ось f лог., Гц · viridis</div>
+          <div class="l dim" style="margin-left: 54.6px">курсор <span style="color: #E8C547">{{curT}} · {{curF}}</span> · {{curLevel}}   выделение <span style="color: #E8C547">2,10–4,85 с</span> → спектр ниже</div>
+          <div style="display: flex; margin-top: 4px">
+            <div class="dim" style="position: relative; width: 54.6px; height: 324px">
+              <sc-for list="{{fticks}}" as="k" hint-placeholder-count="9"><span class="l" style="position: absolute; right: 7.8px; top: {{k.y}}px">{{k.s}}</span></sc-for>
+            </div>
+            <div style="position: relative; width: 780px; height: 324px">
+              <svg width="780" height="324" aria-hidden="true" style="position: absolute; left: 0; top: 0">
+                <path d="{{h0}}" fill="#440154"></path><path d="{{h1}}" fill="#481A6C"></path><path d="{{h2}}" fill="#472F7D"></path><path d="{{h3}}" fill="#414487"></path>
+                <path d="{{h4}}" fill="#39568C"></path><path d="{{h5}}" fill="#31688E"></path><path d="{{h6}}" fill="#2A788E"></path><path d="{{h7}}" fill="#23888E"></path>
+                <path d="{{h8}}" fill="#1F988B"></path><path d="{{h9}}" fill="#22A884"></path><path d="{{h10}}" fill="#35B779"></path><path d="{{h11}}" fill="#54C568"></path>
+                <path d="{{h12}}" fill="#7AD151"></path><path d="{{h13}}" fill="#A5DB36"></path><path d="{{h14}}" fill="#D2E21B"></path><path d="{{h15}}" fill="#FDE725"></path>
+                <rect x="0" y="0" width="780" height="{{fold.y}}" fill="#E69F00" fill-opacity="{{fold.shade}}"></rect>
+                <rect x="0" y="{{fold.y}}" width="780" height="1.5" fill="#E69F00" fill-opacity="{{fold.line}}"></rect>
+                <rect x="{{sel.x0}}" y="0" width="1" height="324" fill="#E8C547" fill-opacity="0.55"></rect>
+                <rect x="{{sel.x1}}" y="0" width="1" height="324" fill="#E8C547" fill-opacity="0.55"></rect>
+                <path d="{{harmPath}}" fill="none" stroke="#E8C547" stroke-width="1" stroke-dasharray="3 3"></path>
+                <rect x="{{box.x}}" y="{{box.y}}" width="{{box.w}}" height="{{box.h}}" fill="none" stroke="#56B4E9" stroke-width="1.2" stroke-dasharray="4 3"></rect>
+                <rect x="{{cur.x}}" y="0" width="1" height="324" fill="#FFFFFF" fill-opacity="0.75"></rect>
+                <rect x="0" y="{{cur.y}}" width="780" height="1" fill="#FFFFFF" fill-opacity="0.75"></rect>
+                <rect x="{{heis.x}}" y="{{heis.y}}" width="{{heis.w}}" height="{{heis.h}}" fill="none" stroke="#FFFFFF" stroke-width="1.5"></rect>
+              </svg>
+              <span class="l" style="position: absolute; left: 6px; top: 2px; color: #E69F00; background: #0D1117; padding: 0 3px; opacity: {{fold.line}}">{{fold.label}}</span>
+              <span class="l" style="position: absolute; left: {{box.lx}}px; top: {{box.ly}}px; color: #56B4E9; background: #0D1117; padding: 0 3px">▭ {{box.label}}</span>
+              <button class="hit" style="width: 780px; height: 324px" onClick="{{pick}}" aria-label="Поставить курсор на спектрограмме"></button>
+            </div>
+          </div>
+          <div class="dim" style="position: relative; height: 18px; margin-left: 54.6px; width: 780px">
+            <sc-for list="{{tticks}}" as="k" hint-placeholder-count="6"><span class="l" style="position: absolute; left: {{k.x}}px">{{k.s}}</span></sc-for>
+          </div>
+          <div class="l dim" style="display: flex; align-items: center; margin-left: 54.6px; gap: 6px">
+            <span>−90 дБ</span>
+            <svg width="187.2" height="10" aria-hidden="true">
+              <rect x="0" y="0" width="11.7" height="10" fill="#440154"></rect><rect x="11.7" y="0" width="11.7" height="10" fill="#481A6C"></rect><rect x="23.4" y="0" width="11.7" height="10" fill="#472F7D"></rect><rect x="35.1" y="0" width="11.7" height="10" fill="#414487"></rect>
+              <rect x="46.8" y="0" width="11.7" height="10" fill="#39568C"></rect><rect x="58.5" y="0" width="11.7" height="10" fill="#31688E"></rect><rect x="70.2" y="0" width="11.7" height="10" fill="#2A788E"></rect><rect x="81.9" y="0" width="11.7" height="10" fill="#23888E"></rect>
+              <rect x="93.6" y="0" width="11.7" height="10" fill="#1F988B"></rect><rect x="105.3" y="0" width="11.7" height="10" fill="#22A884"></rect><rect x="117" y="0" width="11.7" height="10" fill="#35B779"></rect><rect x="128.7" y="0" width="11.7" height="10" fill="#54C568"></rect>
+              <rect x="140.4" y="0" width="11.7" height="10" fill="#7AD151"></rect><rect x="152.1" y="0" width="11.7" height="10" fill="#A5DB36"></rect><rect x="163.8" y="0" width="11.7" height="10" fill="#D2E21B"></rect><rect x="175.5" y="0" width="11.7" height="10" fill="#FDE725"></rect>
+            </svg>
+            <span>0 дБ от максимума · одна ячейка = полблока ▀ в терминале</span>
+          </div>
+        </div>
+        <div class="pn" style="flex: 1">
+          <div class="pt">Спектр выделения · 2,10–4,85 с · Уэлч, Ханн 16 384</div><div class="pc">{{axisTitle}} · ▾ пики · {{harmTitle}}</div>
+          <div style="position: relative; height: 18px; margin-left: 46.8px; width: 780px">
+            <sc-for list="{{marks}}" as="m" hint-placeholder-count="6"><span class="l" style="position: absolute; left: {{m.x}}px; color: {{m.c}}">▾</span></sc-for>
+          </div>
+          <div style="display: flex">
+            <div class="dim" style="width: 46.8px; height: 126px; display: flex; flex-direction: column; justify-content: space-between; text-align: right; padding-right: 7.8px; box-sizing: border-box"><div class="l">0</div><div class="l">−50</div><div class="l">−100</div></div>
+            <svg width="780" height="126" aria-hidden="true">
+              <rect x="{{sfold.x}}" y="0" width="{{sfold.w}}" height="126" fill="#E69F00" fill-opacity="{{sfold.shade}}"></rect>
+              <path d="{{sgrid}}" fill="#222A35"></path>
+              <path d="{{sharm}}" fill="#8A7A2E"></path>
+              <path d="{{spec}}" fill="#56B4E9"></path>
+            </svg>
+          </div>
+          <div class="dim" style="position: relative; height: 18px; margin-left: 46.8px; width: 780px">
+            <sc-for list="{{flabels}}" as="f" hint-placeholder-count="5"><span class="l" style="position: absolute; left: {{f.x}}px">{{f.s}}</span></sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="width: 300px; display: flex; flex-direction: column; gap: 16px">
+        <div class="pn">
+          <div class="pt">Под курсором</div><div class="pc">клик по спектрограмме</div>
+          <div class="l"><span class="dim">время     </span>{{curT}} <span class="dim">· кадр {{curFrame}}</span></div>
+          <div class="l"><span class="dim">частота   </span>{{curF}}</div>
+          <div class="l"><span class="dim">нота      </span><span style="color: #E8C547">{{curNote}}</span></div>
+          <div class="l"><span class="dim">уровень   </span>{{curLevel}}</div>
+          <div class="l"><span class="dim">ближ. пик </span>{{nearPeak}}</div>
+        </div>
+        <div class="pn">
+          <div class="pt">Окно и разрешение</div><div class="pc">w / W</div>
+          <div class="l"><span class="dim">Ханн N    </span>{{winN}}</div>
+          <div class="l"><span class="dim">Δt = N/fs </span><span style="color: #E6EDF3">{{winDt}}</span></div>
+          <div class="l"><span class="dim">Δf = fs/N </span><span style="color: #E6EDF3">{{winDf}}</span></div>
+          <div class="l dim">белая рамка — Δt × Δf окна</div>
+        </div>
+        <div class="pn">
+          <div class="pt" style="color: #56B4E9">Измерение ▭</div><div class="pc">тяни мышью</div>
+          <div class="l"><span class="dim">t  </span>5,20–6,10 с <span class="dim">· Δt </span>0,90 с</div>
+          <div class="l"><span class="dim">f  </span>400–1 200 Гц <span class="dim">· Δf </span>800 Гц</div>
+          <div class="l"><span class="dim">средний уровень </span>{{boxLevel}}</div>
+        </div>
+        <div class="pn">
+          <div class="pt">{{listTitle}}</div><div class="pc">{{listNote}}</div>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+            <div class="l"><span style="color: {{r.c}}">{{r.a}}</span> {{r.b}} <span class="dim">{{r.d}}</span> <span style="color: #56B4E9">{{r.bar}}</span></div>
+          </sc-for>
+        </div>
+        <div class="pn" style="flex: 1">
+          <div class="pt">Теория</div><div class="pc"><a href="Theory.dc.html">9 Теория</a></div>
+          <div class="l">Утечка: конечное окно размазывает</div>
+          <div class="l">тон по соседним бинам. У Ханна</div>
+          <div class="l">главный лепесток — 4 бина,</div>
+          <div class="l">боковые — ниже −31 дБ.</div>
+          <div class="l" style="margin-top: 4px">Δt·Δf ≥ 1/4π: длинное окно видит</div>
+          <div class="l">тон, короткое — удар во времени.</div>
+          <div class="l dim" style="margin-top: 4px">Нули в конце сгущают сетку,</div>
+          <div class="l dim">но разрешение не повышают.</div>
+        </div>
+      </div>
+    </div>
+    <div class="l" style="height: 18px; margin: 6px 0 8px 0; display: flex; gap: 14px">
+      <span><span class="key">клик</span> <span class="dim">курсор</span></span><span><span class="key">тяни</span> <span class="dim">▭ Δt·Δf</span></span><span><span class="key">w</span>/<span class="key">W</span> <span class="dim">окно</span></span><span><span class="key">o</span> <span class="dim">перекрытие</span></span><span><span class="key">[</span> <span class="key">]</span> <span class="dim">пол дБ</span></span><span><span class="key">C</span> <span class="dim">палитра</span></span><span><span class="key">h</span> <span class="dim">гармоники</span></span><span><span class="key">m</span> <span class="dim">↓M</span></span><span><span class="key">F1</span> <span class="dim">окна и утечка</span></span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":840}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { preset: 'narrow', axis: 'log', harm: true, m: 0, t: 3.41, f: 86.1 }; }
+  componentDidMount() {
+    fetch('/_blob/9a5c883f4e3f3b8cac874314eadc6789').then((r) => r.json()).then((d) => this.setState({ d: d })).catch(() => this.setState({ failed: true }));
+  }
+  dots(pts, dash) {
+    const r = 1.2, seen = {};
+    let s = '';
+    for (let q = 0; q < pts.length; q++) {
+      const i = pts[q][0], j = pts[q][1];
+      if (dash && (j % 4) > 1) continue;
+      const key = i + ':' + j;
+      if (seen[key]) continue;
+      seen[key] = 1;
+      const cx = i * 3.9 + 1.95, cy = j * 4.5 + 2.25;
+      s += 'M' + (cx - r).toFixed(1) + ' ' + cy.toFixed(1) + 'a' + r + ' ' + r + ' 0 1 0 ' + (2 * r) + ' 0a' + r + ' ' + r + ' 0 1 0 ' + (-2 * r) + ' 0';
+    }
+    return s;
+  }
+  curve(ys, wc, hc, lo, hi) {
+    const n = wc * 2, H = hc * 4, pts = [];
+    let prev = -1;
+    for (let i = 0; i < n; i++) {
+      const v = ys[Math.min(ys.length - 1, Math.floor(i * ys.length / n))];
+      let j = Math.round((hi - v) / (hi - lo) * (H - 1));
+      j = Math.max(0, Math.min(H - 1, j));
+      if (prev < 0) pts.push([i, j]);
+      else { const a = Math.min(prev, j), b = Math.max(prev, j); for (let t = a; t <= b; t++) pts.push([i, t]); }
+      prev = j;
+    }
+    return this.dots(pts);
+  }
+  fmt(v, k) { return v.toFixed(k).replace('.', ',').replace('-', '−'); }
+  hz(f) {
+    if (f >= 1000) return this.fmt(f / 1000, f >= 10000 ? 1 : 2) + ' кГц';
+    return this.fmt(f, f < 100 ? 1 : 0) + ' Гц';
+  }
+  note(f) {
+    const names = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+    const m = 69 + 12 * Math.log2(f / 440), k = Math.round(m), c = Math.round(100 * (m - k));
+    return names[((k % 12) + 12) % 12] + (Math.floor(k / 12) - 1) + ' ' + (c >= 0 ? '+' : '−') + Math.abs(c) + ' ¢';
+  }
+  chip(label, on, pick) { return { label: label, cls: on ? 'cbon' : '', pick: pick }; }
+  renderVals() {
+    const st = this.state, d = st.d;
+    const PX = 780, PH = 324, SW = 100, SR = 7;
+    const v = {
+      presets: [this.chip('широко · N 512', st.preset === 'wide', () => this.setState({ preset: 'wide' })),
+                this.chip('узко · N 4096', st.preset === 'narrow', () => this.setState({ preset: 'narrow' }))],
+      axes: [this.chip('лог', st.axis === 'log', () => this.setState({ axis: 'log' })),
+             this.chip('лин', st.axis === 'lin', () => this.setState({ axis: 'lin' }))],
+      folds: [0, 2, 4].map((m) => this.chip(m ? '↓' + m : 'нет', st.m === m, () => this.setState({ m: m }))),
+      harm: this.chip('гармоники f₀', st.harm, () => this.setState({ harm: !st.harm })),
+      winTitle: '—', curT: '—', curF: '—', curLevel: 'загрузка данных…', curFrame: '—', curNote: '—', nearPeak: '—',
+      winN: '—', winDt: '—', winDf: '—', boxLevel: '—', listTitle: 'Пики выделения', listNote: '', rows: [],
+      fticks: [], tticks: [], marks: [], flabels: [], harmPath: '', spec: '', sgrid: '', sharm: '',
+      fold: { y: 0, shade: 0, line: 0, label: '' }, sfold: { x: 0, w: 0, shade: 0 },
+      sel: { x0: 0, x1: 0 }, box: { x: 0, y: 0, w: 0, h: 0, lx: 0, ly: 0, label: '' },
+      cur: { x: 0, y: 0 }, heis: { x: 0, y: 0, w: 0, h: 0 }, axisTitle: 'ось f лог.', harmTitle: '',
+      pick: () => {}
+    };
+    for (let k = 0; k < 16; k++) v['h' + k] = '';
+    if (!d) return v;
+    const m = d.meta, fs = m.fs, dur = m.dur, ln = Math.log(m.fmax / m.fmin);
+    const g = d[st.preset], grid = g.grid, rows = grid.length, cols = grid[0].length, ch = PH / rows, cw = PX / cols;
+    const yOf = (f) => (1 - Math.log(f / m.fmin) / ln) * PH;
+    const xOf = (t) => t / dur * PX;
+    const buckets = [];
+    for (let k = 0; k < 16; k++) buckets.push('');
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const k = Math.max(0, Math.min(15, Math.floor((grid[r][c] - m.floor) / -m.floor * 16)));
+        buckets[k] += 'M' + (c * cw).toFixed(1) + ' ' + (r * ch).toFixed(1) + 'h' + cw + 'v' + ch + 'h-' + cw + 'z';
+      }
+    }
+    for (let k = 0; k < 16; k++) v['h' + k] = buckets[k];
+    v.fticks = [[20000, '20 к'], [10000, '10 к'], [5000, '5 к'], [2000, '2 к'], [1000, '1 к'], [500, '500'], [200, '200'], [100, '100'], [50, '50']]
+      .map((p) => ({ y: Math.max(0, Math.min(PH - 18, yOf(p[0]) - 9)), s: p[1] }));
+    v.tticks = [0, 2, 4, 6, 8, 10].map((s) => ({ x: Math.max(0, xOf(s) - 4), s: s + ' с' }));
+    v.winTitle = 'Ханн ' + g.n.toLocaleString('ru-RU') + (st.preset === 'wide' ? ' · широкая полоса' : ' · узкая полоса');
+    const dt = g.n / fs, df = fs / g.n;
+    v.winN = g.n.toLocaleString('ru-RU') + ' · шаг ' + (g.n / 4).toLocaleString('ru-RU') + ' (75 %)';
+    v.winDt = this.fmt(dt * 1000, 1) + ' мс';
+    v.winDf = this.fmt(df, 1) + ' Гц';
+    const t = st.t, f = st.f;
+    const col = Math.max(0, Math.min(cols - 1, Math.floor(t / dur * cols)));
+    const row = Math.max(0, Math.min(rows - 1, Math.floor(yOf(f) / ch)));
+    v.curT = this.fmt(t, 2) + ' с';
+    v.curF = this.hz(f);
+    v.curFrame = Math.round(t * fs).toLocaleString('ru-RU');
+    v.curNote = this.note(f);
+    v.curLevel = this.fmt(grid[row][col], 0) + ' дБ';
+    v.cur = { x: xOf(t), y: yOf(f) };
+    const hw = Math.max(2, dt / dur * PX), y1 = yOf(f + df / 2), y2 = yOf(Math.max(m.fmin, f - df / 2));
+    v.heis = { x: xOf(t) - hw / 2, y: y1, w: hw, h: Math.max(2, y2 - y1) };
+    let near = d.peaks[0];
+    d.peaks.forEach((p) => { if (Math.abs(Math.log(p.f / f)) < Math.abs(Math.log(near.f / f))) near = p; });
+    v.nearPeak = this.hz(near.f) + ' ' + this.note(near.f).split(' ')[0] + ' · ' + this.fmt(near.db, 1) + ' дБ';
+    const bx0 = xOf(5.20), bx1 = xOf(6.10), by0 = yOf(1200), by1 = yOf(400);
+    v.box = { x: bx0, y: by0, w: bx1 - bx0, h: by1 - by0, lx: bx1 + 4, ly: by0 - 2, label: '0,90 с × 800 Гц' };
+    let acc = 0, cnt = 0;
+    for (let r = 0; r < rows; r++) {
+      const fc = m.fmin * Math.exp((1 - (r + 0.5) / rows) * ln);
+      if (fc < 400 || fc > 1200) continue;
+      for (let c = 0; c < cols; c++) {
+        const tc = (c + 0.5) / cols * dur;
+        if (tc < 5.20 || tc > 6.10) continue;
+        acc += Math.pow(10, grid[r][c] / 10); cnt++;
+      }
+    }
+    v.boxLevel = cnt ? this.fmt(10 * Math.log10(acc / cnt), 1) + ' дБ' : '—';
+    v.sel = { x0: xOf(m.sel[0]), x1: xOf(m.sel[1]) };
+    if (st.m) {
+      const ff = fs / (2 * st.m);
+      const ffs = ff.toLocaleString('ru-RU') + ' Гц';
+      v.fold = { y: yOf(ff), shade: 0.16, line: 1, label: '↓' + st.m + ' · всё выше ' + ffs + ' сложится в 0–' + ffs };
+    }
+    if (st.harm) {
+      let p = '';
+      for (let k = 1; k <= 8; k++) { const y = yOf(k * d.f0).toFixed(1); p += 'M' + v.sel.x0.toFixed(1) + ' ' + y + 'H' + v.sel.x1.toFixed(1); }
+      v.harmPath = p;
+    }
+    const isLog = st.axis === 'log';
+    const fx = isLog ? (q) => Math.log(Math.max(q, 20) / 20) / Math.log(fs / 2 / 20) : (q) => q / (fs / 2);
+    v.axisTitle = isLog ? 'ось f лог.' : 'ось f лин.';
+    v.spec = this.curve(isLog ? d.spec_log : d.spec_lin, SW, SR, -100, 0);
+    const H = SR * 4, gp = [];
+    [-25, -50, -75].forEach((db) => { const j = Math.round(-db / 100 * (H - 1)); for (let i = 0; i < SW * 2; i += 3) gp.push([i, j]); });
+    (isLog ? [100, 1000, 10000] : [5000, 10000, 15000, 20000]).forEach((q) => { const i = Math.round(fx(q) * SW * 2); for (let j = 0; j < H; j += 3) gp.push([i, j]); });
+    v.sgrid = this.dots(gp);
+    if (st.harm) {
+      const hp = [];
+      for (let k = 1; k <= 8; k++) { const i = Math.round(fx(k * d.f0) * SW * 2); for (let j = 0; j < H; j++) hp.push([i, j]); }
+      v.sharm = this.dots(hp, true);
+      v.harmTitle = 'гармоники f₀ = ' + this.hz(d.f0);
+    }
+    if (st.m) { const x = fx(fs / (2 * st.m)) * PX; v.sfold = { x: x, w: PX - x, shade: 0.14 }; }
+    v.marks = d.peaks.map((p) => ({ x: Math.max(0, fx(p.f) * PX - 3.9), c: Math.abs(p.f - d.f0) < 0.5 ? '#E8C547' : '#8B949E' }));
+    v.flabels = (isLog ? [[20, '20 Гц'], [100, '100'], [1000, '1 к'], [10000, '10 к'], [22050, '22 к']] : [[0, '0 Гц'], [5000, '5 к'], [10000, '10 к'], [15000, '15 к'], [22050, '22 к']])
+      .map((p) => ({ x: Math.min(PX - 36, Math.max(0, fx(p[0]) * PX - 10)), s: p[1] }));
+    const bar = (db) => '█'.repeat(Math.max(0, Math.round((db + 30) / 30 * 7)));
+    if (st.harm) {
+      v.listTitle = 'Гармоники f₀ = ' + this.hz(d.f0);
+      v.listNote = this.note(d.f0);
+      v.rows = d.harmonics.map((h) => ({ a: (h.k + '·f₀').padEnd(5, ' '), b: this.hz(h.f).padStart(10, ' '), d: (this.fmt(h.db, 1) + ' дБ').padStart(9, ' '), bar: bar(h.db), c: h.k === 1 ? '#E8C547' : '#C9D1D9' }));
+    } else {
+      v.listTitle = 'Пики выделения';
+      v.listNote = 'отн. максимума';
+      v.rows = d.peaks.map((p) => ({ a: this.hz(p.f).padStart(9, ' '), b: this.note(p.f).padEnd(9, ' '), d: (this.fmt(p.db, 1) + ' дБ').padStart(8, ' '), bar: bar(p.db), c: '#E6EDF3' }));
+    }
+    v.pick = (e) => {
+      const r = e.currentTarget.getBoundingClientRect();
+      const ax = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      const ay = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+      this.setState({ t: ax * dur, f: m.fmin * Math.exp((1 - ay) * ln) });
+    };
+    return v;
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Signals — обработка с A/B</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07090D}
+a{color:#56B4E9}a:hover{color:#A9D6F5}
+.t{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:13px;line-height:18px;color:#C9D1D9}
+.l{white-space:pre}
+.pn{position:relative;border:1px solid #2A3240;border-radius:7px;padding:10px 7.8px 6px 7.8px;box-sizing:border-box}
+.pf{border-color:#E8C547}
+.pt{position:absolute;top:-10px;left:10px;background:#0D1117;padding:0 6px;color:#E6EDF3;font-weight:700;white-space:pre}
+.pc{position:absolute;top:-10px;right:10px;background:#0D1117;padding:0 6px;color:#8B949E;white-space:pre}
+.dim{color:#8B949E}
+.tab{color:#9AA4B1;text-decoration:none;padding:0 7.8px;white-space:pre}
+.tab:hover{color:#E6EDF3;background:#1C2230}
+.on{color:#0D1117;background:#E8C547;font-weight:700}
+.key{color:#0D1117;background:#8B949E;padding:0 3px;border-radius:3px;font-weight:700;white-space:pre}
+.cb{font:inherit;background:transparent;border:0;margin:0;padding:0 5px;cursor:pointer;white-space:pre;color:#9AA4B1;line-height:18px}
+.cb:hover{color:#E6EDF3;background:#1C2230}
+.cbon{color:#0D1117;background:#56B4E9;font-weight:700}
+.cbon:hover{color:#0D1117;background:#A9D6F5}
+.btn{font:inherit;color:#C9D1D9;background:#161B22;border:1px solid #2A3240;border-radius:4px;padding:0 6px;cursor:pointer;white-space:pre;line-height:16px}
+.btn:hover{border-color:#E8C547;color:#E6EDF3}
+.ax{display:flex;flex-direction:column;justify-content:space-between;text-align:right;padding-right:7.8px;box-sizing:border-box;color:#8B949E}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 840px; background: #0D1117; display: flex; flex-direction: column; overflow: hidden">
+  <div class="l dim" style="height: 28px; line-height: 28px; background: #161B22; text-align: center; font-size: 12px">signals — ~/GITHUB/Signals — 150×44</div>
+  <div style="flex: 1; display: flex; flex-direction: column; padding: 0 15px; min-height: 0">
+    <div style="height: 18px; display: flex; align-items: center; margin-top: 4px">
+      <span class="l" style="color: #E8C547; font-weight: 700"> ◆ Signals </span><span class="l dim">│</span>
+      <a class="tab" href="Main.dc.html">1 Сигнал</a><a class="tab" href="Spectrum.dc.html">2 Спектр</a><a class="tab" href="Filters.dc.html">3 Фильтры</a><a class="tab" href="Designer.dc.html">4 Банк</a><a class="tab" href="Decomposition.dc.html">5 Разлож.</a><a class="tab" href="Matrix.dc.html">6 Матрица</a><a class="tab on" href="Processing.dc.html">7 Обраб.</a><a class="tab" href="Pipeline.dc.html">8 Конвейер</a><a class="tab" href="Theory.dc.html">9 Теория</a>
+      <span style="flex: 1"></span>
+      <span class="l dim">test.wav · L · 2,27–2,45 с + шум 10 дБ · sym8 · J = 5  </span><span class="key">?</span>
+    </div>
+    <div class="l" style="height: 18px; margin-top: 8px; display: flex; align-items: center">
+      <span class="dim">Порог </span><sc-for list="{{rules}}" as="c" hint-placeholder-count="2"><button class="cb {{c.cls}}" onClick="{{c.pick}}">{{c.label}}</button></sc-for>
+      <span class="dim">  │ </span><sc-for list="{{modes}}" as="c" hint-placeholder-count="2"><button class="cb {{c.cls}}" onClick="{{c.pick}}">{{c.label}}</button></sc-for>
+      <span class="dim">  │ λ × </span><sc-for list="{{scales}}" as="c" hint-placeholder-count="5"><button class="cb {{c.cls}}" onClick="{{c.pick}}">{{c.label}}</button></sc-for>
+      <span class="dim">  │ вид </span><sc-for list="{{views}}" as="c" hint-placeholder-count="3"><button class="cb {{c.cls}}" onClick="{{c.pick}}">{{c.label}}</button></sc-for>
+      <span class="dim">  │ края symmetric</span>
+    </div>
+    <div style="flex: 1; display: flex; gap: 7.8px; padding-top: 16px; min-height: 0">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0">
+        <div class="pn pf">
+          <div class="pt" style="color: #E8C547">Коэффициенты · пунктир ±λⱼ · ниже порога приглушено</div><div class="pc">шкала полосы: до 4λⱼ</div>
+          <sc-for list="{{bands}}" as="b" hint-placeholder-count="6">
+            <div style="display: flex; align-items: center; height: 36px; border-bottom: 1px solid #161B22">
+              <div style="width: 210px">
+                <div class="l"><span style="color: {{b.c}}; font-weight: 700">{{b.name}}</span> <span class="dim">{{b.range}}</span></div>
+                <div class="l dim">   {{b.info}}</div>
+              </div>
+              <svg width="624" height="36" aria-hidden="true">
+                <path d="{{b.lam}}" fill="#E8C547"></path>
+                <path d="{{b.dim}}" fill="#3B4656"></path>
+                <path d="{{b.hot}}" fill="{{b.c}}"></path>
+              </svg>
+            </div>
+          </sc-for>
+        </div>
+        <div class="pn">
+          <div class="pt">Сигнал · {{viewTitle}}</div><div class="pc">░ эталон без шума · a / b / x</div>
+          <div style="display: flex; margin-top: 2px">
+            <div class="ax" style="width: 46.8px; height: 108px"><div class="l">+1</div><div class="l">0</div><div class="l">−1</div></div>
+            <svg width="780" height="108" aria-hidden="true">
+              <path d="{{zero}}" fill="#222A35"></path>
+              <path d="{{ghost}}" fill="#3B4656"></path>
+              <path d="{{main}}" fill="{{mainC}}"></path>
+            </svg>
+          </div>
+          <div class="l dim" style="margin-left: 46.8px">убрано, A − B <span style="color: #E69F00">× {{resGain}}</span></div>
+          <div style="display: flex">
+            <div style="width: 46.8px"></div>
+            <svg width="780" height="36" aria-hidden="true"><path d="{{res}}" fill="#E69F00"></path></svg>
+          </div>
+          <div class="dim" style="display: flex; justify-content: space-between; margin-left: 46.8px; width: 780px"><span class="l">2,268 с</span><span class="l">2,314</span><span class="l">2,361</span><span class="l">2,407</span><span class="l">2,453 с</span></div>
+        </div>
+        <div style="display: flex; gap: 7.8px; flex: 1; min-height: 0">
+          <div class="pn" style="flex: 1">
+            <div class="pt">Сжатие · ошибка от K</div><div class="pc">‖x − x_K‖² / ‖x‖²</div>
+            <div class="l dim">— K наибольших  <span style="color: #E8C547">●</span> текущий порог: {{kTxt}}</div>
+            <div style="display: flex">
+              <div class="ax" style="width: 39px; height: 90px"><div class="l">0</div><div class="l">−20</div><div class="l">−40</div></div>
+              <div style="position: relative; width: 358.8px; height: 90px">
+                <svg width="358.8" height="90" aria-hidden="true">
+                  <path d="{{cGrid}}" fill="#222A35"></path>
+                  <path d="{{cCurve}}" fill="#56B4E9"></path>
+                </svg>
+                <span class="l" style="position: absolute; left: {{kX}}px; top: {{kY}}px; color: #E8C547; font-weight: 700">●</span>
+              </div>
+            </div>
+            <div class="dim" style="display: flex; justify-content: space-between; margin-left: 39px; width: 358.8px"><span class="l">K = 1</span><span class="l">10</span><span class="l">100</span><span class="l">1 000</span><span class="l">8 265</span></div>
+          </div>
+          <div class="pn" style="flex: 1">
+            <div class="pt">Правка полос · усиления → T(ω)</div><div class="pc">━ T  ┅ наложение</div>
+            <div class="l"><sc-for list="{{eqs}}" as="c" hint-placeholder-count="4"><button class="cb {{c.cls}}" onClick="{{c.pick}}">{{c.label}}</button></sc-for></div>
+            <div class="l dim">{{gainsTxt}}</div>
+            <div style="display: flex">
+              <div class="ax" style="width: 39px; height: 72px"><div class="l">+10</div><div class="l">−15</div><div class="l">−40</div></div>
+              <svg width="358.8" height="72" aria-hidden="true">
+                <path d="{{eGrid}}" fill="#222A35"></path>
+                <path d="{{eTarget}}" fill="#5A6472"></path>
+                <path d="{{eAlias}}" fill="#E69F00"></path>
+                <path d="{{eT}}" fill="#56B4E9"></path>
+              </svg>
+            </div>
+            <div class="dim" style="display: flex; justify-content: space-between; margin-left: 39px; width: 358.8px"><span class="l">π/128</span><span class="l">π/16</span><span class="l">π/4</span><span class="l">π</span></div>
+            <div class="l" style="color: {{eqC}}">{{eqTxt}}</div>
+          </div>
+        </div>
+      </div>
+      <div style="width: 300px; display: flex; flex-direction: column; gap: 16px">
+        <div class="pn pf">
+          <div class="pt" style="color: #E8C547">Итог</div><div class="pc">{{comboTxt}}</div>
+          <div class="l"><span class="dim">SNR вход   </span>{{snrIn}}</div>
+          <div class="l"><span class="dim">SNR выход  </span><span style="color: {{snrC}}; font-weight: 700">{{snrOut}}</span></div>
+          <div class="l"><span class="dim">сохранено  </span>{{keptTxt}}</div>
+          <div class="l"><span class="dim">сжатие     </span>{{ratioTxt}}</div>
+          <div class="l"><span class="dim">MSE        </span>{{mseTxt}}</div>
+          <div class="l"><span class="dim">энергия    </span>{{energyTxt}}</div>
+          <div class="l dim">SNR — относительно эталона без шума</div>
+        </div>
+        <div class="pn">
+          <div class="pt">Оценка шума</div><div class="pc">как в scikit-image</div>
+          <div class="l"><span class="dim">σ = MAD(d₁)/0,6745 = </span>{{sigmaTxt}}</div>
+          <div class="l"><span class="dim">Bayes  </span>λⱼ = σ² / σₓ,ⱼ <span class="dim">по полосе</span></div>
+          <div class="l"><span class="dim">Visu   </span>λ = σ√(2 ln N) = {{visuTxt}}</div>
+          <div class="l dim">a₅ не трогается</div>
+        </div>
+        <div class="pn">
+          <div class="pt">Прослушивание A/B/X</div>
+          <div class="l" style="display: flex; gap: 5px"><sc-for list="{{plays}}" as="c" hint-placeholder-count="3"><button class="btn" onClick="{{c.pick}}">{{c.label}}</button></sc-for></div>
+          <div class="l" style="margin-top: 6px"><span style="color: #E8C547">█████▌</span><span style="color: #2A3240">██████████████████</span> <span class="dim">2,31 с</span></div>
+          <div class="l dim">переключение без разрыва звука</div>
+        </div>
+        <div class="pn" style="flex: 1">
+          <div class="pt">Теория</div><div class="pc"><a href="Theory.dc.html">9 Теория</a></div>
+          <div class="l">Разреженность: у сигнала мало</div>
+          <div class="l">больших коэффициентов, шум —</div>
+          <div class="l">ровный слой малых во всех полосах.</div>
+          <div class="l" style="margin-top: 4px"><span style="color: #E6EDF3">soft</span>: c − λ·sign c при |c| ≥ λ</div>
+          <div class="l"><span style="color: #E6EDF3">hard</span>: c при |c| ≥ λ, иначе 0</div>
+          <div class="l dim" style="margin-top: 4px">Разные усиления полос рвут</div>
+          <div class="l dim">отмену наложения: A(ω) ≠ 0.</div>
+        </div>
+      </div>
+    </div>
+    <div class="l" style="height: 18px; margin: 6px 0 8px 0; display: flex; gap: 14px">
+      <span><span class="key">a</span>/<span class="key">b</span>/<span class="key">x</span> <span class="dim">A, B, разность</span></span><span><span class="key">m</span> <span class="dim">метод</span></span><span><span class="key">s</span> <span class="dim">soft/hard</span></span><span><span class="key">тяни</span> <span class="dim">±λ</span></span><span><span class="key">[</span> <span class="key">]</span> <span class="dim">λ ×</span></span><span><span class="key">e</span> <span class="dim">правка полос</span></span><span><span class="key">Enter</span> <span class="dim">применить</span></span><span><span class="key">u</span> <span class="dim">отменить</span></span><span><span class="key">F1</span> <span class="dim">пороги и шум</span></span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":840}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { rule: 'bayes', mode: 'soft', scale: 1, view: 'B', eq: 'bass' }; }
+  componentDidMount() {
+    fetch('/_blob/e27acaf3be5e37174132ea452ede4756').then((r) => r.json()).then((d) => this.setState({ d: d })).catch(() => this.setState({ failed: true }));
+  }
+  dots(pts, dash) {
+    const r = 1.2, seen = {};
+    let s = '';
+    for (let q = 0; q < pts.length; q++) {
+      const i = pts[q][0], j = pts[q][1];
+      if (dash && (i % 4) > 1) continue;
+      const key = i + ':' + j;
+      if (seen[key]) continue;
+      seen[key] = 1;
+      const cx = i * 3.9 + 1.95, cy = j * 4.5 + 2.25;
+      s += 'M' + (cx - r).toFixed(1) + ' ' + cy.toFixed(1) + 'a' + r + ' ' + r + ' 0 1 0 ' + (2 * r) + ' 0a' + r + ' ' + r + ' 0 1 0 ' + (-2 * r) + ' 0';
+    }
+    return s;
+  }
+  curve(ys, wc, hc, lo, hi, dash) {
+    const n = wc * 2, H = hc * 4, pts = [];
+    let prev = -1;
+    for (let i = 0; i < n; i++) {
+      const v = ys[Math.min(ys.length - 1, Math.floor(i * ys.length / n))];
+      let j = Math.round((hi - v) / (hi - lo) * (H - 1));
+      j = Math.max(0, Math.min(H - 1, j));
+      if (prev < 0 || dash) pts.push([i, j]);
+      else { const a = Math.min(prev, j), b = Math.max(prev, j); for (let t = a; t <= b; t++) pts.push([i, t]); }
+      prev = j;
+    }
+    return this.dots(pts, dash);
+  }
+  envelope(env, wc, hc, gain) {
+    const n = wc * 2, H = hc * 4, pts = [], k = gain || 1;
+    for (let i = 0; i < n; i++) {
+      const e = env[Math.min(env.length - 1, Math.floor(i * env.length / n))];
+      const hi = Math.max(-1000, Math.min(1000, e[1] * k)), lo = Math.max(-1000, Math.min(1000, e[0] * k));
+      const j0 = Math.round((1000 - hi) / 2000 * (H - 1)), j1 = Math.round((1000 - lo) / 2000 * (H - 1));
+      for (let t = j0; t <= j1; t++) pts.push([i, t]);
+    }
+    return this.dots(pts);
+  }
+  fmt(v, k) { return v.toFixed(k).replace('.', ',').replace('-', '−'); }
+  sci(v) {
+    const e = Math.floor(Math.log10(v)), sup = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+    const pow = String(Math.abs(e)).split('').map((c) => sup[+c]).join('');
+    return this.fmt(v / Math.pow(10, e), 2) + '·10' + (e < 0 ? '⁻' : '') + pow;
+  }
+  sub(s) { return s.replace(/(\d)/, (m) => '₀₁₂₃₄₅₆₇₈₉'[+m]); }
+  hz(f) { return f >= 1000 ? this.fmt(f / 1000, f >= 10000 ? 1 : 2).replace(',00', '') + 'к' : String(Math.round(f)); }
+  chip(label, on, pick) { return { label: label, cls: on ? 'cbon' : '', pick: pick }; }
+  renderVals() {
+    const st = this.state, d = st.d;
+    const v = {
+      rules: [this.chip('BayesShrink', st.rule === 'bayes', () => this.setState({ rule: 'bayes' })),
+              this.chip('VisuShrink', st.rule === 'visu', () => this.setState({ rule: 'visu' }))],
+      modes: [this.chip('soft', st.mode === 'soft', () => this.setState({ mode: 'soft' })),
+              this.chip('hard', st.mode === 'hard', () => this.setState({ mode: 'hard' }))],
+      scales: [0.5, 0.75, 1, 1.5, 2].map((s) => this.chip(this.fmt(s, s === 0.75 ? 2 : s % 1 ? 1 : 0), st.scale === s, () => this.setState({ scale: s }))),
+      views: [['A', 'A вход'], ['B', 'B результат'], ['X', 'X разность']].map((p) => this.chip(p[1], st.view === p[0], () => this.setState({ view: p[0] }))),
+      eqs: [['flat', 'ровно'], ['bass', 'НЧ +6 дБ'], ['no_d1', 'без d₁'], ['notch_d3', 'вырез d₃']].map((p) => this.chip(p[1], st.eq === p[0], () => this.setState({ eq: p[0] }))),
+      plays: [['A', '▶ A'], ['B', '▶ B'], ['X', '▶ X разность']].map((p) => ({ label: p[1], pick: () => this.setState({ view: p[0] }) })),
+      bands: [], viewTitle: 'загрузка данных…', zero: '', ghost: '', main: '', mainC: '#56B4E9', res: '', resGain: '—',
+      kTxt: '—', kX: 0, kY: 0, cGrid: '', cCurve: '', gainsTxt: '', eGrid: '', eTarget: '', eAlias: '', eT: '', eqTxt: '', eqC: '#8B949E',
+      comboTxt: '', snrIn: '—', snrOut: '—', snrC: '#E6EDF3', keptTxt: '—', ratioTxt: '—', mseTxt: '—', energyTxt: '—', sigmaTxt: '—', visuTxt: '—'
+    };
+    if (!d) return v;
+    const m = d.meta, key = st.rule + '/' + st.mode + '/' + (st.scale % 1 ? String(st.scale) : st.scale.toFixed(1));
+    const cmb = d.combos[key];
+    const ruleName = st.rule === 'bayes' ? 'Bayes' : 'Visu';
+    v.comboTxt = ruleName + ' · ' + st.mode + ' · λ × ' + this.fmt(st.scale, st.scale === 0.75 ? 2 : st.scale % 1 ? 1 : 0);
+    const cols = { a5: '#2F7FB0', d5: '#4A9BCC', d4: '#5DAAD6', d3: '#76B9DE', d2: '#95CAE7', d1: '#B9DCF0' };
+    v.bands = d.bands.map((b, k) => {
+      const base = k === 0 ? null : (st.rule === 'bayes' ? b.bayes : m.visu);
+      const lam = base === null ? null : base * st.scale;
+      const range = base === null ? b.max : Math.min(b.max, 4 * base);
+      const H = 8, mid = (H - 1) / 2, hot = [], dimp = [], lp = [];
+      for (let i = 0; i < 160; i++) {
+        const e = b.env[i], hiV = e[1] / 1000 * b.max, loV = e[0] / 1000 * b.max;
+        const j0 = Math.max(0, Math.floor(mid - Math.min(1, hiV / range) * mid)), j1 = Math.min(H - 1, Math.ceil(mid - Math.max(-1, loV / range) * mid));
+        for (let j = j0; j <= j1; j++) {
+          const val = Math.abs(mid - j) / mid * range;
+          if (lam === null || val >= lam) hot.push([i, j]); else dimp.push([i, j]);
+        }
+      }
+      if (lam !== null && lam < range) {
+        const off = Math.round(lam / range * mid * 2) / 2;
+        [Math.round(mid - off), Math.round(mid + off)].forEach((j) => { for (let i = 0; i < 160; i += 4) lp.push([i, j]); });
+      }
+      let info;
+      if (k === 0) info = 'не трогается · ' + b.len + ' коэф.';
+      else {
+        const kept = cmb.kept_bands[k - 1];
+        info = 'λ ' + this.fmt(lam, 4) + ' · ' + (lam >= b.max ? 'вся обнулена' : 'остаётся ' + Math.round(100 * kept / b.len) + ' %');
+      }
+      return { name: this.sub(b.name), c: cols[b.name], range: (this.hz(b.lo) + '–' + this.hz(b.hi) + ' Гц').padEnd(15, ' '), info: info,
+               hot: this.dots(hot), dim: this.dots(dimp), lam: this.dots(lp) };
+    });
+    const z = [];
+    for (let i = 0; i < 200; i += 3) z.push([i, 11]), z.push([i, 12]);
+    v.zero = this.dots(z);
+    v.ghost = this.envelope(d.clean, 100, 6);
+    const views = { A: [d.noisy, '#9AA4B1', 'A — вход: эталон + шум 10 дБ'], B: [cmb.out, '#56B4E9', 'B — результат, ' + v.comboTxt], X: [cmb.res, '#E69F00', 'X — разность A − B, то, что убрано'] };
+    const vw = views[st.view];
+    v.main = this.envelope(vw[0], 100, 6); v.mainC = vw[1]; v.viewTitle = vw[2];
+    let rmax = 1;
+    cmb.res.forEach((e) => { rmax = Math.max(rmax, Math.abs(e[0]), Math.abs(e[1])); });
+    const g = Math.max(1, Math.floor(900 / rmax * 10) / 10);
+    v.res = this.envelope(cmb.res, 100, 2, g);
+    v.resGain = this.fmt(g, 1);
+    const total = m.total, lnT = Math.log(total), CW = 46, CH = 5, cy = [];
+    for (let i = 0; i < CW * 2; i++) {
+      const K = Math.exp(i / (CW * 2 - 1) * lnT);
+      let err = d.curve[d.curve.length - 1][1];
+      for (let q = 1; q < d.curve.length; q++) {
+        if (d.curve[q][0] >= K) {
+          const a = d.curve[q - 1], b = d.curve[q], t = (Math.log(K) - Math.log(a[0])) / (Math.log(b[0]) - Math.log(a[0]) || 1);
+          err = a[1] + t * (b[1] - a[1]); break;
+        }
+      }
+      cy.push(Math.max(-40, err));
+    }
+    v.cCurve = this.curve(cy, CW, CH, -40, 0);
+    const cg = [];
+    [-20].forEach((db) => { const j = Math.round(-db / 40 * (CH * 4 - 1)); for (let i = 0; i < CW * 2; i += 3) cg.push([i, j]); });
+    [10, 100, 1000].forEach((K) => { const i = Math.round(Math.log(K) / lnT * (CW * 2 - 1)); for (let j = 0; j < CH * 4; j += 3) cg.push([i, j]); });
+    v.cGrid = this.dots(cg);
+    v.kX = Math.log(cmb.kept) / lnT * 358.8 - 3.9;
+    v.kY = Math.max(0, Math.min(90, -cmb.err_db / 40 * 90)) - 9;
+    v.kTxt = cmb.kept.toLocaleString('ru-RU') + ' · ' + this.fmt(cmb.err_db, 1) + ' дБ';
+    const eq = d.eq, pr = eq.presets[st.eq], wmin = eq.omega[0], lnW = Math.log(1 / wmin), EW = 46, EH = 4, n = EW * 2;
+    const at = (arr, i) => {
+      const w = wmin * Math.exp(i / (n - 1) * lnW);
+      let q = 0;
+      while (q < eq.omega.length - 1 && eq.omega[q + 1] < w) q++;
+      return arr[q];
+    };
+    const tc = [], ac = [], tg = [];
+    for (let i = 0; i < n; i++) {
+      tc.push(Math.max(-40, Math.min(10, at(pr.t, i))));
+      ac.push(Math.max(-40, Math.min(10, at(pr.alias, i))));
+      const w = wmin * Math.exp(i / (n - 1) * lnW);
+      const band = w >= 0.5 ? 5 : w >= 0.25 ? 4 : w >= 0.125 ? 3 : w >= 0.0625 ? 2 : w >= 0.03125 ? 1 : 0;
+      const gdb = pr.gains[band] > 0 ? 20 * Math.log10(pr.gains[band]) : -40;
+      tg.push(Math.max(-40, Math.min(10, gdb)));
+    }
+    v.eT = this.curve(tc, EW, EH, -40, 10);
+    v.eAlias = this.curve(ac, EW, EH, -40, 10, true);
+    v.eTarget = this.curve(tg, EW, EH, -40, 10, true);
+    const eg = [];
+    const j0 = Math.round(10 / 50 * (EH * 4 - 1));
+    for (let i = 0; i < n; i += 3) eg.push([i, j0]);
+    [1 / 16, 1 / 4].forEach((w) => { const i = Math.round(Math.log(w / wmin) / lnW * (n - 1)); for (let j = 0; j < EH * 4; j += 3) eg.push([i, j]); });
+    v.eGrid = this.dots(eg);
+    const names = ['a₅', 'd₅', 'd₄', 'd₃', 'd₂', 'd₁'];
+    v.gainsTxt = pr.gains.map((gv, i) => names[i] + (gv > 0 ? (gv === 1 ? ' 0' : (20 * Math.log10(gv) >= 0 ? '+' : '') + this.fmt(20 * Math.log10(gv), 0)) : ' −∞')).join('  ') + ' дБ';
+    const amax = Math.max.apply(null, pr.alias), tmin = Math.min.apply(null, pr.t), tmax = Math.max.apply(null, pr.t);
+    if (amax < -200) { v.eqTxt = 'T = 1, A = 0: полное восстановление ✓'; v.eqC = '#009E73'; }
+    else { v.eqTxt = '⚠ T ' + this.fmt(Math.max(-99, tmin), 1) + '…' + this.fmt(tmax, 1) + ' дБ · наложение до ' + this.fmt(amax, 1) + ' дБ'; v.eqC = '#E69F00'; }
+    v.snrIn = this.fmt(m.snr_in, 2) + ' дБ';
+    const delta = cmb.snr_out - m.snr_in;
+    v.snrOut = this.fmt(cmb.snr_out, 2) + ' дБ (' + (delta >= 0 ? '+' : '−') + this.fmt(Math.abs(delta), 2) + ')';
+    v.snrC = delta >= 0 ? '#009E73' : '#E69F00';
+    v.keptTxt = cmb.kept.toLocaleString('ru-RU') + ' из ' + total.toLocaleString('ru-RU') + ' (' + this.fmt(100 * cmb.kept / total, 1) + ' %)';
+    v.ratioTxt = this.fmt(total / cmb.kept, 1) + ' : 1';
+    v.mseTxt = this.sci(cmb.mse);
+    v.energyTxt = this.fmt(cmb.energy, 1) + ' % от входа';
+    v.sigmaTxt = this.fmt(m.sigma, 4);
+    v.visuTxt = this.fmt(m.visu, 4);
+    return v;
+  }
+}
+</script>
+</body>
+</html>
