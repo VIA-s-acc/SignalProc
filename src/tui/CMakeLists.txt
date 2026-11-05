@@ -1,6 +1,13 @@
+include(${PROJECT_SOURCE_DIR}/cmake/EmbedText.cmake)
+signals_embed_text(${PROJECT_SOURCE_DIR}/resources/themes/dark.toml ${CMAKE_CURRENT_BINARY_DIR}/theme_dark.cpp kSignalsThemeDark)
+signals_embed_text(${PROJECT_SOURCE_DIR}/resources/themes/light.toml ${CMAKE_CURRENT_BINARY_DIR}/theme_light.cpp kSignalsThemeLight)
+
 add_library(signals_tui STATIC
   run.cpp
   widgets/format.cpp
+  theme/theme.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/theme_dark.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/theme_light.cpp
 )
 target_include_directories(signals_tui PUBLIC ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(signals_tui
