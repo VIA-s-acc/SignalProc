@@ -1,0 +1,31 @@
+#pragma once
+
+#include <cstdint>
+#include <filesystem>
+#include <string_view>
+
+#include "core/audio_buffer.hpp"
+#include "core/error.hpp"
+
+namespace signals::io {
+
+enum class SampleFormat { pcm_u8, pcm_s16, pcm_s24, pcm_s32, float32, float64, alaw, mulaw };
+
+std::string_view to_string(SampleFormat format);
+
+struct WavInfo {
+    SampleFormat format = SampleFormat::pcm_s16;
+    unsigned channels = 0;
+    unsigned sample_rate = 0;
+    std::uint64_t frames = 0;
+    bool extensible = false;
+};
+
+struct WavFile {
+    WavInfo info;
+    core::AudioBuffer audio;
+};
+
+core::Result<WavFile> read_wav(const std::filesystem::path& path);
+
+}  // namespace signals::io
