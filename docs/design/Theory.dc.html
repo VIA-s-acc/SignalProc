@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Signals — под капотом: DWT</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;family=STIX+Two+Text:ital@0;1&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07090D}
+a{color:#56B4E9}a:hover{color:#A9D6F5}
+.t{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:13px;line-height:18px;color:#C9D1D9}
+.l{white-space:pre}
+.pn{position:relative;border:1px solid #2A3240;border-radius:7px;padding:10px 7.8px 6px 7.8px;box-sizing:border-box}
+.pf{border-color:#E8C547}
+.pt{position:absolute;top:-10px;left:10px;background:#0D1117;padding:0 6px;color:#E6EDF3;font-weight:700;white-space:pre}
+.pc{position:absolute;top:-10px;right:10px;background:#0D1117;padding:0 6px;color:#8B949E;white-space:pre}
+.dim{color:#8B949E}
+.tab{color:#9AA4B1;text-decoration:none;padding:0 7.8px;white-space:pre}
+.tab:hover{color:#E6EDF3;background:#1C2230}
+.on{color:#0D1117;background:#E8C547;font-weight:700}
+.key{color:#0D1117;background:#8B949E;padding:0 3px;border-radius:3px;font-weight:700;white-space:pre}
+.sub{color:#9AA4B1;text-decoration:none;white-space:pre;padding:0 6px}
+.subon{color:#E8C547;font-weight:700}
+.chip{font:inherit;color:#9AA4B1;background:transparent;border:0;white-space:pre;padding:0 5px;cursor:pointer}
+.chipon{color:#0D1117;background:#56B4E9;font-weight:700}
+.hd{color:#E8C547;white-space:pre}
+.m{font-family:'STIX Two Text',Georgia,serif;font-size:19px;line-height:28px;color:#E6EDF3}
+.m i{font-style:italic}
+.m sub,.m sup{font-size:13px;line-height:0}
+.sum{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 4px;line-height:1}
+.sum b{font-size:28px;font-weight:400;line-height:28px}
+.sum span{font-size:12px;font-style:italic;line-height:12px}
+.lk{color:#56B4E9;text-decoration:none;white-space:pre}
+.lk:hover{text-decoration:underline}
+.tr{white-space:pre;color:#9AA4B1;text-decoration:none;display:block}
+.tr:hover{color:#E6EDF3}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 840px; background: #0D1117; display: flex; flex-direction: column; overflow: hidden">
+  <div class="l dim" style="height: 28px; line-height: 28px; background: #161B22; text-align: center; font-size: 12px">signals — ~/GITHUB/Signals — 150×44</div>
+  <div style="flex: 1; display: flex; flex-direction: column; padding: 0 15px; min-height: 0">
+    <div style="height: 18px; display: flex; align-items: center; margin-top: 4px">
+      <span class="l" style="color: #E8C547; font-weight: 700"> ◆ Signals </span><span class="l dim">│</span>
+      <a class="tab" href="Main.dc.html">1 Сигнал</a><a class="tab" href="Main.dc.html">2 Спектр</a><a class="tab" href="Filters.dc.html">3 Фильтры</a><a class="tab" href="Designer.dc.html">4 Банк</a><a class="tab" href="Decomposition.dc.html">5 Разлож.</a><a class="tab" href="Matrix.dc.html">6 Матрица</a><a class="tab" href="Decomposition.dc.html">7 Обраб.</a><a class="tab" href="Pipeline.dc.html">8 Конвейер</a><a class="tab on" href="Theory.dc.html">9 Теория</a>
+      <span style="flex: 1"></span>
+      <a class="sub" href="Bank.dc.html">Объяснение</a><a class="sub subon" href="Theory.dc.html">[Под капотом]</a><a class="sub" href="Theory.dc.html">Учебник</a><span class="key">?</span>
+    </div>
+    <div class="l dim" style="margin-top: 8px">открыто из: <span style="color: #E6EDF3">Конвейер ▸ DWT (db2, J = 6)</span> по F1 · история ◂▸ · формулы: <button class="chip {{pxCls}}" onClick="{{setPx}}">пиксели (kitty)</button><button class="chip {{uniCls}}" onClick="{{setUni}}">Unicode 2-D</button><span class="dim"> · терминал: kitty 0.39, truecolor ✓</span></div>
+    <div style="flex: 1; display: flex; gap: 7.8px; padding-top: 16px; min-height: 0">
+      <div class="pn" style="width: 250px">
+        <div class="pt">Учебник</div><div class="pc">132 раздела</div>
+        <div class="l" style="background: #161B22; padding: 0 4px">/ малла<span style="color: #E8C547">▏</span>        <span class="dim">2 из 132</span></div>
+        <div style="margin-top: 4px">
+          <span class="tr">0  Соглашения</span><span class="tr">1  ЛИС-системы</span><span class="tr">2  Тёплицевы матрицы</span><span class="tr">3  Многоскоростная</span><span class="tr">4  Двухканальные банки</span><span class="tr">5  Банк Хаара</span><span class="tr">6  Матрицы и границы</span><span class="tr">7  Теория вейвлетов</span><span class="tr">8  Частотные хар-ки</span><span class="tr">9  Классические фильтры</span><span class="tr">10 Лифтинг</span>
+          <span class="tr" style="color: #E6EDF3">11 Варианты ▾</span>
+          <span class="tr" style="color: #0D1117; background: #E8C547; font-weight: 700"> 11.1 DWT, Малла    ◀ </span>
+          <span class="tr">   11.2 SWT, MODWT</span><span class="tr">   11.3 Пакеты</span><span class="tr">   11.6 CWT</span><span class="tr">   11.7 Синхросжатие</span>
+          <span class="tr">12 Применения к звуку</span><span class="tr">13 Численные вопросы</span><span class="tr">14 Метрики</span><span class="tr">15 План проверок</span>
+        </div>
+        <div class="l dim" style="margin-top: 6px">──────────────────────────</div>
+        <div class="l dim">Литература</div>
+        <div class="l">[M]   Mallat 2009</div>
+        <div class="l">[M89] Mallat 1989</div>
+        <div class="l">[SN]  Strang, Nguyen 1996</div>
+        <div class="l">[PW]  Lee et al. 2019</div>
+      </div>
+      <div class="pn pf" style="flex: 1">
+        <div class="pt" style="color: #E8C547">11.1 DWT — пирамида Малла  {#dwt-mallat}  [ядро]</div><div class="pc">Tab — следующая ссылка</div>
+        <div class="l">Назначение: разложить x на октавные полосы d₁…d_J и a_J без потери информации.</div>
+        <div class="hd" style="margin-top: 6px">── Формулы ───────────────────────────────────────────────────────────────────────────────</div>
+        <sc-if value="{{px}}" hint-placeholder-val="{{true}}">
+          <div class="m" style="margin: 6px 0 2px 16px">
+            <div><i>a</i><sub><i>j</i></sub>[<i>k</i>] = <span class="sum"><b>∑</b><span>n</span></span> <i>h</i><sub>0</sub>[<i>n</i>] · <i>a</i><sub><i>j</i>−1</sub>[2<i>k</i> + 1 − <i>n</i>],     <i>d</i><sub><i>j</i></sub>[<i>k</i>] = <span class="sum"><b>∑</b><span>n</span></span> <i>h</i><sub>1</sub>[<i>n</i>] · <i>a</i><sub><i>j</i>−1</sub>[2<i>k</i> + 1 − <i>n</i>]</div>
+            <div><i>a</i><sub><i>j</i>−1</sub>[<i>m</i>] = <span class="sum"><b>∑</b><span>k</span></span> ( <i>f</i><sub>0</sub>[<i>m</i> − 2<i>k</i>] · <i>a</i><sub><i>j</i></sub>[<i>k</i>] + <i>f</i><sub>1</sub>[<i>m</i> − 2<i>k</i>] · <i>d</i><sub><i>j</i></sub>[<i>k</i>] ),     <i>a</i><sub>0</sub> = <i>x</i></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{uni}}" hint-placeholder-val="{{false}}">
+          <div style="margin: 4px 0 2px 16px; color: #E6EDF3">
+            <div class="l">aⱼ[k]  =  ∑  h₀[n] · aⱼ₋₁[2k + 1 − n]           dⱼ[k]  =  ∑  h₁[n] · aⱼ₋₁[2k + 1 − n]</div>
+            <div class="l">          n                                                n</div>
+            <div class="l">aⱼ₋₁[m]  =  ∑ ( f₀[m − 2k] · aⱼ[k]  +  f₁[m − 2k] · dⱼ[k] ),     a₀ = x</div>
+            <div class="l">            k</div>
+          </div>
+        </sc-if>
+        <div class="l dim">фаза pywt: после свёртки берутся нечётные отсчёты (§0.4) — поэтому «2k + 1»</div>
+        <div class="hd" style="margin-top: 6px">── Алгоритм и стоимость ──────────────────────────────────────────────────────────────────</div>
+        <div class="l">1. a ← x   2. для j = 1…J: aⱼ = ↓2(h₀ ∗ aⱼ₋₁), dⱼ = ↓2(h₁ ∗ aⱼ₋₁)   3. края — режим продолжения</div>
+        <div class="l">стоимость ≈ N·(L₀ + L₁) умножений, память O(N), уровней не больше ⌊log₂(N/(L − 1))⌋</div>
+        <div class="hd" style="margin-top: 6px">── С числами этого блока ─────────────────────────────────────────────────────────────────</div>
+        <div class="l">N = 450 686,  db2: L₀ = L₁ = 4  ⇒  ≈ 450 686 · 8 = <span style="color: #E8C547">3,6·10⁶</span> умножений на канал;  J_max = 17</div>
+        <div class="l">длины  a₆ 7 044 · d₆ 7 044 · d₅ 14 086 · d₄ 28 170 · d₃ 56 338 · d₂ 112 673 · d₁ 225 344</div>
+        <div class="l dim">       Σ = 450 699 = N + 13: в режиме symmetric уровень длины n даёт ⌊(n + L − 1)/2⌋ коэффициентов</div>
+        <div class="l">полосы a₆ 0–345 · d₆ 345–689 · d₅ 689–1378 · d₄ 1,4–2,8к · d₃ 2,8–5,5к · d₂ 5,5–11к · d₁ 11–22к Гц</div>
+        <div class="hd" style="margin-top: 6px">── Проверки (пересчитываются при каждом запуске) ─────────────────────────────────────────</div>
+        <div class="l"><span style="color: #009E73">✓</span> PR на test.wav: max|x̂ − x| = 1,6·10⁻¹⁵          <span style="color: #009E73">✓</span> ортонормальность ∑ h₀[n]h₀[n − 2k] = δ[k]: {{orth}}</div>
+        <div class="l"><span style="color: #009E73">✓</span> ВМ = 2: ∑ nᵖ h₁[n] = 0 при p = 0, 1: {{vm}}    <span style="color: #F36C6C">✗</span> ЛФЧХ: db2 несимметричен</div>
+        <div class="l"><span style="color: #E69F00">⚠</span> нет инвариантности к сдвигу: сдвиг x на 1 отсчёт перераспределяет энергию по уровням → SWT</div>
+        <div class="hd" style="margin-top: 6px">── Связи и визуализация ──────────────────────────────────────────────────────────────────</div>
+        <div class="l"><a class="lk" href="Bank.dc.html">→ 4.1 Алиасинг и PR</a>   <a class="lk" href="Designer.dc.html">→ 7.3 Каскад, φ и ψ</a>   <a class="lk" href="Decomposition.dc.html">→ 11.2 SWT</a>   <a class="lk" href="Matrix.dc.html">→ 6.4 Периодизация</a></div>
+        <div class="l"><a class="lk" href="Decomposition.dc.html">[Разложение: полосы]</a>  <a class="lk" href="Matrix.dc.html">[Матрица этого DWT]</a>  <a class="lk" href="Filters.dc.html">[АЧХ экв. фильтров d₁…a₆]</a>  <a class="lk" href="Pipeline.dc.html">[Блок в графе]</a></div>
+        <div class="hd" style="margin-top: 6px">── Реализация ────────────────────────────────────────────────────────────────────────────</div>
+        <div class="l" style="color: #E6EDF3; background: #11161D; padding: 2px 6px"><span style="color: #E69F00">for</span> (std::size_t k = 0; k &lt; out.size(); ++k) {
+    <span style="color: #E69F00">double</span> acc = 0.0;
+    <span style="color: #E69F00">for</span> (std::size_t n = 0; n &lt; h.size(); ++n) acc += h[n] * ext(x, 2 * k + 1 - n);
+    out[k] = acc;
+}</div>
+        <div class="l dim">src/wavelet/dwt.cpp · dwt_level()  ·  тест: tests/dwt_pr.cpp, сверка с pywt.wavedec  ·  o — открыть</div>
+      </div>
+    </div>
+    <div class="l" style="height: 18px; margin: 6px 0 8px 0; display: flex; gap: 14px">
+      <span><span class="key">F1</span> <span class="dim">из любого места</span></span><span><span class="key">Tab</span> <span class="dim">ссылки</span></span><span><span class="key">Enter</span> <span class="dim">перейти</span></span><span><span class="key">b</span> <span class="dim">назад</span></span><span><span class="key">/</span> <span class="dim">поиск</span></span><span><span class="key">g</span> <span class="dim">пиксели/текст</span></span><span><span class="key">n</span> <span class="dim">с числами</span></span><span><span class="key">Esc</span> <span class="dim">закрыть</span></span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":840}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { mode: 'px' }; }
+  sci(e) {
+    if (e === 0) return '0';
+    const s = e.toExponential(1).split('e');
+    return s[0].replace('.', ',') + '·10' + s[1].replace('-', '⁻').replace(/\d/g, (c) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[+c]).replace('+', '');
+  }
+  renderVals() {
+    const h0 = [0.4829629131445341, 0.8365163037378079, 0.2241438680420134, -0.1294095225512604];
+    const h1 = h0.map((c, n) => Math.pow(-1, n) * h0[3 - n]);
+    let oe = 0;
+    for (let k = -1; k <= 1; k++) { let s = 0; for (let n = 0; n < 4; n++) { const m = n - 2 * k; if (m >= 0 && m < 4) s += h0[n] * h0[m]; } oe = Math.max(oe, Math.abs(s - (k === 0 ? 1 : 0))); }
+    let ve = 0;
+    for (let p = 0; p < 2; p++) { let s = 0; h1.forEach((c, n) => { s += Math.pow(n, p) * c; }); ve = Math.max(ve, Math.abs(s)); }
+    const px = this.state.mode === 'px';
+    return {
+      px: px, uni: !px,
+      pxCls: px ? 'chipon' : '', uniCls: px ? '' : 'chipon',
+      setPx: () => this.setState({ mode: 'px' }), setUni: () => this.setState({ mode: 'uni' }),
+      orth: this.sci(oe), vm: this.sci(ve)
+    };
+  }
+}
+</script>
+</body>
+</html>

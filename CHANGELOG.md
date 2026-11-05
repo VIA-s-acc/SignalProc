@@ -1,6 +1,12 @@
 # Changelog
 ## [Unreleased]
 
+### Changed
+
+- Начата C++-версия: старый Python-код перенесён в `legacy/python/`, `test.wav` — в `resources/samples/`.
+- Лицензия сменилась с GPL-3.0 на MIT; README и раньше обещал MIT.
+- `requierments.txt` переименован в `legacy/python/requirements.txt` и перекодирован из UTF-16 в UTF-8.
+
 ## [0.1.1] 2023-07-13
 
 ### Changed

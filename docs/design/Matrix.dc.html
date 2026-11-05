@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Signals — матрицы Тёплица</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07090D}
+a{color:#56B4E9}a:hover{color:#A9D6F5}
+.t{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:13px;line-height:18px;color:#C9D1D9}
+.l{white-space:pre}
+.pn{position:relative;border:1px solid #2A3240;border-radius:7px;padding:10px 7.8px 6px 7.8px;box-sizing:border-box}
+.pf{border-color:#E8C547}
+.pt{position:absolute;top:-10px;left:10px;background:#0D1117;padding:0 6px;color:#E6EDF3;font-weight:700;white-space:pre}
+.pc{position:absolute;top:-10px;right:10px;background:#0D1117;padding:0 6px;color:#8B949E;white-space:pre}
+.dim{color:#8B949E}
+.tab{color:#9AA4B1;text-decoration:none;padding:0 7.8px;white-space:pre}
+.tab:hover{color:#E6EDF3;background:#1C2230}
+.on{color:#0D1117;background:#E8C547;font-weight:700}
+.key{color:#0D1117;background:#8B949E;padding:0 3px;border-radius:3px;font-weight:700;white-space:pre}
+.btn{font:inherit;color:#C9D1D9;background:#161B22;border:1px solid #2A3240;border-radius:4px;padding:0 6px;cursor:pointer;white-space:pre;line-height:16px}
+.btn:hover{border-color:#E8C547;color:#E6EDF3}
+.chip{color:#9AA4B1;white-space:pre;padding:0 5px}
+.chipon{color:#0D1117;background:#56B4E9;font-weight:700}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 840px; background: #0D1117; display: flex; flex-direction: column; overflow: hidden">
+  <div class="l dim" style="height: 28px; line-height: 28px; background: #161B22; text-align: center; font-size: 12px">signals — ~/GITHUB/Signals — 150×44</div>
+  <div style="flex: 1; display: flex; flex-direction: column; padding: 0 15px; min-height: 0">
+    <div style="height: 18px; display: flex; align-items: center; margin-top: 4px">
+      <span class="l" style="color: #E8C547; font-weight: 700"> ◆ Signals </span><span class="l dim">│</span>
+      <a class="tab" href="Main.dc.html">1 Сигнал</a><a class="tab" href="Main.dc.html">2 Спектр</a><a class="tab" href="Filters.dc.html">3 Фильтры</a><a class="tab" href="Designer.dc.html">4 Банк</a><a class="tab" href="Decomposition.dc.html">5 Разлож.</a><a class="tab on" href="Matrix.dc.html">6 Матрица</a><a class="tab" href="Decomposition.dc.html">7 Обраб.</a><a class="tab" href="Pipeline.dc.html">8 Конвейер</a><a class="tab" href="Theory.dc.html">9 Теория</a>
+      <span style="flex: 1"></span>
+      <span class="l dim">db2 · N = 32 · periodization  </span><span class="key">?</span>
+    </div>
+    <div style="flex: 1; display: flex; gap: 7.8px; padding-top: 16px; min-height: 0">
+      <div style="width: 250px; display: flex; flex-direction: column; gap: 16px">
+        <div class="pn">
+          <div class="pt">Что показать</div>
+          <div class="l"><span class="dim">фильтр   </span>db2 ▾</div>
+          <div class="l dim" style="margin-top: 4px">операция</div>
+          <div class="l"> <span class="chip chipon">Анализ, 1 уровень</span></div>
+          <div class="l"> <span class="chip">Многоуровневый W</span></div>
+          <div class="l"> <span class="chip">Свёртка T(h)</span></div>
+          <div class="l"> <span class="chip">Циркулянт C(h)</span></div>
+          <div class="l"> <span class="chip">Синтез S, произв. SA</span></div>
+          <div class="l dim" style="margin-top: 4px">края</div>
+          <div class="l"> <span class="chip">zero</span><span class="chip chipon">period.</span><span class="chip">symm.</span></div>
+          <div class="l dim" style="margin-top: 4px">порядок строк</div>
+          <div class="l"> <span class="chip chipon">[L; B]</span><span class="chip">перемежающийся</span></div>
+          <div class="l" style="margin-top: 4px"><span class="dim">N        </span>32 ◂▸</div>
+          <div class="l"><span class="dim">ячейка   </span>цвет · <span style="color: #E6EDF3">[числа]</span> при N ≤ 48</div>
+        </div>
+        <div class="pn" style="flex: 1">
+          <div class="pt">Проверки сейчас</div>
+          <div class="l">‖AᵀA − I‖<span class="dim">max</span> = {{orthErr}} <span style="color: #009E73">✓</span></div>
+          <div class="l">S = Aᵀ <span class="dim">(ортогональный банк)</span></div>
+          <div class="l">‖S·A·x − x‖ = {{prErr}} <span style="color: #009E73">✓</span></div>
+          <div class="l">все σᵢ(A) = 1, cond = 1</div>
+          <div class="l dim" style="margin-top: 6px">───────────────────────────</div>
+          <div class="l dim">symmetric + db2 (не ЛФЧХ):</div>
+          <div class="l" style="color: #E69F00">⚠ квадратной ортогональной</div>
+          <div class="l" style="color: #E69F00">  матрицы нет — PR через</div>
+          <div class="l" style="color: #E69F00">  расширение (N + L − 1)</div>
+          <div class="l dim" style="margin-top: 6px"><a href="Theory.dc.html" style="text-decoration: none"><span class="key">F1</span> §6 матрицы банков</a></div>
+        </div>
+      </div>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0">
+        <div class="pn pf">
+          <div class="pt" style="color: #E8C547">A = [L; B] · 32 × 32 · строка {{row}} подсвечена</div><div class="pc">синий +  киноварь −  фон 0 · <span style="color: #E8C547">[◂ ▸] строка</span></div>
+          <div style="display: flex; gap: 12px">
+            <div>
+              <div class="l dim">     x₀           x₈            x₁₆           x₂₄</div>
+              <div style="display: flex">
+                <div class="dim" style="width: 39px; height: 288px; position: relative">
+                  <span class="l" style="position: absolute; top: 0">L₀</span><span class="l" style="position: absolute; top: 126px">L₁₅</span><span class="l" style="position: absolute; top: 144px">B₀</span><span class="l" style="position: absolute; top: 270px">B₁₅</span>
+                </div>
+                <svg width="499.2" height="288" aria-hidden="true">
+                  <rect x="0" y="0" width="499.2" height="288" fill="#141A22"></rect>
+                  <path d="{{p1}}" fill="#16324A"></path><path d="{{p2}}" fill="#1D4F73"></path><path d="{{p3}}" fill="#25699A"></path><path d="{{p4}}" fill="#2F84BF"></path><path d="{{p5}}" fill="#4B9FD8"></path><path d="{{p6}}" fill="#79BDE8"></path>
+                  <path d="{{n1}}" fill="#3D1C0C"></path><path d="{{n2}}" fill="#5E2A10"></path><path d="{{n3}}" fill="#833812"></path><path d="{{n4}}" fill="#AA4712"></path><path d="{{n5}}" fill="#CC5A12"></path><path d="{{n6}}" fill="#E9803F"></path>
+                  <rect x="0" y="143.5" width="499.2" height="1" fill="#0D1117"></rect>
+                  <rect x="0" y="{{rowY}}" width="499.2" height="9" fill="none" stroke="#E8C547" stroke-width="1.5"></rect>
+                </svg>
+              </div>
+            </div>
+            <div style="flex: 1">
+              <div class="l" style="display: flex; gap: 6px; align-items: center"><button class="btn" onClick="{{up}}">◂ строка</button><button class="btn" onClick="{{down}}">строка ▸</button></div>
+              <div class="l" style="margin-top: 8px; color: #E6EDF3; font-weight: 700">{{rowName}} · {{rowKind}}</div>
+              <div class="l dim">{{rowShift}}</div>
+              <div class="l dim" style="margin-top: 6px">скалярное произведение строки на x:</div>
+              <sc-for list="{{terms}}" as="t" hint-placeholder-count="4"><div class="l">  {{t.s}}</div></sc-for>
+              <div class="l" style="margin-top: 4px">  = <span style="color: #E8C547; font-weight: 700">{{rowVal}}</span>  <span class="dim">= {{rowOut}}</span></div>
+              <div class="l dim" style="margin-top: 8px">x[n] = round(8·sin(2πn/16) + n/2)</div>
+              <div class="l dim">свёртка = строка, скользящая по x;</div>
+              <div class="l dim">↓2 = сдвиг строк на 2, а не на 1</div>
+            </div>
+          </div>
+        </div>
+        <div class="pn" style="flex: 1">
+          <div class="pt">Откуда берётся A: свёртка T(h₀) → ↓2</div><div class="pc">N = 12, без продолжения</div>
+          <div style="display: flex; gap: 24px">
+            <div>
+              <div class="l dim">T(h₀) — ленточная тёплицева</div>
+              <sc-for list="{{toe}}" as="r" hint-placeholder-count="8"><div class="l"><sc-for list="{{r.cells}}" as="c"><span style="color: {{c.c}}; background: {{c.bg}}">{{c.s}}</span></sc-for></div></sc-for>
+            </div>
+            <div style="flex: 1">
+              <div class="l dim">строки 1, 3, 5, … (фаза pywt) →</div>
+              <div class="l">двойной сдвиг: блочно-тёплицева</div>
+              <div class="l">матрица с символом H_p(z)</div>
+              <div class="l dim" style="margin-top: 6px">T(h)·x = h ∗ x (линейная)</div>
+              <div class="l dim">C(h)·x = h ⊛ x (круговая)</div>
+              <div class="l dim">C(h) = F⁻¹ diag(ĥ) F → O(N log N)</div>
+              <div class="l dim" style="margin-top: 6px">Тёплиц + Ганкель — симметричное</div>
+              <div class="l dim">продолжение; Левинсон — O(N²)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="l" style="height: 18px; margin: 6px 0 8px 0; display: flex; gap: 14px">
+      <span><span class="key">↑↓</span> <span class="dim">строка</span></span><span><span class="key">Space</span> <span class="dim">анимация сдвига</span></span><span><span class="key">c</span> <span class="dim">цвет/числа</span></span><span><span class="key">t</span> <span class="dim">AᵀA</span></span><span><span class="key">b</span> <span class="dim">края</span></span><span><span class="key">клик</span> <span class="dim">ячейка → значение</span></span><span><span class="key">F1</span> <span class="dim">теория</span></span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":840}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { row: 5 }; }
+  f(v, k) { return (v < 0 ? '−' : '+') + Math.abs(v).toFixed(k).replace('.', ','); }
+  renderVals() {
+    const N = 32, row = this.state.row;
+    const h0 = [0.4829629131445341, 0.8365163037378079, 0.2241438680420134, -0.1294095225512604];
+    const h1 = h0.map((c, n) => Math.pow(-1, n + 1) * h0[3 - n]);
+    const A = [];
+    for (let r = 0; r < N; r++) {
+      const line = new Array(N).fill(0), k = r % 16, h = r < 16 ? h0 : h1;
+      for (let n = 0; n < 4; n++) line[(2 * k + n) % N] += h[n];
+      A.push(line);
+    }
+    let oe = 0;
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { let s = 0; for (let r = 0; r < N; r++) s += A[r][i] * A[r][j]; oe = Math.max(oe, Math.abs(s - (i === j ? 1 : 0))); }
+    const x = [];
+    for (let n = 0; n < N; n++) x.push(Math.round(8 * Math.sin(2 * Math.PI * n / 16) + n / 2));
+    const y = A.map((line) => line.reduce((s, a, i) => s + a * x[i], 0));
+    let pe = 0;
+    for (let i = 0; i < N; i++) { let s = 0; for (let r = 0; r < N; r++) s += A[r][i] * y[r]; pe = Math.max(pe, Math.abs(s - x[i])); }
+    const sci = (e) => e === 0 ? '0' : e.toExponential(1).replace('.', ',').replace('e-', '·10⁻').replace(/⁻(\d+)/, (m, p) => '⁻' + p.split('').map((c) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[+c]).join(''));
+    const v = { orthErr: sci(oe), prErr: sci(pe), row: row };
+    const pos = ['', '', '', '', '', '', ''], neg = ['', '', '', '', '', '', ''];
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      const a = A[r][c];
+      if (Math.abs(a) < 1e-12) continue;
+      const lvl = Math.min(6, Math.max(1, Math.ceil(Math.abs(a) / 0.8366 * 6)));
+      const rect = 'M' + (c * 15.6).toFixed(1) + ' ' + (r * 9) + 'h15.6v9h-15.6z';
+      if (a > 0) pos[lvl] += rect; else neg[lvl] += rect;
+    }
+    for (let k = 1; k <= 6; k++) { v['p' + k] = pos[k]; v['n' + k] = neg[k]; }
+    v.rowY = row * 9;
+    const k = row % 16, isL = row < 16, h = isL ? h0 : h1;
+    const sub = (n) => String(n).split('').map((c) => '₀₁₂₃₄₅₆₇₈₉'[+c]).join('');
+    v.rowName = (isL ? 'L' : 'B') + sub(k);
+    v.rowKind = isL ? 'строка ФНЧ h₀' : 'строка ФВЧ h₁';
+    v.rowShift = (isL ? 'h₀' : 'h₁') + ' со сдвигом 2·' + k + ' = ' + (2 * k) + (2 * k + 3 >= N ? ' (заворот по периоду)' : '');
+    v.terms = h.map((c, n) => { const i = (2 * k + n) % N; return { s: this.f(c, 4) + ' · x' + sub(i) + ' (' + x[i] + ')' + '  = ' + this.f(c * x[i], 3) }; });
+    v.rowVal = this.f(y[row], 4);
+    v.rowOut = (isL ? 'a' : 'd') + sub(k);
+    v.up = () => this.setState({ row: Math.max(0, row - 1) });
+    v.down = () => this.setState({ row: Math.min(N - 1, row + 1) });
+    const toe = [];
+    for (let r = 0; r < 12; r++) {
+      const cells = [];
+      for (let c = 0; c < 12; c++) {
+        const n = r - c, val = n >= 0 && n < 4 ? h0[n] : 0;
+        const keep = r % 2 === 1;
+        cells.push({ s: val === 0 ? '    ·' : this.f(val, 2).padStart(5, ' '), c: val === 0 ? '#3B4656' : keep ? '#56B4E9' : '#5B6577', bg: keep && val !== 0 ? '#14263A' : 'transparent' });
+      }
+      toe.push({ cells: cells });
+    }
+    v.toe = toe;
+    return v;
+  }
+}
+</script>
+</body>
+</html>

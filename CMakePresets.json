@@ -1,0 +1,28 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {"major": 3, "minor": 28, "patch": 0},
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Debug with ASan and UBSan",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/dev",
+      "cacheVariables": {"CMAKE_BUILD_TYPE": "Debug", "SIGNALS_SANITIZE": "ON"}
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {"CMAKE_BUILD_TYPE": "Release"}
+    }
+  ],
+  "buildPresets": [
+    {"name": "dev", "configurePreset": "dev", "jobs": 8},
+    {"name": "release", "configurePreset": "release", "jobs": 8}
+  ],
+  "testPresets": [
+    {"name": "dev", "configurePreset": "dev", "output": {"outputOnFailure": true}},
+    {"name": "release", "configurePreset": "release", "output": {"outputOnFailure": true}}
+  ]
+}

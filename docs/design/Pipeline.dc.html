@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Signals — редактор конвейера</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07090D}
+a{color:#56B4E9}a:hover{color:#A9D6F5}
+.t{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:13px;line-height:18px;color:#C9D1D9}
+.l{white-space:pre}
+.pn{position:relative;border:1px solid #2A3240;border-radius:7px;padding:10px 7.8px 6px 7.8px;box-sizing:border-box}
+.pf{border-color:#E8C547}
+.pt{position:absolute;top:-10px;left:10px;background:#0D1117;padding:0 6px;color:#E6EDF3;font-weight:700;white-space:pre}
+.pc{position:absolute;top:-10px;right:10px;background:#0D1117;padding:0 6px;color:#8B949E;white-space:pre}
+.dim{color:#8B949E}
+.tab{color:#9AA4B1;text-decoration:none;padding:0 7.8px;white-space:pre}
+.tab:hover{color:#E6EDF3;background:#1C2230}
+.on{color:#0D1117;background:#E8C547;font-weight:700}
+.key{color:#0D1117;background:#8B949E;padding:0 3px;border-radius:3px;font-weight:700;white-space:pre}
+.nd{position:absolute;width:130px;height:78px;border:1px solid #3B4656;border-radius:6px;background:#0F141B;padding:6px 6px 0 9px;box-sizing:border-box;cursor:pointer}
+.nd:hover{border-color:#8B949E}
+.ndsel{border-color:#E8C547;box-shadow:0 0 0 1px #E8C547}
+.nt{font-weight:700;color:#E6EDF3;white-space:pre}
+.nb{position:absolute;left:8px;bottom:-10px;background:#0D1117;padding:0 4px;white-space:pre;font-size:12px}
+.pin{position:absolute;top:30px;font-size:12px;line-height:14px}
+.chip{color:#9AA4B1;white-space:pre;padding:0 5px}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 840px; background: #0D1117; display: flex; flex-direction: column; overflow: hidden">
+  <div class="l dim" style="height: 28px; line-height: 28px; background: #161B22; text-align: center; font-size: 12px">signals — ~/GITHUB/Signals — 150×44</div>
+  <div style="flex: 1; display: flex; flex-direction: column; padding: 0 15px; min-height: 0">
+    <div style="height: 18px; display: flex; align-items: center; margin-top: 4px">
+      <span class="l" style="color: #E8C547; font-weight: 700"> ◆ Signals </span><span class="l dim">│</span>
+      <a class="tab" href="Main.dc.html">1 Сигнал</a><a class="tab" href="Main.dc.html">2 Спектр</a><a class="tab" href="Filters.dc.html">3 Фильтры</a><a class="tab" href="Designer.dc.html">4 Банк</a><a class="tab" href="Decomposition.dc.html">5 Разлож.</a><a class="tab" href="Matrix.dc.html">6 Матрица</a><a class="tab" href="Decomposition.dc.html">7 Обраб.</a><a class="tab on" href="Pipeline.dc.html">8 Конвейер</a><a class="tab" href="Theory.dc.html">9 Теория</a>
+      <span style="flex: 1"></span>
+      <span class="l dim">denoise.sig </span><span class="l" style="color: #E69F00">● изменён  </span><span class="key">?</span>
+    </div>
+    <div style="flex: 1; display: flex; gap: 7.8px; padding-top: 16px; min-height: 0">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0">
+        <div class="pn pf" style="height: 452px">
+          <div class="pt" style="color: #E8C547">Граф · авто-раскладка по слоям ✓</div><div class="pc">○ вход  ● выход  ◎ щуп  ┄ обход · выбран: провод DWT → Порог</div>
+          <div style="position: relative; width: 890px; height: 424px">
+            <svg width="890" height="424" aria-hidden="true" style="position: absolute; left: 0; top: 0">
+              <path d="M138 50 H158" stroke="#5B6577" stroke-width="1.5" fill="none"></path>
+              <path d="M138 50 H148 V150 H158" stroke="#5B6577" stroke-width="1.5" fill="none"></path>
+              <path d="M288 50 H308" stroke="#5B6577" stroke-width="1.5" fill="none"></path>
+              <path d="M438 50 H458" stroke="#E8C547" stroke-width="2.5" fill="none"></path>
+              <path d="M438 50 H448 V150 H458" stroke="#5B6577" stroke-width="1.5" fill="none"></path>
+              <path d="M588 50 H608" stroke="#5B6577" stroke-width="1.5" fill="none"></path>
+              <path d="M738 50 H758" stroke="#5B6577" stroke-width="1.5" fill="none"></path>
+              <path d="M738 50 H748 V140 H758" stroke="#5B6577" stroke-width="1.5" fill="none"></path>
+              <path d="M738 50 H748 V230 H758" stroke="#5B6577" stroke-width="1.5" fill="none"></path>
+              <path d="M138 50 H143 V290 H752 V160 H758" stroke="#3B4656" stroke-width="1.5" stroke-dasharray="4 3" fill="none"></path>
+              <path d="M752 250 H758" stroke="#3B4656" stroke-width="1.5" stroke-dasharray="4 3" fill="none"></path>
+            </svg>
+            <div class="nd" style="left: 8px; top: 12px"><div class="nt"><span style="color: #009E73">✓</span> WAV</div><div class="l dim">test.wav</div><div class="l dim">44,1к · 2 кан</div><div class="nb dim">0,021 с</div><span class="pin" style="right: -6px; color: #E6EDF3">●</span></div>
+            <div class="nd" style="left: 158px; top: 12px"><div class="nt"><span style="color: #009E73">✓</span> Каналы</div><div class="l dim">L, R отдельно</div><div class="l dim">2 × 450 686</div><div class="nb dim">0,003 с</div><span class="pin" style="left: -6px; color: #8B949E">○</span><span class="pin" style="right: -6px; color: #E6EDF3">●</span></div>
+            <div class="nd" style="left: 158px; top: 112px"><div class="nt"><span style="color: #009E73">✓</span> Спектр</div><div class="l dim">Уэлч, Ханн 4096</div><div class="l dim">→ вид 2</div><div class="nb dim">0,018 с</div><span class="pin" style="left: -6px; color: #8B949E">○</span></div>
+            <div class="nd" style="left: 308px; top: 12px"><div class="nt"><span style="color: #E8C547">◐</span> DWT</div><div class="l dim">db2 · J = 6</div><div class="l dim">symmetric</div><div class="nb" style="color: #E8C547">█████▋░░░ 62 %</div><span class="pin" style="left: -6px; color: #8B949E">○</span><span class="pin" style="right: -6px; color: #E6EDF3">●</span></div>
+            <div class="nd ndsel" style="left: 458px; top: 12px"><div class="nt"><span style="color: #8B949E">○</span> Порог</div><div class="l dim">BayesShrink</div><div class="l dim">soft · d₁…d₄</div><div class="nb dim">ожидание</div><span class="pin" style="left: -6px; color: #E8C547">○</span><span class="pin" style="right: -6px; color: #E6EDF3">●</span></div>
+            <div class="nd" style="left: 458px; top: 112px"><div class="nt"><span style="color: #56B4E9">◎</span> Щуп</div><div class="l dim">полоса d₃</div><div class="l dim">→ панель снизу</div><div class="nb dim">живой</div><span class="pin" style="left: -6px; color: #8B949E">○</span></div>
+            <div class="nd" style="left: 608px; top: 12px"><div class="nt"><span style="color: #8B949E">○</span> IDWT</div><div class="l dim">db2</div><div class="l dim">symmetric</div><div class="nb dim">ожидание</div><span class="pin" style="left: -6px; color: #8B949E">○</span><span class="pin" style="right: -6px; color: #E6EDF3">●</span></div>
+            <div class="nd" style="left: 758px; top: 12px"><div class="nt"><span style="color: #8B949E">○</span> Запись</div><div class="l dim">out.wav</div><div class="l dim">24 бит, dither</div><div class="nb dim">ожидание</div><span class="pin" style="left: -6px; color: #8B949E">○</span></div>
+            <div class="nd" style="left: 758px; top: 102px"><div class="nt"><span style="color: #8B949E">○</span> A/B ▶</div><div class="l dim">A исходный</div><div class="l dim">B результат</div><div class="nb dim">ожидание</div><span class="pin" style="left: -6px; color: #8B949E">○</span></div>
+            <div class="nd" style="left: 758px; top: 192px"><div class="nt"><span style="color: #8B949E">○</span> Проверка</div><div class="l dim">PR, SNR</div><div class="l dim">допуск 1e−12</div><div class="nb dim">ожидание</div><span class="pin" style="left: -6px; color: #8B949E">○</span></div>
+            <div class="pn" style="position: absolute; left: 8px; top: 196px; width: 420px; background: #0F141B">
+              <div class="pt" style="background: #0F141B">Добавить блок · a</div><div class="pc" style="background: #0F141B">Enter — в выбранный провод</div>
+              <div class="l" style="background: #161B22; padding: 0 4px">/ пор<span style="color: #E8C547">▏</span>                          <span class="dim">4 из 96</span></div>
+              <div class="l" style="color: #0D1117; background: #56B4E9; font-weight: 700">▸ Порог DWT/SWT    soft hard garrote     </div>
+              <div class="l">  Порог пакетов    best basis</div>
+              <div class="l">  Порог CWT</div>
+              <div class="l">  Порог по SURE    по уровням</div>
+              <div class="l dim">─────────────────────────────────────────────</div>
+              <div class="l dim">Источники · Поэлем. · Каналы · Время · ↓M/↑M</div>
+              <div class="l dim">Свёртка · Фильтры · Спектр · Вейвлеты</div>
+              <div class="l dim">Обработка · Матрицы · Измерения · Вывод</div>
+            </div>
+          </div>
+        </div>
+        <div style="flex: 1; display: flex; gap: 7.8px; min-height: 0">
+          <div class="pn" style="flex: 1">
+            <div class="pt">Щуп · провод DWT → Порог · полоса d₃ (2,8–5,5 кГц)</div><div class="pc">Tab: [время] спектр спектрограмма</div>
+            <svg width="530" height="72" aria-hidden="true">
+              <path d="{{pZero}}" fill="#222A35"></path>
+              <path d="{{pd3}}" fill="#76B9DE"></path>
+            </svg>
+            <div class="l dim">0 с                     5,1 с                    10,2 с</div>
+            <div class="l"><span class="dim">float64 · 1 канал · </span>56 338 коэфф.<span class="dim"> · кэш </span><span style="color: #009E73">✓ #7</span></div>
+          </div>
+          <div class="pn" style="width: 300px">
+            <div class="pt">denoise.sig</div><div class="pc">тот же файл — CLI</div>
+            <div class="l"><span style="color: #E69F00">source</span> wav  "test.wav"</div>
+            <div class="l"><span style="color: #E69F00">split</span>  ch   L R</div>
+            <div class="l"><span style="color: #E69F00">dwt</span>    db2  J=6 mode=symmetric</div>
+            <div class="l"><span style="color: #E69F00">thr</span>    bayes rule=soft lv=1..4</div>
+            <div class="l"><span style="color: #E69F00">idwt</span>   db2</div>
+            <div class="l"><span style="color: #E69F00">check</span>  pr tol=1e-12</div>
+            <div class="l"><span style="color: #E69F00">sink</span>   wav  "out.wav" bits=24</div>
+          </div>
+        </div>
+      </div>
+      <div style="width: 268px; display: flex; flex-direction: column; gap: 16px">
+        <div class="pn" style="flex: 1">
+          <div class="pt">Инспектор · Порог</div>
+          <div class="l"><span class="dim">метод    </span>BayesShrink ▾</div>
+          <div class="l"><span class="dim">правило  </span><span class="chip" style="color: #0D1117; background: #56B4E9; font-weight: 700">soft</span><span class="chip">hard</span><span class="chip">garr.</span></div>
+          <div class="l"><span class="dim">уровни   </span>[1] … [4] ◂▸</div>
+          <div class="l"><span class="dim">шум σ    </span>MAD(d₁)/0,6745</div>
+          <div class="l"><span class="dim">         </span>= 0,0133 (вход)</div>
+          <div class="l dim">────────────────────────────────</div>
+          <div class="l"><span class="dim">вход   </span>7 полос db2, J = 6</div>
+          <div class="l"><span class="dim">       </span>a₆ 7 044 … d₁ 225 344</div>
+          <div class="l"><span class="dim">выход  </span>те же полосы, d₁…d₄</div>
+          <div class="l"><span class="dim">       </span>после порога</div>
+          <div class="l dim">────────────────────────────────</div>
+          <div class="l dim">λⱼ = σ² / σₓ,ⱼ ,</div>
+          <div class="l dim">σₓ,ⱼ = √max(0, Var(dⱼ) − σ²)</div>
+          <div class="l" style="margin-top: 6px"><a href="Theory.dc.html" style="text-decoration: none"><span class="key">F1</span> теория порога</a></div>
+          <div class="l dim" style="margin-top: 6px"><span class="key">Enter</span> изменить  <span class="key">M</span> обход</div>
+          <div class="l dim"><span class="key">Del</span> удалить  <span class="key">Ctrl+Z</span> отмена</div>
+        </div>
+        <div class="pn">
+          <div class="pt">Запуск #7 · 62 %</div><div class="pc">потоков 2</div>
+          <div class="l"><span style="color: #009E73">●</span> WAV         <span class="dim">0,021 с</span></div>
+          <div class="l"><span style="color: #009E73">●</span> Каналы      <span class="dim">0,003 с</span></div>
+          <div class="l"><span style="color: #E8C547">◐</span> DWT  <span style="color: #E8C547">█████▋</span><span style="color: #2A3240">███</span> <span class="dim">62 %</span></div>
+          <div class="l"><span class="dim">○ Порог · IDWT · Запись</span></div>
+          <div class="l dim">изменили λ → пересчёт с «Порог»</div>
+          <div class="l" style="margin-top: 4px; color: #E6EDF3">$ signals run denoise.sig \</div>
+          <div class="l" style="color: #E6EDF3">    --set thr.rule=hard</div>
+          <div class="l dim"><span class="key">r</span> запуск  <span class="key">Esc</span> прервать</div>
+        </div>
+      </div>
+    </div>
+    <div class="l" style="height: 18px; margin: 6px 0 8px 0; display: flex; gap: 14px">
+      <span><span class="key">a</span> <span class="dim">добавить</span></span><span><span class="key">тяни ● → ○</span> <span class="dim">соединить</span></span><span><span class="key">Enter</span> <span class="dim">параметры</span></span><span><span class="key">M</span> <span class="dim">обход</span></span><span><span class="key">p</span> <span class="dim">щуп</span></span><span><span class="key">L</span> <span class="dim">раскладка</span></span><span><span class="key">r</span> <span class="dim">запуск</span></span><span><span class="key">Ctrl+S</span> <span class="dim">сохранить</span></span><span><span class="key">F1</span> <span class="dim">теория блока</span></span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":840}}'>
+class Component extends DCLogic {
+  componentDidMount() {
+    fetch('/_blob/cfbce8d5404db3e900284d055658ef74').then((r) => r.json()).then((d) => this.setState({ d: d })).catch(() => this.setState({ failed: true }));
+  }
+  dots(pts) {
+    const r = 1.2, seen = {};
+    let s = '';
+    for (let q = 0; q < pts.length; q++) {
+      const i = pts[q][0], j = pts[q][1], key = i + ':' + j;
+      if (seen[key]) continue;
+      seen[key] = 1;
+      const cx = i * 3.9 + 1.95, cy = j * 4.5 + 2.25;
+      s += 'M' + (cx - r).toFixed(1) + ' ' + cy.toFixed(1) + 'a' + r + ' ' + r + ' 0 1 0 ' + (2 * r) + ' 0a' + r + ' ' + r + ' 0 1 0 ' + (-2 * r) + ' 0';
+    }
+    return s;
+  }
+  renderVals() {
+    const d = this.state && this.state.d;
+    const v = { pd3: '', pZero: '' };
+    const n = 134, H = 16, mid = (H - 1) / 2, z = [];
+    for (let i = 0; i < n; i += 3) z.push([i, Math.floor(mid)], [i, Math.ceil(mid)]);
+    v.pZero = this.dots(z);
+    if (!d) return v;
+    const b = d.bands.filter((x) => x.name === 'd3')[0];
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const e = b.env[Math.min(b.env.length - 1, Math.floor(i * b.env.length / n))] / 100;
+      const h = Math.round(e * mid);
+      for (let t = Math.floor(mid - h); t <= Math.ceil(mid + h); t++) pts.push([i, t]);
+    }
+    v.pd3 = this.dots(pts);
+    return v;
+  }
+}
+</script>
+</body>
+</html>
