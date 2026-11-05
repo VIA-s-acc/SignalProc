@@ -173,7 +173,7 @@
   "tui.resources.title": "Ресурсы",
   "tui.resources.close": "Esc или R — закрыть",
   "tui.resources.cpu": "CPU процесса за 5 минут, % одного ядра",
-  "tui.resources.memory": "Память (RSS) за 5 минут, МБ",
+  "tui.resources.memory": "Память процесса за 5 минут, МБ (как в top)",
   "tui.resources.cores": "Загрузка ядер",
   "tui.resources.buffers": "Память буферов",
   "tui.resources.queue": "Очередь задач",

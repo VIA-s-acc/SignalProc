@@ -11,6 +11,11 @@
 
 #include <unistd.h>
 
+#if defined(__APPLE__)
+#include <libproc.h>
+#include <sys/resource.h>
+#endif
+
 #include "tui/monitor/monitor.hpp"
 #include "tui/monitor/sampler.hpp"
 
@@ -20,10 +25,18 @@ using namespace std::chrono_literals;
 namespace {
 
 void touch(std::vector<char>& v) {
-    for (std::size_t i = 0; i < v.size(); i += 4096) v[i] = static_cast<char>(i);
+    char* volatile data = v.data();
+    for (std::size_t i = 0; i < v.size(); i += 4096) data[i] = static_cast<char>(i);
 }
 
-double ps_rss_kib(pid_t pid) {
+#if defined(__APPLE__)
+double top_memory_kib(pid_t pid) {
+    rusage_info_v4 ri{};
+    REQUIRE(proc_pid_rusage(pid, RUSAGE_INFO_V4, reinterpret_cast<rusage_info_t*>(&ri)) == 0);
+    return static_cast<double>(ri.ri_phys_footprint) / 1024.0;
+}
+#else
+double top_memory_kib(pid_t pid) {
     const std::string cmd = "ps -o rss= -p " + std::to_string(pid);
     FILE* f = popen(cmd.c_str(), "r");
     REQUIRE(f);
@@ -33,6 +46,7 @@ double ps_rss_kib(pid_t pid) {
     REQUIRE(ok);
     return std::stod(buf);
 }
+#endif
 
 double clock_seconds(clockid_t id) {
     timespec ts{};
@@ -42,13 +56,13 @@ double clock_seconds(clockid_t id) {
 
 }  // namespace
 
-TEST_CASE("resident memory agrees with ps within 5 percent", "[tui][monitor]") {
+TEST_CASE("process memory agrees with top within 5 percent", "[tui][monitor]") {
     std::vector<char> ballast(64 << 20, 1);
     touch(ballast);
     auto s = sample_process();
     REQUIRE(s);
-    const double ps_kib = ps_rss_kib(getpid());
-    CHECK(std::abs(static_cast<double>(s->rss_bytes) / 1024.0 - ps_kib) <= 0.05 * ps_kib);
+    const double top_kib = top_memory_kib(getpid());
+    CHECK(std::abs(static_cast<double>(s->rss_bytes) / 1024.0 - top_kib) <= 0.05 * top_kib);
     CHECK(s->peak_rss_bytes >= s->rss_bytes);
     CHECK(s->rss_bytes > (64u << 20));
 }

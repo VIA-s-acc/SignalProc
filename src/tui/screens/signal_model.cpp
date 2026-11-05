@@ -68,11 +68,17 @@ void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
                               if (ctx.cancelled()) return;
 
                               ctx.begin(2);
+                              const double fs = file->audio.sample_rate;
+                              const auto channels = static_cast<double>(file->audio.channels.size());
+                              std::vector<double> mono(file->audio.frames(), 0.0);
                               std::size_t sample_bytes = 0, pyramid_bytes = 0;
-                              for (const auto& ch : file->audio.channels) {
+                              for (auto& ch : file->audio.channels) {
                                   d->samples.emplace_back(ch.begin(), ch.end());
                                   sample_bytes += ch.size() * sizeof(float);
+                                  for (std::size_t k = 0; k < mono.size(); ++k) mono[k] += ch[k];
+                                  std::vector<double>{}.swap(ch);
                               }
+                              for (double& v : mono) v /= channels;
                               for (const auto& ch : d->samples) {
                                   d->pyramids.emplace_back(ch);
                                   pyramid_bytes += d->pyramids.back().bytes();
@@ -82,16 +88,11 @@ void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
                               ctx.finish(sample_bytes + pyramid_bytes);
                               if (ctx.cancelled()) return;
 
-                              std::vector<double> mono(file->audio.frames(), 0.0);
-                              for (const auto& ch : file->audio.channels)
-                                  for (std::size_t k = 0; k < mono.size(); ++k) mono[k] += ch[k];
-                              for (double& v : mono) v /= static_cast<double>(file->audio.channels.size());
-
                               ctx.begin(3);
-                              auto psd = core::welch_psd(mono, file->audio.sample_rate, kWelchSegment, kWelchSegment / 2, &ctx);
+                              auto psd = core::welch_psd(mono, fs, kWelchSegment, kWelchSegment / 2, &ctx);
                               if (psd) {
                                   const double peak = *std::max_element(psd->begin(), psd->end());
-                                  const auto freqs = core::welch_frequencies(file->audio.sample_rate, kWelchSegment);
+                                  const auto freqs = core::welch_frequencies(fs, kWelchSegment);
                                   for (std::size_t k = 1; k < psd->size(); ++k) {
                                       d->psd_hz.push_back(freqs[k]);
                                       d->psd_db.push_back(peak > 0 ? std::max(-100.0, 10 * std::log10((*psd)[k] / peak)) : -100.0);

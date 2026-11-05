@@ -28,6 +28,7 @@ constexpr double kWheelStep = 1.25;
 constexpr double kHalfPowerDb = -3.0102999566398120;
 constexpr double kMaskRelative = 1e-3;
 constexpr double kCheckTol = 1e-10;
+constexpr double kRoundOff = 1e-15;
 constexpr int kMinLeft = 26;
 constexpr int kComparisonRows = 8;
 constexpr int kRowPanels = 9;
@@ -627,7 +628,7 @@ ftxui::Element FiltersScreen::properties_panel() {
                    fg(th.fg, ui_));
     rows.push_back(text(tr("tui.filters.prop.sobolev") + " " + (a.sobolev ? format_fixed(*a.sobolev, 3) : std::string{"—"})) | fg(th.fg, ui_));
     if (a.pr_error)
-        rows.push_back(hbox({text(tr("tui.filters.prop.pr") + " " + format_number(*a.pr_error, 2)) | fg(th.fg, ui_), mark(*a.pr_error < kCheckTol)}));
+        rows.push_back(hbox({text(tr("tui.filters.prop.pr") + " " + (*a.pr_error < kRoundOff ? std::string{"< 10⁻¹⁵"} : format_number(*a.pr_error, 2))) | fg(th.fg, ui_), mark(*a.pr_error < kCheckTol)}));
     double sum = 0, alternating = 0;
     for (std::size_t k = 0; k < a.h.coeffs.size(); ++k) {
         sum += a.h.coeffs[k];

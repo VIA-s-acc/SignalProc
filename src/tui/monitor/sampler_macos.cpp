@@ -1,4 +1,9 @@
+#include <libproc.h>
 #include <mach/mach.h>
+#include <sys/resource.h>
+#include <unistd.h>
+
+#include <algorithm>
 
 #include "tui/monitor/sampler.hpp"
 
@@ -8,12 +13,13 @@ core::Result<ProcessSample> sample_process() {
     ProcessSample s;
     s.wall_seconds = detail::wall_seconds();
     s.cpu_seconds = detail::process_cpu_seconds();
-    mach_task_basic_info_data_t info{};
-    mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
-    if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&info), &count) != KERN_SUCCESS)
-        return core::make_error(core::Errc::io_error, "task_info failed");
-    s.rss_bytes = info.resident_size;
-    s.peak_rss_bytes = info.resident_size_max;
+    // resident_size keeps pages malloc has freed as reusable, so after a large load it stays far above what the
+    // process holds; top and Activity Monitor report the physical footprint instead.
+    rusage_info_v4 usage{};
+    if (proc_pid_rusage(getpid(), RUSAGE_INFO_V4, reinterpret_cast<rusage_info_t*>(&usage)) != 0)
+        return core::make_error(core::Errc::io_error, "proc_pid_rusage failed");
+    s.rss_bytes = usage.ri_phys_footprint;
+    s.peak_rss_bytes = std::max(usage.ri_lifetime_max_phys_footprint, usage.ri_phys_footprint);
     thread_act_array_t threads = nullptr;
     mach_msg_type_number_t thread_count = 0;
     if (task_threads(mach_task_self(), &threads, &thread_count) == KERN_SUCCESS) {

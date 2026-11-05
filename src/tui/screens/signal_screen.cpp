@@ -255,7 +255,7 @@ ftxui::Element SignalScreen::run_panel(int panel_width) {
     for (int i = 0; i < width; ++i) rule += glyph(Glyph::h, g);
     rows.push_back(text(rule) | fg(th.dim, ui_));
     const auto threads = ui_.resources ? ui_.resources().threads : 0;
-    rows.push_back(line({{tr("tui.signal.elapsed") + " ", th.dim}, {format_si(elapsed, "с"), th.fg},
+    rows.push_back(line({{tr("tui.signal.elapsed") + " ", th.dim}, {pad_left(format_si(elapsed, "с"), 8), th.fg},
                          {" · " + tr("tui.signal.threads") + " ", th.dim}, {std::to_string(threads), th.fg}},
                         ui_));
     if (running) rows.push_back(hbox({key_label(" Esc ", ui_), text(" " + tr("tui.signal.cancel")) | fg(th.dim, ui_)}));
