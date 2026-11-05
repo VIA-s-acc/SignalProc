@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Signals — разложение и обработка</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07090D}
+a{color:#56B4E9}a:hover{color:#A9D6F5}
+.t{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:13px;line-height:18px;color:#C9D1D9}
+.l{white-space:pre}
+.pn{position:relative;border:1px solid #2A3240;border-radius:7px;padding:10px 7.8px 6px 7.8px;box-sizing:border-box}
+.pf{border-color:#E8C547}
+.pt{position:absolute;top:-10px;left:10px;background:#0D1117;padding:0 6px;color:#E6EDF3;font-weight:700;white-space:pre}
+.pc{position:absolute;top:-10px;right:10px;background:#0D1117;padding:0 6px;color:#8B949E;white-space:pre}
+.dim{color:#8B949E}
+.tab{color:#9AA4B1;text-decoration:none;padding:0 7.8px;white-space:pre}
+.tab:hover{color:#E6EDF3;background:#1C2230}
+.on{color:#0D1117;background:#E8C547;font-weight:700}
+.key{color:#0D1117;background:#8B949E;padding:0 3px;border-radius:3px;font-weight:700;white-space:pre}
+.btn{font:inherit;color:#C9D1D9;background:#161B22;border:1px solid #2A3240;border-radius:4px;padding:0 6px;cursor:pointer;white-space:pre;line-height:16px}
+.btn:hover{border-color:#E8C547;color:#E6EDF3}
+.chk{font:inherit;background:transparent;border:0;padding:0;cursor:pointer;white-space:pre;color:inherit;font-weight:700}
+.chip{color:#9AA4B1;white-space:pre;padding:0 5px}
+.chipon{color:#0D1117;background:#56B4E9;font-weight:700}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 840px; background: #0D1117; display: flex; flex-direction: column; overflow: hidden">
+  <div class="l dim" style="height: 28px; line-height: 28px; background: #161B22; text-align: center; font-size: 12px">signals — ~/GITHUB/Signals — 150×44</div>
+  <div style="flex: 1; display: flex; flex-direction: column; padding: 0 15px; min-height: 0">
+    <div style="height: 18px; display: flex; align-items: center; margin-top: 4px">
+      <span class="l" style="color: #E8C547; font-weight: 700"> ◆ Signals </span><span class="l dim">│</span>
+      <a class="tab" href="Main.dc.html">1 Сигнал</a><a class="tab" href="Main.dc.html">2 Спектр</a><a class="tab" href="Filters.dc.html">3 Фильтры</a><a class="tab" href="Designer.dc.html">4 Банк</a><a class="tab on" href="Decomposition.dc.html">5 Разлож.</a><a class="tab" href="Matrix.dc.html">6 Матрица</a><a class="tab" href="Decomposition.dc.html">7 Обраб.</a><a class="tab" href="Pipeline.dc.html">8 Конвейер</a><a class="tab" href="Theory.dc.html">9 Теория</a>
+      <span style="flex: 1"></span>
+      <span class="l dim">test.wav · моно (L+R)/2 · db2 · J = 6 · symmetric  </span><span class="key">?</span>
+    </div>
+    <div class="l" style="height: 18px; margin-top: 8px; display: flex; align-items: center">
+      <span class="dim">Вид </span><span class="chip chipon">Подполосы</span><span class="chip">MRA</span><span class="chip">Плитки t–f</span><span class="chip">Пакеты</span><span class="chip">Скалограмма</span>
+      <span class="dim">  │ преобразование </span><span class="chip chipon">DWT</span><span class="chip">SWT</span><span class="chip">MODWT</span><span class="dim">  │ вейвлет </span><span style="color: #E6EDF3">db2 ▾</span><span class="dim">  │ J </span><span style="color: #E6EDF3">6 ◂▸</span><span class="dim">  │ края </span><span style="color: #E6EDF3">symmetric ▾</span>
+    </div>
+    <div style="flex: 1; display: flex; gap: 7.8px; padding-top: 16px; min-height: 0">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0">
+        <div class="pn pf">
+          <div class="pt" style="color: #E8C547">Подполосы · ☑ = входит в синтез · клик по галочке</div><div class="pc">|c| мин/макс · масштаб своей полосы</div>
+          <sc-for list="{{bands}}" as="b" hint-placeholder-count="7">
+            <div style="display: flex; align-items: center; height: 40px; border-bottom: 1px solid #161B22">
+              <div style="width: 210px">
+                <div class="l"><button class="chk" style="color: {{b.cc}}" onClick="{{b.toggle}}" aria-label="Включить полосу в синтез">{{b.box}}</button> <span style="color: {{b.c}}; font-weight: 700">{{b.name}}</span> <span class="dim">{{b.range}}</span></div>
+                <div class="l dim">   {{b.pct}} · {{b.len}}</div>
+              </div>
+              <svg width="624" height="36" aria-hidden="true">
+                <path d="{{b.zero}}" fill="#222A35"></path>
+                <path d="{{b.path}}" fill="{{b.pc}}"></path>
+              </svg>
+            </div>
+          </sc-for>
+          <div class="dim" style="display: flex; justify-content: space-between; margin-left: 210px; width: 624px; margin-top: 2px"><span class="l">0 с</span><span class="l">2,5</span><span class="l">5,1</span><span class="l">7,7</span><span class="l">10,2 с</span></div>
+        </div>
+        <div class="pn" style="flex: 1">
+          <div class="pt">Скалограмма · CWT Морле · |W(a, t)|, дБ</div><div class="pc">viridis · пол −48 дБ · ось частот лог.</div>
+          <div style="display: flex">
+            <div class="dim" style="width: 70px; height: 216px; display: flex; flex-direction: column; justify-content: space-between; text-align: right; padding-right: 7.8px; box-sizing: border-box"><div class="l">высокие</div><div class="l">a = 16</div><div class="l">низкие</div></div>
+            <svg width="748.8" height="216" aria-hidden="true">
+              <path d="{{h0}}" fill="#440154"></path><path d="{{h1}}" fill="#481A6C"></path><path d="{{h2}}" fill="#472F7D"></path><path d="{{h3}}" fill="#414487"></path>
+              <path d="{{h4}}" fill="#39568C"></path><path d="{{h5}}" fill="#31688E"></path><path d="{{h6}}" fill="#2A788E"></path><path d="{{h7}}" fill="#23888E"></path>
+              <path d="{{h8}}" fill="#1F988B"></path><path d="{{h9}}" fill="#22A884"></path><path d="{{h10}}" fill="#35B779"></path><path d="{{h11}}" fill="#54C568"></path>
+              <path d="{{h12}}" fill="#7AD151"></path><path d="{{h13}}" fill="#A5DB36"></path><path d="{{h14}}" fill="#D2E21B"></path><path d="{{h15}}" fill="#FDE725"></path>
+            </svg>
+          </div>
+          <div class="dim" style="display: flex; justify-content: space-between; margin-left: 70px; width: 748.8px"><span class="l">0 с</span><span class="l">5,1</span><span class="l">10,2 с</span></div>
+        </div>
+      </div>
+      <div style="width: 300px; display: flex; flex-direction: column; gap: 16px">
+        <div class="pn">
+          <div class="pt">Шумоподавление</div><div class="pc">7 Обраб.</div>
+          <div class="l"><span class="dim">метод    </span>BayesShrink ▾</div>
+          <div class="l"><span class="dim">правило  </span><span class="chip chipon">soft</span><span class="chip">hard</span><span class="chip">garrote</span></div>
+          <div class="l"><span class="dim">σ шума   </span>0,0133 <span class="dim">MAD(d₁)/0,6745</span></div>
+          <div class="l"><span class="dim">уровни   </span>d₁ … d₄</div>
+          <div class="l dim">λⱼ = σ² / σₓ,ⱼ  (по уровню)</div>
+          <div class="l dim">──────────────────────────────────</div>
+          <div class="l"><span class="dim">сжатие   </span>оставить <span style="color: #E6EDF3">[10 %]</span> коэфф.</div>
+          <div class="l"><span class="dim">правка   </span>усиление d₃ <span style="color: #E6EDF3">[+3 дБ]</span></div>
+          <div class="l dim" style="margin-top: 4px"><span class="key">Enter</span> применить  <span class="key">u</span> отменить</div>
+        </div>
+        <div class="pn">
+          <div class="pt">Прослушивание A/B</div>
+          <div class="l" style="display: flex; gap: 5px"><button class="btn">▶ A исходный</button><button class="btn">▶ B Σ☑</button></div>
+          <div class="l" style="display: flex; gap: 5px; margin-top: 4px"><button class="btn">▶ разность</button><button class="btn">▶ полоса d₃</button></div>
+          <div class="l" style="margin-top: 6px"><span style="color: #E8C547">███████▌</span><span style="color: #2A3240">████████████████</span> <span class="dim">3,41 с</span></div>
+          <div class="l dim">курсор звука общий для всех видов</div>
+        </div>
+        <div class="pn" style="flex: 1">
+          <div class="pt">Итог</div>
+          <div class="l"><span class="dim">в синтезе    </span>{{incl}}</div>
+          <div class="l"><span class="dim">энергия      </span><span style="color: #E6EDF3">{{kept}}</span> <span class="dim">от исходной</span></div>
+          <div class="l"><span class="dim">PR (все ☑)   </span>ошибка 1,6·10⁻¹⁵ <span style="color: #009E73">✓</span></div>
+          <div class="l"><span class="dim">Парсеваль    </span>Σ‖dⱼ‖² + ‖a₆‖² ≈ ‖x‖²</div>
+          <div class="l dim">              (db2 ортог., края symm.)</div>
+          <div class="l dim" style="margin-top: 6px">──────────────────────────────────</div>
+          <div class="l" style="color: {{warnC}}">{{warn1}}</div>
+          <div class="l" style="color: {{warnC}}">{{warn2}}</div>
+          <div class="l dim">{{warn3}}</div>
+        </div>
+      </div>
+    </div>
+    <div class="l" style="height: 18px; margin: 6px 0 8px 0; display: flex; gap: 14px">
+      <span><span class="key">1–7</span> <span class="dim">вкл/выкл полосу</span></span><span><span class="key">Space</span> <span class="dim">слушать Σ☑</span></span><span><span class="key">a</span>/<span class="key">b</span>/<span class="key">x</span> <span class="dim">A, B, разность</span></span><span><span class="key">колесо</span> <span class="dim">масштаб t</span></span><span><span class="key">v</span> <span class="dim">сменить вид</span></span><span><span class="key">F1</span> <span class="dim">теория DWT</span></span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":840}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { off: { d1: true } }; }
+  componentDidMount() {
+    fetch('/_blob/cfbce8d5404db3e900284d055658ef74').then((r) => r.json()).then((d) => this.setState({ d: d })).catch(() => this.setState({ failed: true }));
+  }
+  dots(pts) {
+    const r = 1.2, seen = {};
+    let s = '';
+    for (let q = 0; q < pts.length; q++) {
+      const i = pts[q][0], j = pts[q][1], key = i + ':' + j;
+      if (seen[key]) continue;
+      seen[key] = 1;
+      const cx = i * 3.9 + 1.95, cy = j * 4.5 + 2.25;
+      s += 'M' + (cx - r).toFixed(1) + ' ' + cy.toFixed(1) + 'a' + r + ' ' + r + ' 0 1 0 ' + (2 * r) + ' 0a' + r + ' ' + r + ' 0 1 0 ' + (-2 * r) + ' 0';
+    }
+    return s;
+  }
+  mirror(env, wc, hc) {
+    const n = wc * 2, H = hc * 4, mid = (H - 1) / 2, pts = [];
+    for (let i = 0; i < n; i++) {
+      const e = env[Math.min(env.length - 1, Math.floor(i * env.length / n))] / 100;
+      const h = Math.max(0, Math.round(e * mid));
+      for (let t = Math.floor(mid - h); t <= Math.ceil(mid + h); t++) pts.push([i, t]);
+    }
+    return this.dots(pts);
+  }
+  f(v, k) { return v.toFixed(k).replace('.', ','); }
+  renderVals() {
+    const d = this.state.d, off = this.state.off;
+    const v = { bands: [], incl: '—', kept: '—', warn1: '', warn2: '', warn3: '', warnC: '#8B949E' };
+    for (let k = 0; k < 16; k++) v['h' + k] = '';
+    if (!d) return v;
+    const sub = (s) => s.replace(/(\d)/, (m) => '₀₁₂₃₄₅₆₇₈₉'[+m]);
+    const fmtHz = (x) => x >= 1000 ? this.f(x / 1000, x >= 10000 ? 1 : 2).replace(',00', '') + 'к' : String(x);
+    const cols = { d1: '#B9DCF0', d2: '#95CAE7', d3: '#76B9DE', d4: '#5DAAD6', d5: '#4A9BCC', d6: '#3A8DC0', a6: '#2F7FB0' };
+    const order = d.bands.slice().reverse();
+    const zero = [];
+    for (let i = 0; i < 160; i += 3) zero.push([i, 3]), zero.push([i, 4]);
+    const zp = this.dots(zero);
+    let kept = 0;
+    const names = [];
+    v.bands = order.map((b) => {
+      const isOn = !off[b.name];
+      if (isOn) { kept += b.energy; names.push(sub(b.name)); }
+      return {
+        name: sub(b.name), c: cols[b.name], range: (fmtHz(b.lo) + '–' + fmtHz(b.hi) + ' Гц').padEnd(14, ' '),
+        pct: (this.f(b.energy, 2) + ' %').padStart(7, ' '), len: b.len.toLocaleString('ru-RU'),
+        box: isOn ? '☑' : '☐', cc: isOn ? '#E6EDF3' : '#8B949E', pc: isOn ? cols[b.name] : '#3B4656',
+        path: this.mirror(b.env, 80, 2), zero: zp,
+        toggle: () => { const o = Object.assign({}, off); if (o[b.name]) delete o[b.name]; else o[b.name] = true; this.setState({ off: o }); }
+      };
+    });
+    v.incl = names.length === 7 ? 'все 7 полос' : names.join(' ');
+    v.kept = this.f(kept, 2) + ' %';
+    const nOff = 7 - names.length;
+    if (nOff > 0) {
+      v.warnC = '#E69F00';
+      v.warn1 = '⚠ выключено полос: ' + nOff + '. В DWT с ↓2';
+      v.warn2 = '  правка полос даёт наложение.';
+      v.warn3 = 'смягчить: SWT ▾ · см. Объяснение, шаг 12';
+    } else { v.warn1 = 'все полосы включены: x̂ = x'; v.warnC = '#009E73'; v.warn3 = 'правка полос — клик по ☑ слева'; }
+    const buckets = [];
+    for (let k = 0; k < 16; k++) buckets.push('');
+    d.scalogram.forEach((row, r) => {
+      for (let c = 0; c < row.length; c++) {
+        const k = parseInt(row[c], 16), x = (c * 7.8).toFixed(1), y = r * 9;
+        buckets[k] += 'M' + x + ' ' + y + 'h7.8v9h-7.8z';
+      }
+    });
+    for (let k = 0; k < 16; k++) v['h' + k] = buckets[k];
+    return v;
+  }
+}
+</script>
+</body>
+</html>

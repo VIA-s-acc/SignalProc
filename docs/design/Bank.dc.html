@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Signals — объяснение: банк Хаара</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07090D}
+a{color:#56B4E9}a:hover{color:#A9D6F5}
+.t{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:13px;line-height:18px;color:#C9D1D9}
+.l{white-space:pre}
+.pn{position:relative;border:1px solid #2A3240;border-radius:7px;padding:10px 7.8px 6px 7.8px;box-sizing:border-box}
+.pf{border-color:#E8C547}
+.pt{position:absolute;top:-10px;left:10px;background:#0D1117;padding:0 6px;color:#E6EDF3;font-weight:700;white-space:pre}
+.pc{position:absolute;top:-10px;right:10px;background:#0D1117;padding:0 6px;color:#8B949E;white-space:pre}
+.dim{color:#8B949E}
+.tab{color:#9AA4B1;text-decoration:none;padding:0 7.8px;white-space:pre}
+.tab:hover{color:#E6EDF3;background:#1C2230}
+.on{color:#0D1117;background:#E8C547;font-weight:700}
+.key{color:#0D1117;background:#8B949E;padding:0 3px;border-radius:3px;font-weight:700;white-space:pre}
+.btn{font:inherit;color:#C9D1D9;background:#161B22;border:1px solid #2A3240;border-radius:4px;padding:0 6px;cursor:pointer;white-space:pre;line-height:16px}
+.btn:hover{border-color:#E8C547;color:#E6EDF3}
+.st{font:inherit;display:block;width:100%;text-align:left;background:transparent;border:0;padding:0 4px;cursor:pointer;white-space:pre;line-height:18px}
+.st:hover{background:#1C2230}
+.sub{color:#9AA4B1;text-decoration:none;white-space:pre;padding:0 6px}
+.subon{color:#E8C547;font-weight:700}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 840px; background: #0D1117; display: flex; flex-direction: column; overflow: hidden">
+  <div class="l dim" style="height: 28px; line-height: 28px; background: #161B22; text-align: center; font-size: 12px">signals — ~/GITHUB/Signals — 150×44</div>
+  <div style="flex: 1; display: flex; flex-direction: column; padding: 0 15px; min-height: 0">
+    <div style="height: 18px; display: flex; align-items: center; margin-top: 4px">
+      <span class="l" style="color: #E8C547; font-weight: 700"> ◆ Signals </span><span class="l dim">│</span>
+      <a class="tab" href="Main.dc.html">1 Сигнал</a><a class="tab" href="Main.dc.html">2 Спектр</a><a class="tab" href="Filters.dc.html">3 Фильтры</a><a class="tab" href="Designer.dc.html">4 Банк</a><a class="tab" href="Decomposition.dc.html">5 Разлож.</a><a class="tab" href="Matrix.dc.html">6 Матрица</a><a class="tab" href="Decomposition.dc.html">7 Обраб.</a><a class="tab" href="Pipeline.dc.html">8 Конвейер</a><a class="tab on" href="Theory.dc.html">9 Теория</a>
+      <span style="flex: 1"></span>
+      <a class="sub subon" href="Bank.dc.html">[Объяснение]</a><a class="sub" href="Theory.dc.html">Под капотом</a><a class="sub" href="Theory.dc.html">Учебник</a><span class="key">?</span>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 16px; padding-top: 16px; min-height: 0">
+      <div class="pn pf">
+        <div class="pt" style="color: #E8C547">Объяснение · банк Хаара · шаг {{step}}/12: {{stTitle}}</div><div class="pc">банк: <span style="color: #E8C547">[Хаар]</span> db2 5/3 «мой» · w — сменить</div>
+        <div style="display: flex; gap: 7.8px">
+          <div style="flex: 1">
+            <sc-for list="{{diag}}" as="ln" hint-placeholder-count="7">
+              <div class="l"><sc-for list="{{ln.segs}}" as="g"><span style="color: {{g.c}}; font-weight: {{g.w}}">{{g.s}}</span></sc-for></div>
+            </sc-for>
+            <div class="l dim" style="margin-top: 8px">индекс  {{idx}}</div>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+              <div class="l"><span style="color: {{r.lc}}; font-weight: 700">{{r.name}}</span><sc-for list="{{r.cells}}" as="c"><span style="color: {{c.c}}; background: {{c.bg}}">{{c.s}}</span></sc-for><span class="dim">{{r.note}}</span></div>
+            </sc-for>
+          </div>
+          <div style="width: 240px; border-left: 1px solid #2A3240; padding-left: 7.8px">
+            <div class="l dim">Шаги · клик = перейти</div>
+            <sc-for list="{{steps}}" as="s" hint-placeholder-count="12">
+              <button class="st" style="color: {{s.c}}; background: {{s.bg}}" onClick="{{s.go}}">{{s.label}}</button>
+            </sc-for>
+            <div class="l" style="margin-top: 6px; display: flex; gap: 6px"><button class="btn" onClick="{{prev}}">◂ назад</button><button class="btn" onClick="{{next}}">далее ▸</button><button class="btn">⏵ авто</button></div>
+          </div>
+        </div>
+      </div>
+      <div style="flex: 1; display: flex; gap: 7.8px; min-height: 0">
+        <div class="pn" style="width: 360px">
+          <div class="pt">Что происходит</div><div class="pc">инвариант шага</div>
+          <sc-for list="{{text}}" as="x" hint-placeholder-count="6"><div class="l" style="color: {{x.c}}">{{x.s}}</div></sc-for>
+        </div>
+        <div class="pn" style="width: 300px">
+          <div class="pt">Матрица A₁, N = 8 (×1/√2)</div><div class="pc">[L; B]</div>
+          <sc-for list="{{mat}}" as="m" hint-placeholder-count="8">
+            <div class="l"><span class="dim">{{m.lab}}</span><sc-for list="{{m.cells}}" as="c"><span style="color: {{c.c}}">{{c.s}}</span></sc-for><span class="dim">{{m.out}}</span></div>
+          </sc-for>
+          <div class="l" style="margin-top: 6px">A₁ᵀA₁ = I <span style="color: #009E73">✓</span>   S = A₁ᵀ</div>
+          <div class="l dim">блочно-диагональная: H_p(z) = const</div>
+        </div>
+        <div class="pn" style="flex: 1">
+          <div class="pt">|H₀| ━  |H₁| ━ · линейно</div><div class="pc">ГВЗ ½ у обоих</div>
+          <div style="display: flex">
+            <div style="width: 39px; height: 126px; display: flex; flex-direction: column; justify-content: space-between; text-align: right; padding-right: 6px; box-sizing: border-box; color: #8B949E"><div class="l">√2</div><div class="l">1</div><div class="l">0</div></div>
+            <svg width="218.4" height="126" aria-hidden="true">
+              <path d="{{fGrid}}" fill="#222A35"></path>
+              <path d="{{fH1}}" fill="#D55E00"></path>
+              <path d="{{fH0}}" fill="#56B4E9"></path>
+            </svg>
+          </div>
+          <div class="dim" style="display: flex; justify-content: space-between; margin-left: 39px; width: 218.4px"><span class="l">0</span><span class="l">π/2</span><span class="l">π</span></div>
+          <div class="l dim" style="margin-top: 4px">−3 дБ ровно на π/2</div>
+          <div class="l dim">утечка при π/4: −8,3 дБ</div>
+        </div>
+        <div class="pn" style="width: 262px">
+          <div class="pt">P₀ и наложение</div>
+          <div class="l">P₀ = F₀H₀ = ½(1 + z⁻¹)²</div>
+          <div class="l">P₀(z) − P₀(−z) = 2z⁻¹</div>
+          <div class="l dim">⇒ задержка ℓ = 1</div>
+          <div class="l dim">нули P₀: z = −1 (×2)</div>
+          <div class="l dim">─────────────────────────────</div>
+          <div class="l">T = ½[F₀H₀ + F₁H₁] = z⁻¹ <span style="color: #009E73">✓</span></div>
+          <div class="l">A = ½[F₀H₀(−z) + F₁H₁(−z)]</div>
+          <div class="l">  = 0 <span style="color: #009E73">✓</span> (−∞ дБ)</div>
+          <div class="l" style="color: {{aliasC}}">{{aliasNote}}</div>
+          <div class="l dim" style="margin-top: 4px"><span class="key">e</span> испортить f₁ на 1 %</div>
+        </div>
+      </div>
+    </div>
+    <div class="l" style="height: 18px; margin: 6px 0 8px 0; display: flex; gap: 14px">
+      <span><span class="key">←</span> <span class="dim">назад</span></span><span><span class="key">→</span> <span class="dim">далее</span></span><span><span class="key">Space</span> <span class="dim">анимация</span></span><span><span class="key">1…9</span> <span class="dim">шаг</span></span><span><span class="key">w</span> <span class="dim">сменить банк</span></span><span><span class="key">p</span> <span class="dim">фаза ↓2</span></span><span><span class="key">Enter</span> <span class="dim">открыть вид</span></span><span><span class="key">F1</span> <span class="dim">учебник §5</span></span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":840}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { step: 4 }; }
+  dots(pts) {
+    const r = 1.2, seen = {};
+    let s = '';
+    for (let q = 0; q < pts.length; q++) {
+      const i = pts[q][0], j = pts[q][1], key = i + ':' + j;
+      if (seen[key]) continue;
+      seen[key] = 1;
+      const cx = i * 3.9 + 1.95, cy = j * 4.5 + 2.25;
+      s += 'M' + (cx - r).toFixed(1) + ' ' + cy.toFixed(1) + 'a' + r + ' ' + r + ' 0 1 0 ' + (2 * r) + ' 0a' + r + ' ' + r + ' 0 1 0 ' + (-2 * r) + ' 0';
+    }
+    return s;
+  }
+  curve(fn, wc, hc, lo, hi) {
+    const n = wc * 2, H = hc * 4, pts = [];
+    let prev = -1;
+    for (let i = 0; i < n; i++) {
+      let j = Math.round((hi - fn(Math.PI * i / (n - 1))) / (hi - lo) * (H - 1));
+      j = Math.max(0, Math.min(H - 1, j));
+      if (prev < 0) pts.push([i, j]);
+      else { const a = Math.min(prev, j), b = Math.max(prev, j); for (let t = a; t <= b; t++) pts.push([i, t]); }
+      prev = j;
+    }
+    return this.dots(pts);
+  }
+  num(v) { const s = Math.abs(v) < 1e-12 ? '0' : v.toFixed(3).replace('.', ',').replace(/,?0+$/, ''); return (v < -1e-12 ? '−' : ' ') + s.replace('-', ''); }
+  renderVals() {
+    const step = this.state.step, r2 = Math.SQRT2;
+    const x = [4, 6, 10, 12, 8, 6, 5, 5];
+    const y0 = [], y1 = [];
+    for (let m = 0; m < 9; m++) { const a = m < 8 ? x[m] : 0, b = m > 0 ? x[m - 1] : 0; y0.push((a + b) / r2); y1.push((a - b) / r2); }
+    const a = [1, 3, 5, 7].map((m) => y0[m]), d = [1, 3, 5, 7].map((m) => y1[m]);
+    const u0 = [], u1 = [];
+    a.forEach((v, k) => { u0.push(v, 0); u1.push(d[k], 0); });
+    const w0 = [], w1 = [];
+    for (let n = 0; n < 8; n++) { const k = Math.floor(n / 2); w0.push(a[k] / r2); w1.push((n % 2 === 0 ? -1 : 1) * d[k] / r2); }
+    const xh = w0.map((v, n) => v + w1[n]);
+    const err = Math.max.apply(null, xh.map((v, n) => Math.abs(v - x[n])));
+    const titles = ['сигнал', 'фильтры h₀, h₁', 'свёртки y₀, y₁', 'прореживание ↓2', 'коэффициенты и энергия', 'растяжение ↑2', 'синтез f₀, f₁', 'сумма = x', 'матричный вид', 'многоуровневое дерево', 'частотный вид', 'эксперимент: d = 0'];
+    const HL = '#E8C547', BOX = '#C9D1D9', W = '#5B6577';
+    const on = { 1: ['x'], 2: ['H0', 'H1'], 3: ['H0', 'H1', 'y0', 'y1'], 4: ['D0', 'D1', 'a', 'd'], 5: ['a', 'd'], 6: ['U0', 'U1', 'u0', 'u1'], 7: ['F0', 'F1'], 8: ['S', 'xh'], 9: ['H0', 'H1', 'D0', 'D1'], 10: ['a'], 11: ['H0', 'H1', 'F0', 'F1'], 12: ['d', 'S', 'xh'] }[step];
+    const col = (k) => (k === null ? W : on.indexOf(k) >= 0 ? HL : (k.length === 2 ? BOX : W));
+    const seg = (s, k) => ({ s: s, c: col(k), w: k !== null && on.indexOf(k) >= 0 ? 700 : 400 });
+    const diag = [
+      [['              ', null], ['╭────╮', 'H0'], ['      ', null], ['╭────╮', 'D0'], ['                        ', null], ['╭────╮', 'U0'], ['      ', null], ['╭────╮', 'F0']],
+      [['           ┌─▶', null], ['│ H₀ │', 'H0'], ['─', null], [' y₀ ', 'y0'], ['▶', null], ['│ ↓2 │', 'D0'], ['─────── ', null], ['a', 'a'], [' ─────────────▶', null], ['│ ↑2 │', 'U0'], ['─', null], [' u₀ ', 'u0'], ['▶', null], ['│ F₀ │', 'F0'], ['──┐', null]],
+      [['  ', null], ['x', 'x'], [' ───────┤  ', null], ['╰────╯', 'H0'], ['      ', null], ['╰────╯', 'D0'], ['                        ', null], ['╰────╯', 'U0'], ['      ', null], ['╰────╯', 'F0'], ['  │', null]],
+      [['           │                                                                ', null], ['⊕', 'S'], ['──▶ ', null], ['x̂', 'xh']],
+      [['           │  ', null], ['╭────╮', 'H1'], ['      ', null], ['╭────╮', 'D1'], ['                        ', null], ['╭────╮', 'U1'], ['      ', null], ['╭────╮', 'F1'], ['  │', null]],
+      [['           └─▶', null], ['│ H₁ │', 'H1'], ['─', null], [' y₁ ', 'y1'], ['▶', null], ['│ ↓2 │', 'D1'], ['─────── ', null], ['d', 'd'], [' ─────────────▶', null], ['│ ↑2 │', 'U1'], ['─', null], [' u₁ ', 'u1'], ['▶', null], ['│ F₁ │', 'F1'], ['──┘', null]],
+      [['              ', null], ['╰────╯', 'H1'], ['      ', null], ['╰────╯', 'D1'], ['                        ', null], ['╰────╯', 'U1'], ['      ', null], ['╰────╯', 'F1']]
+    ].map((ln) => ({ segs: ln.map((p) => seg(p[0], p[1])) }));
+    const cell = (v, hi, faint) => ({ s: this.num(v).padStart(8, ' '), c: faint ? '#3B4656' : hi ? '#0D1117' : '#C9D1D9', bg: hi ? '#E8C547' : 'transparent' });
+    const mk = (name, arr, opts) => ({ name: name.padEnd(6, ' '), lc: opts.c || '#C9D1D9', cells: arr.map((v, i) => cell(v, opts.keep ? opts.keep.indexOf(i) >= 0 : false, opts.faint)), note: opts.note || '' });
+    const show = (n) => step >= n;
+    const rows = [mk('x', x, { c: '#E6EDF3', note: '   ‖x‖² = 446' })];
+    if (show(3)) { rows.push(mk('y₀', y0, { c: '#56B4E9', keep: step === 4 ? [1, 3, 5, 7] : null, note: step === 4 ? '   остаются нечётные' : '   = (x[n] + x[n−1])/√2' })); rows.push(mk('y₁', y1, { c: '#D55E00', keep: step === 4 ? [1, 3, 5, 7] : null, note: step === 4 ? '   индексы 1, 3, 5, 7' : '   = (x[n] − x[n−1])/√2' })); }
+    if (show(4)) { rows.push(mk('a', a, { c: '#56B4E9', note: '                                     ‖a‖² = 440' })); rows.push(mk('d', step === 12 ? [0, 0, 0, 0] : d, { c: '#D55E00', note: step === 12 ? '                                     обнулено' : '                                     ‖d‖² = 6' })); }
+    if (show(6) && step !== 9 && step !== 10 && step !== 11) { rows.push(mk('u₀', u0, { c: '#56B4E9', faint: step > 7 })); rows.push(mk('u₁', u1, { c: '#D55E00', faint: step > 7 })); }
+    if (show(7) && step < 9) { rows.push(mk('w₀', w0, { c: '#56B4E9' })); rows.push(mk('w₁', w1, { c: '#D55E00' })); }
+    if (step === 8) rows.push(mk('x̂', xh, { c: '#E8C547', note: '   x̂ − x = ' + (err === 0 ? '0' : err.toExponential(1)) + ' ✓' }));
+    if (step === 12) rows.push(mk('x̂', w0, { c: '#E8C547', note: '   = w₀, ошибка = w₁' }));
+    if (step === 10) { rows.push({ name: 'a₂    ', lc: '#56B4E9', cells: [16, 12].map((v) => cell(v)), note: '   d₂ = [6; −2]' }); rows.push({ name: 'a₃    ', lc: '#56B4E9', cells: [28 / r2].map((v) => cell(v)), note: '   d₃ = [−2,828]   392 + 8 + 40 + 6 = 446 ✓' }); }
+    const texts = {
+      1: ['x — 8 отсчётов. Задача: разложить сигнал', 'на средние и разности и собрать обратно', 'без потерь.', '', 'инвариант: ‖x‖² = 446'],
+      2: ['h₀ = [1, 1]/√2 — среднее пары (ФНЧ),', 'h₁ = [1, −1]/√2 — разность (ФВЧ).', 'f₀ = [1, 1]/√2,  f₁ = [−1, 1]/√2.', '', 'инвариант: |H₀|² + |H₁|² = 2'],
+      3: ['Полные свёртки длины 9:', 'y₀[m] = (x[m] + x[m−1])/√2', 'y₁[m] = (x[m] − x[m−1])/√2', '', 'инвариант: длина N + L − 1 = 9'],
+      4: ['↓2 оставляет каждый второй отсчёт —', 'нечётные индексы 1, 3, 5, 7 (фаза pywt).', 'Спектр растягивается вдвое, появляется', 'зеркальная копия X(−z): наложение есть', 'в КАЖДОЙ ветви, оно сократится на шаге 8.', 'инвариант: 8 входов → 4 + 4 коэффициента'],
+      5: ['a[k] = (x[2k] + x[2k+1])/√2 — среднее,', 'd[k] = (x[2k+1] − x[2k])/√2 — разность.', 'Энергия почти вся в a: гладкий сигнал.', '', 'инвариант: 446 = 440 + 6 (Парсеваль)'],
+      6: ['↑2 вставляет нули между отсчётами.', 'В частотах — сжатие спектра и копия', '(imaging); её уберут фильтры синтеза.', '', 'инвариант: u — снова 8 отсчётов'],
+      7: ['w₀ = f₀ ∗ u₀ — кусочно-постоянное среднее,', 'w₁ = f₁ ∗ u₁ — детали ±d/√2.', '', '', 'инвариант: w₁ = x − w₀'],
+      8: ['x̂ = w₀ + w₁ = x — точно и без задержки:', 'анализ с нечётной фазой ≡ фильтры zHᵢ(z).', 'Наложение двух ветвей взаимно погасло.', '', 'инвариант: x̂ − x = ' + (err === 0 ? '0' : err.toExponential(1))],
+      9: ['То же как матрица: [a; d] = A₁ · x.', 'Строки L — сдвиги h₀ на 2, строки B —', 'сдвиги h₁. Синтез — транспонирование.', '', 'инвариант: A₁ᵀA₁ = I'],
+      10: ['Повторяем шаг на a: a₂ = [16; 12],', 'd₂ = [6; −2]; затем a₃ = 19,799,', 'd₃ = −2,828. Это пирамида Малла.', '', 'инвариант: 392 + 8 + 40 + 6 = 446'],
+      11: ['|H₀| = √2·cos(ω/2), |H₁| = √2·sin(ω/2).', 'Срез −3 дБ ровно на π/2, но спад', 'медленный: полосы сильно перекрываются.', '', 'инвариант: T = z⁻¹, A = 0'],
+      12: ['Обнуляем d: x̂ = w₀, ошибка = w₁.', 'Наложение больше не гасится:', '|A(ω)| = ½|sin ω|, максимум −6 дБ', 'на π/2 — так появляются артефакты', 'при правке полос децимированного DWT.', 'лекарство: SWT или пакеты (§11)']
+    };
+    const v = {};
+    v.step = step; v.stTitle = titles[step - 1]; v.diag = diag; v.rows = rows;
+    v.idx = [0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => String(i).padStart(8, ' ')).join('');
+    v.text = texts[step].map((s, i) => ({ s: s, c: s.indexOf('инвариант') === 0 ? '#009E73' : '#C9D1D9' }));
+    v.steps = titles.map((t, i) => ({ label: String(i + 1).padStart(2, ' ') + '  ' + t, c: i + 1 === step ? '#0D1117' : i + 1 < step ? '#C9D1D9' : '#8B949E', bg: i + 1 === step ? '#E8C547' : 'transparent', go: () => this.setState({ step: i + 1 }) }));
+    v.prev = () => this.setState({ step: Math.max(1, step - 1) });
+    v.next = () => this.setState({ step: Math.min(12, step + 1) });
+    const mat = [];
+    for (let r = 0; r < 8; r++) {
+      const cells = [];
+      for (let c = 0; c < 8; c++) {
+        const k = r % 4, isL = r < 4, inBlock = c === 2 * k || c === 2 * k + 1;
+        let s = ' ·', cl = '#3B4656';
+        if (inBlock) { if (isL) { s = ' +'; cl = '#56B4E9'; } else { s = c === 2 * k ? ' −' : ' +'; cl = c === 2 * k ? '#D55E00' : '#56B4E9'; } }
+        cells.push({ s: s, c: cl });
+      }
+      mat.push({ lab: r === 0 ? 'L ' : r === 4 ? 'B ' : '  ', cells: cells, out: '  → ' + (r < 4 ? 'a' : 'd') + '₀₁₂₃'[r % 4] });
+    }
+    v.mat = mat;
+    v.fH0 = this.curve((w) => r2 * Math.cos(w / 2), 28, 7, 0, r2);
+    v.fH1 = this.curve((w) => r2 * Math.sin(w / 2), 28, 7, 0, r2);
+    const g = [];
+    for (let i = 0; i < 56; i += 3) g.push([i, Math.round((r2 - 1) / r2 * 27)]);
+    for (let j = 0; j < 28; j += 3) g.push([28, j]);
+    v.fGrid = this.dots(g);
+    v.aliasNote = step === 12 ? 'сейчас: d = 0 ⇒ |A| = ½|sin ω|' : 'при d = 0: |A| = ½|sin ω| (шаг 12)';
+    v.aliasC = step === 12 ? '#E69F00' : '#8B949E';
+    return v;
+  }
+}
+</script>
+</body>
+</html>

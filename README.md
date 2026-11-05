@@ -1,50 +1,45 @@
-# Signal Processing Library
+# Signals
 
-[Features](#Features) | [Installation](#Installation) | [Usage](#Usage) | [Dependencies](#Dependencies) | [Contributing](#Contributing) | [License](#License) | [Changelog](https://github.com/VIA-s-acc/SignalProc/blob/main/CHANGELOG.md) | [doc](https://viag.pythonanywhere.com/article/65)
+Банки фильтров, вейвлеты и матрицы Тёплица на C++ — с интерактивным терминальным интерфейсом, в котором видно всё: характеристики фильтров, схему банка, каждую полосу разложения, ход обработки и теорию каждого метода.
 
+Проект переписывает старую Python-библиотеку `SignalProc` (2023). Её код сохранён в `legacy/python/` для сравнения.
 
-This is a Python Program for signal processing tasks, including analysis, synthesis, and various signal transformations. The library provides functionality for reading and writing WAV files, signal analysis through convolution and downsampling, recursive analysis and synthesis methods, and more.
+## Состояние
 
+Идёт этап M1 — ядро банков фильтров. План: [docs/superpowers/plans/2026-11-05-signals-m0-m1.md](docs/superpowers/plans/2026-11-05-signals-m0-m1.md).
 
-## Features
+## Документы
 
-- Signal class for working with signals
-- Functions for memoization and signal processing
-- Conversion functions for audio data between WAV files and lists
-- Filter bank implementation for polynomial signal processing
-- Efficient matrix-based convolution algorithm
-- Color-coding class for terminal output
+| Файл | Что в нём |
+|---|---|
+| [docs/03-design.md](docs/03-design.md) | проектный документ: цели, архитектура, функции, интерфейс, этапы |
+| [docs/02-theory.md](docs/02-theory.md) | теория: банки фильтров, вейвлеты, матрицы Тёплица, частотные характеристики |
+| [docs/01-review-signalproc.md](docs/01-review-signalproc.md) | ревизия старого Python-кода |
+| [docs/research/](docs/research/) | исследования стека, функций и визуализации |
+| [docs/design/](docs/design/) | исходники экранов дизайна TUI |
 
-## Installation
+## Раскладка
 
-To use this library, ensure you have Python 3.10 installed. You can install the library and its dependencies using pip:
-
-## Usage
-
-
-Usage Example [Link](https://github.com/VIA-s-acc/SignalProc/blob/main/process.py)
-
-
-## Dependencies
-```python
-Python 3.10
-art 6.1
-asttokens 2.4.1
-colorama 0.4.6
-executing 2.0.1
-future 0.18.3
-icecream 2.1.3
-lxml 4.9.3
-mpmath 1.3.0
-numpy 1.26.2
-Pygments 2.16.1
-six 1.16.0
-sympy 1.12
-Wave 0.0.2
 ```
-## Contributing
+src/            библиотеки C++ (ядро, CLI, позже — интерфейс)
+app/            исполняемый файл signals
+tests/          тесты и эталоны PyWavelets (tests/golden/)
+tools/          генератор эталонов на Python
+resources/      словарь интерфейса, пример test.wav
+legacy/python/  старый SignalProc
+docs/           документация
+```
 
-Contributions are welcome! Feel free to open an issue or submit a pull request.
+## Сборка
 
-## License
-This project is licensed under the MIT License - see the LICENSE file for details.
+```bash
+cmake --preset dev
+cmake --build --preset dev
+ctest --preset dev
+```
+
+Нужны CMake ≥ 3.28 и компилятор с C++23: Apple Clang 17 или GCC 14.
+
+## Лицензия
+
+MIT, см. [LICENSE](LICENSE).

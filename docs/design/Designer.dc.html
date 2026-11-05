@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Signals — конструктор банка</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07090D}
+a{color:#56B4E9}a:hover{color:#A9D6F5}
+.t{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:13px;line-height:18px;color:#C9D1D9}
+.l{white-space:pre}
+.pn{position:relative;border:1px solid #2A3240;border-radius:7px;padding:10px 7.8px 6px 7.8px;box-sizing:border-box}
+.pf{border-color:#E8C547}
+.pt{position:absolute;top:-10px;left:10px;background:#0D1117;padding:0 6px;color:#E6EDF3;font-weight:700;white-space:pre}
+.pc{position:absolute;top:-10px;right:10px;background:#0D1117;padding:0 6px;color:#8B949E;white-space:pre}
+.dim{color:#8B949E}
+.tab{color:#9AA4B1;text-decoration:none;padding:0 7.8px;white-space:pre}
+.tab:hover{color:#E6EDF3;background:#1C2230}
+.on{color:#0D1117;background:#E8C547;font-weight:700}
+.key{color:#0D1117;background:#8B949E;padding:0 3px;border-radius:3px;font-weight:700;white-space:pre}
+.btn{font:inherit;color:#C9D1D9;background:#161B22;border:1px solid #2A3240;border-radius:4px;padding:0 6px;cursor:pointer;white-space:pre;line-height:16px}
+.btn:hover{border-color:#E8C547;color:#E6EDF3}
+.rt{position:absolute;font:inherit;font-weight:700;background:transparent;border:0;padding:0;width:16px;height:18px;line-height:18px;text-align:center;cursor:pointer}
+.ax{width:46.8px;display:flex;flex-direction:column;justify-content:space-between;text-align:right;padding-right:7.8px;box-sizing:border-box;color:#8B949E}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 840px; background: #0D1117; display: flex; flex-direction: column; overflow: hidden">
+  <div class="l dim" style="height: 28px; line-height: 28px; background: #161B22; text-align: center; font-size: 12px">signals — ~/GITHUB/Signals — 150×44</div>
+  <div style="flex: 1; display: flex; flex-direction: column; padding: 0 15px; min-height: 0">
+    <div style="height: 18px; display: flex; align-items: center; margin-top: 4px">
+      <span class="l" style="color: #E8C547; font-weight: 700"> ◆ Signals </span><span class="l dim">│</span>
+      <a class="tab" href="Main.dc.html">1 Сигнал</a><a class="tab" href="Main.dc.html">2 Спектр</a><a class="tab" href="Filters.dc.html">3 Фильтры</a><a class="tab on" href="Designer.dc.html">4 Банк</a><a class="tab" href="Decomposition.dc.html">5 Разлож.</a><a class="tab" href="Matrix.dc.html">6 Матрица</a><a class="tab" href="Decomposition.dc.html">7 Обраб.</a><a class="tab" href="Pipeline.dc.html">8 Конвейер</a><a class="tab" href="Theory.dc.html">9 Теория</a>
+      <span style="flex: 1"></span>
+      <span class="l dim">[Конструктор] Блок-схема  ·  P₀ степени 10, p = 3  </span><span class="key">?</span>
+    </div>
+    <div style="flex: 1; display: flex; gap: 7.8px; padding-top: 16px; min-height: 0">
+      <div style="width: 374px; display: flex; flex-direction: column; gap: 16px">
+        <div class="pn pf">
+          <div class="pt" style="color: #E8C547">Корни P₀(z) · клик = перенести H₀ ↔ F₀</div>
+          <div style="position: relative; width: 343px; height: 342px">
+            <svg width="343" height="342" aria-hidden="true">
+              <path d="{{zAxes}}" fill="#2A3240"></path>
+              <path d="{{zCircle}}" fill="#8B949E"></path>
+            </svg>
+            <button class="rt" style="left: {{mA1.x}}px; top: {{mA1.y}}px; color: {{mA1.c}}" onClick="{{toggleA}}" aria-label="Пара внутри круга">{{mA1.g}}</button>
+            <button class="rt" style="left: {{mA2.x}}px; top: {{mA2.y}}px; color: {{mA2.c}}" onClick="{{toggleA}}" aria-label="Пара внутри круга, сопряжённый">{{mA2.g}}</button>
+            <button class="rt" style="left: {{mB1.x}}px; top: {{mB1.y}}px; color: {{mB1.c}}" onClick="{{toggleB}}" aria-label="Пара вне круга">{{mB1.g}}</button>
+            <button class="rt" style="left: {{mB2.x}}px; top: {{mB2.y}}px; color: {{mB2.c}}" onClick="{{toggleB}}" aria-label="Пара вне круга, сопряжённый">{{mB2.g}}</button>
+            <span class="l" style="position: absolute; left: {{mM.x}}px; top: {{mM.y}}px; color: #56B4E9; font-weight: 700">◉</span>
+            <span class="l dim" style="position: absolute; left: {{mM.lx}}px; top: {{mM.ly}}px">−1: {{kH}} / {{kF}}</span>
+            <span class="l dim" style="position: absolute; left: 232px; top: 4px">● в H₀</span>
+            <span class="l dim" style="position: absolute; left: 232px; top: 22px">○ в F₀</span>
+            <span class="l dim" style="position: absolute; left: 232px; top: 40px">· |z| = 1</span>
+          </div>
+        </div>
+        <div class="pn" style="flex: 1">
+          <div class="pt">Разбиение</div><div class="pc">28 вариантов · вейвлет-условию отвечают 20</div>
+          <div class="l dim">корень             кр.  H₀        F₀</div>
+          <div class="l">z = −1              6   <span style="color: #56B4E9">{{dotsH}}</span><span style="color: #A9D6F5">{{dotsF}}</span> <button class="btn" onClick="{{kDown}}" aria-label="Меньше нулей в H0">◂</button><button class="btn" onClick="{{kUp}}" aria-label="Больше нулей в H0">▸</button></div>
+          <div class="l">0,287 ± 0,153j      2   <span style="color: {{aC}}">{{aTxt}}</span></div>
+          <div class="l">2,713 ± 1,444j      2   <span style="color: {{bC}}">{{bTxt}}</span></div>
+          <div class="l dim">──────────────────────────────────────────</div>
+          <div class="l" style="display: flex; gap: 6px; align-items: center">Пресеты <button class="btn" onClick="{{pDb}}">Добеши</button><button class="btn" onClick="{{pMax}}">макс. фаза</button><button class="btn" onClick="{{pCdf}}">CDF</button><button class="btn" onClick="{{pBad}}">вырожд.</button></div>
+          <div class="l dim" style="margin-top: 6px">☑ сопряжённые вместе (вещественные коэфф.)</div>
+          <div class="l dim">☐ ЛФЧХ: z и 1/z̄ вместе   ☐ ортогональный</div>
+          <div class="l dim">☐ только вейвлеты (каскад сходится)</div>
+          <div class="l dim" style="margin-top: 6px"><span class="key">x</span> анализ ↔ синтез  <span class="key">Enter</span> в библиотеку</div>
+        </div>
+      </div>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0">
+        <div class="pn">
+          <div class="pt">Результат · {{title}}</div><div class="pc">ℓ = 5 · длины {{lens}}</div>
+          <div class="l"><span style="color: #56B4E9">h₀</span> {{h0s}}</div>
+          <div class="l"><span style="color: #A9D6F5">f₀</span> {{f0s}}</div>
+          <div class="l dim">h₁(z) = F₀(−z)    f₁(z) = −H₀(−z)    нормировка Σh₀ = Σf₀ = √2</div>
+          <div class="l">PR: P₀(z) − P₀(−z) = 2z⁻⁵ <span style="color: {{prC}}">{{prT}}</span>   орт. <span style="color: {{orC}}">{{orT}}</span>   ЛФЧХ <span style="color: {{lpC}}">{{lpT}}</span>   вейвлет <span style="color: {{wvC}}">{{wvT}}</span></div>
+          <div class="l dim">{{note}}</div>
+        </div>
+        <div class="pn">
+          <div class="pt">АЧХ H₀ ━ и F₀ ┅ · 0 дБ в максимуме</div><div class="pc">тот же вид, что в «Фильтрах»</div>
+          <div style="display: flex">
+            <div class="ax" style="height: 144px"><div class="l">0</div><div class="l">−40</div><div class="l">−80</div></div>
+            <svg width="733.2" height="144" aria-hidden="true">
+              <path d="{{mGrid}}" fill="#222A35"></path>
+              <path d="{{mF0}}" fill="#A9D6F5"></path>
+              <path d="{{mH0}}" fill="#56B4E9"></path>
+            </svg>
+          </div>
+          <div class="dim" style="display: flex; justify-content: space-between; margin-left: 46.8px; width: 733.2px"><span class="l">0</span><span class="l">π/2</span><span class="l">π</span></div>
+        </div>
+        <div style="display: flex; gap: 7.8px; flex: 1">
+          <div class="pn" style="flex: 1">
+            <div class="pt">φ — каскад по H₀, 8 итераций</div><div class="pc" style="color: {{cHc}}">{{cHt}}</div>
+            <div style="display: flex">
+              <div class="ax" style="height: 144px"><div class="l">1,5</div><div class="l">0</div><div class="l">−1</div></div>
+              <svg width="327.6" height="144" aria-hidden="true">
+                <path d="{{phiGrid}}" fill="#222A35"></path>
+                <path d="{{phiH}}" fill="#56B4E9"></path>
+              </svg>
+            </div>
+            <div class="dim" style="display: flex; justify-content: space-between; margin-left: 46.8px; width: 327.6px"><span class="l">0</span><span class="l">t</span><span class="l">{{supH}}</span></div>
+          </div>
+          <div class="pn" style="flex: 1">
+            <div class="pt">φ̃ — каскад по F₀ (двойственная)</div><div class="pc" style="color: {{cFc}}">{{cFt}}</div>
+            <div style="display: flex">
+              <div class="ax" style="height: 144px"><div class="l">1,5</div><div class="l">0</div><div class="l">−1</div></div>
+              <svg width="327.6" height="144" aria-hidden="true">
+                <path d="{{phiGrid}}" fill="#222A35"></path>
+                <path d="{{phiF}}" fill="#A9D6F5"></path>
+              </svg>
+            </div>
+            <div class="dim" style="display: flex; justify-content: space-between; margin-left: 46.8px; width: 327.6px"><span class="l">0</span><span class="l">t</span><span class="l">{{supF}}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="l" style="height: 18px; margin: 6px 0 8px 0; display: flex; gap: 14px">
+      <span><span class="key">клик</span> <span class="dim">корень → H₀/F₀</span></span><span><span class="key">◂▸</span> <span class="dim">нули в −1</span></span><span><span class="key">Tab</span> <span class="dim">следующее разбиение</span></span><span><span class="key">c</span> <span class="dim">каскад по шагам</span></span><span><span class="key">Enter</span> <span class="dim">в библиотеку</span></span><span><span class="key">F1</span> <span class="dim">теория: полуполосный P₀</span></span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":840}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { k: 3, A: 'H', B: 'F' }; }
+  dots(pts, dash) {
+    const r = 1.2, seen = {};
+    let s = '';
+    for (let q = 0; q < pts.length; q++) {
+      const i = pts[q][0], j = pts[q][1];
+      if (dash && (i % 4) > 1) continue;
+      const key = i + ':' + j;
+      if (seen[key]) continue;
+      seen[key] = 1;
+      const cx = i * 3.9 + 1.95, cy = j * 4.5 + 2.25;
+      s += 'M' + (cx - r).toFixed(1) + ' ' + cy.toFixed(1) + 'a' + r + ' ' + r + ' 0 1 0 ' + (2 * r) + ' 0a' + r + ' ' + r + ' 0 1 0 ' + (-2 * r) + ' 0';
+    }
+    return s;
+  }
+  curve(ys, wc, hc, lo, hi, dash) {
+    const n = wc * 2, H = hc * 4, pts = [];
+    let prev = -1;
+    for (let i = 0; i < n; i++) {
+      const v = ys[Math.min(ys.length - 1, Math.floor(i * ys.length / n))];
+      let j = Math.round((hi - v) / (hi - lo) * (H - 1));
+      j = Math.max(0, Math.min(H - 1, j));
+      if (prev < 0) pts.push([i, j]);
+      else { const a = Math.min(prev, j), b = Math.max(prev, j); for (let t = a; t <= b; t++) pts.push([i, t]); }
+      prev = j;
+    }
+    return this.dots(pts, dash);
+  }
+  grid(wc, hc, cols, rows) {
+    const pts = [];
+    rows.forEach((j) => { for (let i = 0; i < wc * 2; i += 3) pts.push([i, j]); });
+    cols.forEach((i) => { for (let j = 0; j < hc * 4; j += 3) pts.push([i, j]); });
+    return this.dots(pts);
+  }
+  mul(a, b) { const r = new Array(a.length + b.length - 1).fill(0); a.forEach((x, i) => b.forEach((y, j) => { r[i + j] += x * y; })); return r; }
+  mag(h, K) { const m = []; for (let k = 0; k < K; k++) { const w = Math.PI * k / K; let re = 0, im = 0; h.forEach((c, n) => { re += c * Math.cos(w * n); im -= c * Math.sin(w * n); }); m.push(Math.hypot(re, im)); } const mx = Math.max.apply(null, m); return m.map((x) => Math.max(-80, 20 * Math.log10(x / mx + 1e-12))); }
+  cascade(h, it) {
+    const s = h.reduce((a, b) => a + b, 0), c = h.map((x) => 2 * x / s);
+    let phi = [1];
+    const norms = [];
+    for (let i = 0; i < it; i++) {
+      const up = new Array(2 * phi.length - 1).fill(0);
+      phi.forEach((x, n) => { up[2 * n] = x; });
+      phi = this.mul(up, c);
+      norms.push(Math.sqrt(phi.reduce((a, x) => a + x * x, 0) / Math.pow(2, i + 1)));
+    }
+    return { phi: phi, ratio: norms[it - 1] / norms[it - 2] };
+  }
+  f(v, k) { return (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(k).replace('.', ','); }
+  set(p) { this.setState(p); }
+  renderVals() {
+    const st = this.state, k = st.k;
+    const aR = 1.5, aI = -Math.sqrt(15) / 6, dR = aR * aR - aI * aI - 1, dI = 2 * aR * aI, dm = Math.hypot(dR, dI);
+    const sR = Math.sqrt((dm + dR) / 2), sI = Math.sign(dI) * Math.sqrt((dm - dR) / 2);
+    const zin = Math.hypot(aR + sR, aI + sI) < 1 ? [aR + sR, aI + sI] : [aR - sR, aI - sI];
+    const ra = zin[0], ia = Math.abs(zin[1]), m2 = ra * ra + ia * ia, rb = ra / m2, ib = ia / m2;
+    const pairA = [1, -2 * ra, ra * ra + ia * ia], pairB = [1, -2 * rb, rb * rb + ib * ib];
+    let h = [1], g = [1];
+    for (let i = 0; i < k; i++) h = this.mul(h, [1, 1]);
+    for (let i = 0; i < 6 - k; i++) g = this.mul(g, [1, 1]);
+    if (st.A === 'H') h = this.mul(h, pairA); else g = this.mul(g, pairA);
+    if (st.B === 'H') h = this.mul(h, pairB); else g = this.mul(g, pairB);
+    const sh = h.reduce((a, b) => a + b, 0), sg = g.reduce((a, b) => a + b, 0);
+    h = h.map((x) => x * Math.SQRT2 / sh);
+    g = g.map((x) => x * Math.SQRT2 / sg);
+    const P = this.mul(h, g);
+    let pr = 0;
+    P.forEach((p, n) => { if (n % 2 === 1) pr = Math.max(pr, Math.abs(p - (n === 5 ? 1 : 0))); });
+    const rev = h.slice().reverse();
+    const orth = g.length === h.length && g.every((x, i) => Math.abs(x - rev[i]) < 1e-9);
+    const sym = h.every((x, i) => Math.abs(x - h[h.length - 1 - i]) < 1e-9);
+    const cH = this.cascade(h, 8), cF = this.cascade(g, 8);
+    const okH = k >= 1 && cH.ratio < 1.02, okF = 6 - k >= 1 && cF.ratio < 1.02;
+    const ok = '#009E73', bad = '#F36C6C';
+    const v = {};
+    v.kH = k; v.kF = 6 - k;
+    v.dotsH = '●'.repeat(k).padEnd(10, ' ');
+    v.dotsF = '○'.repeat(6 - k).padEnd(7, ' ');
+    v.aTxt = st.A === 'H' ? '●● в H₀' : '          ○○ в F₀'; v.aC = st.A === 'H' ? '#56B4E9' : '#A9D6F5';
+    v.bTxt = st.B === 'H' ? '●● в H₀' : '          ○○ в F₀'; v.bC = st.B === 'H' ? '#56B4E9' : '#A9D6F5';
+    const isDb = k === 3 && st.A === 'H' && st.B === 'F', isMax = k === 3 && st.A === 'F' && st.B === 'H';
+    v.title = isDb ? 'db3 (Добеши, минимальная фаза)' : isMax ? 'зеркальный db3 (максимальная фаза)' : sym ? 'линейная фаза (CDF-семейство)' : 'своё разбиение';
+    v.lens = h.length + ' / ' + g.length;
+    v.h0s = h.map((x) => this.f(x, 4)).join(' ');
+    v.f0s = g.map((x) => this.f(x, 4)).join(' ');
+    v.prT = pr < 1e-9 ? '✓ ' + pr.toExponential(1).replace('e', '·10^') : '✗'; v.prC = pr < 1e-9 ? ok : bad;
+    v.orT = orth ? '✓' : '✗'; v.orC = orth ? ok : bad;
+    v.lpT = sym ? '✓' : '✗'; v.lpC = sym ? ok : bad;
+    v.wvT = okH && okF ? '✓' : '✗'; v.wvC = okH && okF ? ok : bad;
+    v.note = okH && okF ? 'оба каскада сходятся: φ и φ̃ из L² — это биортогональный вейвлет-базис' : 'PR есть, но каскад ' + (!okH ? 'по H₀' : 'по F₀') + ' расходится: банк фильтров без вейвлет-базиса';
+    v.mH0 = this.curve(this.mag(h, 376), 94, 8, -80, 0);
+    v.mF0 = this.curve(this.mag(g, 376), 94, 8, -80, 0, true);
+    v.mGrid = this.grid(94, 8, [94], [16]);
+    const clip = (arr) => arr.map((x) => Math.max(-1, Math.min(1.5, x)));
+    v.phiH = this.curve(clip(cH.phi), 42, 8, -1, 1.5);
+    v.phiF = this.curve(clip(cF.phi), 42, 8, -1, 1.5);
+    v.phiGrid = this.grid(42, 8, [], [Math.round(1.5 / 2.5 * 31)]);
+    v.supH = String(h.length - 1); v.supF = String(g.length - 1);
+    v.cHt = okH ? 'сходится ✓' : 'расходится ✗ ×' + cH.ratio.toFixed(2).replace('.', ',') + '/итер.'; v.cHc = okH ? ok : bad;
+    v.cFt = okF ? 'сходится ✓' : 'расходится ✗ ×' + cF.ratio.toFixed(2).replace('.', ',') + '/итер.'; v.cFc = okF ? ok : bad;
+    const S = 52, cx = 171, cy = 171;
+    const circ = [], axes = [];
+    for (let t = 0; t < 360; t += 1.5) { const x = cx + S * Math.cos(t * Math.PI / 180), y = cy + S * Math.sin(t * Math.PI / 180); circ.push([Math.round((x - 1.95) / 3.9), Math.round((y - 2.25) / 4.5)]); }
+    for (let i = 0; i < 88; i += 2) axes.push([i, Math.round((cy - 2.25) / 4.5)]);
+    for (let j = 0; j < 76; j += 2) axes.push([Math.round((cx - 1.95) / 3.9), j]);
+    v.zCircle = this.dots(circ); v.zAxes = this.dots(axes);
+    const mk = (re, im, inH) => ({ x: cx + S * re - 8, y: cy - S * im - 9, g: inH ? '●' : '○', c: inH ? '#56B4E9' : '#A9D6F5' });
+    v.mA1 = mk(ra, ia, st.A === 'H'); v.mA2 = mk(ra, -ia, st.A === 'H');
+    v.mB1 = mk(rb, ib, st.B === 'H'); v.mB2 = mk(rb, -ib, st.B === 'H');
+    v.mM = { x: cx - S - 4, y: cy - 9, lx: cx - S - 34, ly: cy + 9 };
+    v.toggleA = () => this.set({ A: st.A === 'H' ? 'F' : 'H' });
+    v.toggleB = () => this.set({ B: st.B === 'H' ? 'F' : 'H' });
+    v.kUp = () => this.set({ k: Math.min(6, k + 1) });
+    v.kDown = () => this.set({ k: Math.max(0, k - 1) });
+    v.pDb = () => this.set({ k: 3, A: 'H', B: 'F' });
+    v.pMax = () => this.set({ k: 3, A: 'F', B: 'H' });
+    v.pCdf = () => this.set({ k: 2, A: 'F', B: 'F' });
+    v.pBad = () => this.set({ k: 0, A: 'F', B: 'F' });
+    return v;
+  }
+}
+</script>
+</body>
+</html>
