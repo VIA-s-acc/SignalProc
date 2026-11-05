@@ -13,6 +13,7 @@ add_library(signals_core STATIC
   design/tables.cpp
   design/daubechies.cpp
   design/families.cpp
+  design/window_fir.cpp
   matrix.cpp
   wavelet/regularity.cpp
 )
