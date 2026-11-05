@@ -9,6 +9,7 @@ add_executable(signals_tests
   core/test_bank.cpp
   core/test_dwt.cpp
   core/test_wavedec.cpp
+  core/test_maxflat.cpp
   cli/test_cli.cpp
   test_golden_files.cpp
   support/golden.cpp
