@@ -17,6 +17,10 @@ add_subdirectory(src/core)
 add_subdirectory(src/commands)
 add_subdirectory(app)
 
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  add_subdirectory(bench)
+endif()
+
 if(SIGNALS_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)

@@ -10,7 +10,7 @@ namespace signals::core {
 
 enum class ConvMethod { automatic, direct, fft };
 
-inline constexpr std::size_t fft_threshold = 64;
+inline constexpr std::size_t fft_threshold = 160;
 
 Laurent convolve(const Laurent& a, const Laurent& b, ConvMethod method = ConvMethod::automatic);
 

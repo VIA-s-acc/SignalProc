@@ -1,0 +1,3 @@
+add_executable(signals_bench bench_core.cpp)
+target_link_libraries(signals_bench PRIVATE signals_core nanobench::nanobench)
+signals_configure_target(signals_bench)
