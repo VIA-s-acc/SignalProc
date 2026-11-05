@@ -5,6 +5,7 @@ signals_embed_text(${PROJECT_SOURCE_DIR}/resources/themes/light.toml ${CMAKE_CUR
 add_library(signals_tui STATIC
   run.cpp
   widgets/format.cpp
+  widgets/plot.cpp
   theme/theme.cpp
   term/caps.cpp
   data/pyramid.cpp
