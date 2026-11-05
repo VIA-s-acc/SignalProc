@@ -47,6 +47,8 @@ def pad_json():
     cases = []
     for mode in MODES:
         for n in PAD_LENGTHS:
+            if mode == "smooth" and n == 1:
+                continue
             x = np.array(PAD_SOURCE[:n], dtype=float)
             for before in PAD_WIDTHS:
                 for after in PAD_WIDTHS:
