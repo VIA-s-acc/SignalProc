@@ -70,7 +70,7 @@ int main() {
             l[k] = 0.5 * std::sin(0.01 * static_cast<double>(k));
             r[k] = 0.5 * std::cos(0.013 * static_cast<double>(k));
         }
-        signals::io::write_wav(path, AudioBuffer{44'100, {std::move(l), std::move(r)}}, {});
+        if (!signals::io::write_wav(path, AudioBuffer{44'100, {std::move(l), std::move(r)}}, {})) return 1;
     }
     ankerl::nanobench::Bench io;
     io.title("WAV").minEpochIterations(1).epochs(3);
