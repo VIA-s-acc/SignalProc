@@ -1,12 +1,10 @@
 #include <iostream>
 #include <string_view>
+#include <vector>
 
-#include "core/version.hpp"
+#include "commands/cli.hpp"
 
 int main(int argc, char** argv) {
-    if (argc > 1 && std::string_view{argv[1]} == "--version") {
-        std::cout << "signals " << signals::core::version() << '\n';
-        return 0;
-    }
-    return 0;
+    std::vector<std::string_view> args(argv, argv + argc);
+    return signals::cli::run_cli(args, std::cout, std::cerr);
 }

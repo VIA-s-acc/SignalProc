@@ -1,0 +1,9 @@
+{
+  "cli.version": "signals {version}",
+  "cli.description": "Signals — банки фильтров, вейвлеты и матрицы Тёплица",
+  "cli.unknown_command": "Неизвестная команда или аргумент: {details}",
+  "cli.check.description": "Самопроверка ядра: восстановление, ортогональность, матрицы",
+  "cli.json.description": "Вывести результат в JSON",
+  "check.summary": "Проверок: {passed} пройдено, {failed} не пройдено",
+  "check.failed_line": "  ✗ {id} [{subject}]: {value} > {tolerance}"
+}

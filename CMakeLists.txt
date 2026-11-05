@@ -14,6 +14,7 @@ include(cmake/Warnings.cmake)
 include(cmake/Dependencies.cmake)
 
 add_subdirectory(src/core)
+add_subdirectory(src/commands)
 add_subdirectory(app)
 
 if(SIGNALS_BUILD_TESTS)

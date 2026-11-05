@@ -1,0 +1,5 @@
+function(signals_embed_text input output symbol)
+  file(READ ${input} content)
+  file(WRITE ${output} "extern const char ${symbol}[];\nconst char ${symbol}[] = R\"SIGNALS_EMBED(${content})SIGNALS_EMBED\";\n")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${input})
+endfunction()
