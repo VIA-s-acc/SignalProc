@@ -5,6 +5,7 @@ add_library(signals_core STATIC
   extension.cpp
   metrics.cpp
   signal_ops.cpp
+  multirate.cpp
   check.cpp
   bank.cpp
   wavedec.cpp
