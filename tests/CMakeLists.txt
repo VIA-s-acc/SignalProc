@@ -37,6 +37,8 @@ add_executable(signals_tests
   tui/test_caps.cpp
   tui/test_pyramid.cpp
   tui/test_plot.cpp
+  tui/test_heatmap.cpp
+  tui/test_zplane.cpp
   tui/harness.cpp
   test_golden_files.cpp
   test_i18n_keys.cpp

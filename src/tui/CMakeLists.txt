@@ -6,6 +6,8 @@ add_library(signals_tui STATIC
   run.cpp
   widgets/format.cpp
   widgets/plot.cpp
+  widgets/heatmap.cpp
+  widgets/zplane.cpp
   theme/theme.cpp
   term/caps.cpp
   data/pyramid.cpp

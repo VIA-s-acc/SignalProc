@@ -95,5 +95,6 @@
   "cli.tui.file": "WAV-файл, который открыть сразу",
   "cli.tui.theme": "Тема: dark или light",
   "tui.unavailable": "интерфейс запускается только из исполняемого файла signals",
-  "tui.title": "◆ Signals · q — выход"
+  "tui.title": "◆ Signals · q — выход",
+  "tui.zplane.outside": "вне поля: "
 }
