@@ -15,6 +15,7 @@ add_executable(signals_tests
   core/test_daubechies.cpp
   core/test_families.cpp
   core/test_matrix.cpp
+  core/test_signal_ops.cpp
   core/test_exact_reference.cpp
   io/test_wav_read.cpp
   io/test_wav_write.cpp

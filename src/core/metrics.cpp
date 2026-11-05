@@ -4,6 +4,8 @@
 #include <limits>
 #include <vector>
 
+#include "core/wavedec.hpp"
+
 namespace signals::core {
 namespace {
 
@@ -74,6 +76,22 @@ double snr_db(std::span<const double> reference, std::span<const double> test) {
     const double noise = squared_difference_sum(reference, test);
     if (noise == 0.0) return std::numeric_limits<double>::infinity();
     return 10.0 * std::log10(energy(reference) / noise);
+}
+
+double psnr_db(std::span<const double> reference, std::span<const double> test, double peak) {
+    if (reference.size() != test.size() || reference.empty()) return -std::numeric_limits<double>::infinity();
+    const double mse = squared_difference_sum(reference, test) / static_cast<double>(reference.size());
+    if (mse == 0.0) return std::numeric_limits<double>::infinity();
+    return 10.0 * std::log10(peak * peak / mse);
+}
+
+std::vector<double> band_energy_fractions(const BasicCoeffs<double>& coeffs) {
+    std::vector<double> e;
+    e.reserve(coeffs.bands.size());
+    for (const auto& band : coeffs.bands) e.push_back(energy(band));
+    const double total = neumaier_sum(e);
+    for (double& v : e) v = total > 0 ? v / total : 0.0;
+    return e;
 }
 
 }  // namespace signals::core
