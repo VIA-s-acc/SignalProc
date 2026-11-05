@@ -4,6 +4,7 @@
 #include <cmath>
 #include <limits>
 #include <numbers>
+#include <optional>
 
 #include "core/design/roots.hpp"
 
@@ -84,6 +85,63 @@ Result<ZerosPoles> zeros_poles(const Laurent& h) {
     if (!roots) return std::unexpected{roots.error()};
     for (const auto& z : *roots) out.zeros.emplace_back(z.re, z.im);
     return out;
+}
+
+Laurent dilate(const Laurent& h, std::size_t m) {
+    if (h.coeffs.empty() || m <= 1) return h;
+    Laurent out{std::vector<double>((h.coeffs.size() - 1) * m + 1, 0.0), h.offset * static_cast<std::ptrdiff_t>(m)};
+    for (std::size_t k = 0; k < h.coeffs.size(); ++k) out.coeffs[k * m] = h.coeffs[k];
+    return out;
+}
+
+Result<Laurent> equivalent_filter(const FilterBank& bank, std::size_t level, bool detail) {
+    if (level == 0) return make_error(Errc::invalid_argument, "equivalent_filter: level must be at least 1");
+    Laurent g{{1.0}, 0};
+    for (std::size_t k = 0; k + 1 < level; ++k) g = multiply(g, dilate(bank.h0, std::size_t{1} << k));
+    const auto& last = detail ? bank.h1 : bank.h0;
+    return multiply(dilate(last, std::size_t{1} << (level - 1)), g);
+}
+
+Laurent distortion_transfer(const FilterBank& bank) {
+    return scale(add(multiply(bank.f0, bank.h0), multiply(bank.f1, bank.h1)), 0.5);
+}
+
+Laurent alias_transfer(const FilterBank& bank) {
+    return scale(add(multiply(bank.f0, alternate(bank.h0)), multiply(bank.f1, alternate(bank.h1))), 0.5);
+}
+
+BandMetrics band_metrics(const FrequencyResponse& r, double passband_end, double stopband_start) {
+    constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+    BandMetrics m{nan, nan, nan, nan};
+    const std::size_t n = r.omega.size();
+    if (n == 0) return m;
+    const double top = *std::max_element(r.magnitude_db.begin(), r.magnitude_db.end());
+    const auto rel = [&](std::size_t k) { return r.magnitude_db[k] - top; };
+    const auto crossing = [&](double level, std::size_t from) -> std::optional<std::pair<double, std::size_t>> {
+        for (std::size_t k = std::max<std::size_t>(from, 1); k < n; ++k) {
+            const double a = rel(k - 1) - level, b = rel(k) - level;
+            if ((a >= 0) != (b >= 0)) {
+                const double t = a / (a - b);
+                return std::pair{(r.omega[k - 1] + t * (r.omega[k] - r.omega[k - 1])) / std::numbers::pi, k};
+            }
+        }
+        return std::nullopt;
+    };
+    if (auto c = crossing(-10 * std::log10(2.0), 0)) m.cutoff_3db = c->first;
+    double lo = std::numeric_limits<double>::infinity(), hi = -lo, stop = -lo;
+    for (std::size_t k = 0; k < n; ++k) {
+        const double w = r.omega[k] / std::numbers::pi;
+        if (w <= passband_end) {
+            lo = std::min(lo, rel(k));
+            hi = std::max(hi, rel(k));
+        }
+        if (w >= stopband_start) stop = std::max(stop, rel(k));
+    }
+    if (hi >= lo) m.passband_ripple_db = hi - lo;
+    if (std::isfinite(stop)) m.stopband_attenuation_db = -stop;
+    if (auto c1 = crossing(-1.0, 0))
+        if (auto c20 = crossing(-20.0, c1->second)) m.transition_width = c20->first - c1->first;
+    return m;
 }
 
 }  // namespace signals::core
