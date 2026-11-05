@@ -18,6 +18,7 @@ using core::Errc;
 using core::make_error;
 
 constexpr drwav_uint64 kBlockFrames = 1 << 16;
+constexpr std::size_t kMaxChannels = 256;
 constexpr std::size_t kMaxReserveFrames = std::size_t{1} << 24;
 
 struct DrWavGuard {
@@ -121,8 +122,8 @@ std::optional<WriteEncoding> write_encoding(SampleFormat format) {
 }
 
 core::Result<void> validate_for_write(const core::AudioBuffer& audio) {
-    if (audio.channels.empty() || audio.channels.size() > 65535)
-        return make_error(Errc::invalid_argument, "WAV needs 1 to 65535 channels");
+    if (audio.channels.empty() || audio.channels.size() > kMaxChannels)
+        return make_error(Errc::invalid_argument, "WAV needs 1 to " + std::to_string(kMaxChannels) + " channels");
     const auto frames = audio.frames();
     for (const auto& c : audio.channels)
         if (c.size() != frames) return make_error(Errc::invalid_argument, "channels differ in length");
@@ -182,10 +183,10 @@ private:
     std::uniform_real_distribution<double> uniform_{0.0, 1.0};
 };
 
-core::Result<WavWriteReport> write_failed(drwav* wav, const std::filesystem::path& path) {
+core::Result<WavWriteReport> write_failed(drwav* wav, const std::filesystem::path& path, bool remove_file) {
     if (wav) drwav_uninit(wav);
     std::error_code ignored;
-    std::filesystem::remove(path, ignored);
+    if (remove_file) std::filesystem::remove(path, ignored);
     return make_error(Errc::io_error, "cannot write WAV file: " + path.string());
 }
 
@@ -237,8 +238,10 @@ core::Result<WavWriteReport> write_wav(const std::filesystem::path& path, const 
     const auto nch = audio.channels.size();
     drwav_data_format format{drwav_container_riff, encoding->tag, static_cast<drwav_uint32>(nch),
                              static_cast<drwav_uint32>(audio.sample_rate), encoding->bits};
+    std::error_code ec;
+    const bool existed = std::filesystem::exists(path, ec);
     drwav wav;
-    if (!drwav_init_file_write(&wav, path.string().c_str(), &format, nullptr)) return write_failed(nullptr, path);
+    if (!drwav_init_file_write(&wav, path.string().c_str(), &format, nullptr)) return write_failed(nullptr, path, !existed);
 
     Quantizer quantizer{*encoding, options};
     const auto frames = audio.frames();
@@ -248,9 +251,9 @@ core::Result<WavWriteReport> write_wav(const std::filesystem::path& path, const 
         unsigned char* p = block.data();
         for (std::size_t f = start; f < start + n; ++f)
             for (std::size_t c = 0; c < nch; ++c, p += quantizer.bytes()) quantizer.encode(audio.channels[c][f], p);
-        if (drwav_write_pcm_frames(&wav, n, block.data()) != n) return write_failed(&wav, path);
+        if (drwav_write_pcm_frames(&wav, n, block.data()) != n) return write_failed(&wav, path, true);
     }
-    if (drwav_uninit(&wav) != DRWAV_SUCCESS) return write_failed(nullptr, path);
+    if (drwav_uninit(&wav) != DRWAV_SUCCESS) return write_failed(nullptr, path, true);
     return WavWriteReport{quantizer.clipped()};
 }
 

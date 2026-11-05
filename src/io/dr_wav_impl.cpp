@@ -1,2 +1,3 @@
+#define DRWAV_MAX_SAMPLE_RATE 0xFFFFFFFF
 #define DR_WAV_IMPLEMENTATION
 #include <dr_wav.h>

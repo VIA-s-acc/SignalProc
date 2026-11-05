@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <initializer_list>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -22,6 +23,8 @@ std::pair<int, std::string> run(std::initializer_list<std::string_view> args) {
 }
 
 std::vector<signals::core::CheckResult> failing_suite() { return {{"check.fake", "x", 1.0, 0.0}}; }
+
+std::vector<signals::core::CheckResult> throwing_suite() { throw std::runtime_error("boom"); }
 
 class ScopedSuite {
 public:
@@ -105,4 +108,12 @@ TEST_CASE("design reports skipped splits", "[cli]") {
     auto [code, out] = run({"signals", "design", "--p", "2", "--json"});
     REQUIRE(code == 0);
     CHECK(nlohmann::json::parse(out)["skipped"] == 0);
+}
+
+TEST_CASE("an unexpected exception exits with 2 and a localized message", "[cli]") {
+    ScopedSuite scoped{&throwing_suite};
+    std::ostringstream out, err;
+    const std::vector<std::string_view> args{"signals", "check"};
+    CHECK(signals::cli::run_cli(args, out, err) == 2);
+    CHECK(err.str().find("непредвиденная ошибка (boom)") != std::string::npos);
 }

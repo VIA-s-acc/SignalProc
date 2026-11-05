@@ -72,3 +72,14 @@ TEST_CASE("power complementarity is part of the core suite", "[freq]") {
     }
     CHECK(count >= 70);
 }
+
+TEST_CASE("band metrics leave pass-band numbers out of a band-pass response", "[freq]") {
+    auto b = *wavelet("db2");
+    auto m = band_metrics(frequency_response(b.h1, 1024), -1.0, 2.0);
+    CHECK(std::isnan(m.passband_ripple_db));
+    CHECK(std::isnan(m.stopband_attenuation_db));
+    CHECK(std::isnan(m.transition_width));
+    CHECK(m.cutoff_3db == Catch::Approx(0.5).margin(1e-3));
+    auto d2 = band_metrics(frequency_response(*equivalent_filter(b, 2, true), 1024), -1.0, 2.0);
+    CHECK(std::isnan(d2.transition_width));
+}

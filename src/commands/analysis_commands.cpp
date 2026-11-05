@@ -22,6 +22,8 @@
 namespace signals::cli {
 namespace {
 
+constexpr double kResponseBudget = 1 << 26;
+
 const std::vector<std::string> kExtensions{"zero",         "constant",      "symmetric",     "reflect",    "periodic",
                                            "smooth",       "periodization", "antisymmetric", "antireflect"};
 
@@ -221,6 +223,12 @@ public:
         std::string label;
         double lo = 0, hi = 0.5;
         if (!band_.empty()) {
+            const double taps = static_cast<double>(bank->length() - 1) * (std::ldexp(1.0, static_cast<int>(level_)) - 1) + 1;
+            if (taps * static_cast<double>(points_) > kResponseBudget)
+                return report_error(err, {core::Errc::invalid_argument,
+                                          fmt::format("equivalent filter of {} taps at {} points exceeds {} evaluations; "
+                                                      "lower --level or --points",
+                                                      taps, points_, kResponseBudget)});
             auto eq = core::equivalent_filter(*bank, level_, band_ == "d");
             if (!eq) return report_error(err, eq.error());
             h = std::move(*eq);
@@ -233,7 +241,7 @@ public:
             if (filter_ == "h1" || filter_ == "f1") lo = 0.5, hi = 1.0;
         }
         const auto r = core::frequency_response(h, points_);
-        const auto m = lo == 0 ? core::band_metrics(r, hi / 2, std::min(1.0, 1.5 * hi)) : core::band_metrics(r, 0.0, 1.0);
+        const auto m = lo == 0 ? core::band_metrics(r, hi / 2, std::min(1.0, 1.5 * hi)) : core::band_metrics(r, -1.0, 2.0);
         std::size_t peak = 0;
         for (std::size_t k = 0; k < r.magnitude.size(); ++k)
             if (r.magnitude[k] > r.magnitude[peak]) peak = k;

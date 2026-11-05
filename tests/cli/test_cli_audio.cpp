@@ -140,7 +140,7 @@ TEST_CASE("dwt band files carry the octave sample rates", "[cli][audio]") {
     CHECK(j["levels"] == 3);
     CHECK(j["sample_rate"] == 44'100);
     REQUIRE(j["channels"].size() == 1);
-    const auto& bands = j["channels"][0]["bands"];
+    const auto bands = j["channels"][0]["bands"];
     REQUIRE(bands.size() == 4);
     CHECK(bands[0]["name"] == "a3");
     CHECK(bands[1]["name"] == "d3");
@@ -161,7 +161,7 @@ TEST_CASE("denoise command improves a noisy file", "[cli][audio]") {
     INFO(err);
     REQUIRE(code == 0);
     const auto j = nlohmann::json::parse(out);
-    const auto& ch = j["channels"][0];
+    const auto ch = j["channels"][0];
     CHECK(ch["snr_out"].get<double>() - ch["snr_in"].get<double>() >= 4.0);
     CHECK(ch["thresholds"].size() == 5);
     CHECK(ch["sigma"].get<double>() > 0);
@@ -197,4 +197,25 @@ TEST_CASE("filter response of the d2 band of db2", "[cli]") {
     auto [text_code, text, text_err] = run_cli({"signals", "filter", "response", "db2"});
     CHECK(text_code == 0);
     CHECK(text.find("db2") != std::string::npos);
+}
+
+TEST_CASE("band-pass responses report no pass-band ripple or transition", "[cli]") {
+    auto [code, out, err] = run_cli({"signals", "filter", "response", "db2", "--band", "d", "--level", "2", "--json"});
+    REQUIRE(code == 0);
+    const auto m = nlohmann::json::parse(out)["metrics"];
+    CHECK(m["passband_ripple_db"] == "nan");
+    CHECK(m["transition_width"] == "nan");
+    auto [h1_code, h1_out, h1_err] = run_cli({"signals", "filter", "response", "db2", "--filter", "h1", "--json"});
+    REQUIRE(h1_code == 0);
+    CHECK(nlohmann::json::parse(h1_out)["metrics"]["passband_ripple_db"] == "nan");
+}
+
+TEST_CASE("an oversized response is refused instead of hanging", "[cli]") {
+    for (const char* level : {"14", "30"}) {
+        INFO(level);
+        auto [code, out, err] = run_cli({"signals", "filter", "response", "sym8", "--band", "d", "--level", level});
+        CHECK(code == 2);
+        CHECK(err.find("Ошибка") != std::string::npos);
+    }
+    CHECK(std::get<0>(run_cli({"signals", "filter", "response", "sym8", "--band", "a", "--level", "12"})) == 0);
 }

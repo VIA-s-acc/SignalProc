@@ -139,7 +139,8 @@ BandMetrics band_metrics(const FrequencyResponse& r, double passband_end, double
     }
     if (hi >= lo) m.passband_ripple_db = hi - lo;
     if (std::isfinite(stop)) m.stopband_attenuation_db = -stop;
-    if (auto c1 = crossing(-1.0, 0))
+    if (rel(0) >= -1.0)
+        if (auto c1 = crossing(-1.0, 0))
         if (auto c20 = crossing(-20.0, c1->second)) m.transition_width = c20->first - c1->first;
     return m;
 }

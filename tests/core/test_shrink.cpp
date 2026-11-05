@@ -87,7 +87,7 @@ TEST_CASE("bayes shrink improves noisy music by at least 4 dB", "[shrink]") {
 
 TEST_CASE("bayes shrink improves doppler by at least 6 dB", "[shrink]") {
     const auto golden = signals::test::load_golden("denoise.json");
-    const auto& d = golden["signals"]["doppler"];
+    const auto d = golden["signals"]["doppler"];
     const auto clean = d["clean"].get<std::vector<double>>(), noisy = d["noisy"].get<std::vector<double>>();
     DenoiseOptions o;
     o.levels = 5;

@@ -89,5 +89,6 @@
   "response.header": "{name} · {filter} · длина {length} · точек {points} · номинальная полоса [{lo:.4g}, {hi:.4g}] π",
   "response.metrics": "  пик {peak:.4f} π · срез −3 дБ {cutoff} π · неравномерность {ripple} дБ · подавление {stop} дБ · переход {transition} π",
   "error.signal_too_short": "сигнал слишком короткий для фильтра: n = {n}, длина фильтра L = {length}, допустимо уровней: {max}",
-  "design.skipped": "  пропущено разбиений, не давших банка: {count}"
+  "design.skipped": "  пропущено разбиений, не давших банка: {count}",
+  "error.unexpected": "непредвиденная ошибка ({details})"
 }

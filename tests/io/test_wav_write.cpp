@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iterator>
 #include <limits>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -111,4 +112,39 @@ TEST_CASE("tpdf dither is deterministic and small", "[wav]") {
     double mean = 0;
     for (std::size_t k = 0; k < a.frames(); ++k) mean += back.audio.channels[0][k] - a.channels[0][k];
     CHECK(std::abs(mean / a.frames()) < 0.1 * lsb);
+}
+
+TEST_CASE("a failed write never deletes what is already at the path", "[wav]") {
+    namespace fs = std::filesystem;
+    const auto path = temp_path("readonly.wav");
+    if (fs::exists(path)) fs::permissions(path, fs::perms::owner_all, fs::perm_options::add);
+    fs::remove(path);
+    {
+        std::ofstream keep{path};
+        keep << "keep";
+    }
+    fs::permissions(path, fs::perms::owner_read | fs::perms::group_read | fs::perms::others_read);
+    const auto r = write_wav(path, AudioBuffer{8000, {{0.1, 0.2}}}, {});
+    const auto content = file_bytes(path);
+    fs::permissions(path, fs::perms::owner_all, fs::perm_options::add);
+    if (r) SKIP("running with permission to overwrite read-only files");
+    CHECK(r.error().code == Errc::io_error);
+    CHECK(std::string(content.begin(), content.end()) == "keep");
+    const auto dir = temp_path("outdir");
+    fs::create_directories(dir);
+    CHECK(write_wav(dir, AudioBuffer{8000, {{0.1}}}, {}).error().code == Errc::io_error);
+    CHECK(fs::is_directory(dir));
+}
+
+TEST_CASE("high sample rates and the channel limit round trip", "[wav]") {
+    const auto path = temp_path("768k.wav");
+    REQUIRE(write_wav(path, AudioBuffer{768'000, {sine(1000, 0.5, 0.0, 768'000, 768)}}, {}));
+    auto back = read_wav(path);
+    REQUIRE(back);
+    CHECK(back->info.sample_rate == 768'000);
+    const AudioBuffer many{8000, std::vector<std::vector<double>>(256, std::vector<double>(4, 0.1))};
+    REQUIRE(write_wav(path, many, {SampleFormat::pcm_s16, false}));
+    CHECK(read_wav(path)->info.channels == 256);
+    const AudioBuffer too_many{8000, std::vector<std::vector<double>>(257, std::vector<double>(4, 0.1))};
+    CHECK(write_wav(path, too_many, {}).error().code == Errc::invalid_argument);
 }

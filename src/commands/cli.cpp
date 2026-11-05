@@ -1,6 +1,7 @@
 #include "commands/cli.hpp"
 
 #include <algorithm>
+#include <exception>
 #include <string>
 
 #include <CLI/CLI.hpp>
@@ -149,7 +150,9 @@ std::vector<CheckSuite>& check_suites() {
     return suites;
 }
 
-int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err) {
+namespace {
+
+int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out, std::ostream& err) {
     CLI::App app{tr("cli.description"), "signals"};
     bool show_version = false;
     app.add_flag("--version", show_version, tr("cli.version.description"));
@@ -196,6 +199,18 @@ int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostr
         if (command->parsed()) return command->run(out, err);
     out << app.help();
     return 0;
+}
+
+}  // namespace
+
+int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err) {
+    try {
+        return run_cli_unguarded(args, out, err);
+    } catch (const std::exception& e) {
+        const auto message = fmt::format(fmt::runtime(tr("error.unexpected")), fmt::arg("details", e.what()));
+        err << fmt::format(fmt::runtime(tr("error.line")), fmt::arg("message", message)) << '\n';
+        return 2;
+    }
 }
 
 }  // namespace signals::cli
