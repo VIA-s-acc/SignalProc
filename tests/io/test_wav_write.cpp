@@ -6,11 +6,11 @@
 #include <fstream>
 #include <iterator>
 #include <limits>
-#include <numbers>
 #include <utility>
 #include <vector>
 
 #include "core/metrics.hpp"
+#include "io/generators.hpp"
 #include "io/wav.hpp"
 #include "support/paths.hpp"
 
@@ -22,12 +22,6 @@ using signals::test::temp_path;
 
 namespace {
 
-std::vector<double> tone(double freq, double amplitude, double fs, std::size_t n) {
-    std::vector<double> x(n);
-    for (std::size_t k = 0; k < n; ++k) x[k] = amplitude * std::sin(2 * std::numbers::pi * freq * k / fs);
-    return x;
-}
-
 std::vector<char> file_bytes(const std::filesystem::path& path) {
     std::ifstream in{path, std::ios::binary};
     return {std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
@@ -36,7 +30,7 @@ std::vector<char> file_bytes(const std::filesystem::path& path) {
 }  // namespace
 
 TEST_CASE("int formats round trip within one lsb", "[wav]") {
-    AudioBuffer a{48'000, {tone(997, 0.5, 48'000, 4'800), tone(440, 0.25, 48'000, 4'800)}};
+    AudioBuffer a{48'000, {sine(997, 0.5, 0.0, 48'000, 4'800), sine(440, 0.25, 0.0, 48'000, 4'800)}};
     for (auto [fmt, lsb] : {std::pair{SampleFormat::pcm_s16, 1.0 / 32768}, std::pair{SampleFormat::pcm_s24, 1.0 / 8388608},
                             std::pair{SampleFormat::pcm_s32, 1.0 / 2147483648}}) {
         const auto path = temp_path("rt.wav");
@@ -52,7 +46,7 @@ TEST_CASE("int formats round trip within one lsb", "[wav]") {
 }
 
 TEST_CASE("float32 round trip is exact to float precision", "[wav]") {
-    AudioBuffer a{44'100, {tone(1000, 0.8, 44'100, 4'410)}};
+    AudioBuffer a{44'100, {sine(1000, 0.8, 0.0, 44'100, 4'410)}};
     const auto path = temp_path("f32.wav");
     auto r = write_wav(path, a, {SampleFormat::float32, false});
     REQUIRE(r);
@@ -105,7 +99,7 @@ TEST_CASE("default write is 24-bit", "[wav]") {
 
 TEST_CASE("tpdf dither is deterministic and small", "[wav]") {
     const double lsb = 1.0 / 32768;
-    AudioBuffer a{48'000, {tone(997, 0.3, 48'000, 48'000)}};
+    AudioBuffer a{48'000, {sine(997, 0.3, 0.0, 48'000, 48'000)}};
     const auto p1 = temp_path("d1.wav"), p2 = temp_path("d2.wav"), p3 = temp_path("d3.wav");
     REQUIRE(write_wav(p1, a, {SampleFormat::pcm_s16, true, 7}));
     REQUIRE(write_wav(p2, a, {SampleFormat::pcm_s16, true, 7}));

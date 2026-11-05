@@ -19,6 +19,7 @@ add_executable(signals_tests
   io/test_wav_read.cpp
   io/test_wav_write.cpp
   io/test_stats.cpp
+  io/test_generators.cpp
   cli/test_cli.cpp
   cli/test_cli_commands.cpp
   test_golden_files.cpp
