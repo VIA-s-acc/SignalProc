@@ -1,5 +1,6 @@
 #include "core/matrix.hpp"
 
+#include <cmath>
 #include <complex>
 
 #include <pocketfft_hdronly.h>
@@ -28,6 +29,7 @@ Eigen::MatrixXd convolution_matrix(const Laurent& h, std::size_t n) {
 }
 
 Eigen::MatrixXd circulant_matrix(const Laurent& h, std::size_t n) {
+    if (n == 0) return {};
     Eigen::MatrixXd c = Eigen::MatrixXd::Zero(idx(n), idx(n));
     const auto size = static_cast<std::ptrdiff_t>(n);
     for (std::size_t k = 0; k < h.coeffs.size(); ++k) {
@@ -58,14 +60,14 @@ std::vector<double> circulant_multiply_fft(const Laurent& h, std::span<const dou
     return y;
 }
 
-Eigen::MatrixXd analysis_matrix(const FilterBank& bank, std::size_t n, const DwtOptions& options) {
-    if (n == 0) return {};
+Result<Eigen::MatrixXd> analysis_matrix(const FilterBank& bank, std::size_t n, const DwtOptions& options) {
+    if (n == 0) return make_error(Errc::invalid_argument, "analysis_matrix: empty signal");
     const std::size_t len = dwt_coeff_len(n, bank.length(), options.mode);
     Eigen::MatrixXd a = Eigen::MatrixXd::Zero(idx(2 * len), idx(n));
     for (std::size_t j = 0; j < n; ++j) {
         const auto e = unit(n, j);
         const auto level = dwt_level<double>(e, bank, options);
-        if (!level) return {};
+        if (!level) return std::unexpected(level.error());
         for (std::size_t i = 0; i < len; ++i) {
             a(idx(i), idx(j)) = level->approx[i];
             a(idx(len + i), idx(j)) = level->detail[i];
@@ -74,25 +76,28 @@ Eigen::MatrixXd analysis_matrix(const FilterBank& bank, std::size_t n, const Dwt
     return a;
 }
 
-Eigen::MatrixXd synthesis_matrix(const FilterBank& bank, std::size_t n, const DwtOptions& options) {
+Result<Eigen::MatrixXd> synthesis_matrix(const FilterBank& bank, std::size_t n, const DwtOptions& options) {
+    if (n == 0) return make_error(Errc::invalid_argument, "synthesis_matrix: empty signal");
     const std::size_t len = dwt_coeff_len(n, bank.length(), options.mode);
     Eigen::MatrixXd s = Eigen::MatrixXd::Zero(idx(n), idx(2 * len));
     for (std::size_t c = 0; c < 2 * len; ++c) {
         std::vector<double> approx(len, 0.0), detail(len, 0.0);
         (c < len ? approx[c] : detail[c - len]) = 1.0;
         const auto rec = idwt_level<double>(approx, detail, bank, options);
-        if (!rec) return {};
+        if (!rec) return std::unexpected(rec.error());
         for (std::size_t i = 0; i < n && i < rec->size(); ++i) s(idx(i), idx(c)) = (*rec)[i];
     }
     return s;
 }
 
-Eigen::MatrixXd multilevel_matrix(const FilterBank& bank, std::size_t n, std::size_t levels, const DwtOptions& options) {
+Result<Eigen::MatrixXd> multilevel_matrix(const FilterBank& bank, std::size_t n, std::size_t levels,
+                                          const DwtOptions& options) {
+    if (n == 0) return make_error(Errc::invalid_argument, "multilevel_matrix: empty signal");
     Eigen::MatrixXd w;
     for (std::size_t j = 0; j < n; ++j) {
         const auto e = unit(n, j);
         const auto coeffs = wavedec<double>(e, bank, levels, options);
-        if (!coeffs) return {};
+        if (!coeffs) return std::unexpected(coeffs.error());
         std::vector<double> column;
         for (const auto& band : coeffs->bands) column.insert(column.end(), band.begin(), band.end());
         if (j == 0) w = Eigen::MatrixXd::Zero(idx(column.size()), idx(n));
@@ -102,6 +107,7 @@ Eigen::MatrixXd multilevel_matrix(const FilterBank& bank, std::size_t n, std::si
 }
 
 CheckResult check_left_inverse(const Eigen::MatrixXd& s, const Eigen::MatrixXd& a, double tol) {
+    if (s.size() == 0 || a.size() == 0 || s.cols() != a.rows()) return {"check.sa_identity", "", INFINITY, tol};
     const Eigen::MatrixXd product = s * a;
     const double error = product.allFinite()
                              ? (product - Eigen::MatrixXd::Identity(product.rows(), product.cols())).cwiseAbs().maxCoeff()
@@ -110,6 +116,7 @@ CheckResult check_left_inverse(const Eigen::MatrixXd& s, const Eigen::MatrixXd& 
 }
 
 CheckResult check_orthogonal_matrix(const Eigen::MatrixXd& a, double tol) {
+    if (a.size() == 0) return {"check.ata_identity", "", INFINITY, tol};
     const Eigen::MatrixXd gram = a.transpose() * a;
     const double error = gram.allFinite()
                              ? (gram - Eigen::MatrixXd::Identity(gram.rows(), gram.cols())).cwiseAbs().maxCoeff()

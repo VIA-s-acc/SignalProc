@@ -48,7 +48,7 @@ TEST_CASE("fft circulant product equals dense product", "[matrix]") {
 }
 
 TEST_CASE("haar three-level matrix rows are the discrete haar functions", "[matrix]") {
-    auto w = multilevel_matrix(*wavelet("haar"), 8, 3, {});
+    auto w = *multilevel_matrix(*wavelet("haar"), 8, 3, {});
     const double s8 = 1 / std::sqrt(8.0);
     CHECK(w.row(0).isApprox(Eigen::RowVectorXd::Constant(8, s8)));
     Eigen::RowVectorXd d3(8);
@@ -62,18 +62,28 @@ TEST_CASE("synthesis inverts analysis in every mode", "[matrix]") {
     for (auto m : signals::test::all_modes)
         for (std::size_t n : {16, 17}) {
             INFO(to_string(m) << " n=" << n);
-            CHECK(check_left_inverse(synthesis_matrix(b, n, {m}), analysis_matrix(b, n, {m}), 1e-13).passed());
+            CHECK(check_left_inverse(*synthesis_matrix(b, n, {m}), *analysis_matrix(b, n, {m}), 1e-13).passed());
         }
 }
 
 TEST_CASE("db3 periodization matrix is orthogonal", "[matrix]") {
-    CHECK(check_orthogonal_matrix(analysis_matrix(*wavelet("db3"), 32, {Extension::periodization}), 1e-14).passed());
+    CHECK(check_orthogonal_matrix(*analysis_matrix(*wavelet("db3"), 32, {Extension::periodization}), 1e-14).passed());
 }
 
-TEST_CASE("matrices of invalid transforms are empty, not undefined", "[matrix]") {
+TEST_CASE("matrices of invalid transforms are errors", "[matrix]") {
     const auto b = *wavelet("db2");
-    CHECK(analysis_matrix(b, 1, {Extension::reflect}).size() == 0);
-    CHECK(multilevel_matrix(b, 3, 1, {}).size() == 0);
+    auto a = analysis_matrix(b, 1, {Extension::reflect});
+    REQUIRE_FALSE(a);
+    CHECK(a.error().code == Errc::invalid_argument);
+    auto w = multilevel_matrix(b, 3, 1, {});
+    REQUIRE_FALSE(w);
+    CHECK(w.error().code == Errc::level_out_of_range);
+}
+
+TEST_CASE("matrix checks fail on empty or mismatched matrices", "[matrix]") {
+    CHECK_FALSE(check_orthogonal_matrix(Eigen::MatrixXd{}, 1.0).passed());
+    CHECK_FALSE(check_left_inverse(Eigen::MatrixXd::Identity(3, 3), Eigen::MatrixXd::Identity(4, 4), 1.0).passed());
+    CHECK(circulant_matrix(Laurent{{1, 2}, 0}, 0).size() == 0);
 }
 
 TEST_CASE("nan in a matrix never passes a matrix check", "[matrix]") {
