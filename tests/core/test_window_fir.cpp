@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "core/design/window_fir.hpp"
+#include "core/freq.hpp"
 #include "core/laurent.hpp"
 #include "core/metrics.hpp"
 #include "support/golden.hpp"
@@ -37,13 +38,12 @@ TEST_CASE("kaiser design matches scipy", "[fir][golden]") {
 TEST_CASE("kaiser lowpass meets its attenuation", "[fir]") {
     auto [taps, beta] = kaiser_order(80, 0.05);
     auto h = kaiser_lowpass(taps | 1, 0.25, beta);
+    auto r = frequency_response(h, 4096);
     double stop_db = -1000;
-    for (std::size_t k = 0; k < 4096; ++k) {
-        const double omega = std::numbers::pi * static_cast<double>(k) / 4096;
-        if (omega >= 0.30 * std::numbers::pi) stop_db = std::max(stop_db, 20 * std::log10(std::abs(evaluate(h, omega))));
-    }
+    for (std::size_t k = 0; k < r.omega.size(); ++k)
+        if (r.omega[k] >= 0.30 * std::numbers::pi) stop_db = std::max(stop_db, r.magnitude_db[k]);
     CHECK(stop_db <= -79.5);
-    CHECK(std::abs(std::abs(evaluate(h, 0.0)) - 1.0) <= 1e-12);
+    CHECK(std::abs(r.magnitude[0] - 1.0) <= 1e-12);
 }
 
 TEST_CASE("degenerate kaiser lengths", "[fir]") {
