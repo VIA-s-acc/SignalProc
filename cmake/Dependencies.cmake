@@ -10,6 +10,8 @@ FetchContent_Declare(rapidcheck GIT_REPOSITORY https://github.com/emil-e/rapidch
                      GIT_TAG 2c3c4365aca21ef4e612768fdc95b1ce8b39a651 SYSTEM)
 FetchContent_Declare(pocketfft GIT_REPOSITORY https://github.com/mreineck/pocketfft.git
                      GIT_TAG 4d865cba24359b05b37da4e75aee24498c3b78e7 SOURCE_SUBDIR _none)
+FetchContent_Declare(dr_libs GIT_REPOSITORY https://github.com/mackron/dr_libs.git
+                     GIT_TAG wav-0.14.6 GIT_SHALLOW TRUE SOURCE_SUBDIR _none)
 FetchContent_Declare(multiprecision GIT_REPOSITORY https://github.com/boostorg/multiprecision.git
                      GIT_TAG Boost_1_92_0 GIT_SHALLOW TRUE SOURCE_SUBDIR _none)
 
@@ -24,7 +26,7 @@ set(CLI11_PRECOMPILED OFF CACHE BOOL "" FORCE)
 set(RC_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 set(RC_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(catch2 cli11 json fmt nanobench rapidcheck pocketfft multiprecision eigen)
+FetchContent_MakeAvailable(catch2 cli11 json fmt nanobench rapidcheck pocketfft dr_libs multiprecision eigen)
 
 add_library(signals_multiprecision INTERFACE)
 target_include_directories(signals_multiprecision SYSTEM INTERFACE ${multiprecision_SOURCE_DIR}/include)
@@ -34,3 +36,6 @@ add_library(signals_pocketfft INTERFACE)
 target_include_directories(signals_pocketfft SYSTEM INTERFACE ${pocketfft_SOURCE_DIR})
 
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+
+add_library(signals_dr_wav STATIC ${PROJECT_SOURCE_DIR}/src/io/dr_wav_impl.cpp)
+target_include_directories(signals_dr_wav SYSTEM PUBLIC ${dr_libs_SOURCE_DIR})

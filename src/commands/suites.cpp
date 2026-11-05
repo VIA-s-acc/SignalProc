@@ -5,6 +5,7 @@
 #include <string>
 
 #include "core/design/families.hpp"
+#include "core/freq.hpp"
 #include "core/matrix.hpp"
 #include "core/metrics.hpp"
 #include "core/wavedec.hpp"
@@ -54,7 +55,14 @@ std::vector<core::CheckResult> core_suite() {
         const auto pr = check_pr(*bank, tol);
         results.push_back(pr.alias);
         results.push_back(pr.distortion);
-        if (info->orthogonal) results.push_back(check_orthogonality(*bank, tol));
+        if (info->orthogonal) {
+            results.push_back(check_orthogonality(*bank, tol));
+            const auto r0 = frequency_response(bank->h0, 512), r1 = frequency_response(bank->h1, 512);
+            double worst = 0;
+            for (std::size_t k = 0; k < r0.magnitude.size(); ++k)
+                worst = std::max(worst, std::abs(r0.magnitude[k] * r0.magnitude[k] + r1.magnitude[k] * r1.magnitude[k] - 2));
+            results.push_back({"check.power_complementary", subject, worst, name == "dmey" ? 5e-2 : 10 * tol});
+        }
         const auto levels = dwt_max_level(x.size(), bank->length());
         for (const auto mode : {Extension::symmetric, Extension::periodization}) {
             const DwtOptions options{mode, false};
@@ -76,11 +84,15 @@ std::vector<core::CheckResult> core_suite() {
         }
     }
     const auto db2 = wavelet("db2");
+    if (!db2) {
+        results.push_back({"check.wavelet_available", "db2", INFINITY, 0.0});
+        return results;
+    }
     for (const auto mode : {Extension::zero, Extension::constant, Extension::symmetric, Extension::reflect,
                             Extension::periodic, Extension::smooth, Extension::periodization, Extension::antisymmetric,
                             Extension::antireflect}) {
-        const auto s = db2 ? synthesis_matrix(*db2, 32, {mode}) : Result<Eigen::MatrixXd>{};
-        const auto a = db2 ? analysis_matrix(*db2, 32, {mode}) : Result<Eigen::MatrixXd>{};
+        const auto s = synthesis_matrix(*db2, 32, {mode});
+        const auto a = analysis_matrix(*db2, 32, {mode});
         auto r = s && a ? check_left_inverse(*s, *a, 1e-13) : CheckResult{"check.sa_identity", "", INFINITY, 1e-13};
         r.subject = "db2/" + std::string{to_string(mode)};
         results.push_back(r);

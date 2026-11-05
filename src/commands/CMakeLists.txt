@@ -5,7 +5,10 @@ add_library(signals_cli STATIC
   cli.cpp
   i18n.cpp
   suites.cpp
+  errors.cpp
+  audio_commands.cpp
+  analysis_commands.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/i18n_ru.cpp
 )
-target_link_libraries(signals_cli PUBLIC signals_core PRIVATE CLI11::CLI11 nlohmann_json::nlohmann_json fmt::fmt)
+target_link_libraries(signals_cli PUBLIC signals_core signals_io PRIVATE CLI11::CLI11 nlohmann_json::nlohmann_json fmt::fmt)
 signals_configure_target(signals_cli)

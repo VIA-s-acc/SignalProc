@@ -21,6 +21,10 @@ template <class T>
 Result<BasicCoeffs<T>> wavedec(std::span<const T> x, const BasicFilterBank<T>& bank, std::size_t levels,
                                const DwtOptions& options) {
     const auto max_level = dwt_max_level(x.size(), bank.length());
+    if (max_level == 0)
+        return make_error(Errc::level_out_of_range, "signal too short: n=" + std::to_string(x.size()) +
+                                                        " needs at least L-1=" + std::to_string(bank.length() - 1) +
+                                                        " samples");
     if (levels < 1 || levels > max_level)
         return make_error(Errc::level_out_of_range, "wavedec: levels must be in [1, " + std::to_string(max_level) +
                                                         "] for n=" + std::to_string(x.size()) + ", L=" +

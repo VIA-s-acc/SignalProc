@@ -1,12 +1,14 @@
 #include "commands/cli.hpp"
 
 #include <algorithm>
+#include <exception>
 #include <string>
 
 #include <CLI/CLI.hpp>
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
+#include "commands/command.hpp"
 #include "commands/i18n.hpp"
 #include "commands/suites.hpp"
 #include "core/design/families.hpp"
@@ -61,10 +63,8 @@ std::string yes_no(bool b) { return tr(b ? "yes" : "no"); }
 int run_filter_info(const std::string& name, bool json, std::ostream& out, std::ostream& err) {
     const auto bank = core::wavelet(name);
     const auto info = core::wavelet_info(name);
-    if (!bank || !info) {
-        err << fmt::format(fmt::runtime(tr("cli.unknown_command")), fmt::arg("details", bank ? info.error().message : bank.error().message)) << '\n';
-        return 2;
-    }
+    if (!bank) return report_error(err, bank.error());
+    if (!info) return report_error(err, info.error());
     const double tol = base_tolerance(info->generated, name == "dmey");
     const auto pr = core::check_pr(*bank, tol);
     const bool orthogonal = core::check_orthogonality(*bank, tol).passed();
@@ -108,17 +108,18 @@ std::string_view kind_name(core::SplitKind k) {
 }
 
 int run_design(int p, bool json, std::ostream& out, std::ostream& err) {
-    if (p < 1 || p > 6) {
-        err << fmt::format(fmt::runtime(tr("cli.unknown_command")), fmt::arg("details", "--p must be in [1, 6]")) << '\n';
-        return 2;
-    }
+    if (p < 1 || p > 6) return report_error(err, {core::Errc::invalid_argument, "--p must be in [1, 6]"});
     const auto f = core::factorise_maxflat(p);
     nlohmann::json splits = nlohmann::json::array();
     int wavelets = 0;
+    std::size_t skipped = 0;
     std::vector<std::string> rows;
     for (const auto& s : core::enumerate_splits(f)) {
         const auto bank = core::bank_from_split(f, s, "split");
-        if (!bank) continue;
+        if (!bank) {
+            ++skipped;
+            continue;
+        }
         const auto info = core::classify(*bank);
         wavelets += info.wavelet ? 1 : 0;
         std::vector<bool> groups(s.group_in_h0.begin(), s.group_in_h0.end());
@@ -133,11 +134,12 @@ int run_design(int p, bool json, std::ostream& out, std::ostream& err) {
                                    fmt::arg("verdict", tr(info.wavelet ? "design.wavelet" : "design.not_wavelet"))));
     }
     if (json) {
-        out << nlohmann::json{{"p", p}, {"splits", splits}, {"wavelets", wavelets}}.dump(2) << '\n';
+        out << nlohmann::json{{"p", p}, {"splits", splits}, {"wavelets", wavelets}, {"skipped", skipped}}.dump(2) << '\n';
         return 0;
     }
     out << fmt::format(fmt::runtime(tr("design.header")), fmt::arg("p", p), fmt::arg("count", rows.size()), fmt::arg("wavelets", wavelets)) << '\n';
     for (const auto& r : rows) out << r << '\n';
+    if (skipped > 0) out << fmt::format(fmt::runtime(tr("design.skipped")), fmt::arg("count", skipped)) << '\n';
     return 0;
 }
 
@@ -148,7 +150,9 @@ std::vector<CheckSuite>& check_suites() {
     return suites;
 }
 
-int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err) {
+namespace {
+
+int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out, std::ostream& err) {
     CLI::App app{tr("cli.description"), "signals"};
     bool show_version = false;
     app.add_flag("--version", show_version, tr("cli.version.description"));
@@ -167,6 +171,9 @@ int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostr
     bool design_json = false;
     design->add_option("--p", design_p, tr("cli.design.p"))->required();
     design->add_flag("--json", design_json, tr("cli.json.description"));
+    Commands commands;
+    add_audio_commands(app, commands);
+    add_analysis_commands(app, *filter, commands);
 
     std::vector<std::string> rest;
     for (std::size_t i = args.size(); i > 1; --i) rest.emplace_back(args[i - 1]);
@@ -188,8 +195,22 @@ int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostr
     if (check->parsed()) return run_check(check_json, out);
     if (filter_info->parsed()) return run_filter_info(filter_name, filter_json, out, err);
     if (design->parsed()) return run_design(design_p, design_json, out, err);
+    for (const auto& command : commands)
+        if (command->parsed()) return command->run(out, err);
     out << app.help();
     return 0;
+}
+
+}  // namespace
+
+int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err) {
+    try {
+        return run_cli_unguarded(args, out, err);
+    } catch (const std::exception& e) {
+        const auto message = fmt::format(fmt::runtime(tr("error.unexpected")), fmt::arg("details", e.what()));
+        err << fmt::format(fmt::runtime(tr("error.line")), fmt::arg("message", message)) << '\n';
+        return 2;
+    }
 }
 
 }  // namespace signals::cli

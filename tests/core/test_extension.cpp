@@ -9,7 +9,8 @@
 using namespace signals::core;
 
 TEST_CASE("pad matches pywt.pad for all golden cases", "[extension][golden]") {
-    for (auto& c : signals::test::load_golden("pad.json")["cases"]) {
+    const auto golden = signals::test::load_golden("pad.json");
+    for (auto& c : golden["cases"]) {
         auto mode = parse_extension(c["mode"].get<std::string>());
         REQUIRE(mode);
         auto x = c["x"].get<std::vector<double>>();

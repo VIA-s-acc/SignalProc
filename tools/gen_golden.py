@@ -3,11 +3,15 @@
 import argparse
 import json
 import math
+import struct
 import warnings
 from pathlib import Path
 
 import numpy as np
 import pywt
+import scipy.io.wavfile
+import scipy.signal
+from skimage.restoration import _denoise
 
 MODES = ["zero", "constant", "symmetric", "reflect", "periodic", "smooth",
          "periodization", "antisymmetric", "antireflect"]
@@ -101,6 +105,205 @@ def wavedec_json():
     return {"signals": signals, "cases": cases}
 
 
+WAV_FRAMES = 64
+PCM_SUBTYPE_GUID = bytes.fromhex("0100000000001000800000aa00389b71")
+G711_SEG_END = [0xFF, 0x1FF, 0x3FF, 0x7FF, 0xFFF, 0x1FFF, 0x3FFF, 0x7FFF]
+
+
+def wav_tone(channels):
+    k = np.arange(WAV_FRAMES)
+    return np.stack([0.9 * np.sin(2 * np.pi * (3 + 2 * c) * k / WAV_FRAMES + 0.4 * c) for c in range(channels)], axis=1)
+
+
+def quantize(x, bits):
+    scale = 2 ** (bits - 1)
+    codes = np.clip(np.round(x * scale), -scale, scale - 1).astype(np.int64)
+    codes[0, 0], codes[1, 0] = -scale, scale - 1
+    return codes
+
+
+def segment(v):
+    return next((i for i, end in enumerate(G711_SEG_END) if v <= end), 8)
+
+
+def linear_to_ulaw(v):
+    v, mask = (0x84 - v, 0x7F) if v < 0 else (v + 0x84, 0xFF)
+    seg = segment(v)
+    return (0x7F ^ mask) if seg >= 8 else (((seg << 4) | ((v >> (seg + 3)) & 0xF)) ^ mask)
+
+
+def linear_to_alaw(v):
+    v, mask = (v, 0xD5) if v >= 0 else (-v - 8, 0x55)
+    seg = segment(v)
+    if seg >= 8:
+        return 0x7F ^ mask
+    quant = (v >> 4) if seg < 2 else (v >> (seg + 3))
+    return ((seg << 4) | (quant & 0xF)) ^ mask
+
+
+def ulaw_to_linear(u):
+    u = ~u & 0xFF
+    t = (((u & 0xF) << 3) + 0x84) << ((u & 0x70) >> 4)
+    return (0x84 - t) if u & 0x80 else (t - 0x84)
+
+
+def alaw_to_linear(a):
+    a ^= 0x55
+    t = (a & 0xF) << 4
+    seg = (a & 0x70) >> 4
+    t = t + 8 if seg == 0 else (t + 0x108) << max(seg - 1, 0)
+    return t if a & 0x80 else -t
+
+
+def riff(fmt, data, extra_chunks=b""):
+    body = b"WAVE" + b"fmt " + struct.pack("<I", len(fmt)) + fmt + extra_chunks
+    body += b"data" + struct.pack("<I", len(data)) + data + (b"\0" if len(data) % 2 else b"")
+    return b"RIFF" + struct.pack("<I", len(body)) + body
+
+
+def fmt_chunk(tag, channels, rate, bits, cb_size=None):
+    block = channels * bits // 8
+    fmt = struct.pack("<HHIIHH", tag, channels, rate, rate * block, block, bits)
+    return fmt if cb_size is None else fmt + struct.pack("<H", cb_size)
+
+
+def wav_case(file, fmt, rate, samples, extensible=False):
+    return {"file": file, "format": fmt, "channels": len(samples), "sample_rate": rate,
+            "frames": WAV_FRAMES, "extensible": extensible, "samples": [floats(ch) for ch in samples]}
+
+
+def wav_json(fixtures):
+    fixtures.mkdir(parents=True, exist_ok=True)
+    cases = []
+
+    u8 = quantize(wav_tone(1), 8) + 128
+    scipy.io.wavfile.write(fixtures / "u8_mono.wav", 8000, u8[:, 0].astype(np.uint8))
+    cases.append(wav_case("u8_mono.wav", "pcm_u8", 8000, ((u8.T - 128) / 128)))
+
+    s16 = quantize(wav_tone(2), 16)
+    scipy.io.wavfile.write(fixtures / "s16_stereo.wav", 44100, s16.astype(np.int16))
+    cases.append(wav_case("s16_stereo.wav", "pcm_s16", 44100, s16.T / 32768))
+
+    s24 = quantize(wav_tone(2), 24)
+    data = b"".join(int(v & 0xFFFFFF).to_bytes(3, "little") for v in s24.reshape(-1))
+    (fixtures / "s24_stereo.wav").write_bytes(riff(fmt_chunk(1, 2, 48000, 24), data))
+    cases.append(wav_case("s24_stereo.wav", "pcm_s24", 48000, s24.T / 8388608))
+
+    s32 = quantize(wav_tone(1), 32)
+    scipy.io.wavfile.write(fixtures / "s32_mono.wav", 96000, s32[:, 0].astype(np.int32))
+    cases.append(wav_case("s32_mono.wav", "pcm_s32", 96000, s32.T / 2147483648))
+
+    f32 = wav_tone(2).astype(np.float32)
+    f32[0, 0], f32[1, 0] = -1.0, 1.0
+    scipy.io.wavfile.write(fixtures / "f32_stereo.wav", 44100, f32)
+    cases.append(wav_case("f32_stereo.wav", "float32", 44100, f32.T.astype(np.float64)))
+
+    f64 = wav_tone(1)
+    f64[0, 0], f64[1, 0] = 1.0 / 3.0, -1.0
+    scipy.io.wavfile.write(fixtures / "f64_mono.wav", 22050, f64[:, 0])
+    cases.append(wav_case("f64_mono.wav", "float64", 22050, f64.T))
+
+    s6 = quantize(wav_tone(6), 16)
+    fmt = fmt_chunk(0xFFFE, 6, 48000, 16, 22) + struct.pack("<HI", 16, 0x3F) + PCM_SUBTYPE_GUID
+    data = s6.astype("<i2").tobytes()
+    (fixtures / "s16_6ch_extensible.wav").write_bytes(riff(fmt, data))
+    cases.append(wav_case("s16_6ch_extensible.wav", "pcm_s16", 48000, s6.T / 32768, extensible=True))
+
+    pcm = quantize(wav_tone(1), 16)[:, 0]
+    for name, tag, encode, decode in [("mulaw", 7, linear_to_ulaw, ulaw_to_linear),
+                                      ("alaw", 6, linear_to_alaw, alaw_to_linear)]:
+        codes = bytes(encode(int(v)) for v in pcm)
+        decoded = np.array([decode(c) for c in codes], dtype=float)
+        assert np.max(np.abs(decoded - pcm)) <= 1024, name
+        fact = b"fact" + struct.pack("<II", 4, WAV_FRAMES)
+        (fixtures / f"{name}_mono.wav").write_bytes(riff(fmt_chunk(tag, 1, 8000, 8, 0), codes, fact))
+        cases.append(wav_case(f"{name}_mono.wav", name, 8000, [decoded / 32768]))
+
+    (fixtures / "truncated.wav").write_bytes((fixtures / "s16_stereo.wav").read_bytes()[:20])
+    (fixtures / "not_a_wav.wav").write_text("not a wav\n")
+    (fixtures / "empty.wav").write_bytes(riff(fmt_chunk(1, 2, 44100, 16), b""))
+    return {"cases": cases, "invalid": ["truncated.wav", "not_a_wav.wav", "empty.wav"]}
+
+
+def signals_json():
+    chirps = []
+    for method, f0, f1, fs, n in [("linear", 100.0, 3000.0, 8000.0, 1000), ("logarithmic", 20.0, 4000.0, 16000.0, 2048)]:
+        t = np.arange(n) / fs
+        y = scipy.signal.chirp(t, f0, (n - 1) / fs, f1, method=method)
+        chirps.append({"method": method, "f0": f0, "f1": f1, "fs": fs, "n": n, "y": floats(y)})
+    dj = [{"name": name, "n": n, "y": floats(pywt.data.demo_signal(name, n))}
+          for name in ["Blocks", "Bumps", "HeaviSine", "Doppler"] for n in [64, 1024]]
+    return {"chirp": chirps, "dj": dj}
+
+
+def kaiser_json():
+    order = []
+    for attenuation, width in [(60, 0.1), (80, 0.05), (40, 0.2)]:
+        taps, beta = scipy.signal.kaiserord(attenuation, width)
+        order.append({"attenuation": attenuation, "width": width, "taps": int(taps), "beta": float(beta)})
+    beta = [{"attenuation": a, "beta": float(scipy.signal.kaiser_beta(a))} for a in [10, 21, 30, 50, 60, 90]]
+    firwin = [{"taps": taps, "cutoff": cutoff, "beta": b,
+               "h": floats(scipy.signal.firwin(taps, cutoff, window=("kaiser", b)))}
+              for taps, cutoff, b in [(31, 0.25, 8.0), (63, 0.125, 7.857), (32, 0.5, 5.0)]]
+    return {"kaiserord": order, "kaiser_beta": beta, "firwin": firwin}
+
+
+def upfirdn_json():
+    x = np.sin(2 * np.pi * 0.07 * np.arange(37))
+    filters = {"firwin31": scipy.signal.firwin(31, 0.25), "ramp3": np.array([1.0, 2.0, 3.0])}
+    cases = [{"filter": name, "h": floats(h), "x": floats(x), "up": up, "down": down,
+              "y": floats(scipy.signal.upfirdn(h, x, up, down))}
+             for name, h in filters.items() for up, down in [(1, 1), (1, 2), (1, 4), (3, 1), (2, 3)]]
+    return {"cases": cases}
+
+
+def freqz_json():
+    filters = [("db2 dec_lo", pywt.Wavelet("db2").dec_lo), ("db2 dec_hi", pywt.Wavelet("db2").dec_hi),
+               ("bior2.2 dec_lo", pywt.Wavelet("bior2.2").dec_lo), ("sym8 dec_lo", pywt.Wavelet("sym8").dec_lo),
+               ("coif3 dec_lo", pywt.Wavelet("coif3").dec_lo), ("firwin31", scipy.signal.firwin(31, 0.25))]
+    cases = []
+    for name, b in filters:
+        b = np.asarray(b, dtype=float)
+        _, h = scipy.signal.freqz(b, worN=512)
+        _, gd = scipy.signal.group_delay((b, 1), w=512)
+        cases.append({"name": name, "b": floats(b), "h_re": floats(h.real), "h_im": floats(h.imag), "gd": floats(gd)})
+    return {"points": 512, "cases": cases}
+
+
+def threshold_json():
+    x = np.array([-3, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 4], dtype=float)
+    cases = [{"mode": mode, "value": value, "substitute": substitute, "x": floats(x),
+              "y": floats(pywt.threshold(x, value, mode, substitute))}
+             for mode in ["soft", "hard", "garrote", "greater", "less"] for value in [0.5, 1.5] for substitute in [0, -1]]
+    cases.append({"mode": "firm", "low": 1.0, "high": 2.0, "x": floats(x), "y": floats(pywt.threshold_firm(x, 1, 2))})
+    return {"cases": cases}
+
+
+def denoise_signals(sample_wav):
+    _, data = scipy.io.wavfile.read(sample_wav)
+    music = data[100_000:102_048, 0].astype(float) / 32768
+    sigma = math.sqrt(np.mean(music ** 2) / 10 ** (10 / 10))
+    doppler = pywt.data.demo_signal("Doppler", 1024)
+    doppler = doppler * 7 / np.std(doppler)
+    return {"music": (music, music + np.random.default_rng(7).normal(0, sigma, music.size)),
+            "doppler": (doppler, doppler + np.random.default_rng(3).normal(0, 1, doppler.size))}
+
+
+def denoise_json(sample_wav):
+    signals = denoise_signals(sample_wav)
+    combos = [(w, m, t, 5) for w in ["sym8", "db4", "haar"] for m in ["BayesShrink", "VisuShrink"] for t in ["soft", "hard"]]
+    combos.append(("sym8", "BayesShrink", "soft", None))
+    cases = []
+    for name, (_, noisy) in signals.items():
+        for wavelet, method, mode, levels in combos:
+            d1 = pywt.wavedec(noisy, wavelet, mode="symmetric", level=1)[-1]
+            out = _denoise._wavelet_threshold(noisy, wavelet, method=method, mode=mode, wavelet_levels=levels)
+            cases.append({"signal": name, "wavelet": wavelet, "method": method, "mode": mode, "levels": levels,
+                          "sigma": float(_denoise._sigma_est_dwt(d1)), "out": floats(out)})
+    return {"signals": {name: {"clean": floats(clean), "noisy": floats(noisy)} for name, (clean, noisy) in signals.items()},
+            "cases": cases}
+
+
 def tables_inc():
     lines = [f"// Generated by tools/gen_golden.py from PyWavelets {pywt.__version__}; regenerate, do not edit."]
     for name in TABLE_NAMES:
@@ -115,12 +318,20 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--tables", required=True, type=Path)
+    parser.add_argument("--fixtures", type=Path)
     args = parser.parse_args()
+    fixtures = args.fixtures or args.out.parent / "fixtures" / "wav"
+    sample_wav = Path(__file__).resolve().parent.parent / "resources" / "samples" / "test.wav"
     warnings.simplefilter("ignore")
     args.out.mkdir(parents=True, exist_ok=True)
     for file_name, builder in [("filters.json", filters_json), ("pad.json", pad_json),
-                               ("dwt.json", dwt_json), ("wavedec.json", wavedec_json)]:
-        (args.out / file_name).write_text(json.dumps(builder(), separators=(",", ":")) + "\n")
+                               ("dwt.json", dwt_json), ("wavedec.json", wavedec_json),
+                               ("wav.json", lambda: wav_json(fixtures)), ("signals.json", signals_json),
+                               ("kaiser.json", kaiser_json), ("upfirdn.json", upfirdn_json),
+                               ("freqz.json", freqz_json), ("threshold.json", threshold_json),
+                               ("denoise.json", lambda: denoise_json(sample_wav))]:
+        text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
+        (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)
     args.tables.write_text(tables_inc())
 

@@ -13,7 +13,8 @@
 using namespace signals::core;
 
 TEST_CASE("all 106 wavelets match pywt filters", "[families][golden]") {
-    for (auto& w : signals::test::load_golden("filters.json")["wavelets"]) {
+    const auto golden = signals::test::load_golden("filters.json");
+    for (auto& w : golden["wavelets"]) {
         std::string name = w["name"];
         auto b = wavelet(name);
         INFO(name);

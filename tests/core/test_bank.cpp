@@ -38,7 +38,8 @@ TEST_CASE("dropping zero coefficients breaks reconstruction", "[bank]") {
 }
 
 TEST_CASE("our convention equals pywt up to highpass sign", "[bank][golden]") {
-    for (auto& w : signals::test::load_golden("filters.json")["wavelets"]) {
+    const auto golden = signals::test::load_golden("filters.json");
+    for (auto& w : golden["wavelets"]) {
         const std::string name = w["name"];
         auto pw = bank_from_pywt<double>(name, w["dec_lo"], w["dec_hi"], w["rec_lo"], w["rec_hi"]);
         auto ours = make_bank<double>(name, pw.h0, pw.f0, name == "dmey" ? 5e-3 : 1e-10);

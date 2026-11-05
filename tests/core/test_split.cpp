@@ -53,3 +53,18 @@ TEST_CASE("orthogonal split of p = 3 is classified as orthogonal", "[split]") {
         if (info.kind == SplitKind::orthogonal) CHECK(info.wavelet);
     }
 }
+
+TEST_CASE("orthogonal splits of p = 3 are found", "[split]") {
+    auto f = factorise_maxflat(3);
+    int orthogonal = 0;
+    for (auto& s : enumerate_splits(f)) {
+        if (s.zeros_h0 != 3) continue;
+        auto b = bank_from_split(f, s, "x");
+        REQUIRE(b);
+        auto info = classify(*b);
+        if (info.kind != SplitKind::orthogonal) continue;
+        ++orthogonal;
+        CHECK(info.wavelet);
+    }
+    CHECK(orthogonal == 2);
+}

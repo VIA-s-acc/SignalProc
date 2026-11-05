@@ -12,6 +12,7 @@ enum class Errc {
     not_perfect_reconstruction,
     unknown_wavelet,
     no_convergence,
+    io_error,
 };
 
 struct Error {

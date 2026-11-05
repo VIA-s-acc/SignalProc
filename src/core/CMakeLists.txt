@@ -4,6 +4,11 @@ add_library(signals_core STATIC
   conv.cpp
   extension.cpp
   metrics.cpp
+  signal_ops.cpp
+  multirate.cpp
+  freq.cpp
+  process/threshold.cpp
+  process/shrink.cpp
   check.cpp
   bank.cpp
   wavedec.cpp
@@ -12,6 +17,7 @@ add_library(signals_core STATIC
   design/tables.cpp
   design/daubechies.cpp
   design/families.cpp
+  design/window_fir.cpp
   matrix.cpp
   wavelet/regularity.cpp
 )
