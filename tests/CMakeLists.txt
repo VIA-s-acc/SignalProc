@@ -7,9 +7,11 @@ add_executable(signals_tests
   core/test_extension.cpp
   core/test_metrics.cpp
   core/test_bank.cpp
+  core/test_dwt.cpp
   cli/test_cli.cpp
   test_golden_files.cpp
   support/golden.cpp
+  support/banks.cpp
 )
 target_link_libraries(signals_tests PRIVATE signals_cli Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
 target_include_directories(signals_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
