@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -33,8 +34,9 @@ TEST_CASE("wav fixtures read exactly", "[wav][golden]") {
 TEST_CASE("invalid wav files are errors, not crashes", "[wav]") {
     const auto golden = signals::test::load_golden("wav.json");
     for (auto& name : golden["invalid"]) {
-        auto w = read_wav(fixture(name));
         INFO(name);
+        REQUIRE(std::filesystem::exists(fixture(name)));
+        auto w = read_wav(fixture(name));
         REQUIRE_FALSE(w);
         CHECK((w.error().code == Errc::io_error || w.error().code == Errc::invalid_argument));
         CHECK_FALSE(w.error().message.empty());
