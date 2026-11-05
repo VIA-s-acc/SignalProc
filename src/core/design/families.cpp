@@ -6,6 +6,7 @@
 
 #include "core/design/daubechies.hpp"
 #include "core/design/tables.hpp"
+#include "core/wavelet/regularity.hpp"
 
 namespace signals::core {
 namespace {
@@ -79,6 +80,65 @@ Result<FilterBank> wavelet(std::string_view name) {
 }
 
 std::span<const std::string_view> wavelet_names() { return kNames; }
+
+namespace {
+
+// Above this many zeros at -1 dividing them out of double coefficients is too ill-conditioned to trust.
+constexpr int kReliableNumericZeros = 15;
+
+Laurent maxflat_l_squared(int p) {
+    const BasicLaurent<Rational> y{{Rational{-1, 4}, Rational{1, 2}, Rational{-1, 4}}, -1};
+    BasicLaurent<Rational> b{{Rational{0}}, 0}, y_power{{Rational{1}}, 0};
+    Rational binomial{1};
+    for (int k = 0; k < p; ++k) {
+        if (k > 0) {
+            binomial = binomial * (p - 1 + k) / k;
+            y_power = multiply(y_power, y);
+        }
+        b = add(b, scale(y_power, binomial));
+    }
+    return convert<double>(b);
+}
+
+Laurent spline_q_l_squared(int p) {
+    auto q = maxflat_halfband<Rational>(p);
+    for (int i = 0; i < 2 * p; ++i) q = detail::divide_exactly_by_one_plus_w(q);
+    Rational q1{0};
+    for (const auto& c : q.coeffs) q1 += c;
+    return convert<double>(scale(multiply(q, reverse(q)), Rational{1} / (q1 * q1)));
+}
+
+std::optional<double> numeric(const Laurent& h, int zeros) {
+    if (zeros > kReliableNumericZeros) return std::nullopt;
+    return sobolev_exponent(h, zeros);
+}
+
+}  // namespace
+
+Result<Regularity> wavelet_regularity(std::string_view name) {
+    const auto p = parse(name);
+    if (!p) return make_error(Errc::unknown_wavelet, "unknown wavelet: '" + std::string{name} + "'");
+    Regularity r;
+    if (p->family == "dmey") return r;
+    if (p->family == "haar" || p->family == "db" || p->family == "sym") {
+        const int order = p->family == "haar" ? 1 : p->order;
+        const double s = sobolev_from_autocorrelation(maxflat_l_squared(order), order);
+        return Regularity{order, order, s, s};
+    }
+    const auto bank = wavelet(name);
+    if (!bank) return std::unexpected(bank.error());
+    if (p->family == "coif") {
+        const int zeros = 2 * p->order;
+        return Regularity{zeros, zeros, numeric(bank->h0, zeros), numeric(bank->f0, zeros)};
+    }
+    const bool swapped = p->family == "rbio";
+    const int zeros_h0 = swapped ? p->nr : p->nd;
+    const int zeros_f0 = swapped ? p->nd : p->nr;
+    if (!spline_bior(*p)) return Regularity{zeros_h0, zeros_f0, numeric(bank->h0, zeros_h0), numeric(bank->f0, zeros_f0)};
+    const double spline_side = sobolev_from_autocorrelation(Laurent{{1.0}, 0}, p->nr);
+    const double q_side = sobolev_from_autocorrelation(spline_q_l_squared((p->nr + p->nd) / 2), p->nd);
+    return swapped ? Regularity{zeros_h0, zeros_f0, spline_side, q_side} : Regularity{zeros_h0, zeros_f0, q_side, spline_side};
+}
 
 Result<WaveletInfo> wavelet_info(std::string_view name) {
     const auto p = parse(name);

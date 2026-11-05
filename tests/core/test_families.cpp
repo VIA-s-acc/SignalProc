@@ -1,7 +1,9 @@
 #include <string>
 #include <vector>
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
 
 #include "core/design/families.hpp"
 #include "core/metrics.hpp"
@@ -54,4 +56,36 @@ TEST_CASE("rational spline uses the summing normalisation", "[families]") {
     for (auto& c : b->f0.coeffs) f += c;
     CHECK(h == 1);
     CHECK(f == 2);
+}
+
+TEST_CASE("regularity is consistent across all 106 wavelets", "[families][regularity]") {
+    for (auto name : wavelet_names()) {
+        const auto info = *wavelet_info(name);
+        const auto r = wavelet_regularity(name);
+        INFO(name);
+        REQUIRE(r);
+        if (name == "dmey") {
+            CHECK_FALSE(r->zeros_f0.has_value());
+            continue;
+        }
+        if (!name.starts_with("rbio")) CHECK(r->zeros_f0 == info.vanishing_moments_psi);
+        if (info.orthogonal) {
+            CHECK(r->zeros_h0 == r->zeros_f0);
+            if (r->sobolev_h0 && r->sobolev_f0) CHECK(std::abs(*r->sobolev_h0 - *r->sobolev_f0) < 1e-6);
+        }
+    }
+}
+
+TEST_CASE("daubechies smoothness grows with order up to db38", "[families][regularity]") {
+    double previous = 0.0;
+    for (int n = 1; n <= 38; ++n) {
+        const auto r = *wavelet_regularity("db" + std::to_string(n));
+        INFO("db" << n);
+        REQUIRE(r.sobolev_f0);
+        CHECK(*r.sobolev_f0 > previous);
+        previous = *r.sobolev_f0;
+    }
+    CHECK(*wavelet_regularity("db2")->sobolev_f0 == Catch::Approx(1.0).margin(1e-9));
+    CHECK(*wavelet_regularity("bior2.2")->sobolev_f0 == Catch::Approx(1.5).margin(1e-9));
+    CHECK(*wavelet_regularity("bior2.2")->sobolev_h0 == Catch::Approx(0.44).margin(0.01));
 }

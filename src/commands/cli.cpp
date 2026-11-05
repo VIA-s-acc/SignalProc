@@ -69,16 +69,16 @@ int run_filter_info(const std::string& name, bool json, std::ostream& out, std::
     const auto pr = core::check_pr(*bank, tol);
     const bool orthogonal = core::check_orthogonality(*bank, tol).passed();
     const bool linear_phase = core::is_linear_phase(bank->h0, 1e-9) && core::is_linear_phase(bank->f0, 1e-9);
-    const int zeros_h0 = core::zeros_at_minus_one(bank->h0, 1e-8);
-    const int zeros_f0 = core::zeros_at_minus_one(bank->f0, 1e-8);
-    const double sobolev_h0 = core::sobolev_exponent(bank->h0);
-    const double sobolev_f0 = core::sobolev_exponent(bank->f0);
+    const auto regularity = core::wavelet_regularity(name);
+    auto as_json = [](const auto& v) { return v ? nlohmann::json(*v) : nlohmann::json(nullptr); };
+    auto as_text = [](const auto& v, const char* format) { return v ? fmt::format(fmt::runtime(format), *v) : std::string{"—"}; };
     const double pr_error = std::max(pr.alias.value, pr.distortion.value);
     if (json) {
         nlohmann::json j{{"name", bank->name}, {"family", info->family}, {"length", bank->length()},
                          {"h0", bank->h0.coeffs}, {"h1", bank->h1.coeffs}, {"f0", bank->f0.coeffs}, {"f1", bank->f1.coeffs},
-                         {"orthogonal", orthogonal}, {"linear_phase", linear_phase}, {"zeros_h0", zeros_h0},
-                         {"zeros_f0", zeros_f0}, {"sobolev_h0", sobolev_h0}, {"sobolev_f0", sobolev_f0}, {"pr_error", pr_error}};
+                         {"orthogonal", orthogonal}, {"linear_phase", linear_phase}, {"zeros_h0", as_json(regularity->zeros_h0)},
+                         {"zeros_f0", as_json(regularity->zeros_f0)}, {"sobolev_h0", as_json(regularity->sobolev_h0)},
+                         {"sobolev_f0", as_json(regularity->sobolev_f0)}, {"pr_error", pr_error}};
         j["delay"] = pr.delay ? nlohmann::json(*pr.delay) : nlohmann::json(nullptr);
         out << j.dump(2) << '\n';
         return 0;
@@ -89,8 +89,10 @@ int run_filter_info(const std::string& name, bool json, std::ostream& out, std::
                        fmt::arg("pr_error", fmt::format("{:.1e}", pr_error))) << '\n';
     out << fmt::format(fmt::runtime(tr("filter.properties")), fmt::arg("orthogonal", yes_no(orthogonal)),
                        fmt::arg("linear_phase", yes_no(linear_phase))) << '\n';
-    out << fmt::format(fmt::runtime(tr("filter.zeros")), fmt::arg("zeros_h0", zeros_h0), fmt::arg("zeros_f0", zeros_f0)) << '\n';
-    out << fmt::format(fmt::runtime(tr("filter.sobolev")), fmt::arg("sobolev_h0", sobolev_h0), fmt::arg("sobolev_f0", sobolev_f0)) << '\n';
+    out << fmt::format(fmt::runtime(tr("filter.zeros")), fmt::arg("zeros_h0", as_text(regularity->zeros_h0, "{}")),
+                       fmt::arg("zeros_f0", as_text(regularity->zeros_f0, "{}"))) << '\n';
+    out << fmt::format(fmt::runtime(tr("filter.sobolev")), fmt::arg("sobolev_h0", as_text(regularity->sobolev_h0, "{:.3f}")),
+                       fmt::arg("sobolev_f0", as_text(regularity->sobolev_f0, "{:.3f}"))) << '\n';
     for (const auto& [role, filter] : {std::pair{"h0", &bank->h0}, std::pair{"h1", &bank->h1}, std::pair{"f0", &bank->f0}, std::pair{"f1", &bank->f1}})
         out << fmt::format(fmt::runtime(tr("filter.coeffs")), fmt::arg("role", role), fmt::arg("values", join(filter->coeffs))) << '\n';
     return 0;

@@ -15,7 +15,7 @@
   "filter.delay": "  задержка ℓ = {delay}, ошибка PR {pr_error}",
   "filter.properties": "  ортогональный: {orthogonal} · линейная фаза: {linear_phase}",
   "filter.zeros": "  нулей в z = −1: h₀ {zeros_h0}, f₀ {zeros_f0}",
-  "filter.sobolev": "  гладкость (Соболев): φ̃ {sobolev_h0:.3f}, φ {sobolev_f0:.3f}",
+  "filter.sobolev": "  гладкость (Соболев): φ̃ {sobolev_h0}, φ {sobolev_f0}",
   "filter.coeffs": "  {role} = [{values}]",
   "design.header": "P(z) с p = {p}: {count} разбиений, вейвлетов {wavelets}",
   "design.row": "  нулей в −1 у H₀: {zeros} · группы в H₀: {groups} · {kind} · s(H₀) {sh:.2f}, s(F₀) {sf:.2f} · {verdict}",
