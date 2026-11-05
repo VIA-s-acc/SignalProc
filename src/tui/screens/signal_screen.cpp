@@ -71,16 +71,9 @@ std::string hz_text(double f) {
     return fixed_text(std::round(f), 0);
 }
 
-std::string subscript(std::size_t n) {
-    static constexpr std::array<std::string_view, 10> digits{"₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉"};
-    std::string out;
-    for (char c : std::to_string(n)) out += digits[static_cast<std::size_t>(c - '0')];
-    return out;
-}
-
 std::string band_name(std::size_t k, std::size_t levels, GlyphMode g) {
     const std::size_t level = k == 0 ? levels : levels + 1 - k;
-    return std::string{k == 0 ? "a" : "d"} + (g == GlyphMode::ascii ? std::to_string(level) : subscript(level));
+    return std::string{k == 0 ? "a" : "d"} + (g == GlyphMode::ascii ? std::to_string(level) : subscript_count(level));
 }
 
 std::pair<double, double> band_range(std::size_t k, std::size_t levels, double fs) {

@@ -245,5 +245,15 @@
   "tui.signal.key.wheel": "колесо",
   "tui.signal.key.drag": "тащить",
   "tui.signal.key.ctrl_drag": "Ctrl+тащить",
-  "tui.signal.key.click": "клик"
+  "tui.signal.key.click": "клик",
+  "tui.filters.library": "Библиотека",
+  "tui.filters.group.wavelets": "Вейвлеты",
+  "tui.filters.group.classic": "Классические КИХ / БИХ",
+  "tui.filters.group.equivalent": "Эквивалентные ({wavelet}, J = {levels})",
+  "tui.filters.group.chain": "Цепочка: T(z), A(z)",
+  "tui.filters.group.cwt": "CWT",
+  "tui.filters.group.spectra": "Спектры φ / ψ",
+  "tui.filters.group.mine": "Мои фильтры",
+  "tui.filters.full": "в сравнении уже {count} фильтров",
+  "tui.filters.job": "Анализ фильтров"
 }

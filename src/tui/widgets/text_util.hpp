@@ -43,4 +43,11 @@ inline std::string superscript_count(int n) {
     return out;
 }
 
+inline std::string subscript_count(std::size_t n) {
+    static const char* digits[] = {"₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉"};
+    std::string out;
+    for (char c : std::to_string(n)) out += digits[c - '0'];
+    return out;
+}
+
 }  // namespace signals::tui
