@@ -11,6 +11,7 @@ add_library(signals_tui STATIC
   theme/theme.cpp
   term/caps.cpp
   data/pyramid.cpp
+  jobs/jobs.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theme_dark.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theme_light.cpp
 )
