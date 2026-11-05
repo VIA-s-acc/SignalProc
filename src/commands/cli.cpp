@@ -170,6 +170,7 @@ int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostr
     design->add_flag("--json", design_json, tr("cli.json.description"));
     Commands commands;
     add_audio_commands(app, commands);
+    add_analysis_commands(app, *filter, commands);
 
     std::vector<std::string> rest;
     for (std::size_t i = args.size(); i > 1; --i) rest.emplace_back(args[i - 1]);
