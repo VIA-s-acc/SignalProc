@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <string_view>
@@ -27,5 +28,18 @@ struct WavFile {
 };
 
 core::Result<WavFile> read_wav(const std::filesystem::path& path);
+
+struct WavWriteOptions {
+    SampleFormat format = SampleFormat::pcm_s24;
+    bool dither = true;
+    std::uint64_t dither_seed = 0x5eed;
+};
+
+struct WavWriteReport {
+    std::size_t clipped_samples = 0;
+};
+
+core::Result<WavWriteReport> write_wav(const std::filesystem::path& path, const core::AudioBuffer& audio,
+                                       const WavWriteOptions& options);
 
 }  // namespace signals::io

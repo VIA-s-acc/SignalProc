@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <bit>
+#include <cmath>
 #include <cstddef>
 #include <optional>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -103,6 +105,90 @@ void read_samples(drwav& wav, SampleFormat format, std::vector<std::vector<doubl
     }
 }
 
+struct WriteEncoding {
+    drwav_uint32 tag;
+    drwav_uint32 bits;
+};
+
+std::optional<WriteEncoding> write_encoding(SampleFormat format) {
+    switch (format) {
+    case SampleFormat::pcm_s16: return WriteEncoding{DR_WAVE_FORMAT_PCM, 16};
+    case SampleFormat::pcm_s24: return WriteEncoding{DR_WAVE_FORMAT_PCM, 24};
+    case SampleFormat::pcm_s32: return WriteEncoding{DR_WAVE_FORMAT_PCM, 32};
+    case SampleFormat::float32: return WriteEncoding{DR_WAVE_FORMAT_IEEE_FLOAT, 32};
+    default: return std::nullopt;
+    }
+}
+
+core::Result<void> validate_for_write(const core::AudioBuffer& audio) {
+    if (audio.channels.empty() || audio.channels.size() > 65535)
+        return make_error(Errc::invalid_argument, "WAV needs 1 to 65535 channels");
+    const auto frames = audio.frames();
+    for (const auto& c : audio.channels)
+        if (c.size() != frames) return make_error(Errc::invalid_argument, "channels differ in length");
+    const double fs = audio.sample_rate;
+    if (!(fs >= 1.0 && fs <= 4294967295.0 && fs == std::floor(fs)))
+        return make_error(Errc::invalid_argument, "sample rate must be a positive integer");
+    for (std::size_t c = 0; c < audio.channels.size(); ++c)
+        for (std::size_t k = 0; k < frames; ++k)
+            if (!std::isfinite(audio.channels[c][k]))
+                return make_error(Errc::invalid_argument, "non-finite sample in channel " + std::to_string(c) +
+                                                              " at frame " + std::to_string(k));
+    return {};
+}
+
+class Quantizer {
+public:
+    Quantizer(const WriteEncoding& encoding, const WavWriteOptions& options)
+        : is_float_{encoding.tag == DR_WAVE_FORMAT_IEEE_FLOAT},
+          bytes_{encoding.bits / 8},
+          scale_{std::ldexp(1.0, static_cast<int>(encoding.bits) - 1)},
+          dither_{options.dither},
+          rng_{options.dither_seed} {}
+
+    std::size_t bytes() const { return bytes_; }
+    std::size_t clipped() const { return clipped_; }
+
+    void encode(double x, unsigned char* out) {
+        if (is_float_) return put(std::bit_cast<std::uint32_t>(static_cast<float>(x)), out);
+        double v = x * scale_;
+        if (dither_) {
+            const double d1 = uniform_(rng_);
+            const double d2 = uniform_(rng_);
+            v += d1 - d2;
+        }
+        double q = std::round(v);
+        if (q < -scale_) {
+            q = -scale_;
+            ++clipped_;
+        } else if (q > scale_ - 1.0) {
+            q = scale_ - 1.0;
+            ++clipped_;
+        }
+        put(static_cast<std::uint64_t>(static_cast<std::int64_t>(q)), out);
+    }
+
+private:
+    void put(std::uint64_t v, unsigned char* out) const {
+        for (std::size_t b = 0; b < bytes_; ++b) out[b] = static_cast<unsigned char>(v >> (8 * b));
+    }
+
+    bool is_float_;
+    std::size_t bytes_;
+    double scale_;
+    bool dither_;
+    std::size_t clipped_ = 0;
+    std::mt19937_64 rng_;
+    std::uniform_real_distribution<double> uniform_{0.0, 1.0};
+};
+
+core::Result<WavWriteReport> write_failed(drwav* wav, const std::filesystem::path& path) {
+    if (wav) drwav_uninit(wav);
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+    return make_error(Errc::io_error, "cannot write WAV file: " + path.string());
+}
+
 }  // namespace
 
 std::string_view to_string(SampleFormat format) {
@@ -139,6 +225,33 @@ core::Result<WavFile> read_wav(const std::filesystem::path& path) {
 
     WavInfo info{*format, wav.channels, wav.sampleRate, channels.front().size(), wav.fmt.formatTag == DR_WAVE_FORMAT_EXTENSIBLE};
     return WavFile{info, core::AudioBuffer{static_cast<double>(wav.sampleRate), std::move(channels)}};
+}
+
+core::Result<WavWriteReport> write_wav(const std::filesystem::path& path, const core::AudioBuffer& audio,
+                                       const WavWriteOptions& options) {
+    const auto encoding = write_encoding(options.format);
+    if (!encoding)
+        return make_error(Errc::invalid_argument, "cannot write WAV as " + std::string{to_string(options.format)});
+    if (auto ok = validate_for_write(audio); !ok) return std::unexpected{ok.error()};
+
+    const auto nch = audio.channels.size();
+    drwav_data_format format{drwav_container_riff, encoding->tag, static_cast<drwav_uint32>(nch),
+                             static_cast<drwav_uint32>(audio.sample_rate), encoding->bits};
+    drwav wav;
+    if (!drwav_init_file_write(&wav, path.string().c_str(), &format, nullptr)) return write_failed(nullptr, path);
+
+    Quantizer quantizer{*encoding, options};
+    const auto frames = audio.frames();
+    std::vector<unsigned char> block(kBlockFrames * nch * quantizer.bytes());
+    for (std::size_t start = 0; start < frames; start += kBlockFrames) {
+        const auto n = std::min<std::size_t>(kBlockFrames, frames - start);
+        unsigned char* p = block.data();
+        for (std::size_t f = start; f < start + n; ++f)
+            for (std::size_t c = 0; c < nch; ++c, p += quantizer.bytes()) quantizer.encode(audio.channels[c][f], p);
+        if (drwav_write_pcm_frames(&wav, n, block.data()) != n) return write_failed(&wav, path);
+    }
+    if (drwav_uninit(&wav) != DRWAV_SUCCESS) return write_failed(nullptr, path);
+    return WavWriteReport{quantizer.clipped()};
 }
 
 }  // namespace signals::io

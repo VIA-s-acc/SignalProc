@@ -17,6 +17,7 @@ add_executable(signals_tests
   core/test_matrix.cpp
   core/test_exact_reference.cpp
   io/test_wav_read.cpp
+  io/test_wav_write.cpp
   cli/test_cli.cpp
   cli/test_cli_commands.cpp
   test_golden_files.cpp
