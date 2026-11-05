@@ -15,7 +15,7 @@ TEST_CASE("version prints localized line", "[cli]") {
     CHECK(out.str() == "signals 0.2.0-dev\n");
 }
 
-TEST_CASE("check with empty suite passes and emits json", "[cli]") {
+TEST_CASE("check passes and emits json", "[cli]") {
     std::ostringstream out, err;
     std::array<std::string_view, 3> args{"signals", "check", "--json"};
     CHECK(signals::cli::run_cli(args, out, err) == 0);

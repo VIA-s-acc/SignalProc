@@ -5,5 +5,22 @@
   "cli.check.description": "Самопроверка ядра: восстановление, ортогональность, матрицы",
   "cli.json.description": "Вывести результат в JSON",
   "check.summary": "Проверок: {passed} пройдено, {failed} не пройдено",
-  "check.failed_line": "  ✗ {id} [{subject}]: {value} > {tolerance}"
+  "check.failed_line": "  ✗ {id} [{subject}]: {value} > {tolerance}",
+  "cli.filter.description": "Сведения о фильтре или вейвлете",
+  "cli.filter.info.description": "Коэффициенты, свойства и замеры вейвлета",
+  "cli.filter.name": "Имя вейвлета в обозначениях pywt, например db2",
+  "cli.design.description": "Все разбиения корней полуполосного P(z) и их классификация",
+  "cli.design.p": "Порядок p максимально плоского P(z), от 1 до 6",
+  "filter.header": "{name} · семейство {family} · длина {length}",
+  "filter.delay": "  задержка ℓ = {delay}, ошибка PR {pr_error}",
+  "filter.properties": "  ортогональный: {orthogonal} · линейная фаза: {linear_phase}",
+  "filter.zeros": "  нулей в z = −1: h₀ {zeros_h0}, f₀ {zeros_f0}",
+  "filter.sobolev": "  гладкость (Соболев): φ̃ {sobolev_h0:.3f}, φ {sobolev_f0:.3f}",
+  "filter.coeffs": "  {role} = [{values}]",
+  "design.header": "P(z) с p = {p}: {count} разбиений, вейвлетов {wavelets}",
+  "design.row": "  нулей в −1 у H₀: {zeros} · группы в H₀: {groups} · {kind} · s(H₀) {sh:.2f}, s(F₀) {sf:.2f} · {verdict}",
+  "design.wavelet": "вейвлет",
+  "design.not_wavelet": "не вейвлет",
+  "yes": "да",
+  "no": "нет"
 }
