@@ -29,6 +29,7 @@ add_executable(signals_tests
   io/test_generators.cpp
   cli/test_cli.cpp
   cli/test_cli_commands.cpp
+  cli/test_cli_audio.cpp
   test_golden_files.cpp
   support/golden.cpp
   support/banks.cpp

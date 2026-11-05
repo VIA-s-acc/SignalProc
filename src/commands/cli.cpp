@@ -7,6 +7,7 @@
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
+#include "commands/command.hpp"
 #include "commands/i18n.hpp"
 #include "commands/suites.hpp"
 #include "core/design/families.hpp"
@@ -167,6 +168,8 @@ int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostr
     bool design_json = false;
     design->add_option("--p", design_p, tr("cli.design.p"))->required();
     design->add_flag("--json", design_json, tr("cli.json.description"));
+    Commands commands;
+    add_audio_commands(app, commands);
 
     std::vector<std::string> rest;
     for (std::size_t i = args.size(); i > 1; --i) rest.emplace_back(args[i - 1]);
@@ -188,6 +191,8 @@ int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostr
     if (check->parsed()) return run_check(check_json, out);
     if (filter_info->parsed()) return run_filter_info(filter_name, filter_json, out, err);
     if (design->parsed()) return run_design(design_p, design_json, out, err);
+    for (const auto& command : commands)
+        if (command->parsed()) return command->run(out, err);
     out << app.help();
     return 0;
 }
