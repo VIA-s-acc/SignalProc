@@ -76,3 +76,12 @@ TEST_CASE("human readable design output is localized", "[cli]") {
     CHECK(out.find("линейная фаза") != std::string::npos);
     CHECK(out.find("linear_phase") == std::string::npos);
 }
+
+TEST_CASE("help prints usage and exits with 0", "[cli]") {
+    for (auto args : {std::initializer_list<std::string_view>{"signals", "--help"},
+                      std::initializer_list<std::string_view>{"signals", "check", "--help"}}) {
+        auto [code, out] = run(args);
+        CHECK(code == 0);
+        CHECK((out.find("--json") != std::string::npos || out.find("check") != std::string::npos));
+    }
+}

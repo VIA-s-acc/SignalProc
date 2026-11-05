@@ -25,5 +25,6 @@
   "no": "нет",
   "design.kind.orthogonal": "ортогональный",
   "design.kind.linear_phase": "линейная фаза",
-  "design.kind.other": "прочий"
+  "design.kind.other": "прочий",
+  "cli.version.description": "Показать версию"
 }

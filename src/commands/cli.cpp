@@ -149,7 +149,7 @@ std::vector<CheckSuite>& check_suites() {
 int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err) {
     CLI::App app{tr("cli.description"), "signals"};
     bool show_version = false;
-    app.add_flag("--version", show_version);
+    app.add_flag("--version", show_version, tr("cli.version.description"));
     bool check_json = false;
     auto* check = app.add_subcommand("check", tr("cli.check.description"));
     check->add_flag("--json", check_json, tr("cli.json.description"));
@@ -170,6 +170,10 @@ int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostr
     for (std::size_t i = args.size(); i > 1; --i) rest.emplace_back(args[i - 1]);
     try {
         app.parse(rest);
+    } catch (const CLI::CallForHelp& e) {
+        return app.exit(e, out, err);
+    } catch (const CLI::CallForAllHelp& e) {
+        return app.exit(e, out, err);
     } catch (const CLI::ParseError& e) {
         err << fmt::format(fmt::runtime(tr("cli.unknown_command")), fmt::arg("details", e.what())) << '\n';
         return 2;
