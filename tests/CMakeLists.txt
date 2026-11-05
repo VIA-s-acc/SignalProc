@@ -5,6 +5,7 @@ add_executable(signals_tests
   core/test_laurent.cpp
   core/test_conv.cpp
   core/test_extension.cpp
+  core/test_metrics.cpp
   cli/test_cli.cpp
   test_golden_files.cpp
   support/golden.cpp
