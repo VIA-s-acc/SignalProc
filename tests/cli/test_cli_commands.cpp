@@ -69,3 +69,10 @@ TEST_CASE("human readable filter info is localized", "[cli]") {
     CHECK(code == 0);
     CHECK(out.find("задержка") != std::string::npos);
 }
+
+TEST_CASE("human readable design output is localized", "[cli]") {
+    auto [code, out] = run({"signals", "design", "--p", "2"});
+    CHECK(code == 0);
+    CHECK(out.find("линейная фаза") != std::string::npos);
+    CHECK(out.find("linear_phase") == std::string::npos);
+}

@@ -127,7 +127,7 @@ int run_design(int p, bool json, std::ostream& out, std::ostream& err) {
         std::string g;
         for (bool b : groups) g += b ? '1' : '0';
         rows.push_back(fmt::format(fmt::runtime(tr("design.row")), fmt::arg("zeros", s.zeros_h0), fmt::arg("groups", g.empty() ? "—" : g),
-                                   fmt::arg("kind", kind_name(info.kind)), fmt::arg("sh", info.sobolev_h0), fmt::arg("sf", info.sobolev_f0),
+                                   fmt::arg("kind", tr("design.kind." + std::string{kind_name(info.kind)})), fmt::arg("sh", info.sobolev_h0), fmt::arg("sf", info.sobolev_f0),
                                    fmt::arg("verdict", tr(info.wavelet ? "design.wavelet" : "design.not_wavelet"))));
     }
     if (json) {
