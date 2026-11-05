@@ -1,6 +1,9 @@
 #pragma once
 
+#include <filesystem>
+#include <optional>
 #include <ostream>
+#include <string>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -13,6 +16,12 @@ using CheckSuite = std::vector<core::CheckResult> (*)();
 
 std::vector<CheckSuite>& check_suites();
 
-int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err);
+struct TuiRequest {
+    std::optional<std::filesystem::path> file;
+    std::string theme = "dark";
+};
+
+int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err,
+            std::optional<TuiRequest>* tui = nullptr);
 
 }  // namespace signals::cli

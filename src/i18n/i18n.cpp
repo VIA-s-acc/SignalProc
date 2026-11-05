@@ -1,10 +1,10 @@
-#include "commands/i18n.hpp"
+#include "i18n/i18n.hpp"
 
 #include <nlohmann/json.hpp>
 
 extern const char kSignalsRuJson[];
 
-namespace signals::cli {
+namespace signals {
 
 std::string tr(std::string_view key) {
     static const nlohmann::json dictionary = nlohmann::json::parse(kSignalsRuJson);
@@ -13,4 +13,4 @@ std::string tr(std::string_view key) {
     return it->get<std::string>();
 }
 
-}  // namespace signals::cli
+}  // namespace signals

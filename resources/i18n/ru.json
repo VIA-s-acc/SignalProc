@@ -90,5 +90,10 @@
   "response.metrics": "  пик {peak:.4f} π · срез −3 дБ {cutoff} π · неравномерность {ripple} дБ · подавление {stop} дБ · переход {transition} π",
   "error.signal_too_short": "сигнал слишком короткий для фильтра: n = {n}, длина фильтра L = {length}, допустимо уровней: {max}",
   "design.skipped": "  пропущено разбиений, не давших банка: {count}",
-  "error.unexpected": "непредвиденная ошибка ({details})"
+  "error.unexpected": "непредвиденная ошибка ({details})",
+  "cli.tui.description": "Интерактивный интерфейс: графики, фильтры, ресурсы",
+  "cli.tui.file": "WAV-файл, который открыть сразу",
+  "cli.tui.theme": "Тема: dark или light",
+  "tui.unavailable": "интерфейс запускается только из исполняемого файла signals",
+  "tui.title": "◆ Signals · q — выход"
 }

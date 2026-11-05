@@ -12,6 +12,8 @@ FetchContent_Declare(pocketfft GIT_REPOSITORY https://github.com/mreineck/pocket
                      GIT_TAG 4d865cba24359b05b37da4e75aee24498c3b78e7 SOURCE_SUBDIR _none)
 FetchContent_Declare(dr_libs GIT_REPOSITORY https://github.com/mackron/dr_libs.git
                      GIT_TAG wav-0.14.6 GIT_SHALLOW TRUE SOURCE_SUBDIR _none)
+FetchContent_Declare(ftxui GIT_REPOSITORY https://github.com/ArthurSonzogni/FTXUI.git GIT_TAG v7.0.3 GIT_SHALLOW TRUE SYSTEM)
+FetchContent_Declare(tomlplusplus GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git GIT_TAG v3.4.0 GIT_SHALLOW TRUE SYSTEM)
 FetchContent_Declare(multiprecision GIT_REPOSITORY https://github.com/boostorg/multiprecision.git
                      GIT_TAG Boost_1_92_0 GIT_SHALLOW TRUE SOURCE_SUBDIR _none)
 
@@ -25,8 +27,13 @@ set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
 set(CLI11_PRECOMPILED OFF CACHE BOOL "" FORCE)
 set(RC_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 set(RC_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(FTXUI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(FTXUI_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(FTXUI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(FTXUI_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(FTXUI_QUIET ON CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(catch2 cli11 json fmt nanobench rapidcheck pocketfft dr_libs multiprecision eigen)
+FetchContent_MakeAvailable(catch2 cli11 json fmt nanobench rapidcheck pocketfft dr_libs ftxui tomlplusplus multiprecision eigen)
 
 add_library(signals_multiprecision INTERFACE)
 target_include_directories(signals_multiprecision SYSTEM INTERFACE ${multiprecision_SOURCE_DIR}/include)

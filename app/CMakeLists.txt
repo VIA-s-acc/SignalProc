@@ -1,3 +1,3 @@
 add_executable(signals main.cpp)
-target_link_libraries(signals PRIVATE signals_cli)
+target_link_libraries(signals PRIVATE signals_cli signals_tui)
 signals_configure_target(signals)

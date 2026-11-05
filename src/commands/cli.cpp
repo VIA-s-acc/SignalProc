@@ -9,7 +9,7 @@
 #include <nlohmann/json.hpp>
 
 #include "commands/command.hpp"
-#include "commands/i18n.hpp"
+#include "i18n/i18n.hpp"
 #include "commands/suites.hpp"
 #include "core/design/families.hpp"
 #include "core/design/split.hpp"
@@ -152,7 +152,8 @@ std::vector<CheckSuite>& check_suites() {
 
 namespace {
 
-int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out, std::ostream& err) {
+int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out, std::ostream& err,
+                      std::optional<TuiRequest>* tui_request) {
     CLI::App app{tr("cli.description"), "signals"};
     bool show_version = false;
     app.add_flag("--version", show_version, tr("cli.version.description"));
@@ -171,6 +172,11 @@ int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out,
     bool design_json = false;
     design->add_option("--p", design_p, tr("cli.design.p"))->required();
     design->add_flag("--json", design_json, tr("cli.json.description"));
+    auto* tui = app.add_subcommand("tui", tr("cli.tui.description"));
+    std::string tui_file;
+    std::string tui_theme = "dark";
+    tui->add_option("file", tui_file, tr("cli.tui.file"));
+    tui->add_option("--theme", tui_theme, tr("cli.tui.theme"))->check(CLI::IsMember({"dark", "light"}));
     Commands commands;
     add_audio_commands(app, commands);
     add_analysis_commands(app, *filter, commands);
@@ -195,6 +201,11 @@ int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out,
     if (check->parsed()) return run_check(check_json, out);
     if (filter_info->parsed()) return run_filter_info(filter_name, filter_json, out, err);
     if (design->parsed()) return run_design(design_p, design_json, out, err);
+    if (tui->parsed()) {
+        if (!tui_request) return report_error(err, {core::Errc::invalid_argument, tr("tui.unavailable")});
+        *tui_request = TuiRequest{tui_file.empty() ? std::nullopt : std::optional<std::filesystem::path>{tui_file}, tui_theme};
+        return 0;
+    }
     for (const auto& command : commands)
         if (command->parsed()) return command->run(out, err);
     out << app.help();
@@ -203,9 +214,10 @@ int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out,
 
 }  // namespace
 
-int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err) {
+int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err,
+            std::optional<TuiRequest>* tui) {
     try {
-        return run_cli_unguarded(args, out, err);
+        return run_cli_unguarded(args, out, err, tui);
     } catch (const std::exception& e) {
         const auto message = fmt::format(fmt::runtime(tr("error.unexpected")), fmt::arg("details", e.what()));
         err << fmt::format(fmt::runtime(tr("error.line")), fmt::arg("message", message)) << '\n';

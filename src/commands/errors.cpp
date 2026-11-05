@@ -4,7 +4,7 @@
 #include <fmt/format.h>
 
 #include "commands/command.hpp"
-#include "commands/i18n.hpp"
+#include "i18n/i18n.hpp"
 
 namespace signals::cli {
 namespace {
