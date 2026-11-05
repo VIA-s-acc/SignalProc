@@ -15,6 +15,7 @@ add_executable(signals_tests
   core/test_daubechies.cpp
   core/test_families.cpp
   core/test_matrix.cpp
+  core/test_exact_reference.cpp
   cli/test_cli.cpp
   test_golden_files.cpp
   support/golden.cpp
