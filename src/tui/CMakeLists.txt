@@ -1,5 +1,6 @@
 add_library(signals_tui STATIC
   run.cpp
+  widgets/format.cpp
 )
 target_include_directories(signals_tui PUBLIC ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(signals_tui

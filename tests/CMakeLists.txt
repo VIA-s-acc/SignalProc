@@ -32,6 +32,7 @@ add_executable(signals_tests
   cli/test_cli_audio.cpp
   cli/test_cli_tui.cpp
   tui/test_harness.cpp
+  tui/test_format.cpp
   tui/harness.cpp
   test_golden_files.cpp
   test_i18n_keys.cpp
