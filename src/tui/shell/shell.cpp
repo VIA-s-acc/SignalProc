@@ -7,7 +7,10 @@
 #include <ftxui/screen/box.hpp>
 
 #include "i18n/i18n.hpp"
+#include "tui/monitor/resources_panel.hpp"
+#include "tui/shell/palette.hpp"
 #include "tui/shell/panel.hpp"
+#include "tui/term/check_screen.hpp"
 
 namespace signals::tui {
 namespace {
@@ -15,7 +18,9 @@ namespace {
 class ShellComponent final : public ftxui::ComponentBase {
 public:
     ShellComponent(UiContext& ui, std::vector<std::shared_ptr<TabScreen>> screens, std::function<void()> on_quit)
-        : ui_{ui}, screens_{std::move(screens)}, on_quit_{std::move(on_quit)}, tab_boxes_(screens_.size()) {}
+        : ui_{ui}, screens_{std::move(screens)}, on_quit_{std::move(on_quit)}, tab_boxes_(screens_.size()) {
+        if (ui_.first_run_check) check_.open();
+    }
 
     int active() const { return active_; }
 
@@ -55,17 +60,33 @@ public:
         auto resources = ui_.resources ? ui_.resources() : ResourceSnapshot{};
         auto base = vbox({hbox(std::move(tabs)), screen.Render() | flex, hbox(std::move(hints)),
                           status_line(ui_, resources) | reflect(status_box_)});
+        if (palette_.is_open()) return dbox({base, palette_.render(ui_) | clear_under | center});
+        if (check_.is_open()) return dbox({base, check_.render(ui_) | clear_under | center});
+        if (resources_open_) return dbox({base, resources_panel(ui_) | clear_under | center});
         if (!help_open_) return base;
-        auto overlay_hints = all;
-        return dbox({base, help_overlay(overlay_hints, help_filter_, ui_) | clear_under | center});
+        return dbox({base, help_overlay(all, help_filter_, ui_) | clear_under | center});
     }
 
     bool OnEvent(ftxui::Event e) override {
+        if (palette_.is_open()) return palette_.on_event(e);
+        if (check_.is_open()) return check_.on_event(e, ui_);
+        if (resources_open_) {
+            if (e == ftxui::Event::Escape || e == ftxui::Event::Character('R')) resources_open_ = false;
+            return true;
+        }
         if (help_open_) return help_event(e);
+        if (e == ftxui::Event::CtrlP || e == ftxui::Event::Character(':')) {
+            palette_.open(commands());
+            return true;
+        }
         auto& screen = *screens_[static_cast<std::size_t>(active_)];
         if (screen.capturing_text()) return screen.OnEvent(e);
         if (e.is_mouse()) {
             const auto& m = e.mouse();
+            if (m.button == ftxui::Mouse::Left && m.motion == ftxui::Mouse::Pressed && status_box_.Contain(m.x, m.y)) {
+                resources_open_ = true;
+                return true;
+            }
             if (m.button == ftxui::Mouse::Left && m.motion == ftxui::Mouse::Pressed)
                 for (std::size_t i = 0; i < tab_boxes_.size(); ++i)
                     if (tab_boxes_[i].Contain(m.x, m.y)) {
@@ -90,22 +111,47 @@ public:
                 if (on_quit_) on_quit_();
                 return true;
             }
+            if (c == "R") {
+                resources_open_ = true;
+                return true;
+            }
         }
         return screen.OnEvent(e);
     }
 
 private:
+    std::vector<Command> commands() {
+        std::vector<Command> out;
+        for (std::size_t i = 0; i < screens_.size(); ++i)
+            out.push_back({"tab." + std::to_string(i + 1), tr("tui.cmd.tab") + std::to_string(i + 1) + " " + screens_[i]->tab_label(),
+                           [this, i] { active_ = static_cast<int>(i); }});
+        out.push_back({"file.open", tr("tui.cmd.open"), [this] {
+                           palette_.ask_path(tr("tui.cmd.open_prompt"), [this](std::string path) {
+                               if (ui_.open_file) ui_.open_file(path);
+                           });
+                       }});
+        out.push_back({"theme.dark", tr("tui.cmd.theme_dark"), [this] { ui_.theme = builtin_theme("dark"); }});
+        out.push_back({"theme.light", tr("tui.cmd.theme_light"), [this] { ui_.theme = builtin_theme("light"); }});
+        out.push_back({"glyphs.unicode", tr("tui.cmd.glyphs_unicode"), [this] { ui_.caps.glyphs = GlyphMode::unicode; }});
+        out.push_back({"glyphs.ascii", tr("tui.cmd.glyphs_ascii"), [this] { ui_.caps.glyphs = GlyphMode::ascii; }});
+        out.push_back({"color.true", tr("tui.cmd.color_true"), [this] { ui_.caps.color = ColorDepth::truecolor; }});
+        out.push_back({"color.256", tr("tui.cmd.color_256"), [this] { ui_.caps.color = ColorDepth::palette256; }});
+        out.push_back({"color.16", tr("tui.cmd.color_16"), [this] { ui_.caps.color = ColorDepth::ansi16; }});
+        out.push_back({"color.none", tr("tui.cmd.color_none"), [this] { ui_.caps.color = ColorDepth::none; }});
+        out.push_back({"terminal.check", tr("tui.cmd.check"), [this] { check_.open(); }});
+        out.push_back({"resources", tr("tui.cmd.resources"), [this] { resources_open_ = true; }});
+        out.push_back({"help", tr("tui.cmd.help"), [this] { help_open_ = true; help_filter_.clear(); }});
+        out.push_back({"quit", tr("tui.cmd.quit"), [this] { if (on_quit_) on_quit_(); }});
+        return out;
+    }
+
     bool help_event(const ftxui::Event& e) {
         if (e == ftxui::Event::Escape || e == ftxui::Event::Character('?')) {
             help_open_ = false;
             return true;
         }
         if (e == ftxui::Event::Backspace) {
-            while (!help_filter_.empty()) {
-                const auto c = static_cast<unsigned char>(help_filter_.back());
-                help_filter_.pop_back();
-                if ((c & 0xC0) != 0x80) break;
-            }
+            pop_codepoint(help_filter_);
             return true;
         }
         if (e.is_character()) help_filter_ += e.character();
@@ -119,7 +165,10 @@ private:
     ftxui::Box status_box_;
     int active_ = 0;
     bool help_open_ = false;
+    bool resources_open_ = false;
     std::string help_filter_;
+    Palette palette_;
+    TerminalCheck check_;
 };
 
 }  // namespace

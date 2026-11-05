@@ -30,6 +30,9 @@ int run([[maybe_unused]] std::optional<std::filesystem::path> file, std::string_
     ui.jobs = &jobs;
     ui.monitor = &monitor;
     ui.resources = [&monitor] { return monitor.latest(); };
+    ui.history = [&monitor] { return monitor.history(); };
+    ui.prefs_file = prefs_path(env);
+    ui.first_run_check = prefs && !prefs->checked;
     auto shell = make_shell(ui, placeholder_screens(ui), [&app] { app.Exit(); });
     app.Loop(shell);
     return 0;

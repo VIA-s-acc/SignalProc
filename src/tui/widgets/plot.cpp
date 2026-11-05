@@ -99,8 +99,8 @@ public:
             for (int cy = 0; cy < ph; ++cy)
                 for (int cx = c0; cx <= c1; ++cx) screen.CellAt(x0 + cx, box_.y_min + cy).background_color = bg;
         }
-        const auto xticks = ticks(spec_.x, std::max(2, pw / 8));
-        const auto yticks = ticks(spec_.y, std::max(2, ph / 3));
+        const auto xticks = ticks(spec_.x, std::max(3, pw / 8));
+        const auto yticks = ticks(spec_.y, std::max(3, ph / 2));
         if (labels) {
             for (const auto& t : yticks) {
                 const int dy = ydot(t.value);

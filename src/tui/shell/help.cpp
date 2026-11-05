@@ -7,7 +7,7 @@
 namespace signals::tui {
 
 std::vector<Hint> global_hints() {
-    return {{"1–9", tr("tui.hint.tabs")}, {"?", tr("tui.hint.help")}, {"q", tr("tui.hint.quit")}};
+    return {{"1–9", tr("tui.hint.tabs")}, {":", tr("tui.hint.palette")}, {"R", tr("tui.hint.resources")}, {"?", tr("tui.hint.help")}, {"q", tr("tui.hint.quit")}};
 }
 
 ftxui::Element help_overlay(const std::vector<Hint>& hints, const std::string& filter, const UiContext& ui) {

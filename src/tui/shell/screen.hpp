@@ -24,6 +24,9 @@ struct UiContext {
     std::function<ResourceSnapshot()> resources;
     std::function<void(std::filesystem::path)> open_file;
     std::function<std::pair<int, int>()> terminal_size;
+    std::function<std::vector<ResourceSnapshot>()> history;
+    std::filesystem::path prefs_file;
+    bool first_run_check = false;
 };
 
 struct Hint {
