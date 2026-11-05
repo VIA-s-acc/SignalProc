@@ -26,7 +26,7 @@ TEST_CASE("every tr key used in the sources exists", "[i18n]") {
     }
     CHECK(keys > 50);
     for (const char* code : {"invalid_argument", "level_out_of_range", "length_mismatch", "not_perfect_reconstruction",
-                             "unknown_wavelet", "no_convergence", "io_error"}) {
+                             "unknown_wavelet", "no_convergence", "io_error", "cancelled"}) {
         INFO(code);
         CHECK(dictionary.contains(std::string{"error."} + code));
     }

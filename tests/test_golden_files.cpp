@@ -18,3 +18,7 @@ TEST_CASE("m2 golden files are complete", "[golden]") {
     CHECK(signals::test::load_golden("threshold.json")["cases"].size() == 5 * 2 * 2 + 1);
     CHECK(signals::test::load_golden("freqz.json")["cases"].size() == 6);
 }
+
+TEST_CASE("m3 golden files are complete", "[golden]") {
+    CHECK(signals::test::load_golden("spectral.json")["cases"].size() == 3);
+}

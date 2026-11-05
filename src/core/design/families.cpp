@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <map>
+#include <mutex>
 
 #include "core/design/daubechies.hpp"
 #include "core/design/tables.hpp"
@@ -61,7 +63,9 @@ Result<FilterBank> bior(const Parsed& p) {
 
 }  // namespace
 
-Result<FilterBank> wavelet(std::string_view name) {
+namespace {
+
+Result<FilterBank> build_wavelet(std::string_view name) {
     const auto p = parse(name);
     if (!p) return make_error(Errc::unknown_wavelet, "unknown wavelet: '" + std::string{name} + "'");
     if (p->family == "haar") {
@@ -77,6 +81,23 @@ Result<FilterBank> wavelet(std::string_view name) {
     auto b = bior(*p);
     if (!b) return b;
     return make_bank<double>(std::string{name}, trim(b->f0, 0.0), trim(b->h0, 0.0), spline_bior(*p) ? 1e-12 : 1e-10);
+}
+
+}  // namespace
+
+Result<FilterBank> wavelet(std::string_view name) {
+    static std::mutex mutex;
+    static std::map<std::string, FilterBank, std::less<>> cache;
+    {
+        std::lock_guard lock{mutex};
+        if (auto it = cache.find(name); it != cache.end()) return it->second;
+    }
+    auto bank = build_wavelet(name);
+    if (bank) {
+        std::lock_guard lock{mutex};
+        cache.emplace(std::string{name}, *bank);
+    }
+    return bank;
 }
 
 std::span<const std::string_view> wavelet_names() { return kNames; }

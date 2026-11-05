@@ -13,6 +13,7 @@ enum class Errc {
     unknown_wavelet,
     no_convergence,
     io_error,
+    cancelled,
 };
 
 struct Error {

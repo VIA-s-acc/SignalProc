@@ -4,6 +4,8 @@ add_library(signals_core STATIC
   conv.cpp
   extension.cpp
   metrics.cpp
+  memory.cpp
+  spectral.cpp
   signal_ops.cpp
   multirate.cpp
   freq.cpp

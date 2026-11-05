@@ -18,6 +18,7 @@ std::string_view errc_name(core::Errc code) {
     case core::Errc::unknown_wavelet: return "unknown_wavelet";
     case core::Errc::no_convergence: return "no_convergence";
     case core::Errc::io_error: return "io_error";
+    case core::Errc::cancelled: return "cancelled";
     }
     return "invalid_argument";
 }

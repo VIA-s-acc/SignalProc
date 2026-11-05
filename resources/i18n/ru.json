@@ -96,5 +96,6 @@
   "cli.tui.theme": "Тема: dark или light",
   "tui.unavailable": "интерфейс запускается только из исполняемого файла signals",
   "tui.title": "◆ Signals · q — выход",
-  "tui.zplane.outside": "вне поля: "
+  "tui.zplane.outside": "вне поля: ",
+  "error.cancelled": "операция прервана ({details})"
 }
