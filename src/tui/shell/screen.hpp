@@ -23,6 +23,7 @@ struct UiContext {
     ResourceMonitor* monitor = nullptr;
     std::function<ResourceSnapshot()> resources;
     std::function<void(std::filesystem::path)> open_file;
+    std::function<void()> ask_open;
     std::function<std::pair<int, int>()> terminal_size;
     std::function<std::vector<ResourceSnapshot>()> history;
     std::filesystem::path prefs_file;

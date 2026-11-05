@@ -84,8 +84,9 @@ public:
         if (W <= 0 || H <= 0) return;
         if (H < 3) return sparkline(screen, W);
         const bool labels = spec_.labels && H >= 6 && W >= 20;
+        const bool x_labels = labels && spec_.x_labels;
         const int x0 = box_.x_min + (labels ? kYLabelWidth : 0);
-        const int pw = box_.x_max - x0 + 1, ph = H - (labels ? 1 : 0);
+        const int pw = box_.x_max - x0 + 1, ph = H - (x_labels ? 1 : 0);
         if (pw <= 0 || ph <= 0) return;
         Raster r{pw, ph};
         const int DW = r.dots_w(), DH = r.dots_h();
@@ -119,7 +120,10 @@ public:
             const int dy = ydot(m);
             for (int dx = 0; dx < DW; dx += 2) r.set(dx, dy, theme_.dim);
         }
-        for (const auto& e : spec_.envelopes) envelope(r, e, ydot);
+        for (const auto& e : spec_.envelopes) {
+            if (e.provider) envelope(r, Envelope{e.provider(DW), e.color}, ydot);
+            else envelope(r, e, ydot);
+        }
         for (bool focused : {false, true})
             for (const auto& t : spec_.traces)
                 if (t.focused == focused) trace(r, t, xdot, ydot);
@@ -143,7 +147,7 @@ public:
                 write_right(screen, t.label, x0 - 2, box_.y_min + row);
             }
             int next_free = x0;
-            for (const auto& t : xticks) {
+            for (const auto& t : x_labels ? xticks : std::vector<Tick>{}) {
                 const auto cps = split_codepoints(t.label);
                 int start = x0 + std::clamp(xdot(t.value) / 2 - static_cast<int>(cps.size()) / 2, 0, std::max(0, pw - static_cast<int>(cps.size())));
                 if (start < next_free) continue;
@@ -255,6 +259,15 @@ private:
 };
 
 }  // namespace
+
+ftxui::Box plot_area(const ftxui::Box& outer, const PlotSpec& spec) {
+    const int W = outer.x_max - outer.x_min + 1, H = outer.y_max - outer.y_min + 1;
+    const bool labels = spec.labels && H >= 6 && W >= 20;
+    ftxui::Box area = outer;
+    if (labels) area.x_min += kYLabelWidth;
+    if (labels && spec.x_labels) area.y_max -= 1;
+    return area;
+}
 
 double axis_fraction(const Axis& a, double v) {
     if (!std::isfinite(v)) return 0.0;

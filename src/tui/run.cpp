@@ -1,5 +1,6 @@
 #include "tui/run.hpp"
 
+#include <memory>
 #include <utility>
 
 #include <ftxui/component/app.hpp>
@@ -8,12 +9,14 @@
 
 #include "tui/jobs/jobs.hpp"
 #include "tui/monitor/monitor.hpp"
+#include "tui/screens/signal_model.hpp"
+#include "tui/screens/signal_screen.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/term/caps.hpp"
 
 namespace signals::tui {
 
-int run([[maybe_unused]] std::optional<std::filesystem::path> file, std::string_view theme) {
+int run(std::optional<std::filesystem::path> file, std::string_view theme) {
     const auto env = process_env();
     const auto prefs = load_prefs(prefs_path(env));
     auto app = ftxui::App::Fullscreen();
@@ -24,6 +27,7 @@ int run([[maybe_unused]] std::optional<std::filesystem::path> file, std::string_
         const auto d = ftxui::Terminal::Size();
         return std::pair{d.dimx, d.dimy};
     };
+    auto signal = std::make_shared<SignalModel>();
     JobRunner jobs{[&app] { app.PostEvent(ftxui::Event::Custom); }};
     ResourceMonitor monitor{[&app] { app.PostEvent(ftxui::Event::Custom); }};
     monitor.set_queue_probe([&jobs] { return jobs.queued(); });
@@ -33,7 +37,11 @@ int run([[maybe_unused]] std::optional<std::filesystem::path> file, std::string_
     ui.history = [&monitor] { return monitor.history(); };
     ui.prefs_file = prefs_path(env);
     ui.first_run_check = prefs && !prefs->checked;
-    auto shell = make_shell(ui, placeholder_screens(ui), [&app] { app.Exit(); });
+    ui.open_file = [signal, &jobs](const std::filesystem::path& path) { signal->open(path, jobs); };
+    auto screens = placeholder_screens(ui);
+    screens[0] = make_signal_screen(ui, signal);
+    if (file) signal->open(*file, jobs);
+    auto shell = make_shell(ui, std::move(screens), [&app] { app.Exit(); });
     app.Loop(shell);
     return 0;
 }

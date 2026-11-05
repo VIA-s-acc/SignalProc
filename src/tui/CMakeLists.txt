@@ -21,6 +21,9 @@ add_library(signals_tui STATIC
   shell/help.cpp
   shell/placeholder.cpp
   shell/palette.cpp
+  shell/errors.cpp
+  screens/signal_model.cpp
+  screens/signal_screen.cpp
   term/check_screen.cpp
   monitor/resources_panel.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theme_dark.cpp

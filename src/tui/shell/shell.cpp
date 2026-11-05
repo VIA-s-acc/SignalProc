@@ -11,6 +11,7 @@
 #include "tui/shell/palette.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/term/check_screen.hpp"
+#include "tui/widgets/text_util.hpp"
 
 namespace signals::tui {
 namespace {
@@ -20,7 +21,10 @@ public:
     ShellComponent(UiContext& ui, std::vector<std::shared_ptr<TabScreen>> screens, std::function<void()> on_quit)
         : ui_{ui}, screens_{std::move(screens)}, on_quit_{std::move(on_quit)}, tab_boxes_(screens_.size()) {
         if (ui_.first_run_check) check_.open();
+        ui_.ask_open = [this] { ask_open_file(); };
     }
+
+    ~ShellComponent() override { ui_.ask_open = nullptr; }
 
     int active() const { return active_; }
 
@@ -52,8 +56,23 @@ public:
         tabs.push_back(key_label(" ? ", ui_));
         Elements hints;
         auto all = screen.hints();
-        for (const auto& g : global_hints()) all.push_back(g);
+        const auto globals = global_hints();
+        auto hint_width = [](const Hint& hint) {
+            return static_cast<int>(split_codepoints(hint.key).size() + split_codepoints(hint.label).size()) + 5;
+        };
+        int room = w;
+        for (const auto& g : globals) room -= hint_width(g);
+        std::vector<Hint> row;
         for (const auto& hint : all) {
+            if (hint_width(hint) > room) break;
+            room -= hint_width(hint);
+            row.push_back(hint);
+        }
+        for (const auto& g : globals) {
+            all.push_back(g);
+            row.push_back(g);
+        }
+        for (const auto& hint : row) {
             hints.push_back(key_label(" " + hint.key + " ", ui_));
             hints.push_back(text(" " + hint.label + "  ") | fg(ui_.theme.dim, ui_));
         }
@@ -120,16 +139,18 @@ public:
     }
 
 private:
+    void ask_open_file() {
+        palette_.ask_path(tr("tui.cmd.open_prompt"), [this](std::string path) {
+            if (ui_.open_file) ui_.open_file(path);
+        });
+    }
+
     std::vector<Command> commands() {
         std::vector<Command> out;
         for (std::size_t i = 0; i < screens_.size(); ++i)
             out.push_back({"tab." + std::to_string(i + 1), tr("tui.cmd.tab") + std::to_string(i + 1) + " " + screens_[i]->tab_label(),
                            [this, i] { active_ = static_cast<int>(i); }});
-        out.push_back({"file.open", tr("tui.cmd.open"), [this] {
-                           palette_.ask_path(tr("tui.cmd.open_prompt"), [this](std::string path) {
-                               if (ui_.open_file) ui_.open_file(path);
-                           });
-                       }});
+        out.push_back({"file.open", tr("tui.cmd.open"), [this] { ask_open_file(); }});
         out.push_back({"theme.dark", tr("tui.cmd.theme_dark"), [this] { ui_.theme = builtin_theme("dark"); }});
         out.push_back({"theme.light", tr("tui.cmd.theme_light"), [this] { ui_.theme = builtin_theme("light"); }});
         out.push_back({"glyphs.unicode", tr("tui.cmd.glyphs_unicode"), [this] { ui_.caps.glyphs = GlyphMode::unicode; }});

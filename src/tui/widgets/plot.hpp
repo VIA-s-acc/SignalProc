@@ -1,10 +1,12 @@
 #pragma once
 
+#include <functional>
 #include <optional>
 #include <utility>
 #include <vector>
 
 #include <ftxui/dom/elements.hpp>
+#include <ftxui/screen/box.hpp>
 
 #include "tui/data/pyramid.hpp"
 #include "tui/term/caps.hpp"
@@ -32,6 +34,7 @@ struct Trace {
 struct Envelope {
     std::vector<MinMaxPyramid::Range> columns = {};
     Rgb color = {};
+    std::function<std::vector<MinMaxPyramid::Range>(int dot_columns)> provider = {};
 };
 
 struct PlotSpec {
@@ -43,9 +46,12 @@ struct PlotSpec {
     std::vector<double> x_marks = {};
     std::vector<double> y_marks = {};
     bool labels = true;
+    bool x_labels = true;
 };
 
 ftxui::Element plot(PlotSpec spec, const Theme& theme, ColorDepth depth, GlyphMode glyphs);
+
+ftxui::Box plot_area(const ftxui::Box& outer, const PlotSpec& spec);
 
 double axis_fraction(const Axis& a, double v);
 double value_at_column(const Axis& a, int column, int columns);
