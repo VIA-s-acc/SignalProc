@@ -96,3 +96,12 @@ TEST_CASE("mismatched band lengths are rejected", "[wavedec]") {
     c.bands[1].pop_back();
     CHECK(waverec<double>(c, db2, {}).error().code == Errc::length_mismatch);
 }
+
+TEST_CASE("too short signal names the needed length", "[wavedec]") {
+    const auto bank = signals::test::golden_bank("sym8");
+    const std::vector<double> x(10, 1.0);
+    auto c = signals::core::wavedec<double>(x, bank, 1, {});
+    REQUIRE_FALSE(c);
+    CHECK(c.error().code == signals::core::Errc::level_out_of_range);
+    CHECK(c.error().message == "signal too short: n=10 needs at least L-1=15 samples");
+}

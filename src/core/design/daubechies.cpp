@@ -87,6 +87,7 @@ Result<FilterBank> symlet(int n) {
     const std::string name = "sym" + std::to_string(n);
     if (std::ranges::find(kSymletTableFallback, n) != kSymletTableFallback.end()) {
         const TableEntry* table = find_table(name);
+        if (!table) return make_error(Errc::unknown_wavelet, "symlet: table for " + name + " is missing");
         return make_bank<double>(name, Laurent{table->dec_lo, 0}, Laurent{table->rec_lo, 0}, 1e-10);
     }
     const auto f = factorise_maxflat(n);

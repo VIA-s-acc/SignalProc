@@ -23,6 +23,14 @@ std::pair<int, std::string> run(std::initializer_list<std::string_view> args) {
 
 std::vector<signals::core::CheckResult> failing_suite() { return {{"check.fake", "x", 1.0, 0.0}}; }
 
+class ScopedSuite {
+public:
+    explicit ScopedSuite(signals::cli::CheckSuite suite) { signals::cli::check_suites().push_back(suite); }
+    ~ScopedSuite() { signals::cli::check_suites().pop_back(); }
+    ScopedSuite(const ScopedSuite&) = delete;
+    ScopedSuite& operator=(const ScopedSuite&) = delete;
+};
+
 }  // namespace
 
 TEST_CASE("check passes on a correct build", "[cli]") {
@@ -34,10 +42,10 @@ TEST_CASE("check passes on a correct build", "[cli]") {
 }
 
 TEST_CASE("check exits non-zero when a check fails", "[cli]") {
-    auto& suites = signals::cli::check_suites();
-    suites.push_back(&failing_suite);
-    auto [code, out] = run({"signals", "check", "--json"});
-    suites.pop_back();
+    const auto [code, out] = [] {
+        ScopedSuite scoped{&failing_suite};
+        return run({"signals", "check", "--json"});
+    }();
     CHECK(code == 1);
     CHECK(nlohmann::json::parse(out)["failed"] == 1);
 }
@@ -84,4 +92,17 @@ TEST_CASE("help prints usage and exits with 0", "[cli]") {
         CHECK(code == 0);
         CHECK((out.find("--json") != std::string::npos || out.find("check") != std::string::npos));
     }
+}
+
+TEST_CASE("unknown wavelet error is localized", "[cli]") {
+    std::ostringstream out, err;
+    const std::vector<std::string_view> args{"signals", "filter", "info", "db39"};
+    CHECK(signals::cli::run_cli(args, out, err) == 2);
+    CHECK(err.str().find("неизвестный вейвлет") != std::string::npos);
+}
+
+TEST_CASE("design reports skipped splits", "[cli]") {
+    auto [code, out] = run({"signals", "design", "--p", "2", "--json"});
+    REQUIRE(code == 0);
+    CHECK(nlohmann::json::parse(out)["skipped"] == 0);
 }

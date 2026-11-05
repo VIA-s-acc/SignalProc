@@ -84,11 +84,15 @@ std::vector<core::CheckResult> core_suite() {
         }
     }
     const auto db2 = wavelet("db2");
+    if (!db2) {
+        results.push_back({"check.wavelet_available", "db2", INFINITY, 0.0});
+        return results;
+    }
     for (const auto mode : {Extension::zero, Extension::constant, Extension::symmetric, Extension::reflect,
                             Extension::periodic, Extension::smooth, Extension::periodization, Extension::antisymmetric,
                             Extension::antireflect}) {
-        const auto s = db2 ? synthesis_matrix(*db2, 32, {mode}) : Result<Eigen::MatrixXd>{};
-        const auto a = db2 ? analysis_matrix(*db2, 32, {mode}) : Result<Eigen::MatrixXd>{};
+        const auto s = synthesis_matrix(*db2, 32, {mode});
+        const auto a = analysis_matrix(*db2, 32, {mode});
         auto r = s && a ? check_left_inverse(*s, *a, 1e-13) : CheckResult{"check.sa_identity", "", INFINITY, 1e-13};
         r.subject = "db2/" + std::string{to_string(mode)};
         results.push_back(r);

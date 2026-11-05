@@ -62,10 +62,8 @@ std::string yes_no(bool b) { return tr(b ? "yes" : "no"); }
 int run_filter_info(const std::string& name, bool json, std::ostream& out, std::ostream& err) {
     const auto bank = core::wavelet(name);
     const auto info = core::wavelet_info(name);
-    if (!bank || !info) {
-        err << fmt::format(fmt::runtime(tr("cli.unknown_command")), fmt::arg("details", bank ? info.error().message : bank.error().message)) << '\n';
-        return 2;
-    }
+    if (!bank) return report_error(err, bank.error());
+    if (!info) return report_error(err, info.error());
     const double tol = base_tolerance(info->generated, name == "dmey");
     const auto pr = core::check_pr(*bank, tol);
     const bool orthogonal = core::check_orthogonality(*bank, tol).passed();
@@ -109,17 +107,18 @@ std::string_view kind_name(core::SplitKind k) {
 }
 
 int run_design(int p, bool json, std::ostream& out, std::ostream& err) {
-    if (p < 1 || p > 6) {
-        err << fmt::format(fmt::runtime(tr("cli.unknown_command")), fmt::arg("details", "--p must be in [1, 6]")) << '\n';
-        return 2;
-    }
+    if (p < 1 || p > 6) return report_error(err, {core::Errc::invalid_argument, "--p must be in [1, 6]"});
     const auto f = core::factorise_maxflat(p);
     nlohmann::json splits = nlohmann::json::array();
     int wavelets = 0;
+    std::size_t skipped = 0;
     std::vector<std::string> rows;
     for (const auto& s : core::enumerate_splits(f)) {
         const auto bank = core::bank_from_split(f, s, "split");
-        if (!bank) continue;
+        if (!bank) {
+            ++skipped;
+            continue;
+        }
         const auto info = core::classify(*bank);
         wavelets += info.wavelet ? 1 : 0;
         std::vector<bool> groups(s.group_in_h0.begin(), s.group_in_h0.end());
@@ -134,11 +133,12 @@ int run_design(int p, bool json, std::ostream& out, std::ostream& err) {
                                    fmt::arg("verdict", tr(info.wavelet ? "design.wavelet" : "design.not_wavelet"))));
     }
     if (json) {
-        out << nlohmann::json{{"p", p}, {"splits", splits}, {"wavelets", wavelets}}.dump(2) << '\n';
+        out << nlohmann::json{{"p", p}, {"splits", splits}, {"wavelets", wavelets}, {"skipped", skipped}}.dump(2) << '\n';
         return 0;
     }
     out << fmt::format(fmt::runtime(tr("design.header")), fmt::arg("p", p), fmt::arg("count", rows.size()), fmt::arg("wavelets", wavelets)) << '\n';
     for (const auto& r : rows) out << r << '\n';
+    if (skipped > 0) out << fmt::format(fmt::runtime(tr("design.skipped")), fmt::arg("count", skipped)) << '\n';
     return 0;
 }
 

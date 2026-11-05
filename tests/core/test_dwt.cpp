@@ -47,13 +47,15 @@ TEST_CASE("default detail sign is the negated pywt sign", "[dwt]") {
     CHECK(sn->detail[0] == Catch::Approx(std::numbers::sqrt2));
 }
 
-TEST_CASE("single level round trip is perfect", "[dwt][property]") {
+TEST_CASE("single sample signals round trip in every mode that allows them", "[dwt][property]") {
     CHECK(rc::check("idwt(dwt(x)) == x", [] {
         const auto x = *rc::gen::container<std::vector<double>>(
             rc::gen::map(rc::gen::inRange(-1'000'000, 1'000'000), [](int v) { return static_cast<double>(v); }));
         const auto wi = *rc::gen::arbitrary<std::uint8_t>();
         const auto mi = *rc::gen::arbitrary<std::uint8_t>();
-        RC_PRE(x.size() >= 2 && x.size() < 300);
+        RC_PRE(!x.empty() && x.size() < 300);
+        const auto mode = signals::test::all_modes[mi % signals::test::all_modes.size()];
+        RC_PRE(x.size() > 1 || (mode != Extension::reflect && mode != Extension::antireflect));
         RC_ASSERT(signals::test::round_trip_error(x, wi, mi) <=
                   default_tolerance(1, 20, 1.0 + max_abs(x)) + 1e-10 * (1.0 + max_abs(x)));
     }));
@@ -64,4 +66,18 @@ TEST_CASE("empty input and mismatched lengths are errors", "[dwt]") {
     CHECK(dwt_level<double>(std::span<const double>{}, b, {}).error().code == Errc::invalid_argument);
     std::vector<double> a{1, 2}, d{1};
     CHECK(idwt_level<double>(a, d, b, {}).error().code == Errc::length_mismatch);
+}
+
+TEST_CASE("malformed bank is rejected by dwt", "[dwt]") {
+    const auto x = signals::test::signal_of_length(16);
+    auto b = golden_bank("db2");
+    b.h1.coeffs.pop_back();
+    CHECK(dwt_level<double>(x, b, {}).error().code == Errc::invalid_argument);
+    auto shifted = golden_bank("db2");
+    shifted.f1.offset = 1;
+    const std::vector<double> a(9, 1.0), d(9, 1.0);
+    CHECK(idwt_level<double>(a, d, shifted, {}).error().code == Errc::invalid_argument);
+    auto odd = golden_bank("haar");
+    for (auto* f : {&odd.h0, &odd.h1, &odd.f0, &odd.f1}) f->coeffs.push_back(0.0);
+    CHECK(dwt_level<double>(x, odd, {}).error().code == Errc::invalid_argument);
 }

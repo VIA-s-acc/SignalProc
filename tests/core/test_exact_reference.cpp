@@ -72,3 +72,13 @@ TEST_CASE("double dwt agrees with rational reference", "[exact]") {
         CHECK(max_abs_error(cd.bands[k], scaled) <= tol);
     }
 }
+
+TEST_CASE("exact division by 1 + w checks the remainder", "[exact]") {
+    using signals::core::Rational;
+    const signals::core::BasicLaurent<Rational> divisible{{Rational{1}, Rational{2}, Rational{1}}, 0};
+    auto q = signals::core::detail::divide_exactly_by_one_plus_w(divisible);
+    REQUIRE(q);
+    CHECK(q->coeffs == std::vector<Rational>{Rational{1}, Rational{1}});
+    const signals::core::BasicLaurent<Rational> not_divisible{{Rational{1}, Rational{1}, Rational{1}}, 0};
+    CHECK(signals::core::detail::divide_exactly_by_one_plus_w(not_divisible).error().code == signals::core::Errc::invalid_argument);
+}

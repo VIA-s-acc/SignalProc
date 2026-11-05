@@ -100,9 +100,13 @@ Laurent maxflat_l_squared(int p) {
     return convert<double>(b);
 }
 
-Laurent spline_q_l_squared(int p) {
+std::optional<Laurent> spline_q_l_squared(int p) {
     auto q = maxflat_halfband<Rational>(p);
-    for (int i = 0; i < 2 * p; ++i) q = detail::divide_exactly_by_one_plus_w(q);
+    for (int i = 0; i < 2 * p; ++i) {
+        auto divided = detail::divide_exactly_by_one_plus_w(q);
+        if (!divided) return std::nullopt;
+        q = std::move(*divided);
+    }
     Rational q1{0};
     for (const auto& c : q.coeffs) q1 += c;
     return convert<double>(scale(multiply(q, reverse(q)), Rational{1} / (q1 * q1)));
@@ -136,7 +140,9 @@ Result<Regularity> wavelet_regularity(std::string_view name) {
     const int zeros_f0 = swapped ? p->nd : p->nr;
     if (!spline_bior(*p)) return Regularity{zeros_h0, zeros_f0, numeric(bank->h0, zeros_h0), numeric(bank->f0, zeros_f0)};
     const double spline_side = sobolev_from_autocorrelation(Laurent{{1.0}, 0}, p->nr);
-    const double q_side = sobolev_from_autocorrelation(spline_q_l_squared((p->nr + p->nd) / 2), p->nd);
+    const auto q_l_squared = spline_q_l_squared((p->nr + p->nd) / 2);
+    if (!q_l_squared) return Regularity{zeros_h0, zeros_f0, std::nullopt, std::nullopt};
+    const double q_side = sobolev_from_autocorrelation(*q_l_squared, p->nd);
     return swapped ? Regularity{zeros_h0, zeros_f0, spline_side, q_side} : Regularity{zeros_h0, zeros_f0, q_side, spline_side};
 }
 

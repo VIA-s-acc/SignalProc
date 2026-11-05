@@ -30,11 +30,22 @@ std::vector<T> signed_copy(const std::vector<T>& v, bool negate) {
     return r;
 }
 
+template <class T>
+Result<void> check_layout(const BasicFilterBank<T>& bank) {
+    const auto n = bank.h0.coeffs.size();
+    for (const auto* f : {&bank.h0, &bank.h1, &bank.f0, &bank.f1})
+        if (f->coeffs.size() != n || f->offset != 0)
+            return make_error(Errc::invalid_argument, "dwt: the four filters must share one length and offset 0");
+    if (n == 0 || n % 2 != 0) return make_error(Errc::invalid_argument, "dwt: filter length must be even and positive");
+    return {};
+}
+
 }  // namespace detail
 
 template <class T>
 Result<BasicDwtLevel<T>> dwt_level(std::span<const T> x, const BasicFilterBank<T>& bank, const DwtOptions& options) {
     if (x.empty()) return make_error(Errc::invalid_argument, "dwt: empty signal");
+    if (auto ok = detail::check_layout(bank); !ok) return std::unexpected{ok.error()};
     if (x.size() == 1 && (options.mode == Extension::reflect || options.mode == Extension::antireflect))
         return make_error(Errc::invalid_argument, "dwt: signal length must be greater than 1 for [anti]reflect mode");
     const auto& lo = bank.h0.coeffs;
@@ -87,6 +98,7 @@ Result<std::vector<T>> idwt_level(std::span<const T> approx, std::span<const T> 
     if (approx.size() != detail.size())
         return make_error(Errc::length_mismatch, "idwt: approximation and detail lengths differ");
     if (approx.empty()) return make_error(Errc::invalid_argument, "idwt: empty coefficients");
+    if (auto ok = detail::check_layout(bank); !ok) return std::unexpected{ok.error()};
     const auto& lo = bank.f0.coeffs;
     const auto hi = detail::signed_copy(bank.f1.coeffs, options.pywt_detail_sign);
     const auto filter_len = static_cast<std::ptrdiff_t>(lo.size());
