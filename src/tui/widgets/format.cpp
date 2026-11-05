@@ -90,6 +90,12 @@ std::string format_number(double v, int significant) {
     return fixed(v, decimals, true);
 }
 
+std::string format_fixed(double v, int decimals) {
+    if (std::isnan(v)) return "—";
+    if (std::isinf(v)) return v > 0 ? "∞" : std::string{kMinus} + "∞";
+    return fixed(v, decimals, false);
+}
+
 std::string format_si(double v, std::string_view unit, int significant) {
     const bool bytes = unit == "Б";
     if (v == 0 || !std::isfinite(v)) return format_number(v, significant) + " " + std::string{unit};

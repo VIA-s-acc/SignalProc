@@ -47,6 +47,7 @@ add_executable(signals_tests
   tui/test_overlays.cpp
   tui/test_signal_screen.cpp
   tui/test_filters_model.cpp
+  tui/test_filters_screen.cpp
   tui/harness.cpp
   test_golden_files.cpp
   test_i18n_keys.cpp

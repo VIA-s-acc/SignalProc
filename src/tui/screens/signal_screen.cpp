@@ -29,19 +29,6 @@ const ftxui::Box kNoBox{1, 0, 1, 0};
 
 bool valid(const ftxui::Box& b) { return b.x_max >= b.x_min && b.y_max >= b.y_min; }
 
-int width_of(const std::string& s) { return static_cast<int>(split_codepoints(s).size()); }
-
-std::string pad_right(std::string s, int width) {
-    const int n = width_of(s);
-    if (n < width) s.append(static_cast<std::size_t>(width - n), ' ');
-    return s;
-}
-
-std::string pad_left(std::string s, int width) {
-    const int n = width_of(s);
-    return n < width ? std::string(static_cast<std::size_t>(width - n), ' ') + s : s;
-}
-
 std::string group(std::uint64_t n) {
     const auto digits = std::to_string(n);
     std::string out;
@@ -52,23 +39,14 @@ std::string group(std::uint64_t n) {
     return out;
 }
 
-std::string fixed_text(double v, int decimals) {
-    if (std::isnan(v)) return "—";
-    if (std::isinf(v)) return v > 0 ? "∞" : "−∞";
-    auto s = fmt::format("{:.{}f}", std::abs(v), decimals);
-    std::replace(s.begin(), s.end(), '.', ',');
-    const bool zero = std::all_of(s.begin(), s.end(), [](char c) { return c == '0' || c == ','; });
-    return (v < 0 && !zero ? "−" : "") + s;
-}
-
 std::string time_text(double t, double span) {
     const int decimals = span < 0.01 ? 5 : span < 0.1 ? 4 : span < 1 ? 3 : 2;
-    return fixed_text(t, decimals) + " с";
+    return format_fixed(t, decimals) + " с";
 }
 
 std::string hz_text(double f) {
-    if (f >= 1000) return fixed_text(f / 1000, f >= 10000 ? 1 : 2) + "к";
-    return fixed_text(std::round(f), 0);
+    if (f >= 1000) return format_fixed(f / 1000, f >= 10000 ? 1 : 2) + "к";
+    return format_fixed(std::round(f), 0);
 }
 
 std::string band_name(std::size_t k, std::size_t levels, GlyphMode g) {
@@ -220,9 +198,9 @@ ftxui::Element SignalScreen::source_panel(const SignalData* d) {
                   kv(tr("tui.signal.channels"), n == 2 ? "2 (L, R)" : std::to_string(n)),
                   kv(tr("tui.signal.rate"), group(d->info.sample_rate) + " Гц"),
                   kv(tr("tui.signal.length"), fmt::format(fmt::runtime(tr("tui.signal.frames")), fmt::arg("count", group(d->info.frames)),
-                                                          fmt::arg("time", fixed_text(d->duration(), 2) + " с"))),
-                  kv(tr("tui.signal.peak"), per_channel([](const io::ChannelStats& s) { return fixed_text(s.peak_dbfs, 1); })),
-                  kv(tr("tui.signal.rms"), per_channel([](const io::ChannelStats& s) { return fixed_text(s.rms_dbfs, 1); }))};
+                                                          fmt::arg("time", format_fixed(d->duration(), 2) + " с"))),
+                  kv(tr("tui.signal.peak"), per_channel([](const io::ChannelStats& s) { return format_fixed(s.peak_dbfs, 1); })),
+                  kv(tr("tui.signal.rms"), per_channel([](const io::ChannelStats& s) { return format_fixed(s.rms_dbfs, 1); }))};
     if (d->full_scale_samples > 0) {
         std::string clip = std::string{glyph(Glyph::warn, ui_.caps.glyphs)} + " " + tr("tui.signal.clipping");
         for (std::size_t c = 0; c < n; ++c) {
@@ -267,7 +245,7 @@ ftxui::Element SignalScreen::run_panel(int panel_width) {
                              text(" " + time) | fg(th.dim, ui_)}));
         if (s.state == StageState::running)
             rows.push_back(hbox({text("  " + bar(s.fraction, std::max(4, width - 9), g)) | fg(th.accent, ui_),
-                                 text(" " + pad_left(fixed_text(100 * s.fraction, 0) + " %", 5))}));
+                                 text(" " + pad_left(format_fixed(100 * s.fraction, 0) + " %", 5))}));
         if (!s.detail.empty()) rows.push_back(text("  " + s.detail) | fg(th.dim, ui_));
     }
     if (job->error) rows.push_back(text(*job->error) | fg(th.err, ui_));
@@ -364,7 +342,7 @@ ftxui::Element SignalScreen::wave_panel(const std::shared_ptr<const SignalData>&
             const auto r = d->pyramids[c].query(lo, std::max(hi, lo + 1), 1);
             const auto name = channel_name(c, d->pyramids.size());
             head.push_back({"  " + (name.empty() ? "" : name + " "), th.dim});
-            head.push_back({r.empty() ? "—" : "[" + fixed_text(r[0].lo, 2) + "; " + fixed_text(r[0].hi, 2) + "]", th.fg});
+            head.push_back({r.empty() ? "—" : "[" + format_fixed(r[0].lo, 2) + "; " + format_fixed(r[0].hi, 2) + "]", th.fg});
         }
     } else {
         head.push_back({"—", th.fg});
@@ -380,7 +358,7 @@ ftxui::Element SignalScreen::wave_panel(const std::shared_ptr<const SignalData>&
     if (selection) {
         const auto [t0, t1] = *selection;
         sel_line = {{tr("tui.signal.selected") + " ", th.dim},
-                    {fixed_text(t0, 2) + "–" + fixed_text(t1, 2) + " с", th.accent},
+                    {format_fixed(t0, 2) + "–" + format_fixed(t1, 2) + " с", th.accent},
                     {" (" + time_text(t1 - t0, t1 - t0) + ")", th.dim}};
         const auto stats = model_->selection_stats();
         if (!stats.empty() && std::abs(stats[0].duration - (t1 - t0)) < 1e-9) {
@@ -388,7 +366,7 @@ ftxui::Element SignalScreen::wave_panel(const std::shared_ptr<const SignalData>&
                 std::string out;
                 for (std::size_t c = 0; c < stats.size() && c < 2; ++c) {
                     const auto name = channel_name(c, stats.size());
-                    out += (c ? "  " : "") + (name.empty() ? "" : name + " ") + fixed_text(stats[c].*field, 1);
+                    out += (c ? "  " : "") + (name.empty() ? "" : name + " ") + format_fixed(stats[c].*field, 1);
                 }
                 return out;
             };
@@ -435,11 +413,11 @@ ftxui::Element SignalScreen::spectrum_panel(const SignalData* d, int, int width)
     for (std::size_t k = 0; levels > 0 && k <= levels; ++k) {
         const auto [lo, hi] = band_range(k, levels, fs);
         const auto name = band_name(k, levels, ui_.caps.glyphs);
-        const int col = 6 + column_of_value(spec.x, std::sqrt(std::max(lo, 20.0) * hi), columns) - width_of(name) / 2;
+        const int col = 6 + column_of_value(spec.x, std::sqrt(std::max(lo, 20.0) * hi), columns) - display_width(name) / 2;
         if (col < pos) continue;
         marks.push_back(text(std::string(static_cast<std::size_t>(col - pos), ' ')));
         marks.push_back(text(name) | fg(th.trace[0], ui_));
-        pos = col + width_of(name);
+        pos = col + display_width(name);
     }
     return frame_panel(spectrum, vbox({hbox(std::move(marks)), plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex}), std::move(chips),
                        tr("tui.signal.spectrum"));
@@ -461,7 +439,7 @@ ftxui::Element SignalScreen::bands_panel(const SignalData* d, int width) {
         rows.push_back(hbox({text(pad_right(band_name(k, levels, ui_.caps.glyphs), 3)) | bold | fg(th.trace[0], ui_),
                              text(" " + pad_right(hz_text(lo) + "–" + hz_text(hi) + " Гц", 16)) | fg(th.dim, ui_),
                              text(" " + bar(f, bar_width, ui_.caps.glyphs)) | fg(th.trace[0], ui_),
-                             text(pad_left(fixed_text(100 * f, 2) + " %", 9)) | fg(th.fg, ui_),
+                             text(pad_left(format_fixed(100 * f, 2) + " %", 9)) | fg(th.fg, ui_),
                              text("  " + (k < d->band_lengths.size() ? group(d->band_lengths[k]) : std::string{"—"})) | fg(th.dim, ui_)}));
     }
     return frame_panel(bands, vbox(std::move(rows)), {}, title);

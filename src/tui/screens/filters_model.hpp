@@ -51,6 +51,10 @@ struct FilterAnalysis {
 
 core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points);
 
+core::FrequencyResponse range_response(const core::Laurent& h, double lo, double hi, std::size_t points,
+                                       const core::FrequencyResponse* full = nullptr);
+std::vector<double> masked_group_delay(const core::FrequencyResponse& r, double relative = 1e-3, std::optional<double> peak = std::nullopt);
+
 class ComparisonSet {
 public:
     static constexpr std::size_t kCapacity = 5;
@@ -60,6 +64,8 @@ public:
         bool visible = true;
         std::shared_ptr<const FilterAnalysis> analysis = {};
         std::optional<std::string> error = {};
+        std::shared_ptr<const core::FrequencyResponse> view = {};
+        double view_lo = 0, view_hi = 1;
     };
 
     core::Result<void> add(FilterRef ref);
@@ -73,6 +79,9 @@ public:
     std::size_t focus() const;
 
     void request(JobRunner& jobs, std::size_t points);
+    void request_view(JobRunner& jobs, double lo, double hi, std::size_t points);
+    std::optional<std::string> pending_label() const;
+    bool view_pending() const;
 
 private:
     void store(const FilterRef& ref, std::shared_ptr<const FilterAnalysis> analysis, std::optional<std::string> error);
@@ -81,6 +90,8 @@ private:
     std::vector<Entry> entries_;
     std::optional<std::size_t> reference_;
     std::size_t focus_ = 0;
+    std::vector<FilterRef> pending_;
+    bool view_pending_ = false;
 };
 
 }  // namespace signals::tui

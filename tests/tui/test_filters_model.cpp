@@ -7,6 +7,7 @@
 #include <numbers>
 #include <set>
 #include <string>
+#include <thread>
 
 #include "core/design/families.hpp"
 #include "tui/jobs/jobs.hpp"
@@ -176,4 +177,57 @@ TEST_CASE("comparison analyses arrive through a job", "[tui][filters]") {
     const auto before = jobs.snapshot().size();
     set.request(jobs, 256);
     CHECK(jobs.snapshot().size() == before);
+}
+
+TEST_CASE("range response matches the full response on a sub-band", "[tui][filters]") {
+    const auto bank = signals::core::wavelet("db2");
+    REQUIRE(bank);
+    const auto full = signals::core::frequency_response(bank->h0, 1024);
+    const auto part = range_response(bank->h0, 0.25, 0.5, 257, &full);
+    REQUIRE(part.omega.size() == 257);
+    CHECK(part.omega.front() == Catch::Approx(0.25 * std::numbers::pi));
+    CHECK(part.omega.back() == Catch::Approx(0.5 * std::numbers::pi));
+    const std::size_t k = 256;
+    CHECK(part.magnitude_db.front() == Catch::Approx(full.magnitude_db[k]).margin(1e-9));
+    CHECK(part.phase_unwrapped.front() == Catch::Approx(full.phase_unwrapped[k]).margin(1e-9));
+    CHECK(part.group_delay.front() == Catch::Approx(full.group_delay[k]).margin(1e-9));
+}
+
+TEST_CASE("group delay is masked where the magnitude is tiny", "[tui][filters]") {
+    const auto a = analyze({Kind::bank, "db2", FilterRole::h1}, 1024);
+    REQUIRE(a);
+    const auto gd = masked_group_delay(a->response);
+    CHECK(std::isnan(gd.front()));
+    CHECK(std::isfinite(gd[512]));
+    CHECK(std::isfinite(a->response.group_delay[1]));
+    CHECK(std::isnan(gd[1]));
+}
+
+TEST_CASE("pending analyses are not submitted twice", "[tui][filters]") {
+    std::function<void()> notify = [] {};
+    JobRunner jobs{notify};
+    ComparisonSet set;
+    REQUIRE(set.add({Kind::bank, "sym17", FilterRole::h0}));
+    set.request(jobs, 4096);
+    set.request(jobs, 4096);
+    std::size_t submitted = 0;
+    for (const auto& v : jobs.snapshot()) submitted += v.title == "Анализ фильтров";
+    CHECK(submitted == 1);
+    for (int k = 0; k < 4000 && !set.entries()[0].analysis; ++k) std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    CHECK(set.entries()[0].analysis);
+    CHECK_FALSE(set.pending_label());
+}
+
+TEST_CASE("view responses cover the zoomed band", "[tui][filters]") {
+    JobRunner jobs{[] {}, std::chrono::milliseconds{0}, true};
+    ComparisonSet set;
+    REQUIRE(set.add({Kind::bank, "db2", FilterRole::h0}));
+    set.request(jobs, 1024);
+    set.request_view(jobs, 0.4, 0.6, 512);
+    const auto e = set.entries()[0];
+    REQUIRE(e.view);
+    CHECK(e.view_lo == 0.4);
+    CHECK(e.view_hi == 0.6);
+    CHECK(e.view->omega.size() == 512);
+    CHECK_FALSE(set.view_pending());
 }

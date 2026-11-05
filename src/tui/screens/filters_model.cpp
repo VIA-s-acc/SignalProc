@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <complex>
+#include <limits>
+#include <numbers>
 
 #include <fmt/format.h>
 
@@ -123,6 +126,59 @@ core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points) {
     return a;
 }
 
+core::FrequencyResponse range_response(const core::Laurent& h, double lo, double hi, std::size_t points, const core::FrequencyResponse* full) {
+    constexpr double pi = std::numbers::pi;
+    core::FrequencyResponse r;
+    r.omega.resize(points);
+    r.h.resize(points);
+    r.magnitude.resize(points);
+    r.magnitude_db.resize(points);
+    r.phase.resize(points);
+    r.group_delay.resize(points);
+    std::vector<std::complex<double>> moment(points);
+    for (std::size_t k = 0; k < points; ++k) {
+        const double w = pi * (points > 1 ? lo + (hi - lo) * static_cast<double>(k) / static_cast<double>(points - 1) : lo);
+        r.omega[k] = w;
+        std::complex<double> sum{0, 0}, m{0, 0};
+        for (std::size_t j = 0; j < h.coeffs.size(); ++j) {
+            const auto n = static_cast<double>(h.offset + static_cast<std::ptrdiff_t>(j));
+            const auto term = h.coeffs[j] * std::polar(1.0, -w * n);
+            sum += term;
+            m += n * term;
+        }
+        r.h[k] = sum;
+        moment[k] = m;
+        r.magnitude[k] = std::abs(sum);
+        r.magnitude_db[k] = r.magnitude[k] > 0 ? std::max(-300.0, 20 * std::log10(r.magnitude[k])) : -300.0;
+        r.phase[k] = std::arg(sum);
+    }
+    r.phase_unwrapped = r.phase;
+    for (std::size_t k = 1; k < points; ++k) {
+        double d = r.phase_unwrapped[k] - r.phase_unwrapped[k - 1];
+        d -= 2 * pi * std::round(d / (2 * pi));
+        r.phase_unwrapped[k] = r.phase_unwrapped[k - 1] + d;
+    }
+    if (full && !full->omega.empty() && points > 0) {
+        const auto step = full->omega.size() > 1 ? full->omega[1] - full->omega[0] : pi;
+        const auto i = std::min(full->omega.size() - 1, static_cast<std::size_t>(std::max(0.0, std::round(r.omega.front() / step))));
+        const double shift = 2 * pi * std::round((full->phase_unwrapped[i] - r.phase_unwrapped.front()) / (2 * pi));
+        for (auto& p : r.phase_unwrapped) p += shift;
+    }
+    const double peak = full && !full->magnitude.empty() ? *std::max_element(full->magnitude.begin(), full->magnitude.end())
+                                                         : (points ? *std::max_element(r.magnitude.begin(), r.magnitude.end()) : 0.0);
+    for (std::size_t k = 0; k < points; ++k)
+        r.group_delay[k] = r.magnitude[k] > 1e-12 * peak ? (moment[k] / r.h[k]).real() : std::numeric_limits<double>::quiet_NaN();
+    return r;
+}
+
+std::vector<double> masked_group_delay(const core::FrequencyResponse& r, double relative, std::optional<double> full_peak) {
+    const double peak = full_peak ? *full_peak : r.magnitude.empty() ? 0.0 : *std::max_element(r.magnitude.begin(), r.magnitude.end());
+    std::vector<double> out(r.group_delay);
+    for (std::size_t k = 0; k < out.size(); ++k)
+        if (r.magnitude[k] < relative * peak) out[k] = std::numeric_limits<double>::quiet_NaN();
+    return out;
+}
+
 core::Result<void> ComparisonSet::add(FilterRef ref) {
     std::lock_guard lock{mutex_};
     if (std::any_of(entries_.begin(), entries_.end(), [&](const Entry& e) { return e.ref == ref; })) return {};
@@ -175,6 +231,7 @@ std::size_t ComparisonSet::focus() const {
 
 void ComparisonSet::store(const FilterRef& ref, std::shared_ptr<const FilterAnalysis> analysis, std::optional<std::string> error) {
     std::lock_guard lock{mutex_};
+    std::erase(pending_, ref);
     for (auto& e : entries_)
         if (e.ref == ref) {
             e.analysis = std::move(analysis);
@@ -187,14 +244,21 @@ void ComparisonSet::request(JobRunner& jobs, std::size_t points) {
     {
         std::lock_guard lock{mutex_};
         for (const auto& e : entries_)
-            if (!e.error && (!e.analysis || e.analysis->response.omega.size() != points)) todo.push_back(e.ref);
+            if (!e.error && (!e.analysis || e.analysis->response.omega.size() != points) &&
+                std::find(pending_.begin(), pending_.end(), e.ref) == pending_.end())
+                todo.push_back(e.ref);
+        pending_.insert(pending_.end(), todo.begin(), todo.end());
     }
     if (todo.empty()) return;
     std::vector<std::string> stages;
     for (const auto& r : todo) stages.push_back(r.label());
     jobs.submit(tr("tui.filters.job"), std::move(stages), [this, todo, points](JobContext& ctx) {
         for (std::size_t i = 0; i < todo.size(); ++i) {
-            if (ctx.cancelled()) return;
+            if (ctx.cancelled()) {
+                std::lock_guard lock{mutex_};
+                for (std::size_t k = i; k < todo.size(); ++k) std::erase(pending_, todo[k]);
+                return;
+            }
             ctx.begin(i);
             auto a = analyze(todo[i], points);
             if (!a) {
@@ -208,6 +272,45 @@ void ComparisonSet::request(JobRunner& jobs, std::size_t points) {
             ctx.finish(bytes);
         }
     });
+}
+
+void ComparisonSet::request_view(JobRunner& jobs, double lo, double hi, std::size_t points) {
+    std::vector<std::pair<FilterRef, std::shared_ptr<const FilterAnalysis>>> todo;
+    {
+        std::lock_guard lock{mutex_};
+        if (view_pending_) return;
+        for (const auto& e : entries_)
+            if (e.analysis && (!e.view || e.view_lo != lo || e.view_hi != hi || e.view->omega.size() != points))
+                todo.emplace_back(e.ref, e.analysis);
+        if (todo.empty()) return;
+        view_pending_ = true;
+    }
+    jobs.submit(tr("tui.filters.view_job"), {tr("tui.filters.view_stage")}, [this, todo, lo, hi, points](JobContext& ctx) {
+        ctx.begin(0);
+        for (std::size_t i = 0; i < todo.size() && !ctx.cancelled(); ++i) {
+            auto r = std::make_shared<const core::FrequencyResponse>(range_response(todo[i].second->h, lo, hi, points, &todo[i].second->response));
+            std::lock_guard lock{mutex_};
+            for (auto& e : entries_)
+                if (e.ref == todo[i].first) e.view = r, e.view_lo = lo, e.view_hi = hi;
+            ctx.report(static_cast<double>(i + 1) / static_cast<double>(todo.size()));
+        }
+        {
+            std::lock_guard lock{mutex_};
+            view_pending_ = false;
+        }
+        ctx.finish();
+    });
+}
+
+std::optional<std::string> ComparisonSet::pending_label() const {
+    std::lock_guard lock{mutex_};
+    if (pending_.empty()) return std::nullopt;
+    return pending_.front().label();
+}
+
+bool ComparisonSet::view_pending() const {
+    std::lock_guard lock{mutex_};
+    return view_pending_;
 }
 
 }  // namespace signals::tui

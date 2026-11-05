@@ -36,6 +36,19 @@ inline std::vector<std::string> split_codepoints(const std::string& s) {
     return out;
 }
 
+inline int display_width(const std::string& s) { return static_cast<int>(split_codepoints(s).size()); }
+
+inline std::string pad_right(std::string s, int width) {
+    const int n = display_width(s);
+    if (n < width) s.append(static_cast<std::size_t>(width - n), ' ');
+    return s;
+}
+
+inline std::string pad_left(std::string s, int width) {
+    const int n = display_width(s);
+    return n < width ? std::string(static_cast<std::size_t>(width - n), ' ') + s : s;
+}
+
 inline std::string superscript_count(int n) {
     static const char* digits[] = {"⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"};
     std::string out;
