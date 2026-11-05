@@ -6,9 +6,11 @@
 namespace signals::core {
 namespace {
 
+double nan_max(double a, double b) { return std::isnan(a) || std::isnan(b) ? std::nan("") : std::max(a, b); }
+
 double max_abs(const Laurent& p) {
     double m = 0.0;
-    for (double c : p.coeffs) m = std::max(m, std::abs(c));
+    for (double c : p.coeffs) m = nan_max(m, std::abs(c));
     return m;
 }
 
@@ -27,7 +29,7 @@ PrReport check_pr(const FilterBank& bank, double tol) {
     double deviation = 0.0;
     for (std::size_t k = 0; k < distortion.coeffs.size(); ++k) {
         const auto n = distortion.offset + static_cast<std::ptrdiff_t>(k);
-        deviation = std::max(deviation, std::abs(distortion.coeffs[k] - (n == ell ? 1.0 : 0.0)));
+        deviation = nan_max(deviation, std::abs(distortion.coeffs[k] - (n == ell ? 1.0 : 0.0)));
     }
     report.distortion.value = deviation;
     if (report.distortion.passed() && report.alias.passed()) report.delay = ell;
@@ -42,12 +44,12 @@ CheckResult check_orthogonality(const FilterBank& bank, double tol) {
     for (std::ptrdiff_t k = 0; 2 * k < n; ++k) {
         double s = 0.0;
         for (std::ptrdiff_t i = 0; i + 2 * k < n; ++i) s += h[static_cast<std::size_t>(i)] * h[static_cast<std::size_t>(i + 2 * k)];
-        worst = std::max(worst, std::abs(s - (k == 0 ? 1.0 : 0.0)));
+        worst = nan_max(worst, std::abs(s - (k == 0 ? 1.0 : 0.0)));
     }
     if (f.size() != h.size()) {
         worst = std::max(worst, 1.0);
     } else {
-        for (std::size_t i = 0; i < f.size(); ++i) worst = std::max(worst, std::abs(f[i] - h[h.size() - 1 - i]));
+        for (std::size_t i = 0; i < f.size(); ++i) worst = nan_max(worst, std::abs(f[i] - h[h.size() - 1 - i]));
     }
     return {"check.orthogonality", bank.name, worst, tol};
 }

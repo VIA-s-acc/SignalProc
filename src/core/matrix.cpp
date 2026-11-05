@@ -103,13 +103,17 @@ Eigen::MatrixXd multilevel_matrix(const FilterBank& bank, std::size_t n, std::si
 
 CheckResult check_left_inverse(const Eigen::MatrixXd& s, const Eigen::MatrixXd& a, double tol) {
     const Eigen::MatrixXd product = s * a;
-    const double error = (product - Eigen::MatrixXd::Identity(product.rows(), product.cols())).cwiseAbs().maxCoeff();
+    const double error = product.allFinite()
+                             ? (product - Eigen::MatrixXd::Identity(product.rows(), product.cols())).cwiseAbs().maxCoeff()
+                             : std::nan("");
     return {"check.sa_identity", "", error, tol};
 }
 
 CheckResult check_orthogonal_matrix(const Eigen::MatrixXd& a, double tol) {
     const Eigen::MatrixXd gram = a.transpose() * a;
-    const double error = (gram - Eigen::MatrixXd::Identity(gram.rows(), gram.cols())).cwiseAbs().maxCoeff();
+    const double error = gram.allFinite()
+                             ? (gram - Eigen::MatrixXd::Identity(gram.rows(), gram.cols())).cwiseAbs().maxCoeff()
+                             : std::nan("");
     return {"check.ata_identity", "", error, tol};
 }
 

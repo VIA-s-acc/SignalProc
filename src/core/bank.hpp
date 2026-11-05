@@ -47,6 +47,11 @@ BasicLaurent<T> place(const BasicLaurent<T>& trimmed, std::size_t start, std::si
 
 template <class T>
 Result<BasicFilterBank<T>> make_bank(std::string name, BasicLaurent<T> h0, BasicLaurent<T> f0, double pr_tol = 1e-12) {
+    if constexpr (std::is_floating_point_v<T>) {
+        for (const auto* p : {&h0, &f0})
+            for (const auto& c : p->coeffs)
+                if (!std::isfinite(c)) return make_error(Errc::invalid_argument, name + ": non-finite filter coefficient");
+    }
     const auto delay = detail::halfband_delay(multiply(f0, h0), pr_tol);
     if (!delay) return make_error(Errc::not_perfect_reconstruction, name + ": P0(z) - P0(-z) is not 2 z^-l");
     const auto th = trim(h0, T(0));

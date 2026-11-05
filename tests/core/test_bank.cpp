@@ -70,3 +70,27 @@ TEST_CASE("rational banks are checked exactly", "[bank]") {
     REQUIRE(b);
     CHECK(b->f1 == BasicLaurent<Rational>{{Rational{-1, 2}, Rational{1, 2}}, 0});
 }
+
+TEST_CASE("nan in a filter never passes a check", "[bank]") {
+    const double r = std::numbers::sqrt2 / 2;
+    auto b = *make_bank<double>("haar", Laurent{{r, r}, 0}, Laurent{{r, r}, 0});
+    b.h0.coeffs[1] = std::nan("");
+    auto pr = check_pr(b);
+    CHECK_FALSE(pr.alias.passed());
+    CHECK_FALSE(pr.distortion.passed());
+    CHECK_FALSE(pr.delay.has_value());
+    CHECK_FALSE(check_orthogonality(b, 1e-12).passed());
+}
+
+TEST_CASE("make_bank rejects non-finite coefficients", "[bank]") {
+    const double r = std::numbers::sqrt2 / 2;
+    auto b = make_bank<double>("x", Laurent{{r, r}, 0}, Laurent{{r, r, 0, 0, std::nan("")}, 0});
+    REQUIRE_FALSE(b);
+    CHECK(b.error().code == Errc::invalid_argument);
+    CHECK_FALSE(make_bank<double>("y", Laurent{{r, INFINITY}, 0}, Laurent{{r, r}, 0}));
+}
+
+TEST_CASE("trim keeps nan coefficients", "[laurent]") {
+    auto t = trim(Laurent{{0, 1, std::nan("")}, 0}, 0.0);
+    CHECK(t.coeffs.size() == 2);
+}

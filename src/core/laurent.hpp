@@ -88,8 +88,8 @@ template <class T>
 BasicLaurent<T> trim(const BasicLaurent<T>& p, const T& tol) {
     using std::abs;
     std::size_t lo = 0, hi = p.coeffs.size();
-    while (lo < hi && !(abs(p.coeffs[lo]) > tol)) ++lo;
-    while (hi > lo && !(abs(p.coeffs[hi - 1]) > tol)) --hi;
+    while (lo < hi && abs(p.coeffs[lo]) <= tol) ++lo;
+    while (hi > lo && abs(p.coeffs[hi - 1]) <= tol) --hi;
     if (lo == hi) return {};
     return {std::vector<T>(p.coeffs.begin() + static_cast<std::ptrdiff_t>(lo),
                            p.coeffs.begin() + static_cast<std::ptrdiff_t>(hi)),

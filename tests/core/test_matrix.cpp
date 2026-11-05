@@ -75,3 +75,10 @@ TEST_CASE("matrices of invalid transforms are empty, not undefined", "[matrix]")
     CHECK(analysis_matrix(b, 1, {Extension::reflect}).size() == 0);
     CHECK(multilevel_matrix(b, 3, 1, {}).size() == 0);
 }
+
+TEST_CASE("nan in a matrix never passes a matrix check", "[matrix]") {
+    Eigen::MatrixXd a = Eigen::MatrixXd::Identity(8, 8);
+    a(7, 7) = std::nan("");
+    CHECK_FALSE(check_orthogonal_matrix(a, 1e-12).passed());
+    CHECK_FALSE(check_left_inverse(Eigen::MatrixXd::Identity(8, 8), a, 1e-12).passed());
+}
