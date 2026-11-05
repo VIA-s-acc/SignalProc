@@ -1,0 +1,77 @@
+#include <cmath>
+#include <complex>
+#include <numbers>
+#include <random>
+#include <vector>
+
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
+
+#include "core/conv.hpp"
+#include "core/design/families.hpp"
+#include "core/matrix.hpp"
+#include "support/banks.hpp"
+
+using namespace signals::core;
+
+TEST_CASE("toeplitz matrix times x equals convolution", "[matrix]") {
+    Laurent h{{0.5, -1, 2}, -1};
+    std::vector<double> x{1, 2, 3, 4, 5};
+    Eigen::VectorXd y = convolution_matrix(h, 5) * Eigen::Map<Eigen::VectorXd>(x.data(), 5);
+    auto ref = convolve(Laurent{x, 0}, h);
+    REQUIRE(static_cast<std::size_t>(y.size()) == ref.coeffs.size());
+    for (int i = 0; i < y.size(); ++i) CHECK(y[i] == Catch::Approx(ref.coeffs[static_cast<std::size_t>(i)]));
+}
+
+TEST_CASE("circulant is diagonalised by the dft", "[matrix]") {
+    const std::size_t n = 12;
+    Laurent h{{0.3, -1.2, 0.7, 2.0}, -2};
+    const Eigen::MatrixXcd c = circulant_matrix(h, n).cast<std::complex<double>>();
+    for (std::size_t k = 0; k < n; ++k) {
+        const double w = 2 * std::numbers::pi * static_cast<double>(k) / static_cast<double>(n);
+        Eigen::VectorXcd v(static_cast<Eigen::Index>(n));
+        for (std::size_t m = 0; m < n; ++m) v[static_cast<Eigen::Index>(m)] = std::polar(1.0, w * static_cast<double>(m));
+        CHECK((c * v - evaluate(h, w) * v).cwiseAbs().maxCoeff() < 1e-12);
+    }
+}
+
+TEST_CASE("fft circulant product equals dense product", "[matrix]") {
+    std::mt19937_64 rng(3);
+    std::normal_distribution<double> g;
+    Laurent h{{}, 4};
+    for (int i = 0; i < 9; ++i) h.coeffs.push_back(g(rng));
+    std::vector<double> x(37);
+    for (auto& v : x) v = g(rng);
+    Eigen::VectorXd dense = circulant_matrix(h, 37) * Eigen::Map<Eigen::VectorXd>(x.data(), 37);
+    auto fast = circulant_multiply_fft(h, x);
+    for (int i = 0; i < 37; ++i) CHECK(std::abs(dense[i] - fast[static_cast<std::size_t>(i)]) < 1e-12);
+}
+
+TEST_CASE("haar three-level matrix rows are the discrete haar functions", "[matrix]") {
+    auto w = multilevel_matrix(*wavelet("haar"), 8, 3, {});
+    const double s8 = 1 / std::sqrt(8.0);
+    CHECK(w.row(0).isApprox(Eigen::RowVectorXd::Constant(8, s8)));
+    Eigen::RowVectorXd d3(8);
+    d3 << -s8, -s8, -s8, -s8, s8, s8, s8, s8;
+    CHECK(w.row(1).isApprox(d3));
+    CHECK(check_orthogonal_matrix(w, 1e-14).passed());
+}
+
+TEST_CASE("synthesis inverts analysis in every mode", "[matrix]") {
+    const auto b = *wavelet("db2");
+    for (auto m : signals::test::all_modes)
+        for (std::size_t n : {16, 17}) {
+            INFO(to_string(m) << " n=" << n);
+            CHECK(check_left_inverse(synthesis_matrix(b, n, {m}), analysis_matrix(b, n, {m}), 1e-13).passed());
+        }
+}
+
+TEST_CASE("db3 periodization matrix is orthogonal", "[matrix]") {
+    CHECK(check_orthogonal_matrix(analysis_matrix(*wavelet("db3"), 32, {Extension::periodization}), 1e-14).passed());
+}
+
+TEST_CASE("matrices of invalid transforms are empty, not undefined", "[matrix]") {
+    const auto b = *wavelet("db2");
+    CHECK(analysis_matrix(b, 1, {Extension::reflect}).size() == 0);
+    CHECK(multilevel_matrix(b, 3, 1, {}).size() == 0);
+}

@@ -12,6 +12,7 @@ add_library(signals_core STATIC
   design/tables.cpp
   design/daubechies.cpp
   design/families.cpp
+  matrix.cpp
   wavelet/regularity.cpp
 )
 target_include_directories(signals_core PUBLIC ${PROJECT_SOURCE_DIR}/src)
