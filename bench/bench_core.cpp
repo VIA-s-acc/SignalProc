@@ -1,4 +1,5 @@
 #include <cmath>
+#include <filesystem>
 #include <random>
 #include <string>
 #include <vector>
@@ -7,7 +8,11 @@
 
 #include "core/conv.hpp"
 #include "core/design/families.hpp"
+#include "core/freq.hpp"
+#include "core/multirate.hpp"
+#include "core/process/shrink.hpp"
 #include "core/wavedec.hpp"
+#include "io/wav.hpp"
 
 using namespace signals::core;
 
@@ -49,5 +54,27 @@ int main() {
     design.title("filter generation").minEpochIterations(1).epochs(3);
     design.run("wavelet(\"db38\")", [&] { ankerl::nanobench::doNotOptimizeAway(wavelet("db38")); });
     design.run("wavelet(\"sym17\")", [&] { ankerl::nanobench::doNotOptimizeAway(wavelet("sym17")); });
+
+    const auto sym8 = *wavelet("sym8");
+    ankerl::nanobench::Bench m2;
+    m2.title("M2 processing").minEpochIterations(3);
+    m2.run("frequency_response sym8, 8192 points", [&] { ankerl::nanobench::doNotOptimizeAway(frequency_response(sym8.h0, 8192)); });
+    const AudioBuffer stereo{44'100, {left, right}};
+    m2.run("denoise sym8 bayes, 10 s stereo", [&] { ankerl::nanobench::doNotOptimizeAway(denoise(stereo, {})); });
+    m2.run("decimate M=4, 10 s mono", [&] { ankerl::nanobench::doNotOptimizeAway(decimate(left, 4, {})); });
+
+    const auto path = std::filesystem::temp_directory_path() / "signals-bench-10min.wav";
+    {
+        std::vector<double> l(26'460'000), r(26'460'000);
+        for (std::size_t k = 0; k < l.size(); ++k) {
+            l[k] = 0.5 * std::sin(0.01 * static_cast<double>(k));
+            r[k] = 0.5 * std::cos(0.013 * static_cast<double>(k));
+        }
+        signals::io::write_wav(path, AudioBuffer{44'100, {std::move(l), std::move(r)}}, {});
+    }
+    ankerl::nanobench::Bench io;
+    io.title("WAV").minEpochIterations(1).epochs(3);
+    io.run("read_wav 10 min stereo 44.1 kHz s24", [&] { ankerl::nanobench::doNotOptimizeAway(signals::io::read_wav(path)); });
+    std::filesystem::remove(path);
     return 0;
 }
