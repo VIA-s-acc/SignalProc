@@ -7,6 +7,7 @@ add_library(signals_core STATIC
   signal_ops.cpp
   multirate.cpp
   freq.cpp
+  process/threshold.cpp
   check.cpp
   bank.cpp
   wavedec.cpp
