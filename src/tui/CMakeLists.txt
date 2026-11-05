@@ -6,6 +6,7 @@ add_library(signals_tui STATIC
   run.cpp
   widgets/format.cpp
   theme/theme.cpp
+  term/caps.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theme_dark.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theme_light.cpp
 )
