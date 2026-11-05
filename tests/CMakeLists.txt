@@ -21,6 +21,7 @@ add_executable(signals_tests
   core/test_freq.cpp
   core/test_freq_bank.cpp
   core/test_threshold.cpp
+  core/test_shrink.cpp
   core/test_exact_reference.cpp
   io/test_wav_read.cpp
   io/test_wav_write.cpp
