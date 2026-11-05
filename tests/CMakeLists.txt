@@ -12,6 +12,7 @@ add_executable(signals_tests
   core/test_maxflat.cpp
   core/test_regularity.cpp
   core/test_split.cpp
+  core/test_daubechies.cpp
   cli/test_cli.cpp
   test_golden_files.cpp
   support/golden.cpp

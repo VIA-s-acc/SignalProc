@@ -9,6 +9,8 @@ add_library(signals_core STATIC
   wavedec.cpp
   design/maxflat.cpp
   design/split.cpp
+  design/tables.cpp
+  design/daubechies.cpp
   wavelet/regularity.cpp
 )
 target_include_directories(signals_core PUBLIC ${PROJECT_SOURCE_DIR}/src)
