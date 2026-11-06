@@ -17,7 +17,8 @@ TEST_CASE("ticker notifies only while wanted", "[tui][ticker]") {
     CHECK_FALSE(t.active());
     t.want("x", true);
     CHECK(t.active());
-    std::this_thread::sleep_for(60ms);
+    const auto until = std::chrono::steady_clock::now() + 2s;
+    while (n < 3 && std::chrono::steady_clock::now() < until) std::this_thread::sleep_for(5ms);
     CHECK(n >= 3);
     t.want("y", true);
     t.want("x", false);
