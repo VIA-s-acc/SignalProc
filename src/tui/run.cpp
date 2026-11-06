@@ -7,13 +7,16 @@
 #include <ftxui/component/event.hpp>
 #include <ftxui/screen/terminal.hpp>
 
+#include "i18n/i18n.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/monitor/monitor.hpp"
 #include "tui/screens/filters_model.hpp"
+#include "tui/screens/explain_screen.hpp"
 #include "tui/screens/filters_screen.hpp"
 #include "tui/screens/signal_model.hpp"
 #include "tui/screens/signal_screen.hpp"
 #include "tui/shell/shell.hpp"
+#include "tui/shell/subtabs.hpp"
 #include "tui/term/caps.hpp"
 
 namespace signals::tui {
@@ -49,6 +52,12 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme) {
     auto screens = placeholder_screens(ui);
     screens[0] = make_signal_screen(ui, signal);
     screens[2] = make_filters_screen(ui, comparison);
+    screens[8] = make_subtabs(tr("tui.tab.theory"),
+                              {{tr("tui.sub.explain"), make_explain_screen(ui, [] { return std::optional<core::FilterBank>{}; })},
+                               {tr("tui.sub.under_the_hood"), make_placeholder(tr("tui.sub.under_the_hood"), tr("tui.placeholder.under_the_hood.title"),
+                                                                               tr("tui.placeholder.under_the_hood.text"), "M4b", &ui)},
+                               {tr("tui.sub.tutorial"), make_placeholder(tr("tui.sub.tutorial"), tr("tui.placeholder.tutorial.title"),
+                                                                         tr("tui.placeholder.tutorial.text"), "M4b", &ui)}});
     if (file) signal->open(*file, jobs);
     auto shell = make_shell(ui, std::move(screens), [&app] { app.Exit(); });
     app.Loop(shell);
