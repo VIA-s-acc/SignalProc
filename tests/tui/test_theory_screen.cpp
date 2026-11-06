@@ -8,6 +8,7 @@
 
 #include <ftxui/component/event.hpp>
 
+#include "theory/blocks.hpp"
 #include "theory/sections.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/theory_navigator.hpp"
@@ -153,6 +154,7 @@ TEST_CASE("a card opened from the book shows dashes, not checks", "[tui][theory]
     }
     CHECK(card_text.find("— нет данных") != std::string::npos);
     CHECK(card_text.find("✓") == std::string::npos);
+    CHECK(card_text.find("F1 на экране") != std::string::npos);
 }
 
 TEST_CASE("a card with a publisher follows its source", "[tui][theory]") {
@@ -168,6 +170,7 @@ TEST_CASE("a card with a publisher follows its source", "[tui][theory]") {
     wavelet = "sym4";
     frame = f.h.frame();
     CHECK(frame.find("фильтр sym4") != std::string::npos);
+    CHECK(frame.find("F1 на экране") == std::string::npos);
 }
 
 TEST_CASE("view buttons navigate with the bank", "[tui][theory]") {
@@ -341,4 +344,213 @@ TEST_CASE("under the hood hints name n, o and Esc", "[tui][theory]") {
     CHECK(keys.find("n ") != std::string::npos);
     CHECK(keys.find("o ") != std::string::npos);
     CHECK(keys.find("Esc") != std::string::npos);
+}
+
+TEST_CASE("the block list shows its range and scrolls to every block", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    f.nav->open({{TheoryLink::Kind::card, "gen", ""}, std::make_shared<signals::theory::LiveValues>()});
+    auto frame = f.h.frame();
+    const auto total = signals::theory::block_catalog().size();
+    CHECK(frame.find("из " + std::to_string(total)) != std::string::npos);
+    CHECK(frame.find("ещё") != std::string::npos);
+    const std::string last{signals::theory::block_catalog().back().id};
+    const auto absent = [&](const std::string& id) { const auto b = f.screen->area(id); return b.x_max < b.x_min; };
+    CHECK(absent("block:" + last));
+
+    const auto list = f.screen->area("blocks");
+    REQUIRE(list.x_max >= list.x_min);
+    for (int i = 0; i < 40; ++i) f.h.wheel(list.x_min + 1, list.y_min + 1, false);
+    frame = f.h.frame();
+    const auto b = f.screen->area("block:" + last);
+    REQUIRE(b.x_max >= b.x_min);
+    f.h.click(b.x_min + 1, b.y_min);
+    REQUIRE(f.nav->last(TheoryLink::Kind::card));
+    CHECK(f.nav->last(TheoryLink::Kind::card)->link.id == last);
+
+    f.h.frame();
+    const auto moved = f.screen->area("blocks");
+    for (int i = 0; i < 40; ++i) f.h.wheel(moved.x_min + 1, moved.y_min + 1, true);
+    f.h.frame();
+    const std::string head{signals::theory::block_catalog().front().id};
+    const auto first = f.screen->area("block:" + head);
+    CHECK(first.x_max >= first.x_min);
+    const auto down = f.screen->area("blocks:down");
+    REQUIRE(down.x_max >= down.x_min);
+    f.h.click(down.x_min + 1, down.y_min);
+    f.h.frame();
+    CHECK(absent("block:" + head));
+}
+
+TEST_CASE("the tutorial opens the block card of a section under the hood", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::tutorial};
+    std::string target;
+    f.ui->navigate = [&](std::string_view t, const NavArgs&) { target = std::string{t}; };
+    const auto absent = [&](const std::string& id) { const auto b = f.screen->area(id); return b.x_max < b.x_min; };
+
+    const signals::theory::BlockSpec* expected = nullptr;
+    std::size_t cards = 0;
+    for (const auto& b : signals::theory::block_catalog())
+        if (b.section == "conv-signals") {
+            if (!expected) expected = &b;
+            ++cards;
+        }
+    REQUIRE(expected);
+    REQUIRE(cards > 1);
+    f.nav->open({{TheoryLink::Kind::section, "conv-signals"}});
+    auto frame = f.h.frame();
+    CHECK(frame.find("ⓘ") != std::string::npos);
+    CHECK(frame.find(std::string{signals::theory::find_card(expected->id)->title}) != std::string::npos);
+    CHECK(frame.find("ещё " + std::to_string(cards - 1)) != std::string::npos);
+    CHECK(f.h.send(ftxui::Event::Character('i')));
+    CHECK(target == "under_the_hood");
+    REQUIRE(f.nav->last(TheoryLink::Kind::card));
+    CHECK(f.nav->last(TheoryLink::Kind::card)->link.id == expected->id);
+    CHECK(f.nav->last(TheoryLink::Kind::card)->origin == "tutorial");
+
+    target.clear();
+    f.nav->open({{TheoryLink::Kind::section, "dwt-mallat"}});
+    f.h.frame();
+    const auto link = f.screen->area("card_link");
+    REQUIRE(link.x_max >= link.x_min);
+    f.h.click(link.x_min + 1, link.y_min);
+    CHECK(target == "under_the_hood");
+    CHECK(f.nav->last(TheoryLink::Kind::card)->link.id == "dwt");
+
+    target.clear();
+    f.nav->open({{TheoryLink::Kind::section, "transforms"}});
+    f.h.frame();
+    CHECK(absent("card_link"));
+    CHECK_FALSE(f.h.send(ftxui::Event::Character('i')));
+    CHECK(target.empty());
+}
+
+TEST_CASE("a contents list that does not fit scrolls with the wheel", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::tutorial, 80, 24};
+    f.h.send(ftxui::Event::Character('/'));
+    f.h.send(ftxui::Event::Character("и"));
+    auto frame = f.h.frame();
+    const auto absent = [&](const std::string& id) { const auto b = f.screen->area(id); return b.x_max < b.x_min; };
+    CHECK(frame.find("ещё") != std::string::npos);
+    CHECK(absent("toc:up"));
+    REQUIRE_FALSE(absent("toc:down"));
+    const auto list = f.screen->area("toc");
+    for (int i = 0; i < 5; ++i) f.h.wheel(list.x_min + 1, list.y_min + 1, false);
+    f.h.frame();
+    CHECK_FALSE(absent("toc:up"));
+    for (int i = 0; i < 400; ++i) f.h.wheel(list.x_min + 1, list.y_min + 1, false);
+    f.h.frame();
+    CHECK(absent("toc:down"));
+    for (int i = 0; i < 400; ++i) f.h.wheel(list.x_min + 1, list.y_min + 1, true);
+    f.h.frame();
+    CHECK(absent("toc:up"));
+    const auto down = f.screen->area("toc:down");
+    f.h.click(down.x_min + 1, down.y_min);
+    f.h.frame();
+    CHECK_FALSE(absent("toc:up"));
+}
+
+TEST_CASE("under the hood in a small terminal shows the contents until a card is open", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood, 117, 40};
+    REQUIRE(f.screen->hints().front().key == "t");
+    auto frame = f.h.frame();
+    CHECK(frame.find("Блоки") != std::string::npos);
+    CHECK(frame.find("слева") == std::string::npos);
+    const auto b = f.screen->area("block:dwt");
+    REQUIRE(b.x_max >= b.x_min);
+    f.h.click(b.x_min + 1, b.y_min);
+    frame = f.h.frame();
+    CHECK(frame.find("Блоки") == std::string::npos);
+    CHECK(f.nav->last(TheoryLink::Kind::card)->link.id == "dwt");
+}
+
+TEST_CASE("a chapter is marked when one of its subsections has a card", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::tutorial};
+    f.nav->open({{TheoryLink::Kind::section, "conv-signals"}});
+    const auto frame = f.h.frame();
+    const auto contents_line = [&](std::string_view needle) {
+        const auto at = frame.find(needle);
+        REQUIRE(at != std::string::npos);
+        return frame.substr(at, frame.find("│", at) - at);
+    };
+    CHECK(contents_line("Варианты преобраз").find("ⓘ") != std::string::npos);
+    CHECK(contents_line("Сводный план").find("ⓘ") == std::string::npos);
+}
+
+TEST_CASE("the contents can be walked with the keyboard", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::tutorial};
+    f.nav->open({{TheoryLink::Kind::section, "conv-signals"}});
+    f.h.frame();
+    const auto& all = signals::theory::sections();
+    const auto here = signals::theory::index_of(*signals::theory::find_section("conv-signals"));
+    REQUIRE(all[here].parent);
+    const auto siblings = signals::theory::children_of(*all[here].parent);
+    REQUIRE(siblings.size() > 1);
+    REQUIRE(siblings[0] == here);
+    CHECK(f.h.send(ftxui::Event::Character('t')));
+    f.h.frame();
+    f.h.send(ftxui::Event::ArrowDown);
+    f.h.frame();
+    f.h.send(ftxui::Event::Return);
+    CHECK(f.nav->current()->link.id == all[siblings[1]].id);
+
+    f.h.send(ftxui::Event::Character('t'));
+    f.h.send(ftxui::Event::End);
+    f.h.send(ftxui::Event::Escape);
+    f.h.send(ftxui::Event::Return);
+    CHECK(f.nav->current()->link.id == all[siblings[1]].id);
+}
+
+TEST_CASE("search results can be paged with the keyboard", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::tutorial};
+    f.h.send(ftxui::Event::Character('/'));
+    f.h.send(ftxui::Event::Character("и"));
+    f.h.frame();
+    f.h.send(ftxui::Event::End);
+    f.h.frame();
+    f.h.send(ftxui::Event::Return);
+    const auto hits = signals::theory::search_sections("и");
+    REQUIRE(hits.size() > 20);
+    CHECK(f.nav->current()->link.id == signals::theory::sections()[hits.back()].id);
+}
+
+TEST_CASE("under the hood blocks open from the keyboard in a small terminal", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood, 80, 24};
+    const auto absent = [&](const std::string& id) { const auto b = f.screen->area(id); return b.x_max < b.x_min; };
+    f.h.frame();
+    f.h.send(ftxui::Event::End);
+    f.h.frame();
+    const std::string last{signals::theory::block_catalog().back().id};
+    CHECK_FALSE(absent("block:" + last));
+    f.h.send(ftxui::Event::Return);
+    REQUIRE(f.nav->last(TheoryLink::Kind::card));
+    CHECK(f.nav->last(TheoryLink::Kind::card)->link.id == last);
+    CHECK(f.h.frame().find("Блоки") == std::string::npos);
+    f.h.send(ftxui::Event::Character('t'));
+    CHECK(f.h.frame().find("Блоки") != std::string::npos);
+    f.h.send(ftxui::Event::Escape);
+    CHECK(f.h.frame().find("Блоки") == std::string::npos);
+}
+
+TEST_CASE("z maximizes the focused theory panel and esc restores it", "[tui][theory]") {
+    for (auto mode : {TheoryScreen::Mode::tutorial, TheoryScreen::Mode::under_the_hood}) {
+        TheoryFixture f{mode};
+        if (mode == TheoryScreen::Mode::under_the_hood) f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, std::make_shared<signals::theory::LiveValues>()});
+        else f.nav->open({{TheoryLink::Kind::section, "dwt-mallat"}});
+        const auto absent = [&](const std::string& id) { const auto b = f.screen->area(id); return b.x_max < b.x_min; };
+        f.h.frame();
+        REQUIRE_FALSE(absent("toc"));
+        const auto narrow = f.screen->area("doc");
+        CHECK(f.h.send(ftxui::Event::Character('z')));
+        f.h.frame();
+        CHECK(absent("toc"));
+        CHECK(f.screen->area("doc").x_max - f.screen->area("doc").x_min > narrow.x_max - narrow.x_min);
+        f.h.send(ftxui::Event::Character('t'));
+        f.h.frame();
+        CHECK_FALSE(absent("toc"));
+        CHECK(absent("doc"));
+        CHECK(f.h.send(ftxui::Event::Escape));
+        f.h.frame();
+        CHECK_FALSE(absent("toc"));
+        CHECK_FALSE(absent("doc"));
+    }
 }

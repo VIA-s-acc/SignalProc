@@ -37,17 +37,14 @@ constexpr std::array kSuperscripts{
     Pair{U'u', U'ᵘ'}, Pair{U'v', U'ᵛ'}, Pair{U'w', U'ʷ'}, Pair{U'x', U'ˣ'}, Pair{U'y', U'ʸ'}, Pair{U'z', U'ᶻ'}, Pair{U'A', U'ᴬ'},
     Pair{U'B', U'ᴮ'}, Pair{U'D', U'ᴰ'}, Pair{U'E', U'ᴱ'}, Pair{U'G', U'ᴳ'}, Pair{U'H', U'ᴴ'}, Pair{U'I', U'ᴵ'}, Pair{U'J', U'ᴶ'},
     Pair{U'K', U'ᴷ'}, Pair{U'L', U'ᴸ'}, Pair{U'M', U'ᴹ'}, Pair{U'N', U'ᴺ'}, Pair{U'O', U'ᴼ'}, Pair{U'P', U'ᴾ'}, Pair{U'R', U'ᴿ'},
-    Pair{U'T', U'ᵀ'}, Pair{U'U', U'ᵁ'}, Pair{U'V', U'ⱽ'}, Pair{U'W', U'ᵂ'}, Pair{U'β', U'ᵝ'}, Pair{U'γ', U'ᵞ'}, Pair{U'δ', U'ᵟ'},
-    Pair{U'φ', U'ᵠ'}, Pair{U'χ', U'ᵡ'}, Pair{U'θ', U'ᶿ'}, Pair{U'′', U'′'},
+    Pair{U'T', U'ᵀ'}, Pair{U'U', U'ᵁ'}, Pair{U'V', U'ⱽ'}, Pair{U'W', U'ᵂ'}, Pair{U'θ', U'ᶿ'}, Pair{U'′', U'′'},
 };
 
 constexpr std::array kSubscripts{
     Pair{U'0', U'₀'}, Pair{U'1', U'₁'}, Pair{U'2', U'₂'}, Pair{U'3', U'₃'}, Pair{U'4', U'₄'}, Pair{U'5', U'₅'}, Pair{U'6', U'₆'},
     Pair{U'7', U'₇'}, Pair{U'8', U'₈'}, Pair{U'9', U'₉'}, Pair{U'+', U'₊'}, Pair{U'−', U'₋'}, Pair{U'-', U'₋'}, Pair{U'=', U'₌'},
-    Pair{U'(', U'₍'}, Pair{U')', U'₎'}, Pair{U'a', U'ₐ'}, Pair{U'e', U'ₑ'}, Pair{U'o', U'ₒ'}, Pair{U'x', U'ₓ'}, Pair{U'h', U'ₕ'},
-    Pair{U'k', U'ₖ'}, Pair{U'l', U'ₗ'}, Pair{U'm', U'ₘ'}, Pair{U'n', U'ₙ'}, Pair{U'p', U'ₚ'}, Pair{U's', U'ₛ'}, Pair{U't', U'ₜ'},
-    Pair{U'i', U'ᵢ'}, Pair{U'j', U'ⱼ'}, Pair{U'r', U'ᵣ'}, Pair{U'u', U'ᵤ'}, Pair{U'v', U'ᵥ'}, Pair{U'β', U'ᵦ'}, Pair{U'γ', U'ᵧ'},
-    Pair{U'ρ', U'ᵨ'}, Pair{U'φ', U'ᵩ'}, Pair{U'χ', U'ᵪ'},
+    Pair{U'(', U'₍'}, Pair{U')', U'₎'}, Pair{U'a', U'ₐ'}, Pair{U'e', U'ₑ'}, Pair{U'o', U'ₒ'}, Pair{U'x', U'ₓ'},
+    Pair{U'i', U'ᵢ'}, Pair{U'j', U'ⱼ'}, Pair{U'r', U'ᵣ'}, Pair{U'u', U'ᵤ'}, Pair{U'v', U'ᵥ'},
 };
 
 struct Vulgar {

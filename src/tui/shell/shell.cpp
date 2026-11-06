@@ -84,18 +84,24 @@ public:
         auto hint_width = [](const Hint& hint) {
             return static_cast<int>(split_codepoints(hint.key).size() + split_codepoints(hint.label).size()) + 5;
         };
+        auto visible = globals;
         int room = w;
-        for (const auto& g : globals) room -= hint_width(g);
+        for (const auto& g : visible) room -= hint_width(g);
+        if (!all.empty() && hint_width(all.front()) > room) {
+            const auto resources = std::find_if(visible.begin(), visible.end(), [](const Hint& hint) { return hint.key == "R"; });
+            if (resources != visible.end()) {
+                room += hint_width(*resources);
+                visible.erase(resources);
+            }
+        }
         std::vector<Hint> row;
         for (const auto& hint : all) {
             if (hint_width(hint) > room) break;
             room -= hint_width(hint);
             row.push_back(hint);
         }
-        for (const auto& g : globals) {
-            all.push_back(g);
-            row.push_back(g);
-        }
+        for (const auto& g : globals) all.push_back(g);
+        for (const auto& g : visible) row.push_back(g);
         all.push_back({"'", tr("tui.hint.jump")});
         all.push_back({tr("tui.key.right_click"), tr("tui.hint.menu")});
         for (const auto& hint : row) {
