@@ -21,6 +21,8 @@ set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
 set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(miniaudio GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+                     GIT_TAG 0.11.26 GIT_SHALLOW TRUE SOURCE_SUBDIR _none)
 FetchContent_Declare(eigen GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git GIT_TAG 5.0.1 GIT_SHALLOW TRUE SYSTEM)
 
 set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
@@ -33,7 +35,7 @@ set(FTXUI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(FTXUI_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 set(FTXUI_QUIET ON CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(catch2 cli11 json fmt nanobench rapidcheck pocketfft dr_libs ftxui tomlplusplus multiprecision eigen)
+FetchContent_MakeAvailable(catch2 cli11 json fmt nanobench rapidcheck pocketfft dr_libs ftxui tomlplusplus multiprecision eigen miniaudio)
 
 add_library(signals_multiprecision INTERFACE)
 target_include_directories(signals_multiprecision SYSTEM INTERFACE ${multiprecision_SOURCE_DIR}/include)
