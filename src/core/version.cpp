@@ -2,6 +2,6 @@
 
 namespace signals::core {
 
-std::string_view version() { return "0.2.0-dev"; }
+std::string_view version() { return SIGNALS_VERSION; }
 
 }  // namespace signals::core
