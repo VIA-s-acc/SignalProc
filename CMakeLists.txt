@@ -13,6 +13,7 @@ set(SIGNALS_VERSION_SUFFIX "" CACHE STRING "Pre-release suffix appended to the p
 
 if(MSVC)
   add_compile_options(/utf-8 /bigobj /Zc:__cplusplus)
+  add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()
 
 include(cmake/Warnings.cmake)

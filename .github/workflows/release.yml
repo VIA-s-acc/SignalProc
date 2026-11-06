@@ -60,10 +60,13 @@ jobs:
             cxx: clang++
           - os: ubuntu-24.04
             platform: linux-x86_64
-            cxx: g++-14
+            # glibc 2.28 keeps the binary runnable on distributions older than the runner; GCC 14 comes from gcc-toolset.
+            container: quay.io/pypa/manylinux_2_28_x86_64
+            cxx: g++
           - os: windows-latest
             platform: windows-x86_64
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
     timeout-minutes: 60
     defaults:
       run:
@@ -78,11 +81,15 @@ jobs:
       - name: Configure
         run: |
           [[ -n "$MATRIX_CXX" ]] && export CXX="$MATRIX_CXX"
+          [[ -n "$MATRIX_CXX" ]] && "$CXX" --version | head -1
           args=(-DCMAKE_BUILD_TYPE=Release -DSIGNALS_BUILD_TESTS=OFF "-DSIGNALS_VERSION_SUFFIX=$SUFFIX")
           case "$RUNNER_OS" in
             Linux) args+=("-DCMAKE_EXE_LINKER_FLAGS=-static-libstdc++ -static-libgcc") ;;
             macOS) args+=(-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0) ;;
-            Windows) export CXXFLAGS=-MP ;;
+            Windows)
+              export CXXFLAGS=-MP
+              args+=(-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded)
+              ;;
           esac
           cmake -S . -B build "${args[@]}"
       - name: Build
