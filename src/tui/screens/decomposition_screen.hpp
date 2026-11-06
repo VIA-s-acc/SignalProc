@@ -34,6 +34,7 @@ public:
     void set_breakpoint(Breakpoint b) override { breakpoint_ = b; }
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event e) override;
+    std::optional<std::pair<int, int>> menu_anchor() const override;
     void open_with(const NavArgs& args) override;
     std::vector<JumpTarget> jump_targets() const override;
     std::vector<Command> commands() override;

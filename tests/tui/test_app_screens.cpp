@@ -8,11 +8,13 @@
 #include <ftxui/component/event.hpp>
 
 #include "audio/manual_sink.hpp"
+#include "i18n/i18n.hpp"
 #include "support/paths.hpp"
 #include "tui/app_screens.hpp"
 #include "tui/harness.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/ui_fixture.hpp"
+#include "tui/widgets/text_util.hpp"
 
 using namespace signals::tui;
 using signals::test::Harness;
@@ -103,4 +105,41 @@ TEST_CASE("the hint row shows tab and zoom keys and no mouse hints at small size
             else CHECK(hints.find(" Tab ") != std::string::npos);
         }
     }
+}
+
+TEST_CASE("the tab bar context is clipped instead of running into the tabs", "[tui][shell][app]") {
+    JobRunner jobs{[] {}, 0ms, true};
+    signals::test::ManualSink* raw = nullptr;
+    auto player = signals::test::manual_player(raw);
+    auto ui = signals::test::make_ui(80, 24);
+    ui->jobs = &jobs;
+    ui->player = &player;
+    auto models = make_app_models();
+    Harness shell{make_shell(*ui, make_app_screens(*ui, models), [] {}), 80, 24};
+    for (char key : {'4', '9'}) {
+        shell.send(ftxui::Event::Character(key));
+        const auto frame = shell.frame();
+        const auto first = frame.substr(0, frame.find('\n'));
+        INFO(first);
+        CHECK(static_cast<int>(signals::tui::split_codepoints(first).size()) <= 80);
+        CHECK(first.find(key == '9' ? "Теория " : "Банк ") != std::string::npos);
+        CHECK(first.find("[") != std::string::npos);
+    }
+}
+
+TEST_CASE("m opens the waveform menu at cursor a without the mouse", "[tui][shell][app][menu]") {
+    JobRunner jobs{[] {}, 0ms, true};
+    signals::test::ManualSink* raw = nullptr;
+    auto player = signals::test::manual_player(raw);
+    auto ui = signals::test::make_ui(150, 44);
+    ui->jobs = &jobs;
+    ui->player = &player;
+    auto models = make_app_models();
+    models.signal->open(signals::test::sample("test.wav"), jobs);
+    Harness shell{make_shell(*ui, make_app_screens(*ui, models), [] {}), 150, 44};
+    shell.frame();
+    shell.send(ftxui::Event::ArrowRight);
+    shell.frame();
+    CHECK(shell.send(ftxui::Event::Character('m')));
+    CHECK(shell.frame().find(signals::tr("tui.menu.whole_signal")) != std::string::npos);
 }

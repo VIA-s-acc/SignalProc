@@ -2,6 +2,7 @@
 
 #include <fmt/format.h>
 
+#include "core/version.hpp"
 #include "i18n/i18n.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/shell/shell.hpp"
@@ -21,6 +22,7 @@ std::vector<Hint> global_help() {
             {"'", tr("tui.hint.jump")},
             {"R", tr("tui.hint.resources")},
             {"?", tr("tui.hint.help")},
+            {tr("tui.key.click_help"), tr("tui.hint.help")},
             {"q", tr("tui.hint.quit")},
             {tr("tui.key.right_click"), tr("tui.hint.menu")},
             {tr("tui.key.click_tab"), tr("tui.hint.click_tab")},
@@ -60,7 +62,7 @@ ftxui::Element help_overlay(const std::vector<Hint>& screen, const std::string& 
                     fg(ui.theme.dim, ui));
     shown.push_back(text(tr("tui.help.filter") + filter + "▏") | fg(ui.theme.dim, ui));
     shown.push_back(text(tr("tui.help.close")) | fg(ui.theme.dim, ui));
-    return panel(tr("tui.help.title"), {}, vbox(std::move(shown)) | size(WIDTH, GREATER_THAN, 40), true, ui);
+    return panel(tr("tui.help.title") + " · Signals " + std::string{core::version()}, {}, vbox(std::move(shown)) | size(WIDTH, GREATER_THAN, 40), true, ui);
 }
 
 }  // namespace signals::tui

@@ -45,6 +45,7 @@ public:
     std::size_t column() const { return col_; }
     Block block() const { return block_; }
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::optional<std::pair<int, int>> menu_anchor() const override;
     bool numbers() const { return numbers_; }
     ftxui::Box area(std::string_view id) const;
 

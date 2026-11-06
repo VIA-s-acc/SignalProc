@@ -13,7 +13,10 @@
 #include "tui/harness.hpp"
 #include "tui/shell/layout.hpp"
 #include "tui/shell/overlays.hpp"
+#include "core/version.hpp"
+#include "tui/shell/panel.hpp"
 #include "tui/shell/shell.hpp"
+#include "tui/widgets/text_util.hpp"
 #include "tui/ui_fixture.hpp"
 
 using namespace signals::tui;
@@ -331,4 +334,27 @@ TEST_CASE("resources show what signals itself uses and fit a small terminal", "[
         r.h.send(ftxui::Event::Escape);
         CHECK(r.h.frame().find("Signals сейчас") == std::string::npos);
     }
+}
+
+TEST_CASE("panel chips that do not fit are dropped one by one and the last one stays", "[tui][shell]") {
+    auto ui = signals::test::make_ui(80, 24);
+    auto element = panel("Осциллограмма", {{"перетаскивание: сдвиг", false}, {"выделение", true}, {"Tab 1/6", false}}, ftxui::text("x"), true, *ui);
+    auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(36), ftxui::Dimension::Fixed(3));
+    ftxui::Render(screen, element);
+    const auto top = screen.ToString().substr(0, screen.ToString().find('\n'));
+    CHECK(top.find("Tab 1/6") != std::string::npos);
+    CHECK(top.find("перетаскивание") == std::string::npos);
+}
+
+TEST_CASE("the tab bar shows the version and the question mark opens help", "[tui][shell]") {
+    ShellRig r{150, 44};
+    auto frame = r.h.frame();
+    CHECK(frame.substr(0, frame.find('\n')).find(std::string{signals::core::version()}) != std::string::npos);
+    const auto cells = signals::tui::split_codepoints(frame.substr(0, frame.find('\n')));
+    int column = -1;
+    for (std::size_t i = 0; i < cells.size(); ++i)
+        if (cells[i] == "?") column = static_cast<int>(i);
+    REQUIRE(column > 0);
+    r.h.click(column, 0);
+    CHECK(r.h.frame().find("фильтр:") != std::string::npos);
 }

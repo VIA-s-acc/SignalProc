@@ -1,3 +1,4 @@
+#include "core/version.hpp"
 #include "tui/shell/shell.hpp"
 
 #include "tui/screens/theory_navigator.hpp"
@@ -57,7 +58,7 @@ public:
         }
         auto paint = [&](Element e) { return ui_.caps.color == ColorDepth::none ? e : e | bg(ui_.theme.bg, ui_) | fg(ui_.theme.fg, ui_); };
         if (bp == Breakpoint::tiny)
-            return paint(vbox({filler(), text(fmt::format(fmt::runtime(tr("tui.small.warning")), fmt::arg("w", w), fmt::arg("h", h))) | hcenter,
+            return paint(vbox({filler(), paragraphAlignCenter(fmt::format(fmt::runtime(tr("tui.small.warning")), fmt::arg("w", w), fmt::arg("h", h))),
                                filler()}));
         if (screens_.empty()) return paint(text(""));
         auto& screen = *screens_[static_cast<std::size_t>(active_)];
@@ -65,19 +66,23 @@ public:
         Elements tabs;
         const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
         const bool compact = bp == Breakpoint::small;
-        tabs.push_back(text(std::string{ascii ? " *" : " ◆"} + (compact ? " " : " Signals ")) | bold | fg(ui_.theme.accent, ui_));
+        const std::string brand = std::string{ascii ? " *" : " ◆"} + (compact ? " " : " Signals " + std::string{core::version()} + " ");
+        int used = display_width(brand) + 1 + 2 + 3;
+        tabs.push_back(text(brand) | bold | fg(ui_.theme.accent, ui_));
         tabs.push_back(text(std::string{glyph(Glyph::v, ui_.caps.glyphs)}) | fg(ui_.theme.dim, ui_));
         for (std::size_t i = 0; i < screens_.size(); ++i) {
             const bool on = static_cast<int>(i) == active_;
-            auto label = text(" " + std::to_string(i + 1) + (compact && !on ? "" : " " + screens_[i]->tab_label()) + " ");
+            const auto caption = " " + std::to_string(i + 1) + (compact && !on ? "" : " " + screens_[i]->tab_label()) + " ";
+            used += display_width(caption);
+            auto label = text(caption);
             label = static_cast<int>(i) == active_ ? label | bold | fg(ui_.theme.bg, ui_) | bg(ui_.theme.accent, ui_)
                                                     : label | fg(ui_.theme.fg, ui_);
             tabs.push_back(label | reflect(tab_boxes_[i]));
         }
         tabs.push_back(filler());
-        tabs.push_back(screen.context_element(ui_));
+        tabs.push_back(screen.context_element(ui_, std::max(0, w - used)));
         tabs.push_back(text("  "));
-        tabs.push_back(key_label(" ? ", ui_));
+        tabs.push_back(key_label(" ? ", ui_) | reflect(help_box_));
         Elements hints;
         auto all = screen.hints();
         const auto globals = global_hints();
@@ -156,6 +161,12 @@ public:
                     menu_.open(std::move(items), m.x, m.y);
                     return true;
                 }
+            }
+            if (m.button == ftxui::Mouse::Left && m.motion == ftxui::Mouse::Pressed && help_box_.Contain(m.x, m.y)) {
+                help_open_ = true;
+                help_filter_.clear();
+                help_scroll_ = 0;
+                return true;
             }
             if (m.button == ftxui::Mouse::Left && m.motion == ftxui::Mouse::Pressed && status_box_.Contain(m.x, m.y)) {
                 resources_open_ = true;
@@ -330,7 +341,7 @@ private:
     std::vector<std::shared_ptr<TabScreen>> screens_;
     std::function<void()> on_quit_;
     std::vector<ftxui::Box> tab_boxes_;
-    ftxui::Box status_box_;
+    ftxui::Box status_box_, help_box_{1, 0, 1, 0};
     int active_ = 0;
     bool help_open_ = false;
     bool resources_open_ = false;
@@ -349,7 +360,9 @@ ftxui::Component make_shell(UiContext& ui, std::vector<std::shared_ptr<TabScreen
     return std::make_shared<ShellComponent>(ui, std::move(screens), std::move(on_quit));
 }
 
-ftxui::Element TabScreen::context_element(const UiContext& ui) { return ftxui::text(context()) | fg(ui.theme.dim, ui); }
+ftxui::Element TabScreen::context_element(const UiContext& ui, int width) {
+    return ftxui::text(ellipsize(context(), width, ui.caps.glyphs == GlyphMode::ascii)) | fg(ui.theme.dim, ui);
+}
 
 int active_tab(const ftxui::Component& shell) {
     auto s = std::dynamic_pointer_cast<ShellComponent>(shell);

@@ -772,6 +772,18 @@ std::vector<JumpTarget> SignalScreen::jump_targets() const {
     return out;
 }
 
+std::optional<std::pair<int, int>> SignalScreen::menu_anchor() const {
+    if (focus_ == wave && model_->cursor_a() && valid(wave_boxes_[0])) {
+        const auto& b = wave_boxes_[0];
+        const double span = std::max(1e-12, model_->view_end() - model_->view_begin());
+        const double f = std::clamp((*model_->cursor_a() - model_->view_begin()) / span, 0.0, 1.0);
+        return std::pair{b.x_min + static_cast<int>(f * (b.x_max - b.x_min)), (b.y_min + b.y_max) / 2};
+    }
+    const auto& b = panel_boxes_[static_cast<std::size_t>(focus_)];
+    if (b.x_max < b.x_min) return std::nullopt;
+    return std::pair{(b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2};
+}
+
 std::shared_ptr<TabScreen> make_signal_screen(UiContext& ui, std::shared_ptr<SignalModel> model) {
     return std::make_shared<SignalScreen>(ui, std::move(model));
 }

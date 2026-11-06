@@ -1145,6 +1145,12 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
     return false;
 }
 
+std::optional<std::pair<int, int>> FiltersScreen::menu_anchor() const {
+    const auto& b = panel_boxes_[static_cast<std::size_t>(focus_)];
+    if (b.x_max < b.x_min) return std::nullopt;
+    return std::pair{(b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2};
+}
+
 std::shared_ptr<TabScreen> make_filters_screen(UiContext& ui, std::shared_ptr<ComparisonSet> set) {
     return std::make_shared<FiltersScreen>(ui, std::move(set));
 }
