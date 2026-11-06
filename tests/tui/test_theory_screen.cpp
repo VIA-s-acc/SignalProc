@@ -264,3 +264,13 @@ TEST_CASE("under the hood snapshots", "[tui][theory][snapshot]") {
         signals::test::check_snapshot("under_the_hood_" + std::to_string(w) + "x" + std::to_string(h), shell.frame());
     }
 }
+
+TEST_CASE("the references link opens the bibliography", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::tutorial};
+    const auto b = f.screen->area("references");
+    REQUIRE(b.x_max >= b.x_min);
+    f.h.click(b.x_min, b.y_min);
+    REQUIRE(f.nav->current());
+    CHECK(f.nav->current()->link.id == "references");
+    CHECK(f.h.frame().find("Литература") != std::string::npos);
+}
