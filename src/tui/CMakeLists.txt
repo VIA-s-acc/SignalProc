@@ -49,6 +49,8 @@ add_library(signals_tui STATIC
   screens/designer_screen.cpp
   screens/decomposition_model.cpp
   screens/pipeline_model.cpp
+  screens/pipeline_canvas.cpp
+  screens/pipeline_screen.cpp
   screens/decomposition_screen.cpp
   screens/matrix_model.cpp
   screens/matrix_screen.cpp
