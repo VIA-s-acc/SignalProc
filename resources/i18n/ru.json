@@ -373,6 +373,7 @@
   "tui.theory.card_link": "{mark} Карточка блока «{title}» во вкладке «Под капотом» — клавиша i или клик",
   "tui.theory.card_link_more": "{mark} Карточка блока «{title}» и ещё {more} во вкладке «Под капотом» — клавиша i или клик",
   "tui.theory.hint.card": "карточка блока",
+  "tui.theory.no_values": "Чисел здесь нет: карточку открыли не с рабочего экрана или блок ещё ничего не посчитал. Нажмите F1 на экране, где работает блок, — сюда подставятся его значения и результаты проверок.",
   "tui.theory.blocks_range": "Блоки {from}–{to} из {count}:",
   "tui.theory.blocks_more": "ещё {count}",
   "tui.theory.contents_short": "Оглавление",

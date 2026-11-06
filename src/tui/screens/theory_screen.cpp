@@ -103,7 +103,10 @@ std::vector<Hint> TheoryScreen::hints() const {
     }
     std::vector<Hint> first;
     if (breakpoint_ <= Breakpoint::small) first.push_back({"t", tr("tui.theory.hint.contents")});
-    else out.push_back({"t", tr("tui.theory.hint.contents")});
+    else {
+        out.push_back({"t", tr("tui.theory.hint.contents")});
+        out.push_back({"z", tr("tui.signal.hint.zoom")});
+    }
     if (mode_ == Mode::tutorial && card_for_section(theory::sections()[current_section()].id)) first.push_back({"i", tr("tui.theory.hint.card")});
     out.insert(out.begin(), first.begin(), first.end());
     return out;
@@ -198,7 +201,7 @@ void TheoryScreen::open_source() {
     if (ui_.open_in_editor) ui_.open_in_editor(path);
 }
 
-std::string TheoryScreen::card_markdown(const theory::Card& card) const {
+std::string TheoryScreen::card_markdown(const theory::Card& card, bool live) const {
     std::string md;
     const auto numbers = tr("theory.card.numbers");
     for (const auto& s : card.sections) {
@@ -207,6 +210,7 @@ std::string TheoryScreen::card_markdown(const theory::Card& card) const {
             md += "*" + tr("tui.theory.folded") + "*\n\n";
             continue;
         }
+        if (!live && s.heading == numbers) md += "*" + tr("tui.theory.no_values") + "*\n\n";
         md += s.body + "\n";
         if (s.heading == tr("theory.card.links")) {
             std::string buttons;
@@ -320,7 +324,7 @@ ftxui::Element TheoryScreen::card_panel(const TheoryPage* p, int width, int heig
     if (!s.tier.empty()) title += "  [" + s.tier + "]";
     const int inner = std::max(10, width - 4);
     visible_rows_ = std::max(1, height - 2 - (notice_.empty() ? 0 : 1));
-    card_blocks_ = theory::parse_markdown(card_markdown(*card));
+    card_blocks_ = theory::parse_markdown(card_markdown(*card, p->values && !p->values->empty()));
     clamp_scroll();
     DocumentSpec spec{card_blocks_, inner, scroll_, hscroll_, glyphs_, focused_link_, p->values.get(), "─", visible_rows_};
     Elements body{document(spec, ui_, &doc_) | reflect(doc_box_) | flex};
@@ -483,24 +487,26 @@ ftxui::Element TheoryScreen::OnRender() {
     const auto [cols, rows] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
     int height = std::max(3, rows - 3);
     const auto current = current_section();
+    const bool single = breakpoint_ <= Breakpoint::small || maximized_;
+    const bool show_contents = searching_ || small_contents_ || (maximized_ && toc_focus_);
     if (mode_ == Mode::under_the_hood) {
         auto* p = card_page();
         if (p) refresh_values(*p);
         auto top = origin_line(p, cols);
         height = std::max(3, height - 1);
-        if (breakpoint_ <= Breakpoint::small) {
+        if (single) {
             toc_boxes_.clear();
             block_boxes_.clear();
-            if (small_contents_ || searching_ || !p) return vbox({top, contents_panel(current, cols, height) | flex});
+            if (show_contents || !p) return vbox({top, contents_panel(current, cols, height) | flex});
             return vbox({top, card_panel(p, cols, height) | flex});
         }
         return vbox({top, hbox({contents_panel(current, kContentsWidth, height) | size(WIDTH, EQUAL, kContentsWidth), text(" "),
                                 card_panel(p, cols - kContentsWidth - 1, height) | flex}) |
                               flex});
     }
-    if (breakpoint_ <= Breakpoint::small) {
+    if (single) {
         toc_boxes_.clear();
-        if (small_contents_ || searching_) return contents_panel(current, cols, height);
+        if (show_contents) return contents_panel(current, cols, height);
         return text_panel(current, cols, height);
     }
     return hbox({contents_panel(current, kContentsWidth, height) | size(WIDTH, EQUAL, kContentsWidth), text(" "),
@@ -576,6 +582,11 @@ bool TheoryScreen::OnEvent(ftxui::Event e) {
         selected_hit_ = 0;
         return true;
     }
+    if (e == Event::Escape && maximized_) return maximized_ = false, true;
+    if (e == Event::Character('z')) {
+        if (breakpoint_ <= Breakpoint::small) return false;
+        return maximized_ = !maximized_, true;
+    }
     if (e == Event::Character('t')) {
         if (breakpoint_ <= Breakpoint::small) {
             small_contents_ = !small_contents_;
@@ -647,7 +658,7 @@ std::vector<TheoryScreen::Entry> TheoryScreen::toc_entries() const {
 
 bool TheoryScreen::contents_keys() const {
     if (toc_focus_) return true;
-    if (breakpoint_ > Breakpoint::small) return false;
+    if (breakpoint_ > Breakpoint::small && !maximized_) return false;
     return small_contents_ || (mode_ == Mode::under_the_hood && !nav_->last(TheoryLink::Kind::card));
 }
 
@@ -737,6 +748,7 @@ ftxui::Box TheoryScreen::area(std::string_view id) const {
     if (id == "references") return references_box_;
     if (id == "blocks") return blocks_box_;
     if (id == "card_link") return card_link_box_;
+    if (id == "doc") return doc_box_;
     if (id == "toc") return toc_box_;
     if (id == "toc:up") return toc_up_box_;
     if (id == "toc:down") return toc_down_box_;

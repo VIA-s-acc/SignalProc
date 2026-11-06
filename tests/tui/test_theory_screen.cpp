@@ -154,6 +154,7 @@ TEST_CASE("a card opened from the book shows dashes, not checks", "[tui][theory]
     }
     CHECK(card_text.find("— нет данных") != std::string::npos);
     CHECK(card_text.find("✓") == std::string::npos);
+    CHECK(card_text.find("F1 на экране") != std::string::npos);
 }
 
 TEST_CASE("a card with a publisher follows its source", "[tui][theory]") {
@@ -169,6 +170,7 @@ TEST_CASE("a card with a publisher follows its source", "[tui][theory]") {
     wavelet = "sym4";
     frame = f.h.frame();
     CHECK(frame.find("фильтр sym4") != std::string::npos);
+    CHECK(frame.find("F1 на экране") == std::string::npos);
 }
 
 TEST_CASE("view buttons navigate with the bank", "[tui][theory]") {
@@ -527,4 +529,28 @@ TEST_CASE("under the hood blocks open from the keyboard in a small terminal", "[
     CHECK(f.h.frame().find("Блоки") != std::string::npos);
     f.h.send(ftxui::Event::Escape);
     CHECK(f.h.frame().find("Блоки") == std::string::npos);
+}
+
+TEST_CASE("z maximizes the focused theory panel and esc restores it", "[tui][theory]") {
+    for (auto mode : {TheoryScreen::Mode::tutorial, TheoryScreen::Mode::under_the_hood}) {
+        TheoryFixture f{mode};
+        if (mode == TheoryScreen::Mode::under_the_hood) f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, std::make_shared<signals::theory::LiveValues>()});
+        else f.nav->open({{TheoryLink::Kind::section, "dwt-mallat"}});
+        const auto absent = [&](const std::string& id) { const auto b = f.screen->area(id); return b.x_max < b.x_min; };
+        f.h.frame();
+        REQUIRE_FALSE(absent("toc"));
+        const auto narrow = f.screen->area("doc");
+        CHECK(f.h.send(ftxui::Event::Character('z')));
+        f.h.frame();
+        CHECK(absent("toc"));
+        CHECK(f.screen->area("doc").x_max - f.screen->area("doc").x_min > narrow.x_max - narrow.x_min);
+        f.h.send(ftxui::Event::Character('t'));
+        f.h.frame();
+        CHECK_FALSE(absent("toc"));
+        CHECK(absent("doc"));
+        CHECK(f.h.send(ftxui::Event::Escape));
+        f.h.frame();
+        CHECK_FALSE(absent("toc"));
+        CHECK_FALSE(absent("doc"));
+    }
 }

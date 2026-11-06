@@ -5,6 +5,8 @@
 #include <vector>
 
 #include "support/golden_text.hpp"
+#include "theory/cards.hpp"
+#include "theory/markdown.hpp"
 #include "theory/math_layout.hpp"
 #include "theory/math_spans.hpp"
 #include "theory/sections.hpp"
@@ -62,7 +64,7 @@ TEST_CASE("every line of a box has the box width", "[theory][math]") {
 TEST_CASE("inline style linearises fractions", "[theory][math]") {
     CHECK(render_latex("\\frac{1+z^{-1}}{\\sqrt2}", MathStyle::inline_linear, MathGlyphs::unicode)->lines[0] == "(1 + z⁻¹)/√2");
     CHECK(render_latex("\\tfrac12(1+z^{-1})^2", MathStyle::inline_linear, MathGlyphs::unicode)->lines[0] == "½(1 + z⁻¹)²");
-    CHECK(render_latex("\\sum_{n=0}^{N-1} x[n]", MathStyle::inline_linear, MathGlyphs::unicode)->lines[0] == "∑ₙ₌₀ᴺ⁻¹ x[n]");
+    CHECK(render_latex("\\sum_{n=0}^{N-1} x[n]", MathStyle::inline_linear, MathGlyphs::unicode)->lines[0] == "∑_(n=0)ᴺ⁻¹ x[n]");
 }
 
 TEST_CASE("ascii has no non-ascii bytes", "[theory][math]") {
@@ -71,4 +73,26 @@ TEST_CASE("ascii has no non-ascii bytes", "[theory][math]") {
     for (const auto& l : b->lines)
         for (unsigned char c : l) CHECK(c < 0x80);
     CHECK(render_latex("\\omega \\le \\pi", MathStyle::inline_linear, MathGlyphs::ascii)->lines[0] == "omega <= pi");
+}
+
+TEST_CASE("formulas avoid script letters that common terminal fonts lack", "[theory][math]") {
+    const std::u32string missing = U"ₕₖₗₘₙₚₛₜᵦᵧᵨᵩᵪᵝᵞᵟᵠᵡ";
+    const auto check = [&](const std::string& tex) {
+        for (auto style : {MathStyle::display, MathStyle::inline_linear}) {
+            const auto box = render_latex(tex, style, MathGlyphs::unicode);
+            if (!box) continue;
+            for (const auto& line : box->lines)
+                for (char32_t c : to_u32(line)) {
+                    INFO(tex << " -> " << line);
+                    CHECK(missing.find(c) == std::u32string::npos);
+                }
+        }
+    };
+    check("f_s");
+    check("\\omega_m n");
+    for (const auto& s : sections())
+        for (const auto& f : math_spans(own_body(s))) check(f);
+    for (const auto& c : cards())
+        for (const auto& part : c.sections)
+            for (const auto& f : math_spans(part.body)) check(f);
 }
