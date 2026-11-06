@@ -93,9 +93,21 @@ TheoryScreen::TheoryScreen(UiContext& ui, std::shared_ptr<TheoryNavigator> nav, 
 std::string TheoryScreen::tab_label() const { return tr(mode_ == Mode::tutorial ? "tui.sub.tutorial" : "tui.sub.under_the_hood"); }
 
 std::vector<Hint> TheoryScreen::hints() const {
-    std::vector<Hint> out{{"/", tr("tui.theory.hint.search")},  {"Tab", tr("tui.theory.hint.links")},  {"Enter", tr("tui.theory.hint.follow")},
-                          {"b/f", tr("tui.theory.hint.history")}, {"↑↓", tr("tui.theory.hint.scroll")}, {"←→", tr("tui.theory.hint.formulas")},
-                          {"g", tr("tui.theory.hint.glyphs")}};
+    if (contents_keys()) {
+        std::vector<Hint> out{{"↑↓", tr("tui.theory.hint.cursor")},          {"Enter", tr("tui.theory.hint.open")},
+                              {"PgUp/PgDn", tr("tui.hint.page")},            {"Home/End", tr("tui.hint.ends")},
+                              {"Esc  t", tr("tui.theory.hint.to_text")},     {"/", tr("tui.theory.hint.search")},
+                              {tr("tui.signal.key.wheel"), tr("tui.hint.wheel_list")},
+                              {tr("tui.signal.key.click"), tr("tui.theory.hint.open")}};
+        if (breakpoint_ > Breakpoint::small) out.insert(out.begin() + 5, {"z", tr("tui.signal.hint.zoom")});
+        return out;
+    }
+    std::vector<Hint> out{{"/", tr("tui.theory.hint.search")},          {"Tab", tr("tui.theory.hint.links")},
+                          {"Enter", tr("tui.theory.hint.follow")},      {"b/f  Backspace", tr("tui.theory.hint.history")},
+                          {"↑↓", tr("tui.theory.hint.scroll")},         {"PgUp/PgDn", tr("tui.hint.page")},
+                          {"Home/End", tr("tui.hint.ends")},            {"←→", tr("tui.theory.hint.formulas")},
+                          {"g", tr("tui.theory.hint.glyphs")},          {tr("tui.signal.key.wheel"), tr("tui.theory.hint.scroll")},
+                          {tr("tui.signal.key.click"), tr("tui.theory.hint.click")}};
     if (mode_ == Mode::under_the_hood) {
         out.push_back({"n", tr("tui.theory.hint.numbers")});
         out.push_back({"o", tr("tui.theory.hint.source")});

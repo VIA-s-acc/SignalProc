@@ -112,7 +112,7 @@ public:
                           status_line(ui_, resources) | reflect(status_box_)});
         if (palette_.is_open()) return paint(dbox({base, palette_.render(ui_) | clear_under | center}));
         if (check_.is_open()) return paint(dbox({base, check_.render(ui_) | clear_under | center}));
-        if (resources_open_) return paint(dbox({base, resources_panel(ui_) | clear_under | center}));
+        if (resources_open_) return paint(dbox({base, resources_panel(ui_, w, h, resources_scroll_) | clear_under | center}));
         if (menu_.is_open()) return paint(dbox({base, menu_.render(ui_, w, h)}));
         if (jump_.is_active()) return paint(dbox({base, jump_.render(ui_)}));
         if (!help_open_) return paint(base);
@@ -123,7 +123,16 @@ public:
         if (palette_.is_open()) return palette_.on_event(e);
         if (check_.is_open()) return check_.on_event(e, ui_);
         if (resources_open_) {
+            const auto step = [this](float d) { resources_scroll_ = std::clamp(resources_scroll_ + d, 0.f, 1.f); };
             if (e == ftxui::Event::Escape || e == ftxui::Event::Character('R')) resources_open_ = false;
+            else if (e == ftxui::Event::ArrowDown) step(0.1f);
+            else if (e == ftxui::Event::ArrowUp) step(-0.1f);
+            else if (e == ftxui::Event::PageDown) step(0.5f);
+            else if (e == ftxui::Event::PageUp) step(-0.5f);
+            else if (e == ftxui::Event::Home) resources_scroll_ = 0;
+            else if (e == ftxui::Event::End) resources_scroll_ = 1;
+            else if (e.is_mouse() && e.mouse().button == ftxui::Mouse::WheelDown) step(0.1f);
+            else if (e.is_mouse() && e.mouse().button == ftxui::Mouse::WheelUp) step(-0.1f);
             return true;
         }
         if (help_open_) return help_event(e);
@@ -327,6 +336,7 @@ private:
     bool resources_open_ = false;
     std::string help_filter_;
     std::size_t help_scroll_ = 0;
+    float resources_scroll_ = 0;
     Palette palette_;
     TerminalCheck check_;
     ContextMenu menu_;

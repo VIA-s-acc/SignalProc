@@ -42,6 +42,20 @@ ResourceSnapshot derive(const ProcessSample& prev, const ProcessSample& cur, uns
         if (total > 0) s.core_load_pct[i] = 100.0 * static_cast<double>(busy) / static_cast<double>(total);
     }
     s.buffers = core::tracked_memory();
+    s.cpu_seconds = cur.cpu_seconds;
+    s.disk_read_bytes = cur.disk_read_bytes;
+    s.disk_written_bytes = cur.disk_written_bytes;
+    if (dw > 0) {
+        s.disk_read_rate = static_cast<double>(cur.disk_read_bytes - std::min(cur.disk_read_bytes, prev.disk_read_bytes)) / dw;
+        s.disk_write_rate = static_cast<double>(cur.disk_written_bytes - std::min(cur.disk_written_bytes, prev.disk_written_bytes)) / dw;
+    }
+    for (const auto& t : cur.thread_times) {
+        double before = t.cpu_seconds;
+        for (const auto& p : prev.thread_times)
+            if (p.id == t.id) before = p.cpu_seconds;
+        s.thread_load.push_back({t.name, dw > 0 ? std::max(0.0, (t.cpu_seconds - before) / dw * 100) : 0.0, t.cpu_seconds});
+    }
+    std::stable_sort(s.thread_load.begin(), s.thread_load.end(), [](const ThreadLoad& a, const ThreadLoad& b) { return a.pct > b.pct; });
     return s;
 }
 

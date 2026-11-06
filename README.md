@@ -205,6 +205,16 @@ ctest --preset dev
 
 Нужны CMake ≥ 3.28 и компилятор с C++23: Apple Clang 17, GCC 14 или MSVC из Visual Studio 2026.
 
+Сборка `dev` — отладочная, с AddressSanitizer и UBSan. Для работы и замеров берите `release`:
+
+```bash
+cmake --preset release
+cmake --build --preset release
+build/release/app/signals
+```
+
+В `dev` на macOS при запуске появляется строка `malloc: nano zone abandoned due to inability to reserve vm space`: санитайзер занимает адресное пространство, и системный malloc переходит на обычную зону. Это безвредно; убрать строку можно запуском с `MallocNanoZone=0`. По той же причине в `dev` память процесса в «Ресурсах» растёт до ~250 МБ: санитайзер держит освобождённую память в карантине, чтобы ловить обращения к ней.
+
 ## Лицензия
 
 MIT, см. [LICENSE](LICENSE).

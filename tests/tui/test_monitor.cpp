@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -16,6 +17,7 @@
 #include <sys/resource.h>
 #endif
 
+#include "core/thread_name.hpp"
 #include "tui/monitor/monitor.hpp"
 #include "tui/monitor/sampler.hpp"
 
@@ -122,4 +124,29 @@ TEST_CASE("the monitor stops without waiting a full period", "[tui][monitor]") {
     const auto t0 = std::chrono::steady_clock::now();
     { ResourceMonitor m{[] {}, 10s}; }
     CHECK(std::chrono::steady_clock::now() - t0 < 500ms);
+}
+
+TEST_CASE("threads are sampled with their names and cpu time", "[tui][monitor]") {
+    std::atomic<bool> stop{false}, named{false};
+    std::thread busy{[&] {
+        signals::core::set_thread_name("signals-test");
+        named = true;
+        volatile double x = 0;
+        while (!stop) x = x + 1;
+    }};
+    while (!named) std::this_thread::yield();
+    const auto a = signals::tui::sample_process();
+    std::this_thread::sleep_for(std::chrono::milliseconds{300});
+    const auto b = signals::tui::sample_process();
+    stop = true;
+    busy.join();
+    REQUIRE(a);
+    REQUIRE(b);
+#if defined(__APPLE__) || defined(__linux__)
+    const auto snap = signals::tui::derive(*a, *b, 8, 0);
+    const auto it = std::find_if(snap.thread_load.begin(), snap.thread_load.end(), [](const auto& t) { return t.name == "signals-test"; });
+    REQUIRE(it != snap.thread_load.end());
+    CHECK(it->pct > 50);
+    CHECK(snap.thread_load.front().pct >= snap.thread_load.back().pct);
+#endif
 }

@@ -1,3 +1,4 @@
+#include "core/thread_name.hpp"
 #include "tui/shell/ticker.hpp"
 
 #include <utility>
@@ -38,6 +39,7 @@ void Ticker::begin_frame() {
 }
 
 void Ticker::loop() {
+    core::set_thread_name("signals-ticker");
     std::unique_lock lock{mutex_};
     while (!stop_) {
         if (wanted_.empty()) {

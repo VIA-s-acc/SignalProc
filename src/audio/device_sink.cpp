@@ -2,6 +2,7 @@
 
 #include <miniaudio.h>
 
+#include "core/thread_name.hpp"
 #include "audio/player.hpp"
 
 namespace signals::audio {
@@ -52,6 +53,8 @@ public:
 private:
     static void callback(ma_device* device, void* out, const void*, ma_uint32 frames) {
         auto* self = static_cast<DeviceSink*>(device->pUserData);
+        thread_local const bool named = (core::set_thread_name("signals-audio"), true);
+        (void)named;
         self->pull_(static_cast<float*>(out), frames);
     }
 

@@ -451,7 +451,8 @@ TEST_CASE("a contents list that does not fit scrolls with the wheel", "[tui][the
 
 TEST_CASE("under the hood in a small terminal shows the contents until a card is open", "[tui][theory]") {
     TheoryFixture f{TheoryScreen::Mode::under_the_hood, 117, 40};
-    REQUIRE(f.screen->hints().front().key == "t");
+    REQUIRE(f.screen->hints().front().key == "↑↓");
+    REQUIRE(f.screen->hints()[1].key == "Enter");
     auto frame = f.h.frame();
     CHECK(frame.find("Блоки") != std::string::npos);
     CHECK(frame.find("слева") == std::string::npos);

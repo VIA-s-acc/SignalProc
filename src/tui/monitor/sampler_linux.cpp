@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -40,6 +41,32 @@ core::Result<ProcessSample> sample_process() {
     const std::string status{std::istreambuf_iterator<char>{status_file}, std::istreambuf_iterator<char>{}};
     s.rss_bytes = status_kib(status, "VmRSS") * 1024;
     s.peak_rss_bytes = status_kib(status, "VmHWM") * 1024;
+    const double tick = static_cast<double>(sysconf(_SC_CLK_TCK));
+    for (const auto& entry : std::filesystem::directory_iterator{"/proc/self/task", std::filesystem::directory_options::skip_permission_denied}) {
+        std::ifstream task_file{entry.path() / "stat"};
+        const std::string task{std::istreambuf_iterator<char>{task_file}, std::istreambuf_iterator<char>{}};
+        const auto open = task.find('('), shut = task.rfind(')');
+        if (open == std::string::npos || shut == std::string::npos || tick <= 0) continue;
+        ThreadTime t;
+        t.id = std::stoull(entry.path().filename().string());
+        t.name = task.substr(open + 1, shut - open - 1);
+        std::istringstream rest{task.substr(shut + 2)};
+        std::string value;
+        std::uint64_t utime = 0, stime = 0;
+        for (int index = 3; rest >> value; ++index) {
+            if (index == 14) utime = std::stoull(value);
+            if (index == 15) {
+                stime = std::stoull(value);
+                break;
+            }
+        }
+        t.cpu_seconds = static_cast<double>(utime + stime) / tick;
+        s.thread_times.push_back(std::move(t));
+    }
+    std::ifstream io_file{"/proc/self/io"};
+    const std::string io{std::istreambuf_iterator<char>{io_file}, std::istreambuf_iterator<char>{}};
+    s.disk_read_bytes = status_kib(io, "read_bytes");
+    s.disk_written_bytes = status_kib(io, "write_bytes");
     std::ifstream cpu_file{"/proc/stat"};
     for (std::string line; std::getline(cpu_file, line);) {
         if (line.rfind("cpu", 0) != 0 || line.size() < 4 || line[3] < '0' || line[3] > '9') continue;

@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <cstdio>
 
 #include <algorithm>
 #include <memory>
@@ -309,4 +310,25 @@ TEST_CASE("m opens the screen menu from the keyboard", "[tui][menu]") {
     CHECK(h.frame().find("Первый пункт") != std::string::npos);
     h.send(ftxui::Event::Return);
     CHECK(s->acted == 1);
+}
+
+TEST_CASE("resources show what signals itself uses and fit a small terminal", "[tui][shell]") {
+    for (auto [w, h] : {std::pair{150, 44}, std::pair{80, 24}}) {
+        INFO(w << "x" << h);
+        ShellRig r{w, h};
+        r.h.frame();
+        r.h.send(ftxui::Event::Character('R'));
+        auto frame = r.h.frame();
+        CHECK(frame.find("Signals сейчас") != std::string::npos);
+        CHECK(frame.find("Esc или R") != std::string::npos);
+        std::string seen = frame;
+        for (int i = 0; i < 10; ++i) {
+            r.h.send(ftxui::Event::ArrowDown);
+            seen += r.h.frame();
+        }
+        CHECK(seen.find("интерфейс") != std::string::npos);
+        CHECK(seen.find("Вся система") != std::string::npos);
+        r.h.send(ftxui::Event::Escape);
+        CHECK(r.h.frame().find("Signals сейчас") == std::string::npos);
+    }
 }
