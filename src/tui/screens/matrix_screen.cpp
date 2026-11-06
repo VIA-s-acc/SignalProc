@@ -68,7 +68,7 @@ void MatrixScreen::publish(theory::LiveValues& v) const {
 }
 
 std::vector<Hint> MatrixScreen::hints() const {
-    return {{"↑↓", tr("tui.matrix.hint.row")},      {"Space", tr("tui.matrix.hint.animate")}, {"c", tr("tui.matrix.hint.numbers")},
+    return {{"Tab", tr("tui.explain.hint.tab")},   {"↑↓", tr("tui.matrix.hint.row")},      {"Space", tr("tui.matrix.hint.animate")}, {"c", tr("tui.matrix.hint.numbers")},
             {"t", "AᵀA"},                           {"b", tr("tui.matrix.hint.edges")},       {"o", tr("tui.matrix.hint.order")},
             {"+/−", "N"},                           {tr("tui.signal.key.click"), tr("tui.matrix.hint.cell")},
             {"z", tr("tui.signal.hint.zoom")},      {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")},
@@ -510,9 +510,12 @@ bool MatrixScreen::OnEvent(ftxui::Event e) {
         apply(k);
         return true;
     }
-    if (e == Event::Tab) {
-        if (breakpoint_ <= Breakpoint::small) layout_.next_panel(panel_count);
-        else focus_ = static_cast<Panel>((focus_ + 1) % panel_count);
+    if (e == Event::Tab || e == Event::TabReverse) {
+        const bool back = e == Event::TabReverse;
+        const std::size_t step = back ? panel_count - 1 : 1;
+        if (maximized_) maximized_ = focus_ = static_cast<Panel>((*maximized_ + step) % panel_count);
+        else if (breakpoint_ <= Breakpoint::small) layout_.next_panel(panel_count, back);
+        else focus_ = static_cast<Panel>((focus_ + step) % panel_count);
         return true;
     }
     return false;

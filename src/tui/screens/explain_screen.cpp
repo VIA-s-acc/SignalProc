@@ -76,10 +76,10 @@ ExplainScreen::ExplainScreen(UiContext& ui, std::function<std::optional<core::Fi
 std::string ExplainScreen::tab_label() const { return tr("tui.sub.explain"); }
 
 std::vector<Hint> ExplainScreen::hints() const {
-    return {{"←→", tr("tui.explain.hint.step")},   {"Space", tr("tui.explain.hint.auto")}, {"w", tr("tui.explain.hint.bank")},
-            {"p", tr("tui.explain.hint.phase")},   {"e", tr("tui.explain.hint.perturb")},  {"f", tr("tui.explain.hint.fractions")},
-            {"Enter", tr("tui.explain.hint.open")}, {"Tab", tr("tui.explain.hint.tab")},    {"z", tr("tui.signal.hint.zoom")},
-            {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")},           {"F1", tr("tui.explain.hint.f1")}};
+    return {{"Tab", tr("tui.explain.hint.tab")},    {"z", tr("tui.signal.hint.zoom")},       {"←→", tr("tui.explain.hint.step")},
+            {"Space", tr("tui.explain.hint.auto")}, {"w", tr("tui.explain.hint.bank")},      {"p", tr("tui.explain.hint.phase")},
+            {"e", tr("tui.explain.hint.perturb")},  {"f", tr("tui.explain.hint.fractions")}, {"Enter", tr("tui.explain.hint.open")},
+            {"F1", tr("tui.explain.hint.f1")},      {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")}};
 }
 
 std::string ExplainScreen::context() const { return tr("tui.explain.context"); }
@@ -542,9 +542,12 @@ bool ExplainScreen::OnEvent(ftxui::Event e) {
         if (!view.empty() && ui_.navigate) ui_.navigate(view, NavArgs{.wavelet = wavelet_name(), .n = 8});
         return true;
     }
-    if (e == Event::Tab) {
-        if (breakpoint_ <= Breakpoint::small && !maximized_) layout_.next_panel(panel_count);
-        else focus_ = static_cast<Panel>((focus_ + 1) % panel_count);
+    if (e == Event::Tab || e == Event::TabReverse) {
+        const bool back = e == Event::TabReverse;
+        const std::size_t step = back ? panel_count - 1 : 1;
+        if (maximized_) maximized_ = focus_ = static_cast<Panel>((*maximized_ + step) % panel_count);
+        else if (breakpoint_ <= Breakpoint::small) layout_.next_panel(panel_count, back);
+        else focus_ = static_cast<Panel>((focus_ + step) % panel_count);
         return true;
     }
     return false;

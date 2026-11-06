@@ -44,3 +44,63 @@ TEST_CASE("every tab renders at both sizes without nan", "[tui][shell][app]") {
         CHECK(active_tab(shell.root) == 8);
     }
 }
+
+TEST_CASE("tab and shift+tab switch the maximized panel on every screen", "[tui][shell][app]") {
+    for (auto [w, h] : {std::pair{150, 44}, std::pair{80, 24}}) {
+        JobRunner jobs{[] {}, 0ms, true};
+        signals::test::ManualSink* raw = nullptr;
+        auto player = signals::test::manual_player(raw);
+        auto ui = signals::test::make_ui(w, h);
+        ui->jobs = &jobs;
+        ui->player = &player;
+        auto models = make_app_models();
+        models.signal->open(signals::test::sample("test.wav"), jobs);
+        Harness shell{make_shell(*ui, make_app_screens(*ui, models), [] {}), w, h};
+        for (char key : {'1', '3', '4', '5', '6', '9'}) {
+            INFO("size " << w << "x" << h << " tab " << key);
+            shell.send(ftxui::Event::Character(key));
+            shell.frame();
+            shell.send(ftxui::Event::Character('z'));
+            const auto first = shell.frame();
+            shell.send(ftxui::Event::Tab);
+            const auto second = shell.frame();
+            CHECK(second != first);
+            shell.send(ftxui::Event::TabReverse);
+            CHECK(shell.frame() == first);
+            shell.send(ftxui::Event::Escape);
+            shell.frame();
+        }
+    }
+}
+
+TEST_CASE("the hint row shows tab and zoom keys and no mouse hints at small sizes", "[tui][shell][app]") {
+    for (auto [w, h] : {std::pair{80, 24}, std::pair{117, 40}}) {
+        JobRunner jobs{[] {}, 0ms, true};
+        signals::test::ManualSink* raw = nullptr;
+        auto player = signals::test::manual_player(raw);
+        auto ui = signals::test::make_ui(w, h);
+        ui->jobs = &jobs;
+        ui->player = &player;
+        auto models = make_app_models();
+        models.signal->open(signals::test::sample("test.wav"), jobs);
+        Harness shell{make_shell(*ui, make_app_screens(*ui, models), [] {}), w, h};
+        for (char key : {'1', '3', '4', '5', '6', '9'}) {
+            INFO("size " << w << "x" << h << " tab " << key);
+            shell.send(ftxui::Event::Character(key));
+            const auto frame = shell.frame();
+            std::vector<std::string> lines;
+            for (std::size_t at = 0, next; at < frame.size(); at = next + 1) {
+                next = frame.find('\n', at);
+                if (next == std::string::npos) next = frame.size();
+                lines.push_back(frame.substr(at, next - at));
+            }
+            REQUIRE(lines.size() >= 2);
+            const auto& hints = lines[lines.size() - 2];
+            CHECK(hints.find(" ? ") != std::string::npos);
+            CHECK(hints.find("колесо") == std::string::npos);
+            CHECK(hints.find("клик") == std::string::npos);
+            if (key == '9') CHECK(hints.find(" [ ] ") != std::string::npos);
+            else CHECK(hints.find(" Tab ") != std::string::npos);
+        }
+    }
+}

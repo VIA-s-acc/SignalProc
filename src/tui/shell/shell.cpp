@@ -84,19 +84,21 @@ public:
         auto hint_width = [](const Hint& hint) {
             return static_cast<int>(split_codepoints(hint.key).size() + split_codepoints(hint.label).size()) + 5;
         };
-        auto visible = globals;
+        std::vector<Hint> visible;
+        for (const auto& g : globals)
+            if (w >= 120 || g.key == "?" || g.key == ":") visible.push_back(g);
         int room = w;
         for (const auto& g : visible) room -= hint_width(g);
-        if (!all.empty() && hint_width(all.front()) > room) {
-            const auto resources = std::find_if(visible.begin(), visible.end(), [](const Hint& h) { return h.key == "R"; });
-            if (resources != visible.end()) {
-                room += hint_width(*resources);
-                visible.erase(resources);
-            }
-        }
+        const auto mouse = [](const Hint& hint) {
+            for (const char* key : {"tui.signal.key.wheel", "tui.signal.key.drag", "tui.signal.key.click", "tui.key.right_click"})
+                if (hint.key.find(tr(key)) != std::string::npos) return true;
+            return false;
+        };
         std::vector<Hint> row;
-        for (const auto& hint : all) {
-            if (hint_width(hint) > room) break;
+        auto candidates = all;
+        candidates.push_back({"'", tr("tui.hint.jump")});
+        for (const auto& hint : candidates) {
+            if (mouse(hint) || hint_width(hint) > room) continue;
             room -= hint_width(hint);
             row.push_back(hint);
         }

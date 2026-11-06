@@ -116,16 +116,14 @@ FiltersScreen::FiltersScreen(UiContext& ui, std::shared_ptr<ComparisonSet> set)
 std::string FiltersScreen::tab_label() const { return tr("tui.tab.filters"); }
 
 std::vector<Hint> FiltersScreen::hints() const {
-    std::vector<Hint> out{{"/", tr("tui.filters.hint.search")},     {"Enter", tr("tui.filters.hint.add")},
-                          {"Space", tr("tui.filters.hint.visible")}, {"r", tr("tui.filters.hint.reference")},
-                          {"Del", tr("tui.filters.hint.remove")},    {tr("tui.signal.key.wheel"), tr("tui.filters.hint.zoom")},
-                          {tr("tui.signal.key.click"), tr("tui.signal.hint.click")},
-                          {"←→", tr("tui.filters.hint.cursor")},     {"l", tr("tui.filters.hint.log")},
-                          {"d", tr("tui.filters.hint.db")},          {"n", tr("tui.filters.hint.normalise")},
-                          {"t", tr("tui.filters.hint.role")},        {"z", tr("tui.signal.hint.zoom")},
-                          {"F1", tr("tui.filters.hint.f1")},          {"Tab", tr("tui.signal.hint.tab")}};
-    if (breakpoint_ <= Breakpoint::small) std::rotate(out.begin(), out.end() - 1, out.end());
-    return out;
+    return {{"Tab", tr("tui.signal.hint.tab")},       {"z", tr("tui.signal.hint.zoom")},
+            {"/", tr("tui.filters.hint.search")},     {"Enter", tr("tui.filters.hint.add")},
+            {"Space", tr("tui.filters.hint.visible")}, {"r", tr("tui.filters.hint.reference")},
+            {"Del", tr("tui.filters.hint.remove")},    {"←→", tr("tui.filters.hint.cursor")},
+            {"l", tr("tui.filters.hint.log")},         {"d", tr("tui.filters.hint.db")},
+            {"n", tr("tui.filters.hint.normalise")},   {"t", tr("tui.filters.hint.role")},
+            {"F1", tr("tui.filters.hint.f1")},         {tr("tui.signal.key.wheel"), tr("tui.filters.hint.zoom")},
+            {tr("tui.signal.key.click"), tr("tui.signal.hint.click")}};
 }
 
 std::string FiltersScreen::context() const { return tr("tui.filters.context"); }
@@ -1048,9 +1046,17 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
         layout_.toggle_maximize(*layout_.maximized());
         return true;
     }
-    if (e == Event::Tab) {
-        if (breakpoint_ <= Breakpoint::small && !layout_.maximized()) layout_.next_panel(panel_count);
-        else focus_ = static_cast<Panel>((focus_ + 1) % panel_count);
+    if (e == Event::Tab || e == Event::TabReverse) {
+        const bool back = e == Event::TabReverse;
+        const std::size_t step = back ? panel_count - 1 : 1;
+        if (layout_.maximized()) {
+            focus_ = static_cast<Panel>((panel_of(*layout_.maximized()) + step) % panel_count);
+            layout_.toggle_maximize(key_of(focus_));
+        } else if (breakpoint_ <= Breakpoint::small) {
+            layout_.next_panel(panel_count, back);
+        } else {
+            focus_ = static_cast<Panel>((focus_ + step) % panel_count);
+        }
         return true;
     }
     return false;

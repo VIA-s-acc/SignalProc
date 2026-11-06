@@ -96,12 +96,12 @@ void DesignerScreen::publish(theory::LiveValues& v) const {
 std::string DesignerScreen::tab_label() const { return tr("tui.sub.designer"); }
 
 std::vector<Hint> DesignerScreen::hints() const {
-    return {{tr("tui.signal.key.click"), tr("tui.designer.hint.click")}, {"←→", tr("tui.designer.hint.zeros")},
-            {"n/N", tr("tui.designer.hint.next")},                        {"+/−", "p"},
-            {"c", tr("tui.designer.hint.cascade")},                       {"x", tr("tui.designer.hint.swap")},
-            {"Enter", tr("tui.designer.hint.save")},                      {"Tab", tr("tui.explain.hint.tab")},
-            {"z", tr("tui.signal.hint.zoom")},                            {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")},
-            {"F1", tr("tui.designer.hint.f1")}};
+    return {{"Tab", tr("tui.explain.hint.tab")},           {"z", tr("tui.signal.hint.zoom")},
+            {"←→", tr("tui.designer.hint.zeros")},        {"n/N", tr("tui.designer.hint.next")},
+            {"+/−", "p"},                                 {"c", tr("tui.designer.hint.cascade")},
+            {"x", tr("tui.designer.hint.swap")},          {"Enter", tr("tui.designer.hint.save")},
+            {"F1", tr("tui.designer.hint.f1")},           {tr("tui.signal.key.click"), tr("tui.designer.hint.click")},
+            {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")}};
 }
 
 std::string DesignerScreen::context() const {
@@ -433,9 +433,12 @@ bool DesignerScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (e == Event::Return) return save(), true;
-    if (e == Event::Tab) {
-        if (breakpoint_ <= Breakpoint::small && !maximized_) layout_.next_panel(panel_count);
-        else focus_ = static_cast<Panel>((focus_ + 1) % panel_count);
+    if (e == Event::Tab || e == Event::TabReverse) {
+        const bool back = e == Event::TabReverse;
+        const std::size_t step = back ? panel_count - 1 : 1;
+        if (maximized_) maximized_ = focus_ = static_cast<Panel>((*maximized_ + step) % panel_count);
+        else if (breakpoint_ <= Breakpoint::small) layout_.next_panel(panel_count, back);
+        else focus_ = static_cast<Panel>((focus_ + step) % panel_count);
         return true;
     }
     return false;

@@ -43,10 +43,11 @@ DecompositionScreen::DecompositionScreen(UiContext& ui, std::shared_ptr<Decompos
 std::string DecompositionScreen::tab_label() const { return tr("tui.tab.decomposition"); }
 
 std::vector<Hint> DecompositionScreen::hints() const {
-    return {{"↑↓", tr("tui.decomposition.hint.band")},      {"Enter", tr("tui.decomposition.hint.toggle")}, {"Space", tr("tui.decomposition.hint.listen")},
-            {"a/b/x", tr("tui.decomposition.hint.ab")},     {tr("tui.signal.key.wheel"), tr("tui.decomposition.hint.zoom")},
-            {"v", tr("tui.decomposition.hint.view")},       {"u", tr("tui.decomposition.hint.undo")},       {"Tab", tr("tui.explain.hint.tab")},
-            {"z", tr("tui.signal.hint.zoom")},                  {"F1", tr("tui.decomposition.hint.f1")}};
+    return {{"Tab", tr("tui.explain.hint.tab")},          {"z", tr("tui.signal.hint.zoom")},
+            {"↑↓", tr("tui.decomposition.hint.band")},    {"Enter", tr("tui.decomposition.hint.toggle")},
+            {"Space", tr("tui.decomposition.hint.listen")}, {"a/b/x", tr("tui.decomposition.hint.ab")},
+            {"v", tr("tui.decomposition.hint.view")},     {"u", tr("tui.decomposition.hint.undo")},
+            {"F1", tr("tui.decomposition.hint.f1")},      {tr("tui.signal.key.wheel"), tr("tui.decomposition.hint.zoom")}};
 }
 
 std::optional<TheoryLink> DecompositionScreen::theory_link() const {
@@ -687,9 +688,12 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
     if (e == Event::Character('b')) return play(ClipKind::enabled), true;
     if (e == Event::Character('x')) return play(ClipKind::difference), true;
     if (e == Event::Character('d')) return play(ClipKind::band), true;
-    if (e == Event::Tab) {
-        if (breakpoint_ <= Breakpoint::small && !maximized_) layout_.next_panel(panel_count);
-        else focus_ = static_cast<Panel>((focus_ + 1) % panel_count);
+    if (e == Event::Tab || e == Event::TabReverse) {
+        const bool back = e == Event::TabReverse;
+        const std::size_t step = back ? panel_count - 1 : 1;
+        if (maximized_) maximized_ = focus_ = static_cast<Panel>((*maximized_ + step) % panel_count);
+        else if (breakpoint_ <= Breakpoint::small) layout_.next_panel(panel_count, back);
+        else focus_ = static_cast<Panel>((focus_ + step) % panel_count);
         return true;
     }
     return false;

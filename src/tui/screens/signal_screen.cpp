@@ -69,21 +69,19 @@ SignalScreen::SignalScreen(UiContext& ui, std::shared_ptr<SignalModel> model)
 std::string SignalScreen::tab_label() const { return tr("tui.tab.signal"); }
 
 std::vector<Hint> SignalScreen::hints() const {
-    std::vector<Hint> out{{"o", tr("tui.signal.hint.open")},
-                          {"Space", tr("tui.signal.hint.play")},
-                          {tr("tui.signal.key.wheel"), tr("tui.signal.hint.wheel")},
-                          {"s", tr("tui.signal.hint.drag_mode")},
-                          {tr("tui.signal.key.click"), tr("tui.signal.hint.click")},
-                          {tr("tui.signal.key.drag"), tr("tui.signal.hint.drag")},
-                          {"z", tr("tui.signal.hint.zoom")},
-                          {"F1", tr("tui.signal.hint.f1")},
-                          {"Tab", tr("tui.signal.hint.tab")},
-                          {"←→", tr("tui.signal.hint.arrows")},
-                          {"b", tr("tui.signal.hint.cursor_b")},
-                          {"Esc", tr("tui.signal.hint.cancel")},
-                          {tr("tui.signal.key.ctrl_drag"), tr("tui.signal.hint.select")}};
-    if (breakpoint_ <= Breakpoint::small) std::rotate(out.begin(), out.begin() + 7, out.begin() + 8);
-    return out;
+    return {{"Tab", tr("tui.signal.hint.tab")},
+            {"z", tr("tui.signal.hint.zoom")},
+            {"o", tr("tui.signal.hint.open")},
+            {"Space", tr("tui.signal.hint.play")},
+            {"←→", tr("tui.signal.hint.arrows")},
+            {"b", tr("tui.signal.hint.cursor_b")},
+            {"s", tr("tui.signal.hint.drag_mode")},
+            {"Esc", tr("tui.signal.hint.cancel")},
+            {"F1", tr("tui.signal.hint.f1")},
+            {tr("tui.signal.key.wheel"), tr("tui.signal.hint.wheel")},
+            {tr("tui.signal.key.click"), tr("tui.signal.hint.click")},
+            {tr("tui.signal.key.drag"), tr("tui.signal.hint.drag")},
+            {tr("tui.signal.key.ctrl_drag"), tr("tui.signal.hint.select")}};
 }
 
 std::optional<TheoryLink> SignalScreen::theory_link() const { return TheoryLink{TheoryLink::Kind::card, "wav_in"}; }
@@ -647,9 +645,17 @@ bool SignalScreen::OnEvent(ftxui::Event e) {
         drag_mode_ = drag_mode_ == DragMode::pan ? DragMode::select : DragMode::pan;
         return true;
     }
-    if (e == Event::Tab) {
-        if (breakpoint_ <= Breakpoint::small && !layout_.maximized()) layout_.next_panel(panel_count);
-        else focus_ = static_cast<Panel>((focus_ + 1) % panel_count);
+    if (e == Event::Tab || e == Event::TabReverse) {
+        const bool back = e == Event::TabReverse;
+        const std::size_t step = back ? panel_count - 1 : 1;
+        if (layout_.maximized()) {
+            focus_ = static_cast<Panel>((panel_of(*layout_.maximized()) + step) % panel_count);
+            layout_.toggle_maximize(key_of(focus_));
+        } else if (breakpoint_ <= Breakpoint::small) {
+            layout_.next_panel(panel_count, back);
+        } else {
+            focus_ = static_cast<Panel>((focus_ + step) % panel_count);
+        }
         return true;
     }
     const auto d = model_->data();

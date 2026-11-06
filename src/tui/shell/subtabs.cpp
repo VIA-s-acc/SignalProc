@@ -21,7 +21,7 @@ public:
 
     std::vector<Hint> hints() const override {
         auto out = child().hints();
-        out.push_back({"[ ]", tr("tui.subtabs.hint")});
+        out.insert(out.begin(), {"[ ]", tr("tui.subtabs.hint")});
         return out;
     }
 
