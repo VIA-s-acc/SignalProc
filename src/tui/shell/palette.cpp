@@ -52,8 +52,11 @@ void pop_codepoint(std::string& s) {
 std::vector<const Command*> filter_commands(const std::vector<Command>& all, std::string_view query) {
     const auto q = lower_codepoints(query);
     std::vector<std::pair<std::size_t, const Command*>> ranked;
-    for (const auto& c : all)
-        if (auto pos = first_match(lower_codepoints(c.title), q)) ranked.emplace_back(*pos, &c);
+    for (const auto& c : all) {
+        auto pos = first_match(lower_codepoints(c.title), q);
+        if (!pos) pos = first_match(lower_codepoints(c.id), q);
+        if (pos) ranked.emplace_back(*pos, &c);
+    }
     std::stable_sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
     std::vector<const Command*> out;
     for (const auto& [pos, c] : ranked) out.push_back(c);

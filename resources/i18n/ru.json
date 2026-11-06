@@ -548,7 +548,7 @@
   "tui.decomposition.summary": "Итог",
   "tui.decomposition.computing": "раскладываю сигнал…",
   "tui.decomposition.cancelled": "разложение прервано — r пересчитать",
-  "tui.decomposition.empty": "Откройте WAV: o или :open на вкладке «Сигнал»",
+  "tui.decomposition.empty": "нет сигнала · o — открыть WAV, : — команды",
   "tui.decomposition.title.subbands": "Подполосы · ☑ = входит в синтез · клик по галочке",
   "tui.decomposition.title.mra": "MRA · x = d₁ + … + {a}",
   "tui.decomposition.title.tiles": "Плитки t–f · |c|, дБ",

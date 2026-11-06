@@ -145,3 +145,17 @@ TEST_CASE("designer snapshots", "[tui][designer][snapshot]") {
         signals::test::check_snapshot("designer_" + std::to_string(w) + "x" + std::to_string(h), shell.frame());
     }
 }
+
+TEST_CASE("the selected preset keeps both brackets at every size", "[tui][designer]") {
+    const std::pair<Preset, std::string> all[]{{Preset::daubechies, "Добеши"}, {Preset::max_phase, "макс. фаза"}, {Preset::cdf, "CDF"},
+                                               {Preset::degenerate, "вырожд."}};
+    for (const auto& [w, hgt] : {std::pair{150, 44}, std::pair{120, 40}, std::pair{180, 50}}) {
+        DesignerFixture f{w, hgt};
+        for (const auto& [preset, label] : all) {
+            f.model->preset(preset, f.jobs);
+            const auto frame = f.h.frame();
+            INFO(w << "x" << hgt << " " << label);
+            CHECK(frame.find("[" + label + "]") != std::string::npos);
+        }
+    }
+}

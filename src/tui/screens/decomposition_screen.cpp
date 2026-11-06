@@ -569,6 +569,7 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (e == Event::Character('r') && !model_->job()) return model_->recompute(jobs), true;
+    if (e == Event::Character('o') && ui_.ask_open) return ui_.ask_open(), true;
     if (!d) return false;
     if (e == Event::ArrowDown) return selected_ = std::min(selected_ + 1, d->bands.size() - 1), true;
     if (e == Event::ArrowUp) return selected_ = selected_ > 0 ? selected_ - 1 : 0, true;

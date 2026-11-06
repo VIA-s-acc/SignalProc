@@ -147,11 +147,6 @@ TEST_CASE("wheel zooms time and a click sets the cursor", "[tui][decomposition]"
     CHECK(*f.screen->cursor() < e1);
 }
 
-TEST_CASE("no file shows how to open one", "[tui][decomposition]") {
-    DecompositionFixture f{false};
-    CHECK(f.h.frame().find("Откройте WAV") != std::string::npos);
-}
-
 TEST_CASE("decomposition snapshots", "[tui][decomposition][snapshot]") {
     for (auto [w, h] : {std::pair{150, 44}, std::pair{80, 24}}) {
         DecompositionFixture f{true, w, h};
@@ -185,4 +180,13 @@ TEST_CASE("escape cancels a running decomposition", "[tui][decomposition]") {
     std::this_thread::sleep_for(50ms);
     CHECK_FALSE(model->data());
     CHECK(h.frame().find("прервано") != std::string::npos);
+}
+
+TEST_CASE("o on an empty decomposition asks for a file", "[tui][decomposition]") {
+    DecompositionFixture f{false};
+    int asked = 0;
+    f.ui->ask_open = [&] { ++asked; };
+    CHECK(f.h.frame().find("o — открыть WAV, : — команды") != std::string::npos);
+    CHECK(f.h.send(ftxui::Event::Character('o')));
+    CHECK(asked == 1);
 }

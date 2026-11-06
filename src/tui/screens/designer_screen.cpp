@@ -19,7 +19,7 @@
 namespace signals::tui {
 namespace {
 
-constexpr int kLeftWide = 47, kLeftNarrow = 40;
+constexpr int kLeft = 47;
 
 std::string signed_text(double v) { return (v < 0 ? "−" : "+") + format_fixed(std::abs(v), 4); }
 
@@ -159,7 +159,6 @@ ftxui::Element DesignerScreen::splits_panel(const DesignerData* d) {
         const auto label = tr(std::string{"tui.designer.preset."} + key);
         presets.push_back(clickable(std::string{"preset_"} + key, text(on ? "[" + label + "]" : " " + label + " ") | fg(on ? th.accent : th.fg, ui_),
                                     [this, preset, &jobs] { model_->preset(preset, jobs); }));
-        presets.push_back(text(" "));
     }
     rows.push_back(hbox(std::move(presets)));
     const auto c = model_->constraints();
@@ -303,7 +302,7 @@ ftxui::Element DesignerScreen::OnRender() {
         case panel_count: break;
         }
     }
-    const int left = cols >= 150 ? kLeftWide : kLeftNarrow;
+    const int left = kLeft;
     const int roots_rows = height / 2 - 1;
     auto left_column = vbox({roots_panel(d.get(), r.get()) | size(HEIGHT, EQUAL, roots_rows), text(""), splits_panel(d.get()) | flex});
     const int result_rows = notice_.empty() ? 7 : 8;

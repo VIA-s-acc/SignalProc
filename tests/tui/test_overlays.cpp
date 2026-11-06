@@ -30,6 +30,14 @@ struct Rig {
 
 }  // namespace
 
+TEST_CASE("palette also finds commands by their English id", "[tui][palette]") {
+    std::vector<Command> all{{"file.open", "Открыть WAV…", {}}, {"quit", "Выход", {}}};
+    const auto f = filter_commands(all, "open");
+    REQUIRE(f.size() == 1);
+    CHECK(f.front()->id == "file.open");
+    CHECK(filter_commands(all, "откр").front()->id == "file.open");
+}
+
 TEST_CASE("palette filters by subsequence", "[tui][palette]") {
     std::vector<Command> all{{"theme.light", "Тема: светлая", {}}, {"theme.dark", "Тема: тёмная", {}}, {"quit", "Выход", {}}};
     auto f = filter_commands(all, "тем");
