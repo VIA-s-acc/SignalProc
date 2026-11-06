@@ -478,5 +478,10 @@
   "tui.designer.saved": "сохранено: {path}",
   "tui.designer.cmd_prefix": "Конструктор: ",
   "tui.designer.menu.to_f0": "Перенести в F₀",
-  "tui.designer.menu.to_h0": "Перенести в H₀"
+  "tui.designer.menu.to_h0": "Перенести в H₀",
+  "tui.decomposition.job": "Разложение {name} · {wavelet}",
+  "tui.decomposition.job_recon": "Синтез полос",
+  "tui.decomposition.stage.tiles": "энергия и плитки",
+  "tui.decomposition.stage.recon": "реконструкция",
+  "tui.decomposition.mra_skipped": "MRA пропущено: нужно {need}, больше половины памяти"
 }
