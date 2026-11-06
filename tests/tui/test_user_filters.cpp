@@ -97,3 +97,14 @@ TEST_CASE("saving the same name twice keeps both banks reachable", "[tui][user_f
     REQUIRE(lib.banks.size() == 2);
     CHECK(lib.banks[0].name != lib.banks[1].name);
 }
+
+TEST_CASE("names and notes with quotes and line breaks round-trip", "[tui][user_filters]") {
+    const auto dir = fresh_dir("signals-user-filters-escapes");
+    UserBank b{"a \"b\"", core::wavelet("haar")->h0, core::wavelet("haar")->f0, "p = 1\nвторая строка \\ конец"};
+    REQUIRE(save_user_bank(dir, b));
+    const auto lib = load_user_banks(dir);
+    CHECK(lib.errors.empty());
+    REQUIRE(lib.banks.size() == 1);
+    CHECK(lib.banks[0].name == "a \"b\"");
+    CHECK(lib.banks[0].note == "p = 1\nвторая строка \\ конец");
+}

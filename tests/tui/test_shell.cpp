@@ -255,7 +255,7 @@ TEST_CASE("a lost audio device is reported once", "[tui][shell][audio]") {
     r.ui->player = &player;
     r.ui->warn = [&](std::string line) { warnings.push_back(std::move(line)); };
     const std::vector<float> samples(1000, 0.25f);
-    REQUIRE(player.play({.channels = {samples}, .rate = 8000, .tag = "signal"}, 0));
+    REQUIRE(player.play({.channels = {samples}, .rate = 8000, .owner = nullptr, .tag = "signal"}, 0));
     raw->lose("device unplugged");
     r.h.frame();
     r.h.frame();

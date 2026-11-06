@@ -25,7 +25,7 @@ std::string file_stem(const std::string& name) {
     return out.empty() ? std::string{"bank"} : out;
 }
 
-std::string quoted(const std::string& s) {
+std::string toml_string(const std::string& s) {
     std::string out = "\"";
     for (char c : s) {
         if (c == '"' || c == '\\') out += '\\';
@@ -85,13 +85,13 @@ core::Result<std::filesystem::path> save_user_bank(const std::filesystem::path& 
     }
     std::ofstream out{path, std::ios::binary};
     if (!out) return core::make_error(core::Errc::io_error, "cannot write " + path.string());
-    out << "name = " << quoted(bank.name) << "\n"
+    out << "name = " << toml_string(bank.name) << "\n"
         << "kind = \"bank\"\n"
         << "h0_offset = " << bank.h0.offset << "\n"
         << "h0 = " << array(bank.h0.coeffs) << "\n"
         << "f0_offset = " << bank.f0.offset << "\n"
         << "f0 = " << array(bank.f0.coeffs) << "\n"
-        << "note = " << quoted(bank.note) << "\n";
+        << "note = " << toml_string(bank.note) << "\n";
     if (!out) return core::make_error(core::Errc::io_error, "cannot write " + path.string());
     return path;
 }
