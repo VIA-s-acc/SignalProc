@@ -42,8 +42,10 @@ public:
     };
 
     std::size_t row() const { return row_; }
+    std::size_t column() const { return col_; }
     Block block() const { return block_; }
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::optional<std::pair<int, int>> menu_anchor() const override;
     bool numbers() const { return numbers_; }
     ftxui::Box area(std::string_view id) const;
 
@@ -57,11 +59,12 @@ private:
 
     ftxui::Element frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title);
     ftxui::Element clickable(std::string id, ftxui::Element e, std::function<void()> action);
+    void show_cell();
     ftxui::Element controls_panel();
     ftxui::Element checks_panel(const MatrixData* d);
     ftxui::Element main_panel(const MatrixData* d, int width, int height);
     ftxui::Element row_info(const MatrixData& d);
-    ftxui::Element origin_panel(const MatrixData* d);
+    ftxui::Element origin_panel(const MatrixData* d, int width);
     void apply(MatrixOptions o);
     void update_block(std::size_t rows, std::size_t cols);
     std::pair<double, double> fractions_at(int x, int y) const;
@@ -76,7 +79,7 @@ private:
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::deque<Clickable> clickables_;
     ftxui::Box matrix_box_{};
-    std::size_t row_ = 5;
+    std::size_t row_ = 5, col_ = 0;
     bool numbers_ = false;
     bool animate_ = false;
     std::chrono::steady_clock::time_point last_step_{};

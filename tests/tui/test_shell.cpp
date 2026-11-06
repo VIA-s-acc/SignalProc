@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <cstdio>
 
 #include <algorithm>
 #include <memory>
@@ -12,7 +13,10 @@
 #include "tui/harness.hpp"
 #include "tui/shell/layout.hpp"
 #include "tui/shell/overlays.hpp"
+#include "core/version.hpp"
+#include "tui/shell/panel.hpp"
 #include "tui/shell/shell.hpp"
+#include "tui/widgets/text_util.hpp"
 #include "tui/ui_fixture.hpp"
 
 using namespace signals::tui;
@@ -262,4 +266,95 @@ TEST_CASE("a lost audio device is reported once", "[tui][shell][audio]") {
     REQUIRE(warnings.size() == 1);
     CHECK(warnings[0].find("device unplugged") != std::string::npos);
     CHECK(player.state() == signals::audio::PlayState::stopped);
+}
+
+namespace {
+
+struct ManyHintsScreen final : TabScreen {
+    std::string tab_label() const override { return "H"; }
+    std::vector<Hint> hints() const override {
+        std::vector<Hint> out;
+        for (int i = 0; i < 40; ++i) out.push_back({"k" + std::to_string(i), "hint number " + std::to_string(i)});
+        return out;
+    }
+    void set_breakpoint(Breakpoint) override {}
+    ftxui::Element OnRender() override { return ftxui::text("hints screen"); }
+};
+
+}  // namespace
+
+TEST_CASE("help is split into this screen and everywhere, fits the terminal and scrolls", "[tui][shell]") {
+    auto ui = signals::test::make_ui(80, 24);
+    Harness h{make_shell(*ui, {std::make_shared<ManyHintsScreen>()}, [] {}), 80, 24};
+    h.frame();
+    h.send(ftxui::Event::Character('?'));
+    auto frame = h.frame();
+    CHECK(frame.find("Этот экран") != std::string::npos);
+    CHECK(frame.find("hint number 0") != std::string::npos);
+    CHECK(frame.find("hint number 39") == std::string::npos);
+    CHECK(frame.find("Esc — закрыть") != std::string::npos);
+    CHECK(frame.find(" из ") != std::string::npos);
+    h.send(ftxui::Event::End);
+    frame = h.frame();
+    CHECK(frame.find("hint number 0") == std::string::npos);
+    CHECK(frame.find("Везде") != std::string::npos);
+    CHECK(frame.find("выход") != std::string::npos);
+    CHECK(frame.find("правый клик") != std::string::npos);
+    h.send(ftxui::Event::Home);
+    CHECK(h.frame().find("hint number 0") != std::string::npos);
+}
+
+TEST_CASE("m opens the screen menu from the keyboard", "[tui][menu]") {
+    auto ui = signals::test::make_ui(150, 44);
+    auto s = std::make_shared<MenuScreen>();
+    Harness h{make_shell(*ui, {s}, [] {}), 150, 44};
+    h.frame();
+    CHECK(h.send(ftxui::Event::Character('m')));
+    CHECK(h.frame().find("Первый пункт") != std::string::npos);
+    h.send(ftxui::Event::Return);
+    CHECK(s->acted == 1);
+}
+
+TEST_CASE("resources show what signals itself uses and fit a small terminal", "[tui][shell]") {
+    for (auto [w, h] : {std::pair{150, 44}, std::pair{80, 24}}) {
+        INFO(w << "x" << h);
+        ShellRig r{w, h};
+        r.h.frame();
+        r.h.send(ftxui::Event::Character('R'));
+        auto frame = r.h.frame();
+        CHECK(frame.find("Signals сейчас") != std::string::npos);
+        CHECK(frame.find("Esc или R") != std::string::npos);
+        std::string seen = frame;
+        for (int i = 0; i < 10; ++i) {
+            r.h.send(ftxui::Event::ArrowDown);
+            seen += r.h.frame();
+        }
+        CHECK(seen.find("интерфейс") != std::string::npos);
+        CHECK(seen.find("Вся система") != std::string::npos);
+        r.h.send(ftxui::Event::Escape);
+        CHECK(r.h.frame().find("Signals сейчас") == std::string::npos);
+    }
+}
+
+TEST_CASE("panel chips that do not fit are dropped one by one and the last one stays", "[tui][shell]") {
+    auto ui = signals::test::make_ui(80, 24);
+    auto element = panel("Осциллограмма", {{"перетаскивание: сдвиг", false}, {"выделение", true}, {"Tab 1/6", false}}, ftxui::text("x"), true, *ui);
+    auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(36), ftxui::Dimension::Fixed(3));
+    ftxui::Render(screen, element);
+    const auto top = screen.ToString().substr(0, screen.ToString().find('\n'));
+    CHECK(top.find("Tab 1/6") != std::string::npos);
+    CHECK(top.find("перетаскивание") == std::string::npos);
+}
+
+TEST_CASE("the tab bar shows the version and the question mark opens help", "[tui][shell]") {
+    ShellRig r{150, 44};
+    auto frame = r.h.frame();
+    CHECK(frame.substr(0, frame.find('\n')).find(std::string{signals::core::version()}) != std::string::npos);
+    const auto cells = signals::tui::split_codepoints(frame.substr(0, frame.find('\n')));
+    int column = -1;
+    for (std::size_t i = 0; i < cells.size(); ++i)
+        if (cells[i] == "?") column = static_cast<int>(i);
+    REQUIRE(column > 0);
+    r.h.click(column, 0);
+    CHECK(r.h.frame().find("фильтр:") != std::string::npos);
 }

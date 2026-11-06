@@ -106,7 +106,8 @@ public:
     virtual std::vector<JumpTarget> jump_targets() const { return {}; }
     virtual void open_with(const NavArgs&) {}
     virtual std::vector<Command> commands() { return {}; }
-    virtual ftxui::Element context_element(const UiContext& ui);
+    virtual ftxui::Element context_element(const UiContext& ui, int width);
+    virtual std::optional<std::pair<int, int>> menu_anchor() const { return std::nullopt; }
     virtual void select_child(std::size_t) {}
     virtual std::optional<TheoryLink> theory_link() const { return {}; }
     virtual void publish(theory::LiveValues&) const {}

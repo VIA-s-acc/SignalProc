@@ -20,12 +20,27 @@ core::Result<ProcessSample> sample_process() {
     if (proc_pid_rusage(getpid(), RUSAGE_INFO_V4, reinterpret_cast<rusage_info_t*>(&usage)) != 0)
         return core::make_error(core::Errc::io_error, "proc_pid_rusage failed");
     s.rss_bytes = usage.ri_phys_footprint;
+    s.disk_read_bytes = usage.ri_diskio_bytesread;
+    s.disk_written_bytes = usage.ri_diskio_byteswritten;
     s.peak_rss_bytes = std::max(usage.ri_lifetime_max_phys_footprint, usage.ri_phys_footprint);
     thread_act_array_t threads = nullptr;
     mach_msg_type_number_t thread_count = 0;
     if (task_threads(mach_task_self(), &threads, &thread_count) == KERN_SUCCESS) {
         s.threads = thread_count;
-        for (mach_msg_type_number_t i = 0; i < thread_count; ++i) mach_port_deallocate(mach_task_self(), threads[i]);
+        for (mach_msg_type_number_t i = 0; i < thread_count; ++i) {
+            ThreadTime t;
+            thread_identifier_info_data_t ident{};
+            mach_msg_type_number_t count = THREAD_IDENTIFIER_INFO_COUNT;
+            if (thread_info(threads[i], THREAD_IDENTIFIER_INFO, reinterpret_cast<thread_info_t>(&ident), &count) == KERN_SUCCESS) t.id = ident.thread_id;
+            thread_extended_info_data_t ext{};
+            count = THREAD_EXTENDED_INFO_COUNT;
+            if (thread_info(threads[i], THREAD_EXTENDED_INFO, reinterpret_cast<thread_info_t>(&ext), &count) == KERN_SUCCESS) {
+                t.name = ext.pth_name;
+                t.cpu_seconds = static_cast<double>(ext.pth_user_time + ext.pth_system_time) * 1e-9;
+            }
+            s.thread_times.push_back(std::move(t));
+            mach_port_deallocate(mach_task_self(), threads[i]);
+        }
         vm_deallocate(mach_task_self(), reinterpret_cast<vm_address_t>(threads), thread_count * sizeof(thread_t));
     }
     natural_t cpus = 0;

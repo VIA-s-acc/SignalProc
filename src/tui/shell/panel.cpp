@@ -58,11 +58,29 @@ public:
             ++x;
         }
         if (title_box_) *title_box_ = {x0 + 2, x - 1, y0, y0};
-        int width = 0;
-        for (const auto& c : chips_) width += static_cast<int>(split_codepoints(c.on ? "[" + c.label + "]" : c.label).size()) + 1;
-        int cx = x1 - 1 - width;
-        if (chips_.empty() || cx <= x + 1) return;
+        const auto chip_width = [](const Chip& c) { return static_cast<int>(split_codepoints(c.on ? "[" + c.label + "]" : c.label).size()) + 1; };
+        std::vector<const Chip*> shown;
         for (const auto& c : chips_) {
+            if (c.box) *c.box = ftxui::Box{1, 0, 1, 0};
+            shown.push_back(&c);
+        }
+        const auto total = [&] {
+            int w = 0;
+            for (const auto* c : shown) w += chip_width(*c);
+            return w;
+        };
+        while (!shown.empty() && x1 - 1 - total() <= x + 1) {
+            auto victim = shown.end();
+            for (auto it = shown.begin(); it + 1 < shown.end() && victim == shown.end(); ++it)
+                if (!(*it)->on) victim = it;
+            for (auto it = shown.begin(); it + 1 < shown.end() && victim == shown.end(); ++it) victim = it;
+            if (victim == shown.end()) victim = shown.begin();
+            shown.erase(victim);
+        }
+        if (shown.empty()) return;
+        int cx = x1 - 1 - total();
+        for (const auto* chip : shown) {
+            const auto& c = *chip;
             put(screen, cx++, y0, " ", border);
             const int start = cx;
             for (const auto& ch : split_codepoints(c.on ? "[" + c.label + "]" : c.label)) put(screen, cx++, y0, ch, c.on ? theme_.accent : theme_.dim, c.on);

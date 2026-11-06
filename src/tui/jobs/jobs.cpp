@@ -1,3 +1,4 @@
+#include "core/thread_name.hpp"
 #include "tui/jobs/jobs.hpp"
 
 #include <algorithm>
@@ -154,6 +155,7 @@ std::size_t JobRunner::queued() const {
 }
 
 void JobRunner::loop() {
+    core::set_thread_name("signals-jobs");
     for (;;) {
         std::shared_ptr<detail::Job> job;
         {

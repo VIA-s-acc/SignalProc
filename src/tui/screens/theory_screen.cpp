@@ -93,20 +93,28 @@ TheoryScreen::TheoryScreen(UiContext& ui, std::shared_ptr<TheoryNavigator> nav, 
 std::string TheoryScreen::tab_label() const { return tr(mode_ == Mode::tutorial ? "tui.sub.tutorial" : "tui.sub.under_the_hood"); }
 
 std::vector<Hint> TheoryScreen::hints() const {
-    std::vector<Hint> out{{"/", tr("tui.theory.hint.search")},  {"Tab", tr("tui.theory.hint.links")},  {"Enter", tr("tui.theory.hint.follow")},
-                          {"b/f", tr("tui.theory.hint.history")}, {"↑↓", tr("tui.theory.hint.scroll")}, {"←→", tr("tui.theory.hint.formulas")},
-                          {"g", tr("tui.theory.hint.glyphs")}};
+    if (contents_keys()) {
+        std::vector<Hint> out{{"↑↓", tr("tui.theory.hint.cursor")},          {"Enter", tr("tui.theory.hint.open")},
+                              {"PgUp/PgDn", tr("tui.hint.page")},            {"Home/End", tr("tui.hint.ends")},
+                              {"Esc  t", tr("tui.theory.hint.to_text")},     {"/", tr("tui.theory.hint.search")},
+                              {tr("tui.signal.key.wheel"), tr("tui.hint.wheel_list")},
+                              {tr("tui.signal.key.click"), tr("tui.theory.hint.open")}};
+        if (breakpoint_ > Breakpoint::small) out.insert(out.begin() + 5, {"z", tr("tui.signal.hint.zoom")});
+        return out;
+    }
+    std::vector<Hint> out{{"/", tr("tui.theory.hint.search")},          {"Tab", tr("tui.theory.hint.links")},
+                          {"Enter", tr("tui.theory.hint.follow")},      {"b/f  Backspace", tr("tui.theory.hint.history")},
+                          {"↑↓", tr("tui.theory.hint.scroll")},         {"PgUp/PgDn", tr("tui.hint.page")},
+                          {"Home/End", tr("tui.hint.ends")},            {"←→", tr("tui.theory.hint.formulas")},
+                          {"g", tr("tui.theory.hint.glyphs")},          {tr("tui.signal.key.wheel"), tr("tui.theory.hint.scroll")},
+                          {tr("tui.signal.key.click"), tr("tui.theory.hint.click")}};
     if (mode_ == Mode::under_the_hood) {
         out.push_back({"n", tr("tui.theory.hint.numbers")});
         out.push_back({"o", tr("tui.theory.hint.source")});
         out.push_back({"Esc", tr("tui.theory.hint.back")});
     }
-    std::vector<Hint> first;
-    if (breakpoint_ <= Breakpoint::small) first.push_back({"t", tr("tui.theory.hint.contents")});
-    else {
-        out.push_back({"t", tr("tui.theory.hint.contents")});
-        out.push_back({"z", tr("tui.signal.hint.zoom")});
-    }
+    std::vector<Hint> first{{"t", tr("tui.theory.hint.contents")}};
+    if (breakpoint_ > Breakpoint::small) first.push_back({"z", tr("tui.signal.hint.zoom")});
     if (mode_ == Mode::tutorial && card_for_section(theory::sections()[current_section()].id)) first.push_back({"i", tr("tui.theory.hint.card")});
     out.insert(out.begin(), first.begin(), first.end());
     return out;
@@ -304,9 +312,9 @@ ftxui::Element TheoryScreen::blocks_list(const theory::Card* current, int width,
     for (std::size_t i = first; i < first + shown; ++i) {
         const bool on = all[i] == current;
         auto label = clip(all[i]->title, width - 2, ascii);
-        auto row = text(label);
-        row = on ? row | bold | fg(th.bg, ui_) | bg(th.accent, ui_) : row | fg(th.accent, ui_);
-        if (cursor && *cursor == i) row = row | inverted;
+        auto row = hbox({text(label), filler()});
+        if (cursor && *cursor == i) row = row | fg(th.bg, ui_) | bg(th.fg, ui_);
+        else row = on ? row | bold | fg(th.bg, ui_) | bg(th.accent, ui_) : row | fg(th.accent, ui_);
         block_boxes_.emplace_back(ftxui::Box{}, all[i]->id);
         out.push_back(row | reflect(block_boxes_.back().first));
     }
@@ -426,12 +434,14 @@ ftxui::Element TheoryScreen::contents_panel(std::size_t current, int width, int 
         const bool on = query_.empty() ? entries[i].section == current : i == selected;
         const std::string arrow = on && query_.empty() ? (ascii ? " <" : " ◀") : "";
         const bool own = card_for_section(s.id) != nullptr, below = !own && cards_below()[entries[i].section];
-        const std::string info = own || below ? (ascii ? " [i]" : " ⓘ") : "";
+        const std::string info = own || below ? (ascii ? " [i]" : " ◈") : "";
         auto label = std::string(static_cast<std::size_t>(2 * entries[i].depth), ' ') + entry_label(s);
         label = clip(label, inner - static_cast<int>(theory::display_width(info + arrow)), ascii);
-        auto row = hbox({text(label) | (on ? nothing : fg(th.fg, ui_)), text(info) | (on ? nothing : fg(below ? th.dim : th.fg, ui_)), text(arrow)});
-        if (on) row = row | bold | fg(th.bg, ui_) | bg(th.accent, ui_);
-        if (cursor && *cursor == i) row = row | inverted;
+        const bool at_cursor = cursor && *cursor == i, plain = on || at_cursor;
+        auto row = hbox({text(label) | (plain ? nothing : fg(th.fg, ui_)), text(info) | (plain ? nothing : fg(below ? th.dim : th.fg, ui_)), text(arrow),
+                         filler()});
+        if (at_cursor) row = row | fg(th.bg, ui_) | bg(th.fg, ui_);
+        else if (on) row = row | bold | fg(th.bg, ui_) | bg(th.accent, ui_);
         toc_boxes_.emplace_back(ftxui::Box{}, entries[i].section);
         list.push_back(row | reflect(toc_boxes_.back().first));
     }
@@ -471,7 +481,7 @@ ftxui::Element TheoryScreen::text_panel(std::size_t current, int width, int heig
         std::size_t more = 0;
         for (const auto& b : theory::block_catalog())
             if (b.section == s.id && b.id != card->id && theory::find_card(b.id)) ++more;
-        const auto label = fmt::format(fmt::runtime(tr(more ? "tui.theory.card_link_more" : "tui.theory.card_link")), fmt::arg("mark", ascii ? "[i]" : "ⓘ"),
+        const auto label = fmt::format(fmt::runtime(tr(more ? "tui.theory.card_link_more" : "tui.theory.card_link")), fmt::arg("mark", ascii ? "[i]" : "◈"),
                                        fmt::arg("title", card->title), fmt::arg("more", more));
         body = vbox({text(clip(label, inner, ascii)) | fg(ui_.theme.accent, ui_) | reflect(card_link_box_), body});
     }

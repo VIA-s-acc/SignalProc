@@ -31,9 +31,9 @@ void PanelLayout::toggle_maximize(const std::string& panel) {
     else maximized_ = panel;
 }
 
-void PanelLayout::next_panel(std::size_t count) {
+void PanelLayout::next_panel(std::size_t count, bool back) {
     if (count == 0) return;
-    small_index_ = (small_index_ + 1) % count;
+    small_index_ = (small_index_ + (back ? count - 1 : 1)) % count;
 }
 
 void PanelLayout::apply_defaults() {

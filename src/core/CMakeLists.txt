@@ -5,6 +5,7 @@ add_library(signals_core STATIC
   extension.cpp
   metrics.cpp
   memory.cpp
+  thread_name.cpp
   spectral.cpp
   signal_ops.cpp
   multirate.cpp

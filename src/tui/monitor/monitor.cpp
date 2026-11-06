@@ -1,3 +1,4 @@
+#include "core/thread_name.hpp"
 #include "tui/monitor/monitor.hpp"
 
 #include <algorithm>
@@ -44,6 +45,7 @@ void ResourceMonitor::set_queue_probe(std::function<std::size_t()> probe) {
 }
 
 void ResourceMonitor::loop() {
+    core::set_thread_name("signals-monitor");
     const unsigned cores = std::max(1u, std::thread::hardware_concurrency());
     auto prev = sample_process();
     for (;;) {

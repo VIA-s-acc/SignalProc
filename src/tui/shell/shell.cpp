@@ -1,3 +1,4 @@
+#include "core/version.hpp"
 #include "tui/shell/shell.hpp"
 
 #include "tui/screens/theory_navigator.hpp"
@@ -57,7 +58,7 @@ public:
         }
         auto paint = [&](Element e) { return ui_.caps.color == ColorDepth::none ? e : e | bg(ui_.theme.bg, ui_) | fg(ui_.theme.fg, ui_); };
         if (bp == Breakpoint::tiny)
-            return paint(vbox({filler(), text(fmt::format(fmt::runtime(tr("tui.small.warning")), fmt::arg("w", w), fmt::arg("h", h))) | hcenter,
+            return paint(vbox({filler(), paragraphAlignCenter(fmt::format(fmt::runtime(tr("tui.small.warning")), fmt::arg("w", w), fmt::arg("h", h))),
                                filler()}));
         if (screens_.empty()) return paint(text(""));
         auto& screen = *screens_[static_cast<std::size_t>(active_)];
@@ -65,45 +66,48 @@ public:
         Elements tabs;
         const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
         const bool compact = bp == Breakpoint::small;
-        tabs.push_back(text(std::string{ascii ? " *" : " ◆"} + (compact ? " " : " Signals ")) | bold | fg(ui_.theme.accent, ui_));
+        const std::string brand = std::string{ascii ? " *" : " ◆"} + (compact ? " " : " Signals " + std::string{core::version()} + " ");
+        int used = display_width(brand) + 1 + 2 + 3;
+        tabs.push_back(text(brand) | bold | fg(ui_.theme.accent, ui_));
         tabs.push_back(text(std::string{glyph(Glyph::v, ui_.caps.glyphs)}) | fg(ui_.theme.dim, ui_));
         for (std::size_t i = 0; i < screens_.size(); ++i) {
             const bool on = static_cast<int>(i) == active_;
-            auto label = text(" " + std::to_string(i + 1) + (compact && !on ? "" : " " + screens_[i]->tab_label()) + " ");
+            const auto caption = " " + std::to_string(i + 1) + (compact && !on ? "" : " " + screens_[i]->tab_label()) + " ";
+            used += display_width(caption);
+            auto label = text(caption);
             label = static_cast<int>(i) == active_ ? label | bold | fg(ui_.theme.bg, ui_) | bg(ui_.theme.accent, ui_)
                                                     : label | fg(ui_.theme.fg, ui_);
             tabs.push_back(label | reflect(tab_boxes_[i]));
         }
         tabs.push_back(filler());
-        tabs.push_back(screen.context_element(ui_));
+        tabs.push_back(screen.context_element(ui_, std::max(0, w - used)));
         tabs.push_back(text("  "));
-        tabs.push_back(key_label(" ? ", ui_));
+        tabs.push_back(key_label(" ? ", ui_) | reflect(help_box_));
         Elements hints;
         auto all = screen.hints();
         const auto globals = global_hints();
         auto hint_width = [](const Hint& hint) {
             return static_cast<int>(split_codepoints(hint.key).size() + split_codepoints(hint.label).size()) + 5;
         };
-        auto visible = globals;
+        std::vector<Hint> visible;
+        for (const auto& g : globals)
+            if (w >= 120 || g.key == "?" || g.key == ":") visible.push_back(g);
         int room = w;
         for (const auto& g : visible) room -= hint_width(g);
-        if (!all.empty() && hint_width(all.front()) > room) {
-            const auto resources = std::find_if(visible.begin(), visible.end(), [](const Hint& hint) { return hint.key == "R"; });
-            if (resources != visible.end()) {
-                room += hint_width(*resources);
-                visible.erase(resources);
-            }
-        }
+        const auto mouse = [](const Hint& hint) {
+            for (const char* key : {"tui.signal.key.wheel", "tui.signal.key.drag", "tui.signal.key.click", "tui.key.right_click"})
+                if (hint.key.find(tr(key)) != std::string::npos) return true;
+            return false;
+        };
         std::vector<Hint> row;
-        for (const auto& hint : all) {
-            if (hint_width(hint) > room) break;
+        auto candidates = all;
+        candidates.push_back({"'", tr("tui.hint.jump")});
+        for (const auto& hint : candidates) {
+            if (mouse(hint) || hint_width(hint) > room) continue;
             room -= hint_width(hint);
             row.push_back(hint);
         }
-        for (const auto& g : globals) all.push_back(g);
         for (const auto& g : visible) row.push_back(g);
-        all.push_back({"'", tr("tui.hint.jump")});
-        all.push_back({tr("tui.key.right_click"), tr("tui.hint.menu")});
         for (const auto& hint : row) {
             hints.push_back(key_label(" " + hint.key + " ", ui_));
             hints.push_back(text(" " + hint.label + "  ") | fg(ui_.theme.dim, ui_));
@@ -113,18 +117,27 @@ public:
                           status_line(ui_, resources) | reflect(status_box_)});
         if (palette_.is_open()) return paint(dbox({base, palette_.render(ui_) | clear_under | center}));
         if (check_.is_open()) return paint(dbox({base, check_.render(ui_) | clear_under | center}));
-        if (resources_open_) return paint(dbox({base, resources_panel(ui_) | clear_under | center}));
+        if (resources_open_) return paint(dbox({base, resources_panel(ui_, w, h, resources_scroll_) | clear_under | center}));
         if (menu_.is_open()) return paint(dbox({base, menu_.render(ui_, w, h)}));
         if (jump_.is_active()) return paint(dbox({base, jump_.render(ui_)}));
         if (!help_open_) return paint(base);
-        return paint(dbox({base, help_overlay(all, help_filter_, ui_) | clear_under | center}));
+        return paint(dbox({base, help_overlay(all, help_filter_, ui_, h, help_scroll_) | clear_under | center}));
     }
 
     bool OnEvent(ftxui::Event e) override {
         if (palette_.is_open()) return palette_.on_event(e);
         if (check_.is_open()) return check_.on_event(e, ui_);
         if (resources_open_) {
+            const auto step = [this](float d) { resources_scroll_ = std::clamp(resources_scroll_ + d, 0.f, 1.f); };
             if (e == ftxui::Event::Escape || e == ftxui::Event::Character('R')) resources_open_ = false;
+            else if (e == ftxui::Event::ArrowDown) step(0.1f);
+            else if (e == ftxui::Event::ArrowUp) step(-0.1f);
+            else if (e == ftxui::Event::PageDown) step(0.5f);
+            else if (e == ftxui::Event::PageUp) step(-0.5f);
+            else if (e == ftxui::Event::Home) resources_scroll_ = 0;
+            else if (e == ftxui::Event::End) resources_scroll_ = 1;
+            else if (e.is_mouse() && e.mouse().button == ftxui::Mouse::WheelDown) step(0.1f);
+            else if (e.is_mouse() && e.mouse().button == ftxui::Mouse::WheelUp) step(-0.1f);
             return true;
         }
         if (help_open_) return help_event(e);
@@ -148,6 +161,12 @@ public:
                     menu_.open(std::move(items), m.x, m.y);
                     return true;
                 }
+            }
+            if (m.button == ftxui::Mouse::Left && m.motion == ftxui::Mouse::Pressed && help_box_.Contain(m.x, m.y)) {
+                help_open_ = true;
+                help_filter_.clear();
+                help_scroll_ = 0;
+                return true;
             }
             if (m.button == ftxui::Mouse::Left && m.motion == ftxui::Mouse::Pressed && status_box_.Contain(m.x, m.y)) {
                 resources_open_ = true;
@@ -175,6 +194,7 @@ public:
             if (c == "?") {
                 help_open_ = true;
                 help_filter_.clear();
+                help_scroll_ = 0;
                 return true;
             }
             if (c == "q") {
@@ -183,6 +203,15 @@ public:
             }
             if (c == "R") {
                 resources_open_ = true;
+                return true;
+            }
+            if (c == "m") {
+                const auto anchor = screen.menu_anchor();
+                const auto [w, h] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
+                const int x = anchor ? anchor->first : w / 2, y = anchor ? anchor->second : h / 2;
+                auto items = screen.context_menu(x, y);
+                if (items.empty()) return screen.OnEvent(e);
+                menu_.open(std::move(items), x, y);
                 return true;
             }
         }
@@ -277,16 +306,34 @@ private:
         return out;
     }
 
-    bool help_event(const ftxui::Event& e) {
+    bool help_event(ftxui::Event e) {
         if (e == ftxui::Event::Escape || e == ftxui::Event::Character('?')) {
             help_open_ = false;
             return true;
         }
         if (e == ftxui::Event::Backspace) {
             pop_codepoint(help_filter_);
+            help_scroll_ = 0;
             return true;
         }
-        if (e.is_character()) help_filter_ += e.character();
+        const auto [w, h] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
+        const auto page = static_cast<std::size_t>(std::max(1, h - 8));
+        if (e == ftxui::Event::ArrowDown) return ++help_scroll_, true;
+        if (e == ftxui::Event::ArrowUp) return help_scroll_ -= help_scroll_ > 0 ? 1 : 0, true;
+        if (e == ftxui::Event::PageDown) return help_scroll_ += page, true;
+        if (e == ftxui::Event::PageUp) return help_scroll_ -= std::min(help_scroll_, page), true;
+        if (e == ftxui::Event::Home) return help_scroll_ = 0, true;
+        if (e == ftxui::Event::End) return help_scroll_ = static_cast<std::size_t>(-1) / 2, true;
+        if (e.is_mouse()) {
+            const auto& m = e.mouse();
+            if (m.button == ftxui::Mouse::WheelDown) ++help_scroll_;
+            if (m.button == ftxui::Mouse::WheelUp && help_scroll_ > 0) --help_scroll_;
+            return true;
+        }
+        if (e.is_character()) {
+            help_filter_ += e.character();
+            help_scroll_ = 0;
+        }
         return true;
     }
 
@@ -294,11 +341,13 @@ private:
     std::vector<std::shared_ptr<TabScreen>> screens_;
     std::function<void()> on_quit_;
     std::vector<ftxui::Box> tab_boxes_;
-    ftxui::Box status_box_;
+    ftxui::Box status_box_, help_box_{1, 0, 1, 0};
     int active_ = 0;
     bool help_open_ = false;
     bool resources_open_ = false;
     std::string help_filter_;
+    std::size_t help_scroll_ = 0;
+    float resources_scroll_ = 0;
     Palette palette_;
     TerminalCheck check_;
     ContextMenu menu_;
@@ -311,7 +360,9 @@ ftxui::Component make_shell(UiContext& ui, std::vector<std::shared_ptr<TabScreen
     return std::make_shared<ShellComponent>(ui, std::move(screens), std::move(on_quit));
 }
 
-ftxui::Element TabScreen::context_element(const UiContext& ui) { return ftxui::text(context()) | fg(ui.theme.dim, ui); }
+ftxui::Element TabScreen::context_element(const UiContext& ui, int width) {
+    return ftxui::text(ellipsize(context(), width, ui.caps.glyphs == GlyphMode::ascii)) | fg(ui.theme.dim, ui);
+}
 
 int active_tab(const ftxui::Component& shell) {
     auto s = std::dynamic_pointer_cast<ShellComponent>(shell);

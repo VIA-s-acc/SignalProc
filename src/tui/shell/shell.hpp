@@ -20,7 +20,8 @@ std::shared_ptr<TabScreen> make_placeholder(std::string label, std::string title
                                             UiContext* ui = nullptr);
 
 ftxui::Element status_line(const UiContext& ui, const ResourceSnapshot& r);
-ftxui::Element help_overlay(const std::vector<Hint>& hints, const std::string& filter, const UiContext& ui);
+std::vector<Hint> global_help();
+ftxui::Element help_overlay(const std::vector<Hint>& screen, const std::string& filter, const UiContext& ui, int height, std::size_t& scroll);
 std::vector<Hint> global_hints();
 
 }  // namespace signals::tui

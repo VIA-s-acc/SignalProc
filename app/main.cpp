@@ -4,6 +4,7 @@
 #include <string_view>
 #include <vector>
 
+#include "core/thread_name.hpp"
 #include "commands/cli.hpp"
 #include "tui/run.hpp"
 
@@ -28,6 +29,7 @@ bool interactive() {
 }  // namespace
 
 int main(int argc, char** argv) {
+    signals::core::set_thread_name("signals-ui");
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
