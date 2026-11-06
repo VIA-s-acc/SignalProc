@@ -39,6 +39,18 @@ const theory::Card* card_for_section(std::string_view section) {
     return nullptr;
 }
 
+const std::vector<bool>& cards_below() {
+    static const auto marks = [] {
+        const auto& all = theory::sections();
+        std::vector<bool> out(all.size(), false);
+        for (std::size_t k = 0; k < all.size(); ++k)
+            if (card_for_section(all[k].id))
+                for (auto p = all[k].parent; p; p = all[*p].parent) out[*p] = true;
+        return out;
+    }();
+    return marks;
+}
+
 struct Window {
     std::size_t first = 0, shown = 0;
 };
@@ -391,12 +403,13 @@ ftxui::Element TheoryScreen::contents_panel(std::size_t current, int width, int 
     for (std::size_t i = first; i < first + shown; ++i) {
         const auto& s = all[entries[i].section];
         const bool on = query_.empty() ? entries[i].section == current : i == selected;
-        std::string mark = on && query_.empty() ? (ascii ? " <" : " ◀") : "";
-        if (card_for_section(s.id)) mark = (ascii ? " [i]" : " ⓘ") + mark;
+        const std::string arrow = on && query_.empty() ? (ascii ? " <" : " ◀") : "";
+        const bool own = card_for_section(s.id) != nullptr, below = !own && cards_below()[entries[i].section];
+        const std::string info = own || below ? (ascii ? " [i]" : " ⓘ") : "";
         auto label = std::string(static_cast<std::size_t>(2 * entries[i].depth), ' ') + entry_label(s);
-        label = clip(label, inner - static_cast<int>(theory::display_width(mark)), ascii) + mark;
-        auto row = text(label);
-        row = on ? row | bold | fg(th.bg, ui_) | bg(th.accent, ui_) : row | fg(entries[i].depth ? th.fg : th.fg, ui_);
+        label = clip(label, inner - static_cast<int>(theory::display_width(info + arrow)), ascii);
+        auto row = hbox({text(label) | (on ? nothing : fg(th.fg, ui_)), text(info) | (on ? nothing : fg(below ? th.dim : th.fg, ui_)), text(arrow)});
+        if (on) row = row | bold | fg(th.bg, ui_) | bg(th.accent, ui_);
         toc_boxes_.emplace_back(ftxui::Box{}, entries[i].section);
         list.push_back(row | reflect(toc_boxes_.back().first));
     }

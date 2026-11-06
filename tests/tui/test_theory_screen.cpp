@@ -460,3 +460,16 @@ TEST_CASE("under the hood in a small terminal shows the contents until a card is
     CHECK(frame.find("Блоки") == std::string::npos);
     CHECK(f.nav->last(TheoryLink::Kind::card)->link.id == "dwt");
 }
+
+TEST_CASE("a chapter is marked when one of its subsections has a card", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::tutorial};
+    f.nav->open({{TheoryLink::Kind::section, "conv-signals"}});
+    const auto frame = f.h.frame();
+    const auto contents_line = [&](std::string_view needle) {
+        const auto at = frame.find(needle);
+        REQUIRE(at != std::string::npos);
+        return frame.substr(at, frame.find("│", at) - at);
+    };
+    CHECK(contents_line("Варианты преобраз").find("ⓘ") != std::string::npos);
+    CHECK(contents_line("Сводный план").find("ⓘ") == std::string::npos);
+}
