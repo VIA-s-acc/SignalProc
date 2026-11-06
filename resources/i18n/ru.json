@@ -553,5 +553,7 @@
   "tui.decomposition.chip.scale": "|c| мин/макс · масштаб своей полосы",
   "tui.decomposition.chip.tiles": "viridis · пол −48 дБ",
   "tui.decomposition.cursor": "Курсор",
-  "tui.decomposition.cursor_at": "Курсор t = {t} с"
+  "tui.decomposition.cursor_at": "Курсор t = {t} с",
+  "tui.matrix.job": "Матрица",
+  "tui.matrix.stage": "построение и проверки"
 }
