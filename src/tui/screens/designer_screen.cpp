@@ -11,6 +11,7 @@
 #include <ftxui/dom/elements.hpp>
 
 #include "i18n/i18n.hpp"
+#include "tui/screens/publish_util.hpp"
 #include "tui/data/user_filters.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/plot.hpp"
@@ -61,6 +62,37 @@ DesignerScreen::DesignerScreen(UiContext& ui, std::shared_ptr<DesignerModel> mod
     roots_box_ = kNoBox;
 }
 
+std::optional<TheoryLink> DesignerScreen::theory_link() const { return TheoryLink{TheoryLink::Kind::card, "halfband"}; }
+
+void DesignerScreen::publish(theory::LiveValues& v) const {
+    const auto d = model_->data();
+    const auto r = model_->result();
+    const int p = model_->p();
+    v.source = tab_label() + " ▸ p = " + std::to_string(p) + (r ? " · " + r->title : std::string{});
+    v.set("block.p", std::to_string(p));
+    v.set("block.degree", std::to_string(4 * p - 2));
+    if (d) {
+        v.set("block.splits", std::to_string(d->rows.size()));
+        v.set("block.wavelet_splits", std::to_string(d->wavelet_rows));
+    }
+    if (!r) return;
+    const auto h0 = core::trim(r->bank.h0, 0.0).coeffs.size(), f0 = core::trim(r->bank.f0, 0.0).coeffs.size();
+    v.set("block.split", r->title);
+    v.set("block.zeros_h0", std::to_string(r->split.zeros_h0));
+    v.set("block.zeros_f0", std::to_string(2 * r->p - r->split.zeros_h0));
+    v.set("block.h0_length", std::to_string(h0));
+    v.set("block.f0_length", std::to_string(f0));
+    v.set("block.delay", r->delay ? std::to_string(*r->delay) : std::string{"—"});
+    v.set_check(renamed(r->pr.alias, "check.pr_alias"));
+    v.set_check(renamed(r->pr.distortion, "check.pr_distortion"));
+    v.set_check(renamed(core::check_orthogonality(r->bank, 1e-9), "check.orthogonality"));
+    v.set("metric.sobolev_h0", format_fixed(r->info.sobolev_h0, 3));
+    v.set("metric.sobolev_f0", format_fixed(r->info.sobolev_f0, 3));
+    v.set("block.bank", r->title);
+    v.set("block.length", std::to_string(h0) + " / " + std::to_string(f0));
+    v.set("block.linear_phase", yes_no(r->linear_phase));
+}
+
 std::string DesignerScreen::tab_label() const { return tr("tui.sub.designer"); }
 
 std::vector<Hint> DesignerScreen::hints() const {
@@ -68,7 +100,8 @@ std::vector<Hint> DesignerScreen::hints() const {
             {"n/N", tr("tui.designer.hint.next")},                        {"+/−", "p"},
             {"c", tr("tui.designer.hint.cascade")},                       {"x", tr("tui.designer.hint.swap")},
             {"Enter", tr("tui.designer.hint.save")},                      {"Tab", tr("tui.explain.hint.tab")},
-            {"z", tr("tui.signal.hint.zoom")},                            {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")}};
+            {"z", tr("tui.signal.hint.zoom")},                            {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")},
+            {"F1", tr("tui.designer.hint.f1")}};
 }
 
 std::string DesignerScreen::context() const {

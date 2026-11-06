@@ -51,6 +51,9 @@ public:
     }
     bool capturing_text() const override { return child().capturing_text(); }
     std::vector<MenuItem> context_menu(int x, int y) override { return child().context_menu(x, y); }
+    std::optional<TheoryLink> theory_link() const override { return child().theory_link(); }
+    void publish(theory::LiveValues& v) const override { child().publish(v); }
+    std::shared_ptr<TabScreen> active_child() const override { return children_[active_].second; }
 
     std::vector<JumpTarget> jump_targets() const override {
         auto out = child().jump_targets();

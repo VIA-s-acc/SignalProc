@@ -79,7 +79,7 @@ std::vector<Hint> ExplainScreen::hints() const {
     return {{"←→", tr("tui.explain.hint.step")},   {"Space", tr("tui.explain.hint.auto")}, {"w", tr("tui.explain.hint.bank")},
             {"p", tr("tui.explain.hint.phase")},   {"e", tr("tui.explain.hint.perturb")},  {"f", tr("tui.explain.hint.fractions")},
             {"Enter", tr("tui.explain.hint.open")}, {"Tab", tr("tui.explain.hint.tab")},    {"z", tr("tui.signal.hint.zoom")},
-            {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")}};
+            {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")},           {"F1", tr("tui.explain.hint.f1")}};
 }
 
 std::string ExplainScreen::context() const { return tr("tui.explain.context"); }

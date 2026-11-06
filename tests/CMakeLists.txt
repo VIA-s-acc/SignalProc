@@ -52,6 +52,10 @@ add_executable(signals_tests
   tui/test_signal_screen.cpp
   tui/test_filters_model.cpp
   tui/test_filters_screen.cpp
+  tui/test_document.cpp
+  tui/test_theory_screen.cpp
+  tui/test_f1.cpp
+  tui/test_external.cpp
   tui/test_explain_model.cpp
   tui/test_explain_screen.cpp
   tui/test_designer_model.cpp
@@ -64,12 +68,19 @@ add_executable(signals_tests
   tui/test_app_screens.cpp
   tui/harness.cpp
   audio/test_player.cpp
+  theory/test_sections.cpp
+  theory/test_latex.cpp
+  theory/test_math_layout.cpp
+  theory/test_markdown.cpp
+  theory/test_live.cpp
+  theory/test_cards.cpp
+  support/golden_text.cpp
   test_golden_files.cpp
   test_i18n_keys.cpp
   support/golden.cpp
   support/banks.cpp
 )
-target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_tui signals_audio Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
+target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_tui signals_audio signals_theory Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
 target_include_directories(signals_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(signals_tests PRIVATE SIGNALS_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden"
                           SIGNALS_SOURCE_DIR="${PROJECT_SOURCE_DIR}"

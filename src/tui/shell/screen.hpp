@@ -3,6 +3,7 @@
 #include <chrono>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string_view>
 #include <string>
@@ -14,6 +15,7 @@
 #include <ftxui/screen/box.hpp>
 
 #include "audio/player.hpp"
+#include "theory/live.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/monitor/monitor.hpp"
 #include "tui/shell/layout.hpp"
@@ -33,6 +35,21 @@ struct NavArgs {
     std::string wavelet = {};
     std::optional<std::size_t> n = {};
     std::optional<std::size_t> step = {};
+};
+
+struct TheoryLink {
+    enum class Kind { card, section };
+    Kind kind = Kind::section;
+    std::string id;
+    std::string label = {};
+};
+
+struct TheoryPage {
+    TheoryLink link;
+    std::shared_ptr<theory::LiveValues> values = {};
+    std::function<void(theory::LiveValues&)> publisher = {};
+    std::string origin = {};
+    int scroll = 0;
 };
 
 struct UiContext {
@@ -55,6 +72,10 @@ struct UiContext {
     std::function<void(std::string filter)> open_palette;
     std::function<void(std::string prompt, std::string initial, std::function<void(std::string)> done)> ask_text;
     std::function<void(std::string line)> warn;
+    std::function<void(std::filesystem::path)> open_in_editor;
+    std::function<void(std::string)> copy_text;
+    std::filesystem::path repo_root;
+    std::function<void(TheoryPage)> open_theory;
 };
 
 struct MenuItem {
@@ -87,6 +108,9 @@ public:
     virtual std::vector<Command> commands() { return {}; }
     virtual ftxui::Element context_element(const UiContext& ui);
     virtual void select_child(std::size_t) {}
+    virtual std::optional<TheoryLink> theory_link() const { return {}; }
+    virtual void publish(theory::LiveValues&) const {}
+    virtual std::shared_ptr<TabScreen> active_child() const { return nullptr; }
 };
 
 }  // namespace signals::tui

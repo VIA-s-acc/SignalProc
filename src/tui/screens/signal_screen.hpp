@@ -26,6 +26,8 @@ public:
 
     std::string tab_label() const override;
     std::vector<Hint> hints() const override;
+    std::optional<TheoryLink> theory_link() const override;
+    void publish(theory::LiveValues& v) const override;
     std::string context() const override;
     void set_breakpoint(Breakpoint b) override { breakpoint_ = b; }
 

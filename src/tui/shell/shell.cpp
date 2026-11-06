@@ -1,5 +1,7 @@
 #include "tui/shell/shell.hpp"
 
+#include "tui/screens/theory_navigator.hpp"
+
 #include <cstdlib>
 
 #include <fmt/format.h>
@@ -82,18 +84,24 @@ public:
         auto hint_width = [](const Hint& hint) {
             return static_cast<int>(split_codepoints(hint.key).size() + split_codepoints(hint.label).size()) + 5;
         };
+        auto visible = globals;
         int room = w;
-        for (const auto& g : globals) room -= hint_width(g);
+        for (const auto& g : visible) room -= hint_width(g);
+        if (!all.empty() && hint_width(all.front()) > room) {
+            const auto resources = std::find_if(visible.begin(), visible.end(), [](const Hint& hint) { return hint.key == "R"; });
+            if (resources != visible.end()) {
+                room += hint_width(*resources);
+                visible.erase(resources);
+            }
+        }
         std::vector<Hint> row;
         for (const auto& hint : all) {
             if (hint_width(hint) > room) break;
             room -= hint_width(hint);
             row.push_back(hint);
         }
-        for (const auto& g : globals) {
-            all.push_back(g);
-            row.push_back(g);
-        }
+        for (const auto& g : globals) all.push_back(g);
+        for (const auto& g : visible) row.push_back(g);
         all.push_back({"'", tr("tui.hint.jump")});
         all.push_back({tr("tui.key.right_click"), tr("tui.hint.menu")});
         for (const auto& hint : row) {
@@ -124,6 +132,10 @@ public:
         if (jump_.is_active()) return jump_event(e);
         if (e == ftxui::Event::CtrlP || e == ftxui::Event::Character(':')) {
             palette_.open(commands());
+            return true;
+        }
+        if (e == ftxui::Event::F1) {
+            open_theory_for_focus();
             return true;
         }
         auto& screen = *screens_[static_cast<std::size_t>(active_)];
@@ -235,6 +247,13 @@ private:
         screen.open_with(args);
     }
 
+    void open_theory_for_focus() {
+        if (!ui_.open_theory || screens_.empty()) return;
+        std::shared_ptr<TabScreen> target = screens_[static_cast<std::size_t>(active_)];
+        while (auto child = target->active_child()) target = child;
+        ui_.open_theory(make_theory_page(target, "tab:" + std::to_string(active_ + 1)));
+    }
+
     std::vector<Command> commands() {
         std::vector<Command> out = screens_.empty() ? std::vector<Command>{} : screens_[static_cast<std::size_t>(active_)]->commands();
         for (std::size_t i = 0; i < screens_.size(); ++i)
@@ -254,6 +273,7 @@ private:
         out.push_back({"jump", tr("tui.cmd.jump"), [this] { start_jump(); }});
         out.push_back({"help", tr("tui.cmd.help"), [this] { help_open_ = true; help_filter_.clear(); }});
         out.push_back({"quit", tr("tui.cmd.quit"), [this] { if (on_quit_) on_quit_(); }});
+        out.push_back({"theory.focus", tr("tui.cmd.theory_focus"), [this] { open_theory_for_focus(); }});
         return out;
     }
 

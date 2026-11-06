@@ -98,6 +98,7 @@ struct PrReport {
 
 PrReport check_pr(const FilterBank& bank, double tol = 1e-12);
 CheckResult check_orthogonality(const FilterBank& bank, double tol);
+CheckResult check_vanishing_moments(const Laurent& h1, int moments, double tol);
 bool is_linear_phase(const Laurent& h, double tol);
 
 }  // namespace signals::core

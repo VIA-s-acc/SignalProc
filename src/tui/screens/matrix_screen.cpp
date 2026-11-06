@@ -9,6 +9,8 @@
 
 #include "core/design/families.hpp"
 #include "i18n/i18n.hpp"
+#include "core/matrix.hpp"
+#include "tui/screens/publish_util.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/heatmap.hpp"
 #include "tui/widgets/screen_util.hpp"
@@ -39,11 +41,38 @@ MatrixScreen::MatrixScreen(UiContext& ui, std::shared_ptr<MatrixModel> model) : 
 
 std::string MatrixScreen::tab_label() const { return tr("tui.tab.matrix"); }
 
+std::optional<TheoryLink> MatrixScreen::theory_link() const {
+    const auto op = model_->options().op;
+    return TheoryLink{TheoryLink::Kind::card, op == MatrixOp::convolution || op == MatrixOp::circulant ? "toeplitz" : "bank_matrix"};
+}
+
+void MatrixScreen::publish(theory::LiveValues& v) const {
+    const auto d = model_->data();
+    const auto& o = model_->options();
+    v.source = tab_label() + " ▸ " + o.wavelet + " · N = " + std::to_string(o.n);
+    v.set("block.bank", o.wavelet);
+    v.set("block.n", std::to_string(o.n));
+    v.set("block.mode", std::string{core::to_string(o.mode)});
+    v.set("block.order", o.order == RowOrder::blocks ? std::string{"[L; B]"} : tr("tui.matrix.interleaved"));
+    v.set("block.filter", o.wavelet + " h₀");
+    if (!d || d->m.size() == 0) return;
+    v.set("block.rows", std::to_string(d->m.rows()));
+    v.set("block.cols", std::to_string(d->m.cols()));
+    v.set("block.band_width", std::to_string(d->filter_length));
+    v.set("metric.cond", d->cond > 0 ? format_number(d->cond, 3) : std::string{"—"});
+    if (d->orth_error) v.set_check({"check.ata_identity", o.wavelet, *d->orth_error, 1e-10});
+    else v.set("check.ata_identity", tr("tui.theory.value.not_square"));
+    if (d->left_inverse_error) v.set_check({"check.sa_identity", o.wavelet, *d->left_inverse_error, 1e-10});
+    else v.set("check.sa_identity", "—");
+    if (const auto bank = core::wavelet(o.wavelet)) v.set_check(core::check_circulant_fft(bank->h0, o.n, 1e-10));
+}
+
 std::vector<Hint> MatrixScreen::hints() const {
     return {{"↑↓", tr("tui.matrix.hint.row")},      {"Space", tr("tui.matrix.hint.animate")}, {"c", tr("tui.matrix.hint.numbers")},
             {"t", "AᵀA"},                           {"b", tr("tui.matrix.hint.edges")},       {"o", tr("tui.matrix.hint.order")},
             {"+/−", "N"},                           {tr("tui.signal.key.click"), tr("tui.matrix.hint.cell")},
-            {"z", tr("tui.signal.hint.zoom")},      {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")}};
+            {"z", tr("tui.signal.hint.zoom")},      {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")},
+            {"F1", tr("tui.matrix.hint.f1")}};
 }
 
 std::string MatrixScreen::context() const {

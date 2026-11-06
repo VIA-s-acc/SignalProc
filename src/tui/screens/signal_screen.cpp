@@ -11,6 +11,7 @@
 #include <ftxui/dom/elements.hpp>
 
 #include "i18n/i18n.hpp"
+#include "tui/screens/publish_util.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/plot.hpp"
@@ -75,6 +76,7 @@ std::vector<Hint> SignalScreen::hints() const {
                           {tr("tui.signal.key.click"), tr("tui.signal.hint.click")},
                           {tr("tui.signal.key.drag"), tr("tui.signal.hint.drag")},
                           {"z", tr("tui.signal.hint.zoom")},
+                          {"F1", tr("tui.signal.hint.f1")},
                           {"Tab", tr("tui.signal.hint.tab")},
                           {"←→", tr("tui.signal.hint.arrows")},
                           {"b", tr("tui.signal.hint.cursor_b")},
@@ -82,6 +84,36 @@ std::vector<Hint> SignalScreen::hints() const {
                           {tr("tui.signal.key.ctrl_drag"), tr("tui.signal.hint.select")}};
     if (breakpoint_ <= Breakpoint::small) std::rotate(out.begin(), out.begin() + 7, out.begin() + 8);
     return out;
+}
+
+std::optional<TheoryLink> SignalScreen::theory_link() const { return TheoryLink{TheoryLink::Kind::card, "wav_in"}; }
+
+void SignalScreen::publish(theory::LiveValues& v) const {
+    const auto d = model_->data();
+    v.source = tab_label() + " ▸ " + (d ? d->path.filename().string() : std::string{"—"});
+    if (!d) return;
+    const auto& info = d->info;
+    v.set("block.path", d->path.filename().string());
+    v.set("block.format", format_text(info));
+    v.set("block.channels", std::to_string(info.channels));
+    v.set("block.rate", hz_text(info.sample_rate));
+    v.set("block.frames", group(info.frames));
+    v.set("block.duration", format_fixed(d->duration(), 2) + " " + tr("tui.unit.s"));
+    std::vector<std::string> peaks;
+    for (std::size_t c = 0; c < d->stats.size(); ++c)
+        peaks.push_back((d->stats.size() == 2 ? std::string{c == 0 ? "L " : "R "} : std::string{}) + format_fixed(d->stats[c].peak_dbfs, 1));
+    v.set("metric.peak_dbfs", joined(peaks) + " " + tr("tui.unit.dbfs"));
+    v.set("metric.clipped", group(d->full_scale_samples));
+    double seconds = 0;
+    if (ui_.jobs) {
+        const auto id = model_->job();
+        for (const auto& job : ui_.jobs->snapshot())
+            if (!id || job.id == *id)
+                for (const auto& s : job.stages) seconds += s.seconds;
+    }
+    v.set("metric.load_time", seconds > 0 ? format_si(seconds, tr("tui.unit.s")) : std::string{"—"});
+    v.set("block.clip", tr("tui.theory.value.whole_signal"));
+    v.set("metric.position", ui_.player ? format_fixed(static_cast<double>(ui_.player->position()) / std::max(1u, info.sample_rate), 2) + " " + tr("tui.unit.s") : std::string{"—"});
 }
 
 std::string SignalScreen::context() const {

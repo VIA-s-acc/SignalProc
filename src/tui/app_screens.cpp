@@ -12,6 +12,7 @@
 #include "tui/screens/filters_screen.hpp"
 #include "tui/screens/matrix_screen.hpp"
 #include "tui/screens/signal_screen.hpp"
+#include "tui/screens/theory_screen.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/shell/subtabs.hpp"
 
@@ -25,6 +26,7 @@ AppModels make_app_models() {
     m.designer = std::make_shared<DesignerModel>();
     m.decomposition = std::make_shared<DecompositionModel>(m.signal);
     m.matrix = std::make_shared<MatrixModel>();
+    m.theory = std::make_shared<TheoryNavigator>();
     return m;
 }
 
@@ -38,6 +40,11 @@ std::vector<std::shared_ptr<TabScreen>> make_app_screens(UiContext& ui, AppModel
                                                                                            tr("tui.placeholder.diagram.text"), "M6", &ui)}});
     screens[4] = make_decomposition_screen(ui, models.decomposition);
     screens[5] = make_matrix_screen(ui, models.matrix);
+    ui.open_theory = [nav = models.theory, &ui](TheoryPage page) {
+        const bool card = page.link.kind == TheoryLink::Kind::card;
+        nav->open(std::move(page));
+        if (ui.navigate) ui.navigate(card ? "under_the_hood" : "tutorial", {});
+    };
     auto user_bank = [] {
         const auto banks = user_banks();
         if (banks.empty()) return std::optional<core::FilterBank>{};
@@ -46,10 +53,8 @@ std::vector<std::shared_ptr<TabScreen>> make_app_screens(UiContext& ui, AppModel
     };
     screens[8] = make_subtabs(tr("tui.tab.theory"),
                               {{tr("tui.sub.explain"), make_explain_screen(ui, user_bank)},
-                               {tr("tui.sub.under_the_hood"), make_placeholder(tr("tui.sub.under_the_hood"), tr("tui.placeholder.under_the_hood.title"),
-                                                                               tr("tui.placeholder.under_the_hood.text"), "M4b", &ui)},
-                               {tr("tui.sub.tutorial"), make_placeholder(tr("tui.sub.tutorial"), tr("tui.placeholder.tutorial.title"),
-                                                                         tr("tui.placeholder.tutorial.text"), "M4b", &ui)}});
+                               {tr("tui.sub.under_the_hood"), make_theory_screen(ui, models.theory, TheoryScreen::Mode::under_the_hood)},
+                               {tr("tui.sub.tutorial"), make_theory_screen(ui, models.theory, TheoryScreen::Mode::tutorial)}});
     return screens;
 }
 

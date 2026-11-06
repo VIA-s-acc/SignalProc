@@ -1,5 +1,6 @@
 #include <cmath>
 #include <complex>
+#include <limits>
 #include <numbers>
 #include <random>
 #include <vector>
@@ -110,4 +111,18 @@ TEST_CASE("singular values are sorted and a singular matrix has infinite conditi
     CHECK(s == std::vector<double>{3, 0});
     CHECK(std::isinf(condition_number(s)));
     CHECK(std::isinf(condition_number(std::vector<double>{})));
+}
+
+TEST_CASE("circulant times x equals FFT circular convolution", "[core][matrix]") {
+    const auto bank = signals::core::wavelet("db4");
+    REQUIRE(bank);
+    auto r = signals::core::check_circulant_fft(bank->h0, 64, 1e-12);
+    CHECK(r.id == "check.circulant_fft");
+    CHECK(r.passed());
+    CHECK(r.value < 1e-12);
+}
+
+TEST_CASE("a NaN filter fails the circulant check", "[core][matrix]") {
+    signals::core::Laurent h{{1.0, std::numeric_limits<double>::quiet_NaN()}, 0};
+    CHECK_FALSE(signals::core::check_circulant_fft(h, 16, 1e-12).passed());
 }
