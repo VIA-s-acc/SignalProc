@@ -15,16 +15,18 @@
 
 namespace signals::tui {
 
+inline constexpr ftxui::Box kNoDocBox{0, -1, 0, -1};
+
 struct DocLink {
     std::string target;
     std::string label;
-    ftxui::Box box;
+    ftxui::Box box = kNoDocBox;
     int line = -1;
 };
 
 struct DocFormula {
     std::string latex;
-    ftxui::Box box;
+    ftxui::Box box = kNoDocBox;
 };
 
 struct DocumentSpec {
@@ -43,6 +45,7 @@ struct DocumentLayout {
     std::vector<DocLink> links;
     std::vector<DocFormula> formulas;
     std::vector<std::string> lines;
+    int max_hscroll = 0;
 };
 
 ftxui::Element document(const DocumentSpec& spec, const UiContext& ui, DocumentLayout* out);

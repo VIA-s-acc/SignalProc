@@ -1,6 +1,7 @@
 #include "theory/markdown.hpp"
 
 #include <cctype>
+#include <charconv>
 #include <optional>
 #include <utility>
 
@@ -260,7 +261,10 @@ std::optional<ListMarker> list_marker(std::string_view line) {
     while (i < rest.size() && std::isdigit(static_cast<unsigned char>(rest[i]))) ++i;
     if (i > 0 && i + 1 < rest.size() && rest[i] == '.' && rest[i + 1] == ' ') {
         m.numbered = true;
-        m.number = std::stoi(std::string{rest.substr(0, i)});
+        int number = 0;
+        const auto digits = rest.substr(0, std::min<std::size_t>(i, 9));
+        std::from_chars(digits.data(), digits.data() + digits.size(), number);
+        m.number = number;
         m.text = static_cast<std::size_t>(m.indent) + i + 2;
         return m;
     }

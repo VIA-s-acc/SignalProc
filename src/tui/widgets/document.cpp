@@ -70,6 +70,7 @@ public:
     std::vector<Line> lines_;
     std::vector<DocLink> links_;
     std::vector<DocFormula> formulas_;
+    int max_hscroll_ = 0;
 
 private:
     bool ascii() const { return spec_.glyphs == theory::MathGlyphs::ascii; }
@@ -156,15 +157,14 @@ private:
                 break;
             }
             case Inline::Kind::ref:
-                links_.push_back({i.target.find(':') == std::string::npos ? "#" + i.target : i.target, i.text, {}});
+                links_.push_back({i.target.find(':') == std::string::npos ? "#" + i.target : i.target, i.text, kNoDocBox});
                 out.push_back({i.text, i.target.starts_with("file://") ? Style::path : Style::link, static_cast<int>(links_.size()) - 1, pending});
                 pending = false;
                 break;
             case Inline::Kind::placeholder: {
                 const auto value = prose("{{" + i.text + "}}");
                 const auto style = value.starts_with("✓") ? Style::ok : value.starts_with("✗") ? Style::err : value.starts_with("—") ? Style::dim : base;
-                out.push_back({value, style, -1, pending});
-                pending = false;
+                words(value, style, out, pending);
                 break;
             }
             }
@@ -218,21 +218,22 @@ private:
 
     void display_math(const std::string& src) {
         auto box = theory::render_latex(math_source(src), theory::MathStyle::display, spec_.glyphs);
-        formulas_.push_back({src, {}});
+        formulas_.push_back({src, kNoDocBox});
         const int index = static_cast<int>(formulas_.size()) - 1;
         if (!box) {
             lines_.push_back({{{"  " + cut_columns(src, 0, spec_.width - 2), Style::dim}}, false, index});
-            const auto note = fmt::format(fmt::runtime(tr("tui.doc.bad_formula")), fmt::arg("message", box.error().message));
+            const auto note = fmt::format(fmt::runtime(tr("tui.doc.bad_formula")), fmt::arg("position", box.error().offset + 1));
             lines_.push_back({{{cut_columns("  " + note, 0, spec_.width), Style::err}}, false, index});
             return;
         }
         const int room = spec_.width - 2;
         const bool wide = box->width > room;
-        const int from = wide ? std::clamp(spec_.hscroll, 0, std::max(0, box->width - room + 1)) : 0;
+        if (wide) max_hscroll_ = std::max(max_hscroll_, box->width - room);
+        const int from = wide ? std::clamp(spec_.hscroll, 0, box->width - room) : 0;
         for (const auto& l : box->lines) {
             std::string shown = l;
             if (wide) {
-                const bool more = from + room - 1 < box->width;
+                const bool more = from + room < box->width;
                 shown = cut_columns(l, from, more ? room - 1 : room);
                 if (more) shown += ascii() ? "~" : "…";
             }
@@ -295,14 +296,22 @@ private:
     }
 
     void code(const Block& b) {
-        std::string text = b.text;
-        std::size_t at = 0;
-        while (at < text.size()) {
-            const auto end = text.find('\n', at);
-            std::string line = text.substr(at, end == std::string::npos ? std::string::npos : end - at);
-            at = end == std::string::npos ? text.size() : end + 1;
-            const bool wide = width_of(line) > spec_.width;
-            if (wide) line = cut_columns(line, spec_.hscroll, spec_.width - 1) + (ascii() ? "~" : "…");
+        std::vector<std::string> raw;
+        for (std::size_t at = 0; at < b.text.size();) {
+            const auto end = b.text.find('\n', at);
+            raw.push_back(b.text.substr(at, end == std::string::npos ? std::string::npos : end - at));
+            at = end == std::string::npos ? b.text.size() : end + 1;
+        }
+        int widest = 0;
+        for (const auto& l : raw) widest = std::max(widest, width_of(l));
+        const bool block_wide = widest > spec_.width;
+        if (block_wide) max_hscroll_ = std::max(max_hscroll_, widest - spec_.width);
+        const int from = block_wide ? std::clamp(spec_.hscroll, 0, widest - spec_.width) : 0;
+        for (auto line : raw) {
+            if (block_wide) {
+                const bool more = width_of(line) - from > spec_.width;
+                line = cut_columns(line, from, more ? spec_.width - 1 : spec_.width) + (more ? (ascii() ? "~" : "…") : "");
+            }
             Line out;
             out.code = true;
             std::string word;
@@ -378,6 +387,7 @@ ftxui::Element document(const DocumentSpec& spec, const UiContext& ui, DocumentL
     layout.height = static_cast<int>(b.lines_.size());
     layout.links = std::move(b.links_);
     layout.formulas = std::move(b.formulas_);
+    layout.max_hscroll = b.max_hscroll_;
     for (const auto& l : b.lines_) {
         std::string plain;
         for (const auto& s : l.spans) plain += s.text;

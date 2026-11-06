@@ -145,8 +145,11 @@ CheckResult check_circulant_fft(const Laurent& h, std::size_t n, double tol) {
     const Eigen::MatrixXd c = circulant_matrix(h, n);
     const Eigen::VectorXd direct = c * Eigen::Map<const Eigen::VectorXd>(x.data(), static_cast<Eigen::Index>(n));
     const auto fast = circulant_multiply_fft(h, x);
-    double worst = 0.0;
-    for (std::size_t i = 0; i < n && i < fast.size(); ++i) worst = std::max(worst, std::abs(direct(static_cast<Eigen::Index>(i)) - fast[i]));
+    double worst = fast.size() == n ? 0.0 : std::numeric_limits<double>::infinity();
+    for (std::size_t i = 0; i < n && i < fast.size(); ++i) {
+        const double diff = std::abs(direct(static_cast<Eigen::Index>(i)) - fast[i]);
+        worst = std::isnan(diff) || std::isnan(worst) ? std::numeric_limits<double>::quiet_NaN() : std::max(worst, diff);
+    }
     return {"check.circulant_fft", "h", worst, tol};
 }
 

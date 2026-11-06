@@ -31,6 +31,13 @@ std::string clip(const std::string& s, int width, bool ascii) {
 
 std::string entry_label(const theory::Section& s) { return s.number.empty() ? s.title : s.number + "  " + s.title; }
 
+const theory::Card* card_for_section(std::string_view section) {
+    for (const auto& b : theory::block_catalog())
+        if (b.section == section)
+            if (const auto* c = theory::find_card(b.id)) return c;
+    return nullptr;
+}
+
 }  // namespace
 
 TheoryScreen::TheoryScreen(UiContext& ui, std::shared_ptr<TheoryNavigator> nav, Mode mode)
@@ -43,6 +50,11 @@ std::vector<Hint> TheoryScreen::hints() const {
     std::vector<Hint> out{{"/", tr("tui.theory.hint.search")},  {"Tab", tr("tui.theory.hint.links")},  {"Enter", tr("tui.theory.hint.follow")},
                           {"b/f", tr("tui.theory.hint.history")}, {"↑↓", tr("tui.theory.hint.scroll")}, {"←→", tr("tui.theory.hint.formulas")},
                           {"g", tr("tui.theory.hint.glyphs")}};
+    if (mode_ == Mode::under_the_hood) {
+        out.push_back({"n", tr("tui.theory.hint.numbers")});
+        out.push_back({"o", tr("tui.theory.hint.source")});
+        out.push_back({"Esc", tr("tui.theory.hint.back")});
+    }
     if (breakpoint_ <= Breakpoint::small) out.push_back({"t", tr("tui.theory.hint.contents")});
     return out;
 }
@@ -86,6 +98,8 @@ void TheoryScreen::follow(const std::string& target) {
 
 TheoryPage* TheoryScreen::card_page() { return nav_->last(TheoryLink::Kind::card); }
 
+void TheoryScreen::clamp_scroll() { scroll_ = std::clamp(scroll_, 0, std::max(0, doc_.height - visible_rows_)); }
+
 void TheoryScreen::refresh_values(TheoryPage& p) {
     if (!p.values) p.values = std::make_shared<theory::LiveValues>();
     if (!p.publisher) return;
@@ -102,7 +116,8 @@ NavArgs TheoryScreen::view_args(const TheoryPage* p) const {
     NavArgs args;
     if (!p || !p->values) return args;
     if (const auto* w = p->values->find("block.wavelet")) args.wavelet = w->text;
-    if (const auto* n = p->values->find("block.n")) {
+    const bool matrix_card = p->link.id == "bank_matrix" || p->link.id == "toeplitz";
+    if (const auto* n = p->values->find("block.n"); n && matrix_card) {
         std::string digits;
         for (char ch : n->text)
             if (ch >= '0' && ch <= '9') digits += ch;
@@ -226,10 +241,11 @@ ftxui::Element TheoryScreen::card_panel(const TheoryPage* p, int width, int heig
     const int inner = std::max(10, width - 4);
     visible_rows_ = std::max(1, height - 2 - (notice_.empty() ? 0 : 1));
     card_blocks_ = theory::parse_markdown(card_markdown(*card));
+    clamp_scroll();
     DocumentSpec spec{card_blocks_, inner, scroll_, hscroll_, glyphs_, focused_link_, p->values.get(), "─", visible_rows_};
     Elements body{document(spec, ui_, &doc_) | reflect(doc_box_) | flex};
     if (!notice_.empty()) body.push_back(text(notice_) | fg(th.warn, ui_));
-    scroll_ = std::clamp(scroll_, 0, std::max(0, doc_.height - visible_rows_));
+    clamp_scroll();
     return panel(title, {{tr("tui.theory.chip.links"), false}}, vbox(std::move(body)), !searching_, ui_);
 }
 
@@ -310,7 +326,8 @@ ftxui::Element TheoryScreen::contents_panel(std::size_t current, int width, int 
     for (std::size_t i = first; i < entries.size() && static_cast<int>(i - first) < room; ++i) {
         const auto& s = all[entries[i].section];
         const bool on = query_.empty() ? entries[i].section == current : i == selected;
-        const std::string mark = on && query_.empty() ? (ascii ? " <" : " ◀") : "";
+        std::string mark = on && query_.empty() ? (ascii ? " <" : " ◀") : "";
+        if (mode_ == Mode::under_the_hood && card_for_section(s.id)) mark = (ascii ? " [i]" : " ⓘ") + mark;
         auto label = std::string(static_cast<std::size_t>(2 * entries[i].depth), ' ') + entry_label(s);
         label = clip(label, inner - static_cast<int>(theory::display_width(mark)), ascii) + mark;
         auto row = text(label);
@@ -341,9 +358,10 @@ ftxui::Element TheoryScreen::text_panel(std::size_t current, int width, int heig
     if (!s.tier.empty()) title += "  [" + s.tier + "]";
     const int inner = std::max(10, width - 4);
     visible_rows_ = std::max(1, height - 2);
+    clamp_scroll();
     DocumentSpec spec{blocks_for(current), inner, scroll_, hscroll_, glyphs_, focused_link_, nullptr, {}, visible_rows_};
     auto body = document(spec, ui_, &doc_) | reflect(doc_box_);
-    scroll_ = std::clamp(scroll_, 0, std::max(0, doc_.height - visible_rows_));
+    clamp_scroll();
     return panel(title, {{tr("tui.theory.chip.links"), false}}, body, !searching_, ui_);
 }
 
@@ -381,14 +399,25 @@ bool TheoryScreen::on_mouse(ftxui::Mouse m) {
     using ftxui::Mouse;
     if (m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) {
         if (!doc_box_.Contain(m.x, m.y)) return false;
-        scroll_ = std::max(0, scroll_ + (m.button == Mouse::WheelDown ? 3 : -3));
+        scroll_ += m.button == Mouse::WheelDown ? 3 : -3;
+        clamp_scroll();
         return true;
     }
     if (m.button != Mouse::Left || m.motion != Mouse::Pressed) return false;
     for (const auto& [box, section] : toc_boxes_)
         if (box.Contain(m.x, m.y)) {
-            open_section(theory::sections()[section].id);
+            const auto& id = theory::sections()[section].id;
             small_contents_ = false;
+            if (mode_ == Mode::under_the_hood) {
+                if (const auto* card = card_for_section(id)) {
+                    nav_->open({{TheoryLink::Kind::card, card->id}, std::make_shared<theory::LiveValues>(), {}, {}, 0});
+                    return true;
+                }
+                open_section(id);
+                if (ui_.navigate) ui_.navigate("tutorial", {});
+                return true;
+            }
+            open_section(id);
             return true;
         }
     if (references_box_.Contain(m.x, m.y)) return open_section("references"), true;
@@ -482,13 +511,13 @@ bool TheoryScreen::OnEvent(ftxui::Event e) {
     }
     if (e == Event::Character('b') || e == Event::Backspace) return nav_->back(), true;
     if (e == Event::Character('f')) return nav_->forward(), true;
-    if (e == Event::ArrowDown) return scroll_ += 1, true;
-    if (e == Event::ArrowUp) return scroll_ = std::max(0, scroll_ - 1), true;
-    if (e == Event::PageDown) return scroll_ += std::max(1, visible_rows_ - 2), true;
-    if (e == Event::PageUp) return scroll_ = std::max(0, scroll_ - std::max(1, visible_rows_ - 2)), true;
+    if (e == Event::ArrowDown) return scroll_ += 1, clamp_scroll(), true;
+    if (e == Event::ArrowUp) return scroll_ -= 1, clamp_scroll(), true;
+    if (e == Event::PageDown) return scroll_ += std::max(1, visible_rows_ - 2), clamp_scroll(), true;
+    if (e == Event::PageUp) return scroll_ -= std::max(1, visible_rows_ - 2), clamp_scroll(), true;
     if (e == Event::Home) return scroll_ = 0, true;
     if (e == Event::End) return scroll_ = std::max(0, doc_.height - visible_rows_), true;
-    if (e == Event::ArrowRight) return hscroll_ += 4, true;
+    if (e == Event::ArrowRight) return hscroll_ = std::min(hscroll_ + 4, doc_.max_hscroll), true;
     if (e == Event::ArrowLeft) return hscroll_ = std::max(0, hscroll_ - 4), true;
     if (e == Event::Character('g')) {
         glyphs_ = glyphs_ == theory::MathGlyphs::unicode ? theory::MathGlyphs::ascii : theory::MathGlyphs::unicode;
@@ -500,7 +529,8 @@ bool TheoryScreen::OnEvent(ftxui::Event e) {
 
 std::vector<JumpTarget> TheoryScreen::jump_targets() const {
     std::vector<JumpTarget> out;
-    for (const auto& l : doc_.links) out.push_back({l.box, l.label});
+    for (const auto& l : doc_.links)
+        if (l.box.x_max >= l.box.x_min && l.box.y_max >= l.box.y_min) out.push_back({l.box, l.label});
     return out;
 }
 

@@ -1,5 +1,6 @@
 #include <cmath>
 #include <complex>
+#include <limits>
 #include <numbers>
 #include <random>
 #include <vector>
@@ -119,4 +120,9 @@ TEST_CASE("circulant times x equals FFT circular convolution", "[core][matrix]")
     CHECK(r.id == "check.circulant_fft");
     CHECK(r.passed());
     CHECK(r.value < 1e-12);
+}
+
+TEST_CASE("a NaN filter fails the circulant check", "[core][matrix]") {
+    signals::core::Laurent h{{1.0, std::numeric_limits<double>::quiet_NaN()}, 0};
+    CHECK_FALSE(signals::core::check_circulant_fft(h, 16, 1e-12).passed());
 }

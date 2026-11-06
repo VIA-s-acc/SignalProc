@@ -58,6 +58,7 @@ TEST_CASE("unknown latex shows the source and a note", "[tui][document]") {
     }
     CHECK(source);
     CHECK(note);
+    for (const auto& l : out.lines) CHECK(l.find("unknown") == std::string::npos);
 }
 
 TEST_CASE("missing live values print a dash and never a check mark", "[tui][document]") {
@@ -141,4 +142,54 @@ TEST_CASE("every card renders without unparsed formulas", "[tui][document]") {
                     CHECK(theory::display_width(l) <= 100);
                 }
             }
+}
+
+TEST_CASE("long live values wrap like text instead of being cut", "[tui][document]") {
+    auto ui = signals::test::make_ui(150, 44);
+    theory::LiveValues v;
+    v.set("block.band_lengths", "a₆ 7 044 · d₆ 7 044 · d₅ 14 086 · d₄ 28 170 · d₃ 56 338 · d₂ 112 673 · d₁ 225 344");
+    DocumentSpec s{theory::parse_markdown("Длины полос: {{block.band_lengths}}; сумма.\n"), 76};
+    s.values = &v;
+    DocumentLayout out;
+    document(s, *ui, &out);
+    std::string all;
+    for (const auto& l : out.lines) {
+        CHECK(theory::display_width(l) <= 76);
+        all += l + "\n";
+    }
+    CHECK(all.find("225 344") != std::string::npos);
+    CHECK(all.find("…") == std::string::npos);
+}
+
+TEST_CASE("links and formulas outside the visible rows have no box", "[tui][document]") {
+    auto ui = signals::test::make_ui(150, 44);
+    std::string md;
+    for (int i = 0; i < 30; ++i) md += "Абзац {#haar} и $x_" + std::to_string(i) + "$.\n\n$$a_" + std::to_string(i) + "$$\n\n";
+    DocumentSpec s{theory::parse_markdown(md), 60};
+    s.height = 5;
+    DocumentLayout out;
+    signals::test::render_text(document(s, *ui, &out), 60, 5);
+    REQUIRE(out.links.size() == 30);
+    CHECK(out.links.front().box.x_max >= out.links.front().box.x_min);
+    CHECK(out.links.back().box.x_max < out.links.back().box.x_min);
+    REQUIRE(out.formulas.size() == 30);
+    CHECK(out.formulas.back().box.x_max < out.formulas.back().box.x_min);
+}
+
+TEST_CASE("sideways scroll moves a whole code block and stops at its end", "[tui][document]") {
+    auto ui = signals::test::make_ui(150, 44);
+    const std::string long_line(100, 'x');
+    DocumentSpec s{theory::parse_markdown("```cpp\n    abcdefghijklmnop\n" + long_line + "\n```\n"), 30};
+    s.hscroll = 10;
+    DocumentLayout out;
+    document(s, *ui, &out);
+    REQUIRE(out.lines.size() == 2);
+    CHECK(out.lines[0].starts_with("ghijklmnop"));
+    CHECK(out.lines[0].find("…") == std::string::npos);
+    CHECK(out.lines[1].find("…") != std::string::npos);
+    CHECK(out.max_hscroll == 70);
+    s.hscroll = 1000;
+    document(s, *ui, &out);
+    CHECK(out.lines[1].find("…") == std::string::npos);
+    CHECK(theory::display_width(out.lines[1]) <= 30);
 }

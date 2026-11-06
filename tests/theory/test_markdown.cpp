@@ -71,3 +71,10 @@ TEST_CASE("math spans skip code and escaped dollars", "[theory][markdown]") {
     CHECK(spans[0] == "a");
     CHECK(spans[1] == "c");
 }
+
+TEST_CASE("a huge list number does not throw", "[theory][markdown]") {
+    std::vector<Block> b;
+    CHECK_NOTHROW(b = parse_markdown("2147483648. пункт\n99999999999999999999. ещё\n"));
+    REQUIRE(b.size() == 2);
+    CHECK(b[0].kind == Block::Kind::numbered);
+}

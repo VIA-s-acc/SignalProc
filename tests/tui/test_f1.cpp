@@ -164,3 +164,34 @@ TEST_CASE("every tab answers F1 without a crash", "[tui][f1]") {
             }
     }
 }
+
+TEST_CASE("parseval and orthogonality are checks only where they must hold", "[tui][f1]") {
+    AppFixture app;
+    app.h.send(ftxui::Event::Character('5'));
+    app.h.frame();
+    auto publish = [&] {
+        signals::theory::LiveValues v;
+        app.screens[4]->publish(v);
+        return v;
+    };
+    auto v = publish();
+    REQUIRE(v.find("check.parseval"));
+    CHECK_FALSE(v.find("check.parseval")->check);
+    CHECK(v.find("check.parseval")->text.find("≈") != std::string::npos);
+    REQUIRE(v.find("check.orthogonality"));
+    CHECK(v.find("check.orthogonality")->check);
+    auto o = app.models.decomposition->options();
+    o.mode = signals::core::Extension::periodization;
+    o.levels = 1;
+    app.models.decomposition->set_options(o, app.jobs);
+    app.h.frame();
+    v = publish();
+    REQUIRE(v.find("check.parseval")->check);
+    CHECK(v.find("check.parseval")->check->passed());
+    o.wavelet = "bior2.2";
+    app.models.decomposition->set_options(o, app.jobs);
+    app.h.frame();
+    v = publish();
+    CHECK_FALSE(v.find("check.orthogonality")->check);
+    CHECK_FALSE(v.find("check.parseval")->check);
+}

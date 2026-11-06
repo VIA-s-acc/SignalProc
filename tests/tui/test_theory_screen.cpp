@@ -178,10 +178,11 @@ TEST_CASE("view buttons navigate with the bank", "[tui][theory]") {
         target = std::string{t};
         args = a;
     };
-    auto values = dwt_values();
+    auto values = std::make_shared<signals::theory::LiveValues>();
+    values->set("block.bank", "db4");
     values->set("block.wavelet", "db4");
     values->set("block.n", "64");
-    f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, values});
+    f.nav->open({{TheoryLink::Kind::card, "bank_matrix", ""}, values});
     f.h.frame();
     for (int i = 0; i < 40 && f.screen->focused_target() != "view:matrix"; ++i) {
         f.h.send(ftxui::Event::Tab);
@@ -273,4 +274,71 @@ TEST_CASE("the references link opens the bibliography", "[tui][theory]") {
     REQUIRE(f.nav->current());
     CHECK(f.nav->current()->link.id == "references");
     CHECK(f.h.frame().find("Литература") != std::string::npos);
+}
+
+TEST_CASE("under the hood marks sections with cards and opens them from the contents", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    std::string target;
+    f.ui->navigate = [&](std::string_view t, const NavArgs&) { target = std::string{t}; };
+    f.nav->open({{TheoryLink::Kind::card, "threshold", ""}, std::make_shared<signals::theory::LiveValues>()});
+    auto frame = f.h.frame();
+    CHECK(frame.find("ⓘ") != std::string::npos);
+    f.nav->open({{TheoryLink::Kind::card, "idwt", ""}, std::make_shared<signals::theory::LiveValues>()});
+    f.h.frame();
+    const auto b = f.screen->area("toc:dwt-mallat");
+    REQUIRE(b.x_max >= b.x_min);
+    f.h.click(b.x_min + 1, b.y_min);
+    REQUIRE(f.nav->last(TheoryLink::Kind::card));
+    CHECK(f.nav->last(TheoryLink::Kind::card)->link.id == "dwt");
+    const auto t = f.screen->area("toc:transforms");
+    REQUIRE(t.x_max >= t.x_min);
+    f.h.click(t.x_min + 1, t.y_min);
+    CHECK(target == "tutorial");
+    CHECK(f.nav->current()->link.id == "transforms");
+}
+
+TEST_CASE("scrolling stops at the end of the document", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, dwt_values()});
+    f.h.frame();
+    for (int i = 0; i < 40; ++i) f.h.send(ftxui::Event::PageDown);
+    const int end = f.screen->scroll();
+    auto frame = f.h.frame();
+    CHECK(frame.find("o — открыть") != std::string::npos);
+    CHECK(frame.find("── Реализация") != std::string::npos);
+    f.h.send(ftxui::Event::PageDown);
+    f.h.send(ftxui::Event::ArrowDown);
+    CHECK(f.screen->scroll() == end);
+    f.h.send(ftxui::Event::PageUp);
+    CHECK(f.screen->scroll() < end);
+}
+
+TEST_CASE("the dwt card sends its bank but not the signal length to the matrix", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    std::string target;
+    NavArgs args;
+    f.ui->navigate = [&](std::string_view t, const NavArgs& a) {
+        target = std::string{t};
+        args = a;
+    };
+    f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, dwt_values()});
+    f.h.frame();
+    for (int i = 0; i < 40 && f.screen->focused_target() != "view:matrix"; ++i) {
+        f.h.send(ftxui::Event::Tab);
+        f.h.frame();
+    }
+    REQUIRE(f.screen->focused_target() == "view:matrix");
+    f.h.send(ftxui::Event::Return);
+    CHECK(target == "matrix");
+    CHECK(args.wavelet == "db2");
+    CHECK_FALSE(args.n);
+}
+
+TEST_CASE("under the hood hints name n, o and Esc", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    std::string keys;
+    for (const auto& h : f.screen->hints()) keys += h.key + " ";
+    CHECK(keys.find("n ") != std::string::npos);
+    CHECK(keys.find("o ") != std::string::npos);
+    CHECK(keys.find("Esc") != std::string::npos);
 }

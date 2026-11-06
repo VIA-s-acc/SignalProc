@@ -80,9 +80,14 @@ void DecompositionScreen::publish(theory::LiveValues& v) const {
         lengths.push_back(name + " " + group(d->coeffs.bands[i].size()));
         total += d->coeffs.bands[i].size();
     }
+    auto subscripted = [](const std::string& name) {
+        std::string out;
+        for (char ch : name) out += ch >= '0' && ch <= '9' ? subscript_number(static_cast<std::size_t>(ch - '0')) : std::string(1, ch);
+        return out;
+    };
     for (const auto& b : d->bands) {
-        ranges.push_back(b.name + " " + hz_text(b.lo_hz) + "–" + hz_text(b.hi_hz));
-        energies.push_back(b.name + " " + format_fixed(b.energy_pct, 2) + " %");
+        ranges.push_back(subscripted(b.name) + " " + hz_text(b.lo_hz) + "–" + hz_text(b.hi_hz));
+        energies.push_back(subscripted(b.name) + " " + format_fixed(b.energy_pct, 2) + " %");
     }
     v.set("block.band_lengths", joined(lengths));
     v.set("block.band_sum", group(total) + (total > n ? " = N + " + std::to_string(total - n) : " = N"));
@@ -92,9 +97,13 @@ void DecompositionScreen::publish(theory::LiveValues& v) const {
     double peak = 0;
     for (double x : d->x) peak = std::max(peak, std::abs(x));
     v.set_check({"check.round_trip", o.wavelet, d->pr_error, core::default_tolerance(J, length, peak)});
-    v.set_check(renamed(core::check_orthogonality(*bank, 1e-9), "check.orthogonality"));
+    if (d->orthogonal) v.set_check(renamed(core::check_orthogonality(*bank, 1e-9), "check.orthogonality"));
+    else v.set("check.orthogonality", tr("tui.theory.value.biorthogonal"));
     v.set_check(core::check_vanishing_moments(bank->h1, std::max(1, core::zeros_at_minus_one(bank->f0, 1e-6)), 1e-9));
-    v.set_check({"check.parseval", o.wavelet, d->parseval_error, 1e-10});
+    const bool exact = d->orthogonal && o.mode == core::Extension::periodization && n % (std::size_t{1} << J) == 0;
+    if (exact) v.set_check({"check.parseval", o.wavelet, d->parseval_error, 1e-10});
+    else
+        v.set("check.parseval", fmt::format(fmt::runtime(tr("tui.theory.value.parseval_approx")), fmt::arg("value", format_number(d->parseval_error, 2))));
     v.set("block.bands", joined(names));
     v.set("metric.energies", joined(energies));
     const auto& p = r ? r->processing : Processing{};

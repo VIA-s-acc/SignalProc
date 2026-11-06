@@ -137,12 +137,28 @@ std::vector<std::size_t> children_of(std::size_t index) {
 
 std::size_t index_of(const Section& s) { return static_cast<std::size_t>(&s - sections().data()); }
 
+std::string search_key(std::string_view text) {
+    static constexpr std::u32string_view kSub = U"₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓₕₖₗₘₙₚₛₜᵢⱼ";
+    static constexpr std::u32string_view kSubPlain = U"0123456789+-=()aeoxhklmnpstij";
+    static constexpr std::u32string_view kSup = U"⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁱⁿ";
+    static constexpr std::u32string_view kSupPlain = U"0123456789+-=()in";
+    std::u32string out;
+    for (char32_t c : to_u32(fold_case(text))) {
+        if (c == U'_' || c == U'^' || c == U'{' || c == U'}' || c == U'\\' || c == U'$') continue;
+        if (const auto i = kSub.find(c); i != std::u32string_view::npos) c = kSubPlain[i];
+        else if (const auto j = kSup.find(c); j != std::u32string_view::npos) c = kSupPlain[j];
+        else if (c == U'−') c = U'-';
+        out.push_back(c);
+    }
+    return to_utf8(out);
+}
+
 std::vector<std::size_t> search_sections(std::string_view query) {
-    const auto q = fold_case(trim(query));
+    const auto q = search_key(trim(query));
     if (q.empty()) return {};
     static const auto folded = [] {
         std::vector<std::pair<std::string, std::string>> out;
-        for (const auto& s : sections()) out.emplace_back(fold_case(s.title), fold_case(s.body));
+        for (const auto& s : sections()) out.emplace_back(search_key(s.title), search_key(own_body(s)));
         return out;
     }();
     std::vector<std::size_t> titles, bodies;

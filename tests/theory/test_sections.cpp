@@ -41,7 +41,8 @@ TEST_CASE("search folds case and finds symbols", "[theory][sections]") {
     REQUIRE_FALSE(hits.empty());
     CHECK(sections()[hits.front()].id == "dwt-mallat");
     CHECK(search_sections("МАЛЛА") == hits);
-    CHECK(search_sections("ЁМКОСТЬ") == search_sections("емкость"));
+    REQUIRE_FALSE(search_sections("ещё").empty());
+    CHECK(search_sections("ЕЩЕ") == search_sections("ещё"));
     CHECK(search_sections("нет такого раздела").empty());
     CHECK(search_sections("").empty());
     CHECK_FALSE(search_sections("↓2").empty());
@@ -52,4 +53,17 @@ TEST_CASE("display width ignores combining marks", "[theory][text]") {
     CHECK(display_width("aⱼ₋₁") == 4);
     CHECK(display_width("abc") == 3);
     CHECK(fold_case("ЁЛКА Abc") == "елка abc");
+}
+
+TEST_CASE("search looks at the text a section shows, not its subsections", "[theory][sections]") {
+    const auto hits = search_sections("BayesShrink");
+    REQUIRE_FALSE(hits.empty());
+    CHECK(sections()[hits.front()].id == "audio-denoising");
+    for (auto h : hits) CHECK(sections()[h].id != "theory");
+}
+
+TEST_CASE("search finds symbols written in LaTeX", "[theory][sections]") {
+    CHECK_FALSE(search_sections("P₀").empty());
+    CHECK(search_sections("P₀") == search_sections("P_0"));
+    CHECK_FALSE(search_sections("h₀[n]").empty());
 }

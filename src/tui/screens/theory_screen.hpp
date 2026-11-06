@@ -42,6 +42,7 @@ public:
     std::optional<std::size_t> focused_link() const { return focused_link_; }
     std::string focused_target() const { return focused_link_ && *focused_link_ < doc_.links.size() ? doc_.links[*focused_link_].target : std::string{}; }
     const std::string& query() const { return query_; }
+    int scroll() const { return scroll_; }
 
 private:
     struct Entry {
@@ -67,6 +68,7 @@ private:
     ftxui::Element card_panel(const TheoryPage* page, int width, int height);
     NavArgs view_args(const TheoryPage* page) const;
     void open_source();
+    void clamp_scroll();
 
     UiContext& ui_;
     std::shared_ptr<TheoryNavigator> nav_;
