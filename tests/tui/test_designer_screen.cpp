@@ -246,3 +246,24 @@ TEST_CASE("plus, minus, brackets and zero drive the focused designer plot, p and
     f.h.send(ftxui::Event::Character('P'));
     CHECK(f.model->p() == p);
 }
+
+TEST_CASE("designer groups, constraints and presets work from the keyboard", "[tui][designer]") {
+    DesignerFixture f;
+    f.h.send(ftxui::Event::Tab);
+    f.h.frame();
+    REQUIRE(f.model->split().group_in_h0.size() > 1);
+    const bool second = f.model->split().group_in_h0[1];
+    f.h.send(ftxui::Event::ArrowDown);
+    CHECK(f.h.send(ftxui::Event::Character(' ')));
+    CHECK(f.model->split().group_in_h0[1] != second);
+    const auto c = f.model->constraints();
+    CHECK(f.h.send(ftxui::Event::Character('l')));
+    CHECK(f.model->constraints().linear_phase != c.linear_phase);
+    f.h.send(ftxui::Event::Character('o'));
+    CHECK(f.model->constraints().orthogonal != c.orthogonal);
+    f.h.send(ftxui::Event::Character('w'));
+    CHECK(f.model->constraints().wavelet_only != c.wavelet_only);
+    const auto split = f.model->split();
+    CHECK(f.h.send(ftxui::Event::Character('r')));
+    CHECK((f.model->split().group_in_h0 != split.group_in_h0 || f.model->split().zeros_h0 != split.zeros_h0));
+}

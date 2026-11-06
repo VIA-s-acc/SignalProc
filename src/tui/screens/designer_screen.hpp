@@ -73,6 +73,7 @@ private:
     ftxui::Box roots_box_{};
     std::string notice_;
     std::optional<Panel> maximized_;
+    std::size_t group_cursor_ = 0, preset_index_ = 0;
     PlotZoom zoom_;
     double zplane_zoom_ = 1;
 };
