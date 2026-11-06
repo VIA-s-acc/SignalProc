@@ -58,6 +58,7 @@ One analysis level: convolution with $h_0$ and $h_1$ and downsampling with the p
 
 ```cpp
 for (std::size_t i = 0; i < len; ++i) {
+    if (stop_requested(progress, i)) return std::unexpected{cancelled_error("dwt")};
     const auto top = 2 * static_cast<std::ptrdiff_t>(i) + 1;
     const bool interior = top - (filter_len - 1) >= 0 && top < n;
     T a(0), d(0);

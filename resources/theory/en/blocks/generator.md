@@ -77,6 +77,7 @@ The core of the sweep: the instantaneous phase of the linear and logarithmic chi
 ```cpp
     const double t1 = static_cast<double>(n - 1) / fs;
     for (std::size_t k = 0; k < n; ++k) {
+        if (core::stop_requested(progress, k)) return x;
         const double t = static_cast<double>(k) / fs;
         double ph = 0;
         if (kind == SweepKind::linear) {

@@ -1,12 +1,14 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
 #include <span>
 #include <vector>
 
 #include "core/bank.hpp"
 #include "core/error.hpp"
 #include "core/extension.hpp"
+#include "core/progress.hpp"
 
 namespace signals::core {
 
@@ -42,8 +44,11 @@ Result<void> check_layout(const BasicFilterBank<T>& bank) {
 
 }  // namespace detail
 
+inline Error cancelled_error(std::string_view what) { return {Errc::cancelled, std::string{what} + ": cancelled"}; }
+
 template <class T>
-Result<BasicDwtLevel<T>> dwt_level(std::span<const T> x, const BasicFilterBank<T>& bank, const DwtOptions& options) {
+Result<BasicDwtLevel<T>> dwt_level(std::span<const T> x, const BasicFilterBank<T>& bank, const DwtOptions& options,
+                                   const ProgressSink* progress = nullptr) {
     if (x.empty()) return make_error(Errc::invalid_argument, "dwt: empty signal");
     if (auto ok = detail::check_layout(bank); !ok) return std::unexpected{ok.error()};
     if (x.size() == 1 && (options.mode == Extension::reflect || options.mode == Extension::antireflect))
@@ -60,6 +65,7 @@ Result<BasicDwtLevel<T>> dwt_level(std::span<const T> x, const BasicFilterBank<T
         out.approx.assign(xp.size() / 2, T(0));
         out.detail.assign(xp.size() / 2, T(0));
         for (std::ptrdiff_t k = 0; k < m / 2; ++k) {
+            if (stop_requested(progress, static_cast<std::size_t>(k))) return std::unexpected{cancelled_error("dwt")};
             const auto base = 2 * k + filter_len / 2;
             T a(0), d(0);
             for (std::ptrdiff_t j = 0; j < filter_len; ++j) {
@@ -78,6 +84,7 @@ Result<BasicDwtLevel<T>> dwt_level(std::span<const T> x, const BasicFilterBank<T
     out.approx.assign(len, T(0));
     out.detail.assign(len, T(0));
     for (std::size_t i = 0; i < len; ++i) {
+        if (stop_requested(progress, i)) return std::unexpected{cancelled_error("dwt")};
         const auto top = 2 * static_cast<std::ptrdiff_t>(i) + 1;
         const bool interior = top - (filter_len - 1) >= 0 && top < n;
         T a(0), d(0);
@@ -94,7 +101,7 @@ Result<BasicDwtLevel<T>> dwt_level(std::span<const T> x, const BasicFilterBank<T
 
 template <class T>
 Result<std::vector<T>> idwt_level(std::span<const T> approx, std::span<const T> detail, const BasicFilterBank<T>& bank,
-                                  const DwtOptions& options) {
+                                  const DwtOptions& options, const ProgressSink* progress = nullptr) {
     if (approx.size() != detail.size())
         return make_error(Errc::length_mismatch, "idwt: approximation and detail lengths differ");
     if (approx.empty()) return make_error(Errc::invalid_argument, "idwt: empty coefficients");
@@ -107,11 +114,13 @@ Result<std::vector<T>> idwt_level(std::span<const T> approx, std::span<const T> 
     if (options.mode == Extension::periodization) {
         const auto m = 2 * n;
         std::vector<T> w(static_cast<std::size_t>(m), T(0));
-        for (std::ptrdiff_t k = 0; k < n; ++k)
+        for (std::ptrdiff_t k = 0; k < n; ++k) {
+            if (stop_requested(progress, static_cast<std::size_t>(k))) return std::unexpected{cancelled_error("idwt")};
             for (std::ptrdiff_t j = 0; j < filter_len; ++j)
                 w[static_cast<std::size_t>(detail::floor_mod(2 * k + j, m))] +=
                     lo[static_cast<std::size_t>(j)] * approx[static_cast<std::size_t>(k)] +
                     hi[static_cast<std::size_t>(j)] * detail[static_cast<std::size_t>(k)];
+        }
         std::vector<T> out(static_cast<std::size_t>(m), T(0));
         for (std::ptrdiff_t i = 0; i < m; ++i)
             out[static_cast<std::size_t>(i)] = w[static_cast<std::size_t>(detail::floor_mod(i + filter_len / 2 - 1, m))];
@@ -122,6 +131,7 @@ Result<std::vector<T>> idwt_level(std::span<const T> approx, std::span<const T> 
     if (out_len <= 0) return make_error(Errc::invalid_argument, "idwt: too few coefficients for this filter");
     std::vector<T> out(static_cast<std::size_t>(out_len), T(0));
     for (std::ptrdiff_t i = 0; i < out_len; ++i) {
+        if (stop_requested(progress, static_cast<std::size_t>(i))) return std::unexpected{cancelled_error("idwt")};
         const auto pos = i + filter_len - 2;
         T acc(0);
         for (std::ptrdiff_t k = std::max<std::ptrdiff_t>(0, (pos - filter_len + 2) / 2); k < n; ++k) {

@@ -21,12 +21,12 @@ double median(std::vector<double> v) {
     return (lower + upper) / 2;
 }
 
+}  // namespace
+
 std::size_t default_levels(std::size_t n, std::size_t filter_len) {
     const auto max_level = dwt_max_level(n, filter_len);
     return max_level > 4 ? max_level - 3 : 1;
 }
-
-}  // namespace
 
 double noise_sigma_mad(std::span<const double> finest_detail) {
     std::vector<double> magnitudes;

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -27,8 +28,15 @@ using namespace std::chrono_literals;
 namespace {
 
 void touch(std::vector<char>& v) {
+    // Pseudo-random bytes: the macOS memory compressor squeezes a constant ballast below 64 MB under load.
     char* volatile data = v.data();
-    for (std::size_t i = 0; i < v.size(); i += 4096) data[i] = static_cast<char>(i);
+    std::uint64_t x = 0x9E3779B97F4A7C15ULL;
+    for (std::size_t i = 0; i < v.size(); ++i) {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        data[i] = static_cast<char>(x);
+    }
 }
 
 #if defined(__APPLE__)

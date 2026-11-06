@@ -58,6 +58,7 @@ $N = {{block.n}}$, фильтр {{block.wavelet}}: $L_0 = L_1 = {{block.filter_l
 
 ```cpp
 for (std::size_t i = 0; i < len; ++i) {
+    if (stop_requested(progress, i)) return std::unexpected{cancelled_error("dwt")};
     const auto top = 2 * static_cast<std::ptrdiff_t>(i) + 1;
     const bool interior = top - (filter_len - 1) >= 0 && top < n;
     T a(0), d(0);

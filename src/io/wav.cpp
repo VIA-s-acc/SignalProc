@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <bit>
+#include <cerrno>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <optional>
 #include <random>
 #include <string>
@@ -195,11 +198,57 @@ private:
     std::uniform_real_distribution<double> uniform_{0.0, 1.0};
 };
 
-core::Result<WavWriteReport> write_failed(drwav* wav, const std::filesystem::path& path, bool remove_file) {
-    if (wav) drwav_uninit(wav);
+
+bool open_for_reading(drwav& wav, const std::filesystem::path& path) {
+#ifdef _WIN32
+    return drwav_init_file_w(&wav, path.c_str(), nullptr);
+#else
+    return drwav_init_file(&wav, path.c_str(), nullptr);
+#endif
+}
+
+struct TempFile {
+    std::filesystem::path path;
+    std::FILE* file = nullptr;
+};
+
+std::optional<TempFile> create_temp_beside(const std::filesystem::path& target) {
+    std::random_device entropy;
+    for (int attempt = 0; attempt < 16; ++attempt) {
+        const auto tag = (static_cast<std::uint64_t>(entropy()) << 32) ^ entropy();
+        char hex[17];
+        std::snprintf(hex, sizeof hex, "%016llx", static_cast<unsigned long long>(tag));
+        auto path = target.parent_path() / ("." + target.filename().string() + "." + hex + ".partial");
+        // "x" is exclusive creation: it fails on an existing file and on a planted symlink.
+#ifdef _WIN32
+        std::FILE* file = _wfopen(path.c_str(), L"wbx");
+#else
+        std::FILE* file = std::fopen(path.c_str(), "wbx");
+#endif
+        if (file) return TempFile{std::move(path), file};
+        if (errno != EEXIST) return std::nullopt;
+    }
+    return std::nullopt;
+}
+
+size_t write_to_file(void* user, const void* data, size_t bytes) { return std::fwrite(data, 1, bytes, static_cast<std::FILE*>(user)); }
+
+drwav_bool32 seek_in_file(void* user, int offset, drwav_seek_origin origin) {
+    const int whence = origin == DRWAV_SEEK_SET ? SEEK_SET : origin == DRWAV_SEEK_CUR ? SEEK_CUR : SEEK_END;
+    return std::fseek(static_cast<std::FILE*>(user), offset, whence) == 0;
+}
+
+void discard(TempFile& temp) {
+    if (temp.file) std::fclose(temp.file);
+    temp.file = nullptr;
     std::error_code ignored;
-    if (remove_file) std::filesystem::remove(path, ignored);
-    return make_error(Errc::io_error, "cannot write WAV file: " + path.string());
+    std::filesystem::remove(temp.path, ignored);
+}
+
+core::Result<WavWriteReport> write_failed(drwav* wav, TempFile* temp, const std::filesystem::path& target) {
+    if (wav) drwav_uninit(wav);
+    if (temp) discard(*temp);
+    return make_error(Errc::io_error, "cannot write WAV file: " + target.string());
 }
 
 }  // namespace
@@ -222,7 +271,7 @@ core::Result<WavFile> read_wav(const std::filesystem::path& path) { return read_
 
 core::Result<WavInfo> probe_wav(const std::filesystem::path& path) {
     drwav wav;
-    if (!drwav_init_file(&wav, path.string().c_str(), nullptr))
+    if (!open_for_reading(wav, path))
         return make_error(Errc::io_error, "cannot open or parse WAV file: " + path.string());
     DrWavGuard guard{wav};
     const auto format = sample_format(wav);
@@ -234,7 +283,7 @@ core::Result<WavInfo> probe_wav(const std::filesystem::path& path) {
 
 core::Result<WavFile> read_wav(const std::filesystem::path& path, core::ProgressSink* progress) {
     drwav wav;
-    if (!drwav_init_file(&wav, path.string().c_str(), nullptr))
+    if (!open_for_reading(wav, path))
         return make_error(Errc::io_error, "cannot open or parse WAV file: " + path.string());
     DrWavGuard guard{wav};
 
@@ -255,7 +304,7 @@ core::Result<WavFile> read_wav(const std::filesystem::path& path, core::Progress
 }
 
 core::Result<WavWriteReport> write_wav(const std::filesystem::path& path, const core::AudioBuffer& audio,
-                                       const WavWriteOptions& options) {
+                                       const WavWriteOptions& options, core::ProgressSink* progress) {
     const auto encoding = write_encoding(options.format);
     if (!encoding)
         return make_error(Errc::invalid_argument, "cannot write WAV as " + std::string{to_string(options.format)});
@@ -264,22 +313,39 @@ core::Result<WavWriteReport> write_wav(const std::filesystem::path& path, const 
     const auto nch = audio.channels.size();
     drwav_data_format format{drwav_container_riff, encoding->tag, static_cast<drwav_uint32>(nch),
                              static_cast<drwav_uint32>(audio.sample_rate), encoding->bits};
-    std::error_code ec;
-    const bool existed = std::filesystem::exists(path, ec);
+    auto temp = create_temp_beside(path);
+    if (!temp) return write_failed(nullptr, nullptr, path);
     drwav wav;
-    if (!drwav_init_file_write(&wav, path.string().c_str(), &format, nullptr)) return write_failed(nullptr, path, !existed);
+    if (!drwav_init_write(&wav, &format, write_to_file, seek_in_file, temp->file, nullptr)) return write_failed(nullptr, &*temp, path);
 
     Quantizer quantizer{*encoding, options};
     const auto frames = audio.frames();
     std::vector<unsigned char> block(kBlockFrames * nch * quantizer.bytes());
     for (std::size_t start = 0; start < frames; start += kBlockFrames) {
+        if (progress && progress->cancelled()) {
+            drwav_uninit(&wav);
+            discard(*temp);
+            return make_error(Errc::cancelled, "write WAV: cancelled");
+        }
         const auto n = std::min<std::size_t>(kBlockFrames, frames - start);
         unsigned char* p = block.data();
         for (std::size_t f = start; f < start + n; ++f)
             for (std::size_t c = 0; c < nch; ++c, p += quantizer.bytes()) quantizer.encode(audio.channels[c][f], p);
-        if (drwav_write_pcm_frames(&wav, n, block.data()) != n) return write_failed(&wav, path, true);
+        if (drwav_write_pcm_frames(&wav, n, block.data()) != n) return write_failed(&wav, &*temp, path);
+        if (progress) progress->report(static_cast<double>(start + n) / static_cast<double>(frames));
     }
-    if (drwav_uninit(&wav) != DRWAV_SUCCESS) return write_failed(nullptr, path, true);
+    if (drwav_uninit(&wav) != DRWAV_SUCCESS) return write_failed(nullptr, &*temp, path);
+    const bool flushed = std::fflush(temp->file) == 0;
+    const bool closed = std::fclose(temp->file) == 0;
+    temp->file = nullptr;
+    if (!flushed || !closed) return write_failed(nullptr, &*temp, path);
+    if (progress && progress->cancelled()) {
+        discard(*temp);
+        return make_error(Errc::cancelled, "write WAV: cancelled");
+    }
+    std::error_code ec;
+    std::filesystem::rename(temp->path, path, ec);
+    if (ec) return write_failed(nullptr, &*temp, path);
     return WavWriteReport{quantizer.clipped()};
 }
 
