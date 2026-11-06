@@ -216,7 +216,7 @@ TEST_CASE("the inspector edits a choice and Ctrl+Z undoes it", "[tui][pipeline_s
 TEST_CASE("Enter on a text parameter asks for a value", "[tui][pipeline_screen]") {
     PipelineFixture f;
     std::string asked;
-    f.ui->ask_text = [&](std::string prompt, std::string initial, std::function<void(std::string)> done) {
+    f.ui->ask_text = [&](std::string, std::string initial, std::function<void(std::string)> done) {
         asked = initial;
         done("db4");
     };
