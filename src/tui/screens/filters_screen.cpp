@@ -434,6 +434,7 @@ ftxui::Element FiltersScreen::comparison_panel() {
     Elements rows;
     const auto focus = set_->focus();
     const auto reference = set_->reference();
+    row_boxes_.assign(entries_.size(), kNoBox);
     const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
     for (std::size_t i = 0; i < entries_.size(); ++i) {
         const auto& e = entries_[i];
@@ -445,7 +446,7 @@ ftxui::Element FiltersScreen::comparison_panel() {
         if (reference == i) line.push_back(text(tr("tui.filters.reference_mark") + " ") | fg(th.accent, ui_));
         if (e.error) line.push_back(text(std::string{glyph(Glyph::cross, ui_.caps.glyphs)} + " ") | fg(th.err, ui_));
         line.push_back(clickable(text(eye) | fg(e.visible ? th.fg : th.dim, ui_), [this, i] { set_->toggle(i); }));
-        rows.push_back(hbox(std::move(line)));
+        rows.push_back(hbox(std::move(line)) | reflect(row_boxes_[i]));
     }
     if (entries_.empty()) rows.push_back(text(tr("tui.filters.empty_set")) | fg(th.dim, ui_));
     if (!notice_.empty()) rows.push_back(text(notice_) | fg(th.warn, ui_));
@@ -876,6 +877,36 @@ bool FiltersScreen::on_mouse(const ftxui::Mouse& m) {
         drag_.last_x = m.x;
     }
     return true;
+}
+
+std::vector<MenuItem> FiltersScreen::context_menu(int x, int y) {
+    if (const int p = plot_under(x, y); p >= 0) {
+        const double w = omega_at(p == 1 ? "phase" : p == 2 ? "delay" : "magnitude", x);
+        return {{tr("tui.menu.cursor_a"), tr("tui.signal.key.click"), [this, w] { cursor_a_ = w; }},
+                {tr("tui.menu.cursor_b"), "Shift+" + tr("tui.signal.key.click"), [this, w] { cursor_b_ = w; }},
+                {tr("tui.menu.reset_zoom"), "", [this] {
+                     lo_ = 0;
+                     hi_ = 1;
+                     phase_zoom_ = delay_zoom_ = linear_zoom_ = 1;
+                     db_floor_ = -80;
+                 }}};
+    }
+    for (std::size_t i = 0; i < row_boxes_.size() && i < entries_.size(); ++i) {
+        if (!row_boxes_[i].Contain(x, y)) continue;
+        const bool is_reference = set_->reference() == i;
+        return {{tr(is_reference ? "tui.menu.clear_reference" : "tui.menu.make_reference"), "r",
+                 [this, i, is_reference] { set_->set_reference(is_reference ? std::nullopt : std::optional<std::size_t>{i}); }},
+                {tr(entries_[i].visible ? "tui.menu.hide" : "tui.menu.show"), "Space", [this, i] { set_->toggle(i); }},
+                {tr("tui.menu.remove"), "Del", [this, i] { set_->remove(i); }}};
+    }
+    return {};
+}
+
+std::vector<JumpTarget> FiltersScreen::jump_targets() const {
+    std::vector<JumpTarget> out;
+    for (const auto& c : clickables_) out.push_back({c.box, ""});
+    for (int p = 0; p < panel_count; ++p) out.push_back({title_boxes_[static_cast<std::size_t>(p)], key_of(static_cast<Panel>(p))});
+    return out;
 }
 
 bool FiltersScreen::on_search(ftxui::Event e) {

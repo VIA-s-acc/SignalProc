@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <ftxui/component/component_base.hpp>
+#include <ftxui/screen/box.hpp>
 
 #include "tui/jobs/jobs.hpp"
 #include "tui/monitor/monitor.hpp"
@@ -30,6 +31,18 @@ struct UiContext {
     bool first_run_check = false;
 };
 
+struct MenuItem {
+    std::string label;
+    std::string key = {};
+    std::function<void()> action = {};
+    bool enabled = true;
+};
+
+struct JumpTarget {
+    ftxui::Box box;
+    std::string label;
+};
+
 struct Hint {
     std::string key;
     std::string label;
@@ -42,6 +55,8 @@ public:
     virtual std::string context() const { return {}; }
     virtual void set_breakpoint(Breakpoint b) = 0;
     virtual bool capturing_text() const { return false; }
+    virtual std::vector<MenuItem> context_menu(int /*x*/, int /*y*/) { return {}; }
+    virtual std::vector<JumpTarget> jump_targets() const { return {}; }
 };
 
 }  // namespace signals::tui

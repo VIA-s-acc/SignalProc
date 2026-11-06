@@ -41,8 +41,11 @@ public:
     ftxui::Box area(std::string_view id) const;
     std::pair<double, double> view() const { return {lo_, hi_}; }
     std::optional<double> cursor_a() const { return cursor_a_; }
+    std::optional<double> cursor_b() const { return cursor_b_; }
     void set_cursor_a(double w) { cursor_a_ = std::clamp(w, 0.0, 1.0); }
     double omega_at(std::string_view plot, int x) const;
+    std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<JumpTarget> jump_targets() const override;
 
 private:
     enum Panel { magnitude, phase, delay, impulse, zeros, properties, measures, library, comparison, panel_count };
@@ -126,6 +129,7 @@ private:
     std::array<ftxui::Box, panel_count> title_boxes_{};
     std::array<ftxui::Box, 3> plot_boxes_{};
     std::deque<Clickable> clickables_;
+    std::vector<ftxui::Box> row_boxes_;
     double lo_ = 0, hi_ = 1;
     std::optional<double> cursor_a_, cursor_b_;
     double db_floor_ = -80;

@@ -68,6 +68,7 @@ public:
     void set_cursor_b(double t);
     std::optional<std::pair<double, double>> selection() const;
     void select(double t0, double t1);
+    void clear_selection();
     void compute_selection(JobRunner& jobs);
     std::vector<SelectionStats> selection_stats() const;
 

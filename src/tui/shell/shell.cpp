@@ -8,6 +8,7 @@
 
 #include "i18n/i18n.hpp"
 #include "tui/monitor/resources_panel.hpp"
+#include "tui/shell/overlays.hpp"
 #include "tui/shell/palette.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/term/check_screen.hpp"
@@ -73,6 +74,8 @@ public:
             all.push_back(g);
             row.push_back(g);
         }
+        all.push_back({"'", tr("tui.hint.jump")});
+        all.push_back({tr("tui.key.right_click"), tr("tui.hint.menu")});
         for (const auto& hint : row) {
             hints.push_back(key_label(" " + hint.key + " ", ui_));
             hints.push_back(text(" " + hint.label + "  ") | fg(ui_.theme.dim, ui_));
@@ -83,6 +86,8 @@ public:
         if (palette_.is_open()) return paint(dbox({base, palette_.render(ui_) | clear_under | center}));
         if (check_.is_open()) return paint(dbox({base, check_.render(ui_) | clear_under | center}));
         if (resources_open_) return paint(dbox({base, resources_panel(ui_) | clear_under | center}));
+        if (menu_.is_open()) return paint(dbox({base, menu_.render(ui_, w, h)}));
+        if (jump_.is_active()) return paint(dbox({base, jump_.render(ui_)}));
         if (!help_open_) return paint(base);
         return paint(dbox({base, help_overlay(all, help_filter_, ui_) | clear_under | center}));
     }
@@ -95,6 +100,8 @@ public:
             return true;
         }
         if (help_open_) return help_event(e);
+        if (menu_.is_open()) return menu_.on_event(e);
+        if (jump_.is_active()) return jump_event(e);
         if (e == ftxui::Event::CtrlP || e == ftxui::Event::Character(':')) {
             palette_.open(commands());
             return true;
@@ -103,6 +110,13 @@ public:
         if (screen.capturing_text()) return screen.OnEvent(e);
         if (e.is_mouse()) {
             const auto& m = e.mouse();
+            if (m.button == ftxui::Mouse::Right && m.motion == ftxui::Mouse::Pressed) {
+                auto items = screen.context_menu(m.x, m.y);
+                if (!items.empty()) {
+                    menu_.open(std::move(items), m.x, m.y);
+                    return true;
+                }
+            }
             if (m.button == ftxui::Mouse::Left && m.motion == ftxui::Mouse::Pressed && status_box_.Contain(m.x, m.y)) {
                 resources_open_ = true;
                 return true;
@@ -120,6 +134,10 @@ public:
             if (c.size() == 1 && c[0] >= '1' && c[0] <= '9') {
                 const int idx = c[0] - '1';
                 if (idx < static_cast<int>(screens_.size())) active_ = idx;
+                return true;
+            }
+            if (c == "'") {
+                start_jump();
                 return true;
             }
             if (c == "?") {
@@ -140,6 +158,32 @@ public:
     }
 
 private:
+    void start_jump() {
+        std::vector<JumpTarget> targets;
+        for (std::size_t i = 0; i < tab_boxes_.size(); ++i) targets.push_back({tab_boxes_[i], screens_[i]->tab_label()});
+        for (auto& t : screens_[static_cast<std::size_t>(active_)]->jump_targets()) targets.push_back(std::move(t));
+        targets.push_back({status_box_, tr("tui.cmd.resources")});
+        jump_.start(std::move(targets));
+    }
+
+    bool jump_event(const ftxui::Event& e) {
+        if (!e.is_character()) {
+            jump_.cancel();
+            return true;
+        }
+        const auto box = jump_.on_key(e.character());
+        if (!box) return true;
+        ftxui::Mouse m;
+        m.button = ftxui::Mouse::Left;
+        m.x = (box->x_min + box->x_max) / 2;
+        m.y = (box->y_min + box->y_max) / 2;
+        m.motion = ftxui::Mouse::Pressed;
+        OnEvent(ftxui::Event::Mouse("", m));
+        m.motion = ftxui::Mouse::Released;
+        OnEvent(ftxui::Event::Mouse("", m));
+        return true;
+    }
+
     void ask_open_file() {
         palette_.ask_path(tr("tui.cmd.open_prompt"), [this](std::string path) {
             if (ui_.open_file) ui_.open_file(expand_path(path));
@@ -162,6 +206,7 @@ private:
         out.push_back({"color.none", tr("tui.cmd.color_none"), [this] { ui_.caps.color = ColorDepth::none; }});
         out.push_back({"terminal.check", tr("tui.cmd.check"), [this] { check_.open(); }});
         out.push_back({"resources", tr("tui.cmd.resources"), [this] { resources_open_ = true; }});
+        out.push_back({"jump", tr("tui.cmd.jump"), [this] { start_jump(); }});
         out.push_back({"help", tr("tui.cmd.help"), [this] { help_open_ = true; help_filter_.clear(); }});
         out.push_back({"quit", tr("tui.cmd.quit"), [this] { if (on_quit_) on_quit_(); }});
         return out;
@@ -191,6 +236,8 @@ private:
     std::string help_filter_;
     Palette palette_;
     TerminalCheck check_;
+    ContextMenu menu_;
+    JumpMode jump_;
 };
 
 }  // namespace

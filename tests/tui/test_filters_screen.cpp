@@ -210,3 +210,31 @@ TEST_CASE("phase and delay panels read every visible trace at cursor A", "[tui][
     CHECK(count == 2);
     CHECK(frame.find("nan") == std::string::npos);
 }
+
+TEST_CASE("plot and comparison menus act on the filters screen", "[tui][filters][menu]") {
+    Fixture f;
+    REQUIRE(f.set->add({Kind::bank, "db2", FilterRole::h0}));
+    REQUIRE(f.set->add({Kind::bank, "db2", FilterRole::h1}));
+    Harness h{f.screen, 150, 41};
+    h.frame();
+    auto run = [](std::vector<MenuItem> items, const std::string& label) {
+        for (auto& item : items)
+            if (item.label == label) {
+                REQUIRE(item.enabled);
+                item.action();
+                return;
+            }
+        FAIL("no menu item " << label);
+    };
+    const auto a = f.screen->area("magnitude_plot");
+    run(f.screen->context_menu(column_of(*f.screen, 0.25), (a.y_min + a.y_max) / 2), "Курсор B здесь");
+    REQUIRE(f.screen->cursor_b());
+    CHECK(std::abs(*f.screen->cursor_b() - 0.25) <= 1.0 / (a.x_max - a.x_min + 1));
+    const auto row = signals::test::locate(h.frame(), "h₁ db2 (");
+    REQUIRE(row);
+    run(f.screen->context_menu(row->first, row->second), "Сделать эталоном");
+    CHECK(f.set->reference() == 1u);
+    h.frame();
+    run(f.screen->context_menu(row->first, row->second), "Удалить");
+    CHECK(f.set->entries().size() == 1);
+}

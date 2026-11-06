@@ -31,8 +31,11 @@ public:
     bool OnEvent(ftxui::Event e) override;
 
     ftxui::Box area(std::string_view id) const;
+    std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<JumpTarget> jump_targets() const override;
 
 private:
+    enum class DragMode { pan, select };
     enum Panel { wave, spectrum, bands, source, progress, log, panel_count };
 
     struct Drag {
@@ -73,6 +76,8 @@ private:
     bool wave_labels_ = true;
     bool wave_split_ = true;
     Drag drag_;
+    DragMode drag_mode_ = DragMode::pan;
+    ftxui::Box drag_chip_{};
     Panel last_title_ = panel_count;
     std::chrono::steady_clock::time_point last_title_click_{};
 };

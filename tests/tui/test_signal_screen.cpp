@@ -300,3 +300,72 @@ TEST_CASE("an empty selection has no level, not full scale", "[tui][signal]") {
     CHECK(std::isnan(s[0].rms_dbfs));
     CHECK(std::isnan(s[0].dc));
 }
+
+namespace {
+
+struct DragRig {
+    JobRunner jobs{[] {}, 0ms, true};
+    std::shared_ptr<UiContext> ui = signals::test::make_ui(150, 44);
+    std::shared_ptr<SignalModel> m;
+    std::shared_ptr<SignalScreen> screen;
+    Harness h;
+    DragRig() : m{(ui->jobs = &jobs, loaded(jobs))}, screen{std::make_shared<SignalScreen>(*ui, m)}, h{screen, 150, 41} { h.frame(); }
+};
+
+}  // namespace
+
+TEST_CASE("select mode drags a selection without modifiers", "[tui][signal][menu]") {
+    DragRig r;
+    r.h.send(ftxui::Event::Character('s'));
+    CHECK(r.h.frame().find("[тащить: выделение]") != std::string::npos);
+    const auto a = r.screen->area("waveform");
+    const int y = (a.y_min + a.y_max) / 2;
+    r.h.drag(a.x_min + 10, y, a.x_min + 40, y);
+    REQUIRE(r.m->selection());
+    CHECK(r.m->selection()->first < r.m->selection()->second);
+    r.h.send(ftxui::Event::Character('s'));
+    CHECK(r.h.frame().find("тащить: сдвиг") != std::string::npos);
+}
+
+TEST_CASE("ctrl drag still selects in pan mode", "[tui][signal][menu]") {
+    DragRig r;
+    const auto a = r.screen->area("waveform");
+    const int y = (a.y_min + a.y_max) / 2;
+    const double b0 = r.m->view_begin();
+    r.h.drag(a.x_min + 10, y, a.x_min + 40, y, true);
+    REQUIRE(r.m->selection());
+    CHECK(r.m->view_begin() == b0);
+}
+
+TEST_CASE("the drag mode chip toggles by click", "[tui][signal][menu]") {
+    DragRig r;
+    const auto chip = r.screen->area("drag_chip");
+    REQUIRE(chip.x_max >= chip.x_min);
+    r.h.click(chip.x_min, chip.y_min);
+    CHECK(r.h.frame().find("[тащить: выделение]") != std::string::npos);
+}
+
+TEST_CASE("the waveform menu sets cursors and selects between them", "[tui][signal][menu]") {
+    DragRig r;
+    const auto a = r.screen->area("waveform");
+    const int y = (a.y_min + a.y_max) / 2;
+    auto pick = [&](int x, const std::string& label) {
+        for (auto& item : r.screen->context_menu(x, y))
+            if (item.label == label) {
+                REQUIRE(item.enabled);
+                item.action();
+                return;
+            }
+        FAIL("no menu item " << label);
+    };
+    pick(a.x_min + 10, "Курсор A здесь");
+    pick(a.x_min + 50, "Курсор B здесь");
+    REQUIRE(r.m->cursor_a());
+    REQUIRE(r.m->cursor_b());
+    CHECK(*r.m->cursor_a() < *r.m->cursor_b());
+    pick(a.x_min + 30, "Выделить от A до B");
+    REQUIRE(r.m->selection());
+    CHECK(r.m->selection()->first == Catch::Approx(*r.m->cursor_a()));
+    CHECK(r.m->selection()->second == Catch::Approx(*r.m->cursor_b()));
+    CHECK(r.screen->context_menu(a.x_min - 30, y).empty());
+}

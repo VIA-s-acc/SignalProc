@@ -10,6 +10,7 @@
 
 #include "tui/harness.hpp"
 #include "tui/shell/layout.hpp"
+#include "tui/shell/overlays.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/ui_fixture.hpp"
 
@@ -153,4 +154,79 @@ TEST_CASE("the theme background is painted unless colour is off", "[tui][shell]"
         CHECK(screen.CellAt(5, 10).background_color == expected);
         CHECK(screen.CellAt(140, 30).background_color == expected);
     }
+}
+
+TEST_CASE("jump labels are single letters up to 26, then all two letters", "[tui][menu]") {
+    CHECK(jump_labels(3) == std::vector<std::string>{"a", "s", "d"});
+    CHECK(jump_labels(26).back() == "m");
+    const auto two = jump_labels(30);
+    CHECK(two[0] == "aa");
+    CHECK(two[1] == "as");
+    CHECK(two[26] == "sa");
+}
+
+TEST_CASE("jump mode labels targets and a letter clicks one", "[tui][menu]") {
+    ShellRig r{150, 44};
+    const auto before = r.h.frame();
+    r.h.send(ftxui::Event::Character('\''));
+    const auto labelled = r.h.frame();
+    CHECK(labelled != before);
+    r.h.send(ftxui::Event::Character('d'));
+    CHECK(active_tab(r.h.root) == 2);
+    r.h.send(ftxui::Event::Character('\''));
+    r.h.send(ftxui::Event::Character('x'));
+    CHECK(active_tab(r.h.root) == 2);
+    r.h.send(ftxui::Event::Character('1'));
+    CHECK(active_tab(r.h.root) == 0);
+}
+
+namespace {
+
+struct MenuScreen final : TabScreen {
+    int acted = 0;
+    std::string tab_label() const override { return "M"; }
+    std::vector<Hint> hints() const override { return {}; }
+    void set_breakpoint(Breakpoint) override {}
+    ftxui::Element OnRender() override { return ftxui::text("menu screen"); }
+    std::vector<MenuItem> context_menu(int, int) override {
+        return {{"Первый пункт", "", [this] { ++acted; }}, {"Недоступный", "", [this] { acted += 100; }, false}};
+    }
+};
+
+}  // namespace
+
+TEST_CASE("right click opens the screen menu and an item acts once", "[tui][menu]") {
+    auto ui = signals::test::make_ui(150, 44);
+    auto s = std::make_shared<MenuScreen>();
+    Harness h{make_shell(*ui, {s}, [] {}), 150, 44};
+    h.frame();
+    h.right_click(40, 20);
+    const auto frame = h.frame();
+    const auto at = signals::test::locate(frame, "Первый пункт");
+    REQUIRE(at);
+    h.click(at->first, at->second);
+    CHECK(s->acted == 1);
+    CHECK(h.frame().find("Первый пункт") == std::string::npos);
+    h.right_click(40, 20);
+    h.frame();
+    const auto off = signals::test::locate(h.frame(), "Недоступный");
+    REQUIRE(off);
+    h.click(off->first, off->second);
+    CHECK(s->acted == 1);
+}
+
+TEST_CASE("escape and keys drive the menu", "[tui][menu]") {
+    auto ui = signals::test::make_ui(150, 44);
+    auto s = std::make_shared<MenuScreen>();
+    Harness h{make_shell(*ui, {s}, [] {}), 150, 44};
+    h.frame();
+    h.right_click(140, 42);
+    CHECK(h.frame().find("Первый пункт") != std::string::npos);
+    h.send(ftxui::Event::Escape);
+    CHECK(h.frame().find("Первый пункт") == std::string::npos);
+    CHECK(s->acted == 0);
+    h.right_click(140, 42);
+    h.frame();
+    h.send(ftxui::Event::Return);
+    CHECK(s->acted == 1);
 }

@@ -271,6 +271,13 @@ void SignalModel::select(double t0, double t1) {
     selection_ = std::pair{std::min(t0, t1), std::max(t0, t1)};
 }
 
+void SignalModel::clear_selection() {
+    sync_view();
+    selection_.reset();
+    std::lock_guard lock{mutex_};
+    selection_stats_.clear();
+}
+
 void SignalModel::compute_selection(JobRunner& jobs) {
     auto d = data();
     if (!d || !selection()) return;
