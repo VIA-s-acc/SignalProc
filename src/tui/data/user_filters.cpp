@@ -67,6 +67,9 @@ core::Result<core::Laurent> read_filter(const toml::table& t, std::string_view k
 
 std::filesystem::path user_filters_dir(const EnvLookup& env) {
     if (auto xdg = env("XDG_CONFIG_HOME"); xdg && !xdg->empty()) return std::filesystem::path{*xdg} / "signals" / "filters";
+#ifdef _WIN32
+    if (auto appdata = env("APPDATA"); appdata && !appdata->empty()) return std::filesystem::path{*appdata} / "signals" / "filters";
+#endif
     if (auto home = env("HOME"); home && !home->empty()) return std::filesystem::path{*home} / ".config" / "signals" / "filters";
     return std::filesystem::path{"signals-filters"};
 }

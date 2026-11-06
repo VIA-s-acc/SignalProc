@@ -60,6 +60,14 @@ TEST_CASE("the user filters directory follows XDG", "[tui][user_filters]") {
     CHECK(user_filters_dir(env) == std::filesystem::path{"/x/signals/filters"});
     auto home_only = [](std::string_view k) -> std::optional<std::string> { return k == "HOME" ? std::optional<std::string>{"/h"} : std::nullopt; };
     CHECK(user_filters_dir(home_only) == std::filesystem::path{"/h/.config/signals/filters"});
+#ifdef _WIN32
+    auto appdata = [](std::string_view k) -> std::optional<std::string> {
+        if (k == "APPDATA") return std::string{"C:/Users/u/AppData/Roaming"};
+        if (k == "HOME") return std::string{"/h"};
+        return std::nullopt;
+    };
+    CHECK(user_filters_dir(appdata) == std::filesystem::path{"C:/Users/u/AppData/Roaming/signals/filters"});
+#endif
 }
 
 TEST_CASE("the filters library lists saved banks and analyses them", "[tui][user_filters][filters]") {
