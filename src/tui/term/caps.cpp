@@ -62,20 +62,24 @@ TerminalCaps detect_caps(const EnvLookup& env) {
     const auto term = non_empty(env, "TERM").value_or("");
     const auto colorterm = non_empty(env, "COLORTERM").value_or("");
     caps.no_color = non_empty(env, "NO_COLOR").has_value();
+    const bool windows_terminal = non_empty(env, "WT_SESSION").has_value();
     if (caps.no_color) caps.color = ColorDepth::none;
     else if (term == "dumb") caps.color = ColorDepth::none;
-    else if (colorterm == "truecolor" || colorterm == "24bit") caps.color = ColorDepth::truecolor;
+    else if (colorterm == "truecolor" || colorterm == "24bit" || windows_terminal) caps.color = ColorDepth::truecolor;
     else if (term.find("256color") != std::string::npos || caps.emulator == "Apple_Terminal") caps.color = ColorDepth::palette256;
     else caps.color = ColorDepth::ansi16;
     std::optional<std::string> locale;
     for (auto key : {"LC_ALL", "LC_CTYPE", "LANG"})
         if ((locale = non_empty(env, key))) break;
-    caps.glyphs = term != "dumb" && locale && contains_utf8(*locale) ? GlyphMode::unicode : GlyphMode::ascii;
+    caps.glyphs = term != "dumb" && ((locale && contains_utf8(*locale)) || windows_terminal) ? GlyphMode::unicode : GlyphMode::ascii;
     return caps;
 }
 
 std::filesystem::path prefs_path(const EnvLookup& env) {
     if (auto xdg = non_empty(env, "XDG_CONFIG_HOME")) return std::filesystem::path{*xdg} / "signals" / "terminal.toml";
+#ifdef _WIN32
+    if (auto appdata = non_empty(env, "APPDATA")) return std::filesystem::path{*appdata} / "signals" / "terminal.toml";
+#endif
     return std::filesystem::path{non_empty(env, "HOME").value_or(".")} / ".config" / "signals" / "terminal.toml";
 }
 

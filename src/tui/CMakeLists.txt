@@ -32,12 +32,16 @@ add_library(signals_tui STATIC
   ${CMAKE_CURRENT_BINARY_DIR}/theme_light.cpp
 )
 target_include_directories(signals_tui PUBLIC ${PROJECT_SOURCE_DIR}/src)
+find_package(Threads REQUIRED)
 target_link_libraries(signals_tui
-  PUBLIC signals_core signals_io signals_i18n ftxui::component ftxui::dom ftxui::screen
+  PUBLIC signals_core signals_io signals_i18n ftxui::component ftxui::dom ftxui::screen Threads::Threads
   PRIVATE tomlplusplus::tomlplusplus fmt::fmt)
 signals_configure_target(signals_tui)
 if(APPLE)
   target_sources(signals_tui PRIVATE monitor/sampler_macos.cpp)
+elseif(WIN32)
+  target_sources(signals_tui PRIVATE monitor/sampler_windows.cpp)
+  target_link_libraries(signals_tui PRIVATE ntdll psapi)
 else()
   target_sources(signals_tui PRIVATE monitor/sampler_linux.cpp)
 endif()

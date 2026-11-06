@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <chrono>
 
+#ifndef _WIN32
 #include <sys/resource.h>
+#endif
 
 #include "tui/monitor/sampler.hpp"
 
@@ -9,12 +11,14 @@ namespace signals::tui {
 
 namespace detail {
 
+#ifndef _WIN32
 double process_cpu_seconds() {
     rusage ru{};
     getrusage(RUSAGE_SELF, &ru);
     auto sec = [](timeval t) { return static_cast<double>(t.tv_sec) + static_cast<double>(t.tv_usec) * 1e-6; };
     return sec(ru.ru_utime) + sec(ru.ru_stime);
 }
+#endif
 
 double wall_seconds() {
     return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();

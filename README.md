@@ -8,6 +8,28 @@
 
 Готовы M0–M1 (каркас и ядро банков фильтров), M2 (звук, обработка, характеристики, CLI) и M3 (каркас TUI: вкладки, мышь, темы, проверка терминала, экраны «Сигнал» и «Фильтры», мониторинг ресурсов). Следующий этап — M4: «Конструктор», «Разложение», «Матрица», «Объяснение». План M3: [docs/superpowers/plans/2026-11-06-signals-m3.md](docs/superpowers/plans/2026-11-06-signals-m3.md).
 
+## Скачать
+
+Готовые сборки — на странице [Releases](https://github.com/VIA-s-acc/SignalProc/releases), по выпуску на версию. Версии идут за этапами: M3 — 0.3.0, M4 — 0.4.0.
+
+| Система | Архив |
+|---|---|
+| macOS 14 и новее, Apple Silicon | `signals-vX.Y.Z-macos-arm64.tar.gz` |
+| Linux x86_64, glibc 2.28 и новее (Ubuntu 20.04, Debian 10, RHEL 8) | `signals-vX.Y.Z-linux-x86_64.tar.gz` |
+| Windows 10 и 11, x86_64 | `signals-vX.Y.Z-windows-x86_64.zip` |
+
+В архиве — `signals` (на Windows `signals.exe`), `README.md` и `LICENSE`; контрольные суммы — в `SHA256SUMS`. Установка не нужна:
+
+```bash
+tar -xzf signals-v0.3.0-macos-arm64.tar.gz
+cd signals-v0.3.0-macos-arm64
+./signals check
+```
+
+**macOS.** Сборка не подписана, и Gatekeeper не запустит файл, скачанный браузером. Снимите карантин: `xattr -d com.apple.quarantine signals`.
+
+**Windows.** Интерфейс лучше запускать в [Windows Terminal](https://aka.ms/terminal): старая консоль хуже показывает точки Брайля и цвет. Выбор из проверки терминала хранится в `%APPDATA%\signals\terminal.toml`.
+
 ## Команды
 
 Все сообщения — на русском. Ключ `--json` есть у команд, которые печатают отчёт; `--help` у каждой команды перечисляет её параметры.
@@ -116,7 +138,7 @@ cmake --build --preset dev
 ctest --preset dev
 ```
 
-Нужны CMake ≥ 3.28 и компилятор с C++23: Apple Clang 17 или GCC 14.
+Нужны CMake ≥ 3.28 и компилятор с C++23: Apple Clang 17, GCC 14 или MSVC из Visual Studio 2026.
 
 ## Лицензия
 
