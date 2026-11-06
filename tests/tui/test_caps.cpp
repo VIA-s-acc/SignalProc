@@ -46,7 +46,7 @@ TEST_CASE("terminal preferences round trip and override detection", "[tui][caps]
     auto empty = load_prefs(p);
     REQUIRE(empty);
     CHECK_FALSE(empty->checked);
-    REQUIRE(save_prefs(p, {ColorDepth::palette256, GlyphMode::ascii, true}));
+    REQUIRE(save_prefs(p, {ColorDepth::palette256, GlyphMode::ascii, true, std::nullopt}));
     auto back = load_prefs(p);
     REQUIRE(back);
     CHECK(back->checked);

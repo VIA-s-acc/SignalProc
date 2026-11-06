@@ -208,7 +208,7 @@ int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out,
     if (design->parsed()) return run_design(design_p, design_json, out, err);
     if (tui->parsed()) {
         if (!tui_request) return report_error(err, {core::Errc::invalid_argument, tr("tui.unavailable")});
-        *tui_request = TuiRequest{tui_file.empty() ? std::nullopt : std::optional<std::filesystem::path>{tui_file}, tui_theme};
+        *tui_request = TuiRequest{tui_file.empty() ? std::nullopt : std::optional<std::filesystem::path>{tui_file}, tui_theme, std::nullopt};
         return 0;
     }
     for (const auto& command : commands)

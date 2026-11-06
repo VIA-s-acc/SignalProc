@@ -101,6 +101,7 @@ TEST_CASE("terminal check saves preferences", "[tui][caps]") {
     const auto dir = signals::test::temp_path("xdg-check");
     std::filesystem::remove_all(dir);
     ui->prefs_file = dir / "signals" / "terminal.toml";
+    REQUIRE(save_prefs(ui->prefs_file, {std::nullopt, std::nullopt, false, signals::Language::en}));
     Rig r{ui};
     r.h.send(ftxui::Event::Character(':'));
     type(r.h, {"п", "р", "о", "в", "е", "р"});
@@ -118,6 +119,7 @@ TEST_CASE("terminal check saves preferences", "[tui][caps]") {
     CHECK(prefs->checked);
     CHECK(prefs->color == ColorDepth::palette256);
     CHECK(prefs->glyphs == GlyphMode::ascii);
+    CHECK(prefs->language == signals::Language::en);
 }
 
 TEST_CASE("first run opens the terminal check", "[tui][caps]") {

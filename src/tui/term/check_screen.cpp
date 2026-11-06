@@ -30,7 +30,11 @@ bool TerminalCheck::on_event(const ftxui::Event& e, UiContext& ui) {
         if (ui.prefs_file.empty()) {
             status_ = tr("tui.check.nowhere");
         } else {
-            auto saved = save_prefs(ui.prefs_file, {ui.caps.color, ui.caps.glyphs, true});
+            auto keep = load_prefs(ui.prefs_file).value_or(TerminalPrefs{});
+            keep.color = ui.caps.color;
+            keep.glyphs = ui.caps.glyphs;
+            keep.checked = true;
+            auto saved = save_prefs(ui.prefs_file, keep);
             if (saved) ui.first_run_check = false;
             status_ = saved ? tr("tui.check.saved") + ui.prefs_file.string() : saved.error().message;
         }
