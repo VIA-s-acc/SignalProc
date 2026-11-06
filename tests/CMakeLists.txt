@@ -65,6 +65,7 @@ add_executable(signals_tests
   tui/harness.cpp
   audio/test_player.cpp
   theory/test_sections.cpp
+  theory/test_latex.cpp
   test_golden_files.cpp
   test_i18n_keys.cpp
   support/golden.cpp
