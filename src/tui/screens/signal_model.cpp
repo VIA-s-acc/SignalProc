@@ -29,7 +29,11 @@ constexpr double kMinAmplitude = 1.0 / 1024;
 std::string wall_clock() {
     const auto t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     std::tm tm{};
+#ifdef _WIN32
+    localtime_s(&tm, &t);
+#else
     localtime_r(&t, &tm);
+#endif
     char buf[16];
     std::strftime(buf, sizeof buf, "%H:%M:%S", &tm);
     return buf;

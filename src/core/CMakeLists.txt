@@ -24,6 +24,7 @@ add_library(signals_core STATIC
   wavelet/regularity.cpp
   wavelet/cascade.cpp
 )
+set_property(SOURCE version.cpp APPEND PROPERTY COMPILE_DEFINITIONS SIGNALS_VERSION="${PROJECT_VERSION}${SIGNALS_VERSION_SUFFIX}")
 target_include_directories(signals_core PUBLIC ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(signals_core PUBLIC Eigen3::Eigen signals_multiprecision signals_pocketfft)
 signals_configure_target(signals_core)

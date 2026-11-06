@@ -1,0 +1,195 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      base: ${{ steps.version.outputs.base }}
+      suffix: ${{ steps.version.outputs.suffix }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: |
+          base=$(sed -nE 's/^project\(signals VERSION ([0-9]+\.[0-9]+\.[0-9]+)[ )].*/\1/p' CMakeLists.txt)
+          if [[ -z "$base" ]]; then
+            echo "::error::cannot read the project version from CMakeLists.txt"
+            exit 1
+          fi
+          version="$base"
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            if [[ "${version%%-*}" != "$base" ]]; then
+              echo "::error::tag $GITHUB_REF_NAME does not match the project version $base in CMakeLists.txt"
+              exit 1
+            fi
+          fi
+          suffix="${version#"$base"}"
+          if [[ ! "$suffix" =~ ^(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::unsupported pre-release suffix '$suffix'"
+            exit 1
+          fi
+          {
+            echo "tag=v$version"
+            echo "version=$version"
+            echo "base=$base"
+            echo "suffix=$suffix"
+            echo "prerelease=$([[ -n "$suffix" ]] && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
+          echo "version $version (project $base)"
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            platform: macos-arm64
+            cxx: clang++
+          - os: ubuntu-24.04
+            platform: linux-x86_64
+            # glibc 2.28 keeps the binary runnable on distributions older than the runner; GCC 14 comes from gcc-toolset.
+            container: quay.io/pypa/manylinux_2_28_x86_64
+            cxx: g++
+          - os: windows-latest
+            platform: windows-x86_64
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      MATRIX_CXX: ${{ matrix.cxx }}
+      VERSION: ${{ needs.version.outputs.version }}
+      SUFFIX: ${{ needs.version.outputs.suffix }}
+      PACKAGE: signals-${{ needs.version.outputs.tag }}-${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: |
+          [[ -n "$MATRIX_CXX" ]] && export CXX="$MATRIX_CXX"
+          [[ -n "$MATRIX_CXX" ]] && "$CXX" --version | head -1
+          args=(-DCMAKE_BUILD_TYPE=Release -DSIGNALS_BUILD_TESTS=OFF "-DSIGNALS_VERSION_SUFFIX=$SUFFIX")
+          case "$RUNNER_OS" in
+            Linux) args+=("-DCMAKE_EXE_LINKER_FLAGS=-static-libstdc++ -static-libgcc") ;;
+            macOS) args+=(-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0) ;;
+            Windows)
+              export CXXFLAGS=-MP
+              args+=(-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded)
+              ;;
+          esac
+          cmake -S . -B build "${args[@]}"
+      - name: Build
+        run: cmake --build build --config Release --target signals --parallel 4
+      - name: Smoke test
+        run: |
+          bin=build/app/signals
+          [[ "$RUNNER_OS" == Windows ]] && bin=build/app/Release/signals.exe
+          echo "BIN=$bin" >> "$GITHUB_ENV"
+          reported=$("$bin" --version | tr -d '\r')
+          echo "$reported"
+          if [[ "$reported" != "signals $VERSION" ]]; then
+            echo "::error::expected 'signals $VERSION', got '$reported'"
+            exit 1
+          fi
+          "$bin" check
+          "$bin" check --json | tr -d '\r' > check.json
+          passed=$(sed -nE 's/^  "passed": ([0-9]+),?$/\1/p' check.json)
+          failed=$(sed -nE 's/^  "failed": ([0-9]+),?$/\1/p' check.json)
+          echo "check: $passed/$((passed + failed)) passed"
+          if [[ -z "$passed" || "$passed" == 0 || "$failed" != 0 ]]; then
+            echo "::error::signals check did not pass"
+            exit 1
+          fi
+      - name: Inspect binary
+        run: |
+          case "$RUNNER_OS" in
+            Linux)
+              ldd "$BIN"
+              if ldd "$BIN" | grep -E 'libstdc\+\+|libgcc_s'; then
+                echo "::error::libstdc++ or libgcc is linked dynamically"
+                exit 1
+              fi
+              echo "newest glibc symbol: $(objdump -T "$BIN" | grep -oE 'GLIBC_[0-9.]+' | sort -Vu | tail -1)"
+              ;;
+            macOS)
+              otool -L "$BIN"
+              vtool -show-build "$BIN"
+              ;;
+            Windows)
+              objdump -p "$BIN" | grep 'DLL Name'
+              if objdump -p "$BIN" | grep -iE 'DLL Name: (msvcp|vcruntime|api-ms-win-crt)'; then
+                echo "::error::the MSVC runtime is linked dynamically"
+                exit 1
+              fi
+              ;;
+          esac
+      - name: Package
+        run: |
+          mkdir -p "stage/$PACKAGE" dist
+          cp "$BIN" README.md LICENSE "stage/$PACKAGE/"
+          cd stage
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            7z a -tzip "../dist/$PACKAGE.zip" "$PACKAGE" > /dev/null
+          else
+            strip "$PACKAGE/signals"
+            tar -czf "../dist/$PACKAGE.tar.gz" "$PACKAGE"
+          fi
+          ls -l ../dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: [version, build]
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.version.outputs.tag }}
+      VERSION: ${{ needs.version.outputs.version }}
+      BASE: ${{ needs.version.outputs.base }}
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Release notes
+        run: |
+          section() {
+            awk -v head="## [$1]" 'index($0, head) == 1 { on = 1; next } on && /^## / { exit } on { print }' CHANGELOG.md
+          }
+          section "$VERSION" > notes.md
+          [[ -s notes.md ]] || section "$BASE" > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::CHANGELOG.md has no section for $VERSION or $BASE"
+            exit 1
+          fi
+          cat notes.md
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum -- * > SHA256SUMS && cat SHA256SUMS
+      - name: Publish
+        run: |
+          flags=()
+          [[ "$PRERELEASE" == true ]] && flags+=(--prerelease)
+          gh release create "$TAG" dist/* --verify-tag --title "Signals $TAG" --notes-file notes.md "${flags[@]}"

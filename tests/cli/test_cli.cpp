@@ -12,7 +12,7 @@ TEST_CASE("version prints localized line", "[cli]") {
     std::ostringstream out, err;
     std::array<std::string_view, 2> args{"signals", "--version"};
     CHECK(signals::cli::run_cli(args, out, err) == 0);
-    CHECK(out.str() == "signals 0.2.0-dev\n");
+    CHECK(out.str() == "signals " SIGNALS_EXPECTED_VERSION "\n");
 }
 
 TEST_CASE("check passes and emits json", "[cli]") {
