@@ -420,5 +420,17 @@
   "tui.explain.hint.tab": "панель",
   "tui.explain.cmd.haar": "Объяснение: банк Хаара",
   "tui.explain.cmd.db2": "Объяснение: банк db2",
-  "tui.explain.cmd.legall53": "Объяснение: банк 5/3"
+  "tui.explain.cmd.legall53": "Объяснение: банк 5/3",
+  "tui.filters.mine_empty": "пусто (Банк)",
+  "tui.designer.job.splits": "Разбиения P₀, p = {p}",
+  "tui.designer.stage.roots": "корни",
+  "tui.designer.stage.enumerate": "перебор",
+  "tui.designer.stage.classify": "классификация",
+  "tui.designer.job.result": "Банк по разбиению",
+  "tui.designer.stage.bank": "банк, проверки, каскады",
+  "tui.designer.title.daubechies": "db{p} (Добеши, минимальная фаза)",
+  "tui.designer.title.max_phase": "зеркальный db{p} (максимальная фаза)",
+  "tui.designer.title.linear_phase": "линейная фаза (CDF-семейство)",
+  "tui.designer.title.custom": "своё разбиение",
+  "tui.user_filters.broken": "Мои фильтры: файл пропущен — {error}"
 }

@@ -18,7 +18,7 @@ namespace signals::tui {
 enum class FilterRole { h0, h1, f0, f1 };
 
 struct FilterRef {
-    enum class Kind { bank, equivalent, distortion, alias };
+    enum class Kind { bank, equivalent, distortion, alias, user };
     Kind kind = Kind::bank;
     std::string wavelet;
     FilterRole role = FilterRole::h0;

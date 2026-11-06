@@ -46,6 +46,7 @@ struct UiContext {
     std::function<std::pair<int, int>()> terminal_size;
     std::function<std::vector<ResourceSnapshot>()> history;
     std::filesystem::path prefs_file;
+    std::filesystem::path user_filters;
     bool first_run_check = false;
     audio::Player* player = nullptr;
     Ticker* ticker = nullptr;

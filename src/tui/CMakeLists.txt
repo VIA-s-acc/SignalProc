@@ -14,6 +14,7 @@ add_library(signals_tui STATIC
   theme/theme.cpp
   term/caps.cpp
   data/pyramid.cpp
+  data/user_filters.cpp
   jobs/jobs.cpp
   monitor/sampler_common.cpp
   monitor/monitor.cpp
@@ -34,6 +35,7 @@ add_library(signals_tui STATIC
   screens/filters_screen.cpp
   screens/explain_model.cpp
   screens/explain_screen.cpp
+  screens/designer_model.cpp
   term/check_screen.cpp
   monitor/resources_panel.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theme_dark.cpp

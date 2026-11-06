@@ -51,6 +51,7 @@ std::string lower(std::string s) {
 std::string describe(const FilterRef& r) {
     switch (r.kind) {
     case FilterRef::Kind::bank:
+    case FilterRef::Kind::user:
         switch (r.role) {
         case FilterRole::h0: return tr("tui.filters.role.h0");
         case FilterRole::h1: return tr("tui.filters.role.h1");
@@ -184,13 +185,13 @@ Rgb FiltersScreen::color_of(std::size_t index) const {
     if (set_->reference() == index) return th.fg;
     std::string primary;
     for (const auto& e : entries_)
-        if (e.ref.kind == FilterRef::Kind::bank) {
+        if (e.ref.kind == FilterRef::Kind::bank || e.ref.kind == FilterRef::Kind::user) {
             primary = e.ref.wavelet;
             break;
         }
     auto is_primary = [&](std::size_t i) {
         const auto& r = entries_[i].ref;
-        return r.kind == FilterRef::Kind::bank && r.wavelet == primary;
+        return (r.kind == FilterRef::Kind::bank || r.kind == FilterRef::Kind::user) && r.wavelet == primary;
     };
     const auto& r = entries_[index].ref;
     if (is_primary(index)) return r.role == FilterRole::h0 || r.role == FilterRole::f0 ? th.trace[0] : th.trace[1];
@@ -203,7 +204,8 @@ Rgb FiltersScreen::color_of(std::size_t index) const {
 LineStyle FiltersScreen::style_of(std::size_t index) const {
     if (set_->reference() == index) return LineStyle::dotted;
     const auto& r = entries_[index].ref;
-    if (r.kind == FilterRef::Kind::bank && (r.role == FilterRole::f0 || r.role == FilterRole::f1)) return LineStyle::dashed;
+    if ((r.kind == FilterRef::Kind::bank || r.kind == FilterRef::Kind::user) && (r.role == FilterRole::f0 || r.role == FilterRole::f1))
+        return LineStyle::dashed;
     return LineStyle::solid;
 }
 

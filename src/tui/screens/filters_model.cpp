@@ -1,4 +1,6 @@
 #include "tui/screens/filters_model.hpp"
+#include "tui/data/user_filters.hpp"
+#include "core/wavelet/regularity.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -47,7 +49,8 @@ bool analysis_side(FilterRole r) { return r == FilterRole::h0 || r == FilterRole
 
 std::string FilterRef::label() const {
     switch (kind) {
-    case Kind::bank: return std::string{role_name(role)} + " " + wavelet;
+    case Kind::bank:
+    case Kind::user: return std::string{role_name(role)} + " " + wavelet;
     case Kind::equivalent: return (detail ? "d" : "a") + subscript_count(level) + " " + wavelet;
     case Kind::distortion: return "T(z) " + wavelet;
     case Kind::alias: return "A(z) " + wavelet;
@@ -84,18 +87,36 @@ LibraryNode build_library(std::string_view equivalent_wavelet, std::size_t level
     root.children.push_back(std::move(chain));
     root.children.push_back({tr("tui.filters.group.cwt"), {}, {}, "M6"});
     root.children.push_back({tr("tui.filters.group.spectra"), {}, {}, "M6"});
-    root.children.push_back({tr("tui.filters.group.mine"), {}, {}, "M6"});
+    LibraryNode mine{tr("tui.filters.group.mine")};
+    for (const auto& b : user_banks()) {
+        LibraryNode node{b.name};
+        for (auto role : {FilterRole::h0, FilterRole::h1, FilterRole::f0, FilterRole::f1}) {
+            FilterRef r{FilterRef::Kind::user, b.name, role};
+            node.children.push_back({r.label(), {}, r});
+        }
+        mine.children.push_back(std::move(node));
+    }
+    if (mine.children.empty()) mine.later = tr("tui.filters.mine_empty");
+    root.children.push_back(std::move(mine));
     return root;
 }
 
+core::Result<core::FilterBank> bank_of(const FilterRef& ref) {
+    if (ref.kind != FilterRef::Kind::user) return core::wavelet(ref.wavelet);
+    for (const auto& b : user_banks())
+        if (b.name == ref.wavelet) return core::make_bank<double>(b.name, b.h0, b.f0, 1e-9);
+    return core::make_error(core::Errc::invalid_argument, "no user bank named " + ref.wavelet);
+}
+
 core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points) {
-    const auto bank = core::wavelet(ref.wavelet);
+    const auto bank = bank_of(ref);
     if (!bank) return std::unexpected(bank.error());
     FilterAnalysis a;
     a.ref = ref;
     double lo = 0, hi = 0.5;
     switch (ref.kind) {
     case FilterRef::Kind::bank:
+    case FilterRef::Kind::user:
         a.h = role_filter(*bank, ref.role);
         if (ref.role == FilterRole::h1 || ref.role == FilterRole::f1) lo = 0.5, hi = 1.0;
         break;
@@ -116,8 +137,15 @@ core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points) {
     a.linear_phase = core::is_linear_phase(a.h, kLinearPhaseTol);
     const auto pr = core::check_pr(*bank);
     a.pr_error = std::max(pr.alias.value, pr.distortion.value);
-    const auto info = core::wavelet_info(ref.wavelet);
+    const auto info = ref.kind == FilterRef::Kind::user ? core::Result<core::WaveletInfo>{core::make_error(core::Errc::invalid_argument, "user")}
+                                                        : core::wavelet_info(ref.wavelet);
     if (info && info->orthogonal) a.orth_error = core::check_orthogonality(*bank, kOrthogonalityTol).value;
+    if (ref.kind == FilterRef::Kind::user) {
+        const auto orth = core::check_orthogonality(*bank, kOrthogonalityTol);
+        if (orth.passed()) a.orth_error = orth.value;
+        a.sobolev = core::sobolev_exponent(analysis_side(ref.role) ? bank->h0 : bank->f0);
+        return a;
+    }
     if (const auto reg = core::wavelet_regularity(ref.wavelet)) {
         const bool synthesis = ref.kind == FilterRef::Kind::bank && !analysis_side(ref.role);
         a.sobolev = synthesis ? reg->sobolev_f0 : reg->sobolev_h0;
