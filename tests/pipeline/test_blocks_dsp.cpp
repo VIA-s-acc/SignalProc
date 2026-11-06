@@ -128,3 +128,26 @@ TEST_CASE("multirate, convolution and band blocks match core", "[pipeline]") {
     for (double v : e.channels[0].bands[3]) CHECK(v == 0);
     CHECK(e.channels[0].bands[2][0] == Catch::Approx(std::get<Coeffs>(c[0]).channels[0].bands[2][0] * std::pow(10.0, -6.0 / 20)));
 }
+
+TEST_CASE("huge factors and lengths are rejected before anything is allocated", "[pipeline]") {
+    const auto rejects = [](std::string_view block, Params p) {
+        INFO(block);
+        CHECK_FALSE(resolve_params(*find_block_type(block), p));
+    };
+    rejects("upsample", {{"m", "100000000"}});
+    rejects("upsample", {{"m", "0"}});
+    rejects("downsample", {{"m", "-3"}});
+    rejects("resample", {{"l", "4294967297"}});
+    rejects("downsample", {{"attenuation_db", "1e9"}});
+    rejects("gen", {{"duration", "1e12"}});
+    rejects("gen", {{"rate", "0"}});
+    rejects("delay", {{"samples", "1000000000000"}});
+    rejects("dwt", {{"levels", "1000"}});
+    CHECK(resolve_params(*find_block_type("upsample"), {{"m", "1024"}}));
+
+    const Params seconds = *resolve_params(*find_block_type("delay"), {{"samples", "1e9s"}});
+    CHECK_FALSE(param_samples(seconds, "samples", 48000));
+
+    const std::vector<double> x(16, 1.0);
+    CHECK_FALSE(core::interpolate(x, std::numeric_limits<std::size_t>::max() / 4, {}));
+}

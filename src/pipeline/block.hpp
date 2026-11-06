@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <limits>
 #include <map>
 #include <span>
 #include <string>
@@ -20,7 +21,11 @@ struct ParamSpec {
     Kind kind = Kind::text;
     std::string fallback;
     std::vector<std::string> choices = {};
+    double min = -std::numeric_limits<double>::infinity();
+    double max = std::numeric_limits<double>::infinity();
 };
+
+inline constexpr double kMaxSamples = 1 << 28;
 
 struct PortSpec {
     std::string name;

@@ -1,7 +1,10 @@
 #include <cmath>
 #include <utility>
 
+#include <fmt/format.h>
+
 #include "core/signal_ops.hpp"
+#include "i18n/i18n.hpp"
 #include "io/generators.hpp"
 #include "io/wav.hpp"
 #include "pipeline/block.hpp"
@@ -45,11 +48,14 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                     {"freq", Kind::real, "440"},
                     {"f1", Kind::real, "8000"},
                     {"amplitude", Kind::real, "1"},
-                    {"rate", Kind::integer, "44100"},
-                    {"duration", Kind::real, "1"},
+                    {"rate", Kind::integer, "44100", {}, 1, 768000},
+                    {"duration", Kind::real, "1", {}, 0, 3600},
                     {"seed", Kind::integer, "1"}},
                    [](const RunContext&, std::span<const Value>, const Params& p) -> Out {
                        const double rate = static_cast<double>(param_int(p, "rate"));
+                       if (param_real(p, "duration") * rate > kMaxSamples)
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.too_long")), fmt::arg("param", "duration"),
+                                                                                             fmt::arg("value", param_text(p, "duration"))));
                        const auto n = static_cast<std::size_t>(std::llround(param_real(p, "duration") * rate));
                        const auto& kind = param_text(p, "kind");
                        const double f = param_real(p, "freq"), a = param_real(p, "amplitude");

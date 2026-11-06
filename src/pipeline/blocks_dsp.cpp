@@ -25,6 +25,8 @@ const std::vector<PortSpec> kSignalOut{{"out", PortType::signal}};
 const std::vector<PortSpec> kCoeffsIn{{"in", PortType::coeffs}};
 const std::vector<PortSpec> kCoeffsOut{{"coeffs", PortType::coeffs}};
 const std::vector<PortSpec> kReportOut{{"report", PortType::report}};
+constexpr double kMaxFactor = 1024;
+const ParamSpec kAttenuation{"attenuation_db", Kind::real, "80", {}, 10, 200};
 const std::vector<std::string> kExtensions{"symmetric", "periodization", "zero", "constant", "smooth", "periodic", "reflect", "antisymmetric", "antireflect"};
 
 const core::AudioBuffer& in_audio(std::span<const Value> in, std::size_t i = 0) { return std::get<core::AudioBuffer>(in[i]); }
@@ -81,9 +83,9 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"downsample",
                    kSignalIn,
                    kSignalOut,
-                   {{"m", Kind::integer, "2"}, {"attenuation_db", Kind::real, "80"}, {"anti_alias", Kind::choice, "yes", {"yes", "no"}}},
+                   {{"m", Kind::integer, "2", {}, 1, kMaxFactor}, kAttenuation, {"anti_alias", Kind::choice, "yes", {"yes", "no"}}},
                    [](const RunContext&, std::span<const Value> in, const Params& p) {
-                       const auto m = static_cast<std::size_t>(std::max<long long>(1, param_int(p, "m")));
+                       const auto m = static_cast<std::size_t>(param_int(p, "m"));
                        const auto o = multirate(p);
                        return per_channel(in_audio(in), in_audio(in).sample_rate / static_cast<double>(m),
                                           [&](const std::vector<double>& c) { return core::decimate(c, m, o); });
@@ -91,9 +93,9 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"upsample",
                    kSignalIn,
                    kSignalOut,
-                   {{"m", Kind::integer, "2"}, {"attenuation_db", Kind::real, "80"}},
+                   {{"m", Kind::integer, "2", {}, 1, kMaxFactor}, kAttenuation},
                    [](const RunContext&, std::span<const Value> in, const Params& p) {
-                       const auto m = static_cast<std::size_t>(std::max<long long>(1, param_int(p, "m")));
+                       const auto m = static_cast<std::size_t>(param_int(p, "m"));
                        const auto o = multirate(p);
                        return per_channel(in_audio(in), in_audio(in).sample_rate * static_cast<double>(m),
                                           [&](const std::vector<double>& c) { return core::interpolate(c, m, o); });
@@ -101,10 +103,10 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"resample",
                    kSignalIn,
                    kSignalOut,
-                   {{"l", Kind::integer, "1"}, {"m", Kind::integer, "1"}, {"attenuation_db", Kind::real, "80"}},
+                   {{"l", Kind::integer, "1", {}, 1, kMaxFactor}, {"m", Kind::integer, "1", {}, 1, kMaxFactor}, kAttenuation},
                    [](const RunContext&, std::span<const Value> in, const Params& p) {
-                       const auto l = static_cast<std::size_t>(std::max<long long>(1, param_int(p, "l")));
-                       const auto m = static_cast<std::size_t>(std::max<long long>(1, param_int(p, "m")));
+                       const auto l = static_cast<std::size_t>(param_int(p, "l"));
+                       const auto m = static_cast<std::size_t>(param_int(p, "m"));
                        const auto o = multirate(p);
                        return per_channel(in_audio(in), in_audio(in).sample_rate * static_cast<double>(l) / static_cast<double>(m),
                                           [&](const std::vector<double>& c) -> core::Result<std::vector<double>> {
@@ -129,7 +131,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"dwt",
                    kSignalIn,
                    kCoeffsOut,
-                   {{"wavelet", Kind::text, "db2"}, {"levels", Kind::integer, "0"}, {"ext", Kind::choice, "symmetric", kExtensions}},
+                   {{"wavelet", Kind::text, "db2"}, {"levels", Kind::integer, "0", {}, 0, 64}, {"ext", Kind::choice, "symmetric", kExtensions}},
                    [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
                        auto bank = bank_of(param_text(p, "wavelet"));
                        if (!bank) return std::unexpected{bank.error()};

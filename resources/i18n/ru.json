@@ -334,6 +334,8 @@
   "pipeline.error.bad_choice": "{param} = {value}: допустимо {choices}",
   "pipeline.error.bad_range": "{param} = {value}: нужен диапазон вида 1..4",
   "pipeline.error.bad_samples": "{param} = {value}: нужно число отсчётов или секунды вида 1.5s",
+  "pipeline.error.out_of_bounds": "{param} = {value}: допустимо от {min} до {max}",
+  "pipeline.error.too_long": "{param} = {value}: слишком длинно, предел — 2²⁸ отсчётов",
   "tui.doc.bad_formula": "формула не разобрана: ошибка у знака {position}",
   "tui.theory.contents": "Учебник · {count} раздела",
   "tui.theory.found": "{found} из {total}",

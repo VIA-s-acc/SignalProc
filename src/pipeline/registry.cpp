@@ -40,8 +40,11 @@ bool parse_int(std::string_view s, long long& out) {
 core::Error bad(std::string_view key, const ParamSpec& p, std::string_view value) {
     std::string choices;
     for (const auto& c : p.choices) choices += (choices.empty() ? "" : ", ") + c;
-    return {core::Errc::invalid_argument, fmt::format(fmt::runtime(tr(key)), fmt::arg("param", p.name), fmt::arg("value", value), fmt::arg("choices", choices))};
+    return {core::Errc::invalid_argument, fmt::format(fmt::runtime(tr(key)), fmt::arg("param", p.name), fmt::arg("value", value), fmt::arg("choices", choices),
+                                                      fmt::arg("min", p.min), fmt::arg("max", p.max))};
 }
+
+bool in_bounds(const ParamSpec& p, double v) { return v >= p.min && v <= p.max; }
 
 }  // namespace
 
@@ -67,9 +70,11 @@ core::Result<Params> resolve_params(const BlockType& t, const Params& given) {
         switch (p.kind) {
         case ParamSpec::Kind::integer:
             if (!parse_int(value, integer)) return std::unexpected{bad("pipeline.error.bad_integer", p, value)};
+            if (!in_bounds(p, static_cast<double>(integer))) return std::unexpected{bad("pipeline.error.out_of_bounds", p, value)};
             break;
         case ParamSpec::Kind::real:
             if (!parse_real(value, real)) return std::unexpected{bad("pipeline.error.bad_number", p, value)};
+            if (!in_bounds(p, real)) return std::unexpected{bad("pipeline.error.out_of_bounds", p, value)};
             break;
         case ParamSpec::Kind::choice:
             if (std::find(p.choices.begin(), p.choices.end(), value) == p.choices.end()) return std::unexpected{bad("pipeline.error.bad_choice", p, value)};
@@ -86,6 +91,7 @@ core::Result<Params> resolve_params(const BlockType& t, const Params& given) {
             const auto number = seconds ? std::string_view{value}.substr(0, value.size() - 1) : std::string_view{value};
             if (seconds ? !parse_real(number, real) || real < 0 : !parse_int(number, integer) || integer < 0)
                 return std::unexpected{bad("pipeline.error.bad_samples", p, value)};
+            if (!seconds && static_cast<double>(integer) > kMaxSamples) return std::unexpected{bad("pipeline.error.too_long", p, value)};
             break;
         }
         case ParamSpec::Kind::text:
@@ -113,10 +119,17 @@ long long param_int(const Params& p, std::string_view name) {
 
 core::Result<std::size_t> param_samples(const Params& p, std::string_view name, double rate) {
     const auto& s = param_text(p, name);
-    if (!s.ends_with("s")) return static_cast<std::size_t>(param_int(p, name));
+    if (!s.ends_with("s")) {
+        const auto n = param_int(p, name);
+        if (n < 0 || static_cast<double>(n) > kMaxSamples)
+            return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.too_long")), fmt::arg("param", name), fmt::arg("value", s)));
+        return static_cast<std::size_t>(n);
+    }
     double seconds = 0;
     parse_real(std::string_view{s}.substr(0, s.size() - 1), seconds);
     if (!(rate > 0)) return core::make_error(core::Errc::invalid_argument, "seconds need a sample rate");
+    if (!(seconds * rate <= kMaxSamples))
+        return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.too_long")), fmt::arg("param", name), fmt::arg("value", s)));
     return static_cast<std::size_t>(std::llround(seconds * rate));
 }
 

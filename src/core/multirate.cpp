@@ -1,12 +1,15 @@
 #include "core/multirate.hpp"
 
 #include <algorithm>
+#include <limits>
 
 #include "core/conv.hpp"
 #include "core/design/window_fir.hpp"
 
 namespace signals::core {
 namespace {
+
+constexpr std::size_t stuffed_limit = std::numeric_limits<std::ptrdiff_t>::max() / sizeof(double);
 
 Result<void> require_factor(std::size_t m) {
     if (m == 0) return make_error(Errc::invalid_argument, "resampling factor must be at least 1");
@@ -59,6 +62,7 @@ Result<std::vector<double>> decimate(std::span<const double> x, std::size_t m, c
 
 Result<std::vector<double>> interpolate(std::span<const double> x, std::size_t m, const MultirateOptions& options) {
     if (auto ok = require_factor(m); !ok) return std::unexpected{ok.error()};
+    if (!x.empty() && m > stuffed_limit / x.size()) return make_error(Errc::invalid_argument, "interpolated length overflows");
     std::vector<double> stuffed(x.size() * m, 0.0);
     for (std::size_t k = 0; k < x.size(); ++k) stuffed[k * m] = x[k];
     if (m == 1 || !options.anti_alias || x.empty()) return stuffed;
