@@ -35,6 +35,7 @@ struct DocumentSpec {
     std::optional<std::size_t> focused_link = {};
     const theory::LiveValues* values = nullptr;
     std::string section_rule = {};
+    int height = 0;
 };
 
 struct DocumentLayout {

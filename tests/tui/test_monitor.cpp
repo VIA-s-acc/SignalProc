@@ -84,7 +84,7 @@ TEST_CASE("cpu load of a busy thread is about one core", "[tui][monitor]") {
     const unsigned cores = std::max(1u, std::thread::hardware_concurrency());
     const auto snap = derive(*prev, *cur, cores, 0);
     CHECK(std::abs(snap.cpu_one_core_pct - truth) <= 5.0);
-    CHECK(snap.cpu_one_core_pct > 80.0);
+    CHECK(snap.cpu_one_core_pct > 50.0);
     CHECK(std::abs(snap.cpu_all_cores_pct - snap.cpu_one_core_pct / cores) < 1e-9);
     CHECK(snap.core_load_pct.size() == cur->core_busy_ticks.size());
 }

@@ -72,6 +72,9 @@ struct UiContext {
     std::function<void(std::string filter)> open_palette;
     std::function<void(std::string prompt, std::string initial, std::function<void(std::string)> done)> ask_text;
     std::function<void(std::string line)> warn;
+    std::function<void(std::filesystem::path)> open_in_editor;
+    std::function<void(std::string)> copy_text;
+    std::filesystem::path repo_root;
 };
 
 struct MenuItem {

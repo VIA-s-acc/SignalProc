@@ -19,7 +19,7 @@ namespace {
 using theory::Block;
 using theory::Inline;
 
-enum class Style { normal, dim, strong, emphasis, code, link, heading, keyword, math, ok, err };
+enum class Style { normal, dim, strong, emphasis, code, link, path, heading, keyword, math, ok, err };
 
 struct Span {
     std::string text;
@@ -156,8 +156,8 @@ private:
                 break;
             }
             case Inline::Kind::ref:
-                links_.push_back({"#" + i.target, i.text, {}});
-                out.push_back({i.text, Style::link, static_cast<int>(links_.size()) - 1, pending});
+                links_.push_back({i.target.find(':') == std::string::npos ? "#" + i.target : i.target, i.text, {}});
+                out.push_back({i.text, i.target.starts_with("file://") ? Style::path : Style::link, static_cast<int>(links_.size()) - 1, pending});
                 pending = false;
                 break;
             case Inline::Kind::placeholder: {
@@ -345,6 +345,7 @@ ftxui::Element span_element(const Span& s, const UiContext& ui, bool focused) {
     case Style::ok: e = e | fg(th.ok, ui); break;
     case Style::err: e = e | fg(th.err, ui); break;
     case Style::link: e = focused ? e | bg(th.accent, ui) | fg(th.bg, ui) : e | fg(th.accent, ui); break;
+    case Style::path: e = focused ? e | bg(th.accent, ui) | fg(th.bg, ui) : e | fg(th.accent, ui) | underlined; break;
     case Style::normal: e = e | fg(th.fg, ui); break;
     }
     return e;
@@ -392,12 +393,15 @@ ftxui::Element document(const DocumentSpec& spec, const UiContext& ui, DocumentL
         formula_rows.clear();
         formula = -1;
     };
-    for (std::size_t i = static_cast<std::size_t>(std::max(0, spec.scroll)); i < b.lines_.size(); ++i) {
+    const auto first = static_cast<std::size_t>(std::max(0, spec.scroll));
+    const auto end = spec.height > 0 ? std::min(b.lines_.size(), first + static_cast<std::size_t>(spec.height)) : b.lines_.size();
+    for (std::size_t i = first; i < end; ++i) {
         const auto& l = b.lines_[i];
         Elements spans;
         for (const auto& s : l.spans) {
             const bool focused = s.link >= 0 && spec.focused_link && *spec.focused_link == static_cast<std::size_t>(s.link);
             auto e = span_element(s, ui, focused);
+            if (s.style == Style::path) e = e | hyperlink(layout.links[static_cast<std::size_t>(s.link)].target);
             if (s.link >= 0 && !link_reflected[static_cast<std::size_t>(s.link)]) {
                 e = e | reflect(layout.links[static_cast<std::size_t>(s.link)].box);
                 link_reflected[static_cast<std::size_t>(s.link)] = true;

@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <utility>
@@ -109,5 +110,157 @@ TEST_CASE("tutorial snapshots", "[tui][theory][snapshot]") {
         std::vector<std::shared_ptr<TabScreen>> screens{f.screen};
         Harness shell{make_shell(*f.ui, screens, [] {}), w, h};
         signals::test::check_snapshot("tutorial_" + std::to_string(w) + "x" + std::to_string(h), shell.frame());
+    }
+}
+
+namespace {
+
+std::shared_ptr<signals::theory::LiveValues> dwt_values() {
+    auto v = std::make_shared<signals::theory::LiveValues>();
+    v->source = "Разложение ▸ test.wav · db2 · J = 6";
+    v->set("block.n", "450 686");
+    v->set("block.wavelet", "db2");
+    v->set("block.levels", "6");
+    v->set("block.mode", "symmetric");
+    v->set("block.filter_length", "4");
+    v->set("block.max_level", "16");
+    v->set("block.band_lengths", "a₆ 7 044 · d₆ 7 044 · d₅ 14 086 · d₄ 28 170 · d₃ 56 338 · d₂ 112 673 · d₁ 225 344");
+    v->set("block.band_sum", "450 699 = N + 13");
+    v->set("block.band_ranges", "a₆ 0–345 · d₆ 345–689 · d₅ 689–1378 Гц …");
+    v->set("block.linear_phase", "нет");
+    v->set("metric.multiplies", "3,6·10⁶");
+    v->set_check({"check.round_trip", "", 1.6e-15, 1e-12});
+    v->set_check({"check.orthogonality", "", 2.2e-16, 1e-12});
+    v->set_check({"check.vanishing_moments", "", 4.4e-16, 1e-12});
+    v->set_check({"check.parseval", "", 3.1e-15, 1e-12});
+    return v;
+}
+
+}  // namespace
+
+TEST_CASE("a card opened from the book shows dashes, not checks", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, std::make_shared<signals::theory::LiveValues>()});
+    const auto frame = f.h.frame();
+    CHECK(frame.find("11.1 DWT — пирамида Малла") != std::string::npos);
+    CHECK(frame.find("── Формулы") != std::string::npos);
+    CHECK(frame.find("открыто из: учебник") != std::string::npos);
+    std::string card_text;
+    for (int i = 0; i < 6; ++i) {
+        const auto page = f.h.frame();
+        card_text += page.substr(page.find('\n') + 1);
+        f.h.send(ftxui::Event::PageDown);
+    }
+    CHECK(card_text.find("— нет данных") != std::string::npos);
+    CHECK(card_text.find("✓") == std::string::npos);
+}
+
+TEST_CASE("a card with a publisher follows its source", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    std::string wavelet = "db2";
+    f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, std::make_shared<signals::theory::LiveValues>(), [&](signals::theory::LiveValues& v) {
+                     v.source = "Разложение ▸ test.wav";
+                     v.set("block.wavelet", wavelet);
+                 }});
+    auto frame = f.h.frame();
+    CHECK(frame.find("фильтр db2") != std::string::npos);
+    CHECK(frame.find("открыто из: Разложение ▸ test.wav") != std::string::npos);
+    wavelet = "sym4";
+    frame = f.h.frame();
+    CHECK(frame.find("фильтр sym4") != std::string::npos);
+}
+
+TEST_CASE("view buttons navigate with the bank", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    std::string target;
+    NavArgs args;
+    f.ui->navigate = [&](std::string_view t, const NavArgs& a) {
+        target = std::string{t};
+        args = a;
+    };
+    auto values = dwt_values();
+    values->set("block.wavelet", "db4");
+    values->set("block.n", "64");
+    f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, values});
+    f.h.frame();
+    for (int i = 0; i < 40 && f.screen->focused_target() != "view:matrix"; ++i) {
+        f.h.send(ftxui::Event::Tab);
+        f.h.frame();
+    }
+    REQUIRE(f.screen->focused_target() == "view:matrix");
+    const auto b = f.screen->area("view:matrix");
+    REQUIRE(b.y_max >= b.y_min);
+    CHECK(f.h.click(b.x_min, b.y_min));
+    CHECK(target == "matrix");
+    CHECK(args.wavelet == "db4");
+    REQUIRE(args.n);
+    CHECK(*args.n == 64);
+    CHECK(f.h.frame().find("Блок в графе") != std::string::npos);
+}
+
+TEST_CASE("o opens the source and esc returns to the origin", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    std::filesystem::path opened;
+    std::string target;
+    f.ui->repo_root = SIGNALS_SOURCE_DIR;
+    f.ui->open_in_editor = [&](std::filesystem::path p) { opened = std::move(p); };
+    f.ui->navigate = [&](std::string_view t, const NavArgs&) { target = std::string{t}; };
+    f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, dwt_values(), {}, "decomposition"});
+    f.h.frame();
+    f.h.send(ftxui::Event::End);
+    auto frame = f.h.frame();
+    CHECK(frame.find("src/core/dwt.hpp · dwt_level()") != std::string::npos);
+    f.h.send(ftxui::Event::Character('o'));
+    CHECK(opened == std::filesystem::path{SIGNALS_SOURCE_DIR} / "src/core/dwt.hpp");
+    f.h.send(ftxui::Event::Escape);
+    CHECK(target == "decomposition");
+    f.ui->repo_root = "/nonexistent/signals";
+    f.h.send(ftxui::Event::Character('o'));
+    CHECK(f.h.frame().find("исходники не найдены") != std::string::npos);
+}
+
+TEST_CASE("copy LaTeX from the formula menu", "[tui][theory][menu]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    std::string copied;
+    f.ui->copy_text = [&](std::string s) { copied = std::move(s); };
+    f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, dwt_values()});
+    f.h.frame();
+    const auto b = f.screen->area("formula:0");
+    REQUIRE(b.x_max >= b.x_min);
+    auto items = f.screen->context_menu(b.x_min + 2, b.y_min);
+    REQUIRE(items.size() == 1);
+    CHECK(items[0].label == "Копировать LaTeX");
+    items[0].action();
+    CHECK(copied.starts_with("a_j[k]"));
+}
+
+TEST_CASE("g switches formulas to ascii", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, dwt_values()});
+    CHECK(f.h.frame().find("∑") != std::string::npos);
+    f.h.send(ftxui::Event::Character('g'));
+    const auto frame = f.h.frame();
+    CHECK(frame.find("∑") == std::string::npos);
+    CHECK(frame.find("sum") != std::string::npos);
+    CHECK(frame.find("[ASCII]") != std::string::npos);
+}
+
+TEST_CASE("n folds the live numbers section", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, dwt_values()});
+    CHECK(f.h.frame().find("Длины полос") != std::string::npos);
+    f.h.send(ftxui::Event::Character('n'));
+    const auto frame = f.h.frame();
+    CHECK(frame.find("Длины полос") == std::string::npos);
+    CHECK(frame.find("── С числами этого блока") != std::string::npos);
+}
+
+TEST_CASE("under the hood snapshots", "[tui][theory][snapshot]") {
+    for (auto [w, h] : {std::pair{150, 44}, std::pair{80, 24}}) {
+        TheoryFixture f{TheoryScreen::Mode::under_the_hood, w, h};
+        f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, dwt_values()});
+        std::vector<std::shared_ptr<TabScreen>> screens{f.screen};
+        Harness shell{make_shell(*f.ui, screens, [] {}), w, h};
+        signals::test::check_snapshot("under_the_hood_" + std::to_string(w) + "x" + std::to_string(h), shell.frame());
     }
 }

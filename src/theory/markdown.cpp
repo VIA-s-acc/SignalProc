@@ -156,11 +156,19 @@ std::vector<Inline> inlines(std::string_view s, std::vector<std::string>* unreso
             }
         }
         if (c == '[') {
-            const auto close = s.find("](#", i + 1);
-            const auto end = close == std::string_view::npos ? close : s.find(')', close + 3);
-            if (close != std::string_view::npos && end != std::string_view::npos && s.substr(i + 1, close - i - 1).find('\n') == std::string_view::npos) {
+            const auto close = s.find("](", i + 1);
+            const auto end = close == std::string_view::npos ? close : s.find(')', close + 2);
+            const auto target = close == std::string_view::npos || end == std::string_view::npos ? std::string_view{} : s.substr(close + 2, end - close - 2);
+            const bool external = target.starts_with("view:") || target.starts_with("card:") || target.starts_with("file://");
+            if (external && s.substr(i + 1, close - i - 1).find('\n') == std::string_view::npos) {
+                flush(out, text);
+                out.push_back({Inline::Kind::ref, std::string{s.substr(i + 1, close - i - 1)}, std::string{target}, {}});
+                i = end + 1;
+                continue;
+            }
+            if (target.starts_with("#") && s.substr(i + 1, close - i - 1).find('\n') == std::string_view::npos) {
                 const auto label = s.substr(i + 1, close - i - 1);
-                const auto id = s.substr(close + 3, end - close - 3);
+                const auto id = target.substr(1);
                 if (find_section(id)) {
                     flush(out, text);
                     out.push_back({Inline::Kind::ref, std::string{label}, std::string{id}, {}});

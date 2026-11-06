@@ -12,6 +12,7 @@
 #include <ftxui/component/event.hpp>
 #include <ftxui/screen/box.hpp>
 
+#include "theory/cards.hpp"
 #include "theory/markdown.hpp"
 #include "theory/math_layout.hpp"
 #include "tui/screens/theory_navigator.hpp"
@@ -35,9 +36,11 @@ public:
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event e) override;
     std::vector<JumpTarget> jump_targets() const override;
+    std::vector<MenuItem> context_menu(int x, int y) override;
 
     ftxui::Box area(std::string_view id) const;
     std::optional<std::size_t> focused_link() const { return focused_link_; }
+    std::string focused_target() const { return focused_link_ && *focused_link_ < doc_.links.size() ? doc_.links[*focused_link_].target : std::string{}; }
     const std::string& query() const { return query_; }
 
 private:
@@ -56,6 +59,14 @@ private:
     ftxui::Element text_panel(std::size_t current, int width, int height);
     void sync_version();
     bool on_mouse(ftxui::Mouse m);
+    TheoryPage* card_page();
+    void refresh_values(TheoryPage& page);
+    std::string card_markdown(const theory::Card& card) const;
+    ftxui::Element origin_line(const TheoryPage* page, int width) const;
+    ftxui::Element blocks_list(const theory::Card* current, int width, int rows);
+    ftxui::Element card_panel(const TheoryPage* page, int width, int height);
+    NavArgs view_args(const TheoryPage* page) const;
+    void open_source();
 
     UiContext& ui_;
     std::shared_ptr<TheoryNavigator> nav_;
@@ -74,6 +85,10 @@ private:
     ftxui::Box doc_box_{}, references_box_{};
     std::vector<std::pair<ftxui::Box, std::size_t>> toc_boxes_;
     std::map<std::size_t, std::vector<theory::Block>> cache_;
+    std::vector<theory::Block> card_blocks_;
+    std::vector<std::pair<ftxui::Box, std::string>> block_boxes_;
+    bool fold_numbers_ = false;
+    std::string notice_;
 };
 
 std::shared_ptr<TheoryScreen> make_theory_screen(UiContext& ui, std::shared_ptr<TheoryNavigator> nav, TheoryScreen::Mode mode);
