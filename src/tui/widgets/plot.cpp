@@ -82,7 +82,7 @@ public:
     void Render(ftxui::Screen& screen) override {
         const int W = box_.x_max - box_.x_min + 1, H = box_.y_max - box_.y_min + 1;
         if (W <= 0 || H <= 0) return;
-        if (H < 3) return sparkline(screen, W);
+        if (H < 2 || (H < 3 && spec_.labels)) return sparkline(screen, W);
         const bool labels = spec_.labels && H >= 6 && W >= 20;
         const bool x_labels = labels && spec_.x_labels;
         const int x0 = box_.x_min + (labels ? kYLabelWidth : 0);

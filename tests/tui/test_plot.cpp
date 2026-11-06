@@ -185,3 +185,13 @@ TEST_CASE("envelopes far outside the axis are clipped, not looped over", "[tui][
     CHECK(took.count() < 0.25);
     CHECK(text.find("⣿") != std::string::npos);
 }
+
+TEST_CASE("a two-row plot without labels draws an envelope in braille", "[tui][plot]") {
+    PlotSpec spec;
+    spec.labels = false;
+    spec.x = {0, 1};
+    spec.y = {-1, 1};
+    spec.envelopes.push_back(Envelope{{}, {255, 255, 255}, [](int cols) { return std::vector<MinMaxPyramid::Range>(static_cast<std::size_t>(cols), {-1.0f, 1.0f}); }});
+    const auto text = signals::test::render_text(plot(spec, builtin_theme("dark"), ColorDepth::truecolor, GlyphMode::unicode), 10, 2);
+    CHECK(text.find("⣿") != std::string::npos);
+}

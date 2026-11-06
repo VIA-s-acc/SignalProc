@@ -13,6 +13,7 @@
 #include "tui/monitor/monitor.hpp"
 #include "tui/screens/filters_model.hpp"
 #include "tui/data/user_filters.hpp"
+#include "tui/screens/decomposition_screen.hpp"
 #include "tui/screens/designer_screen.hpp"
 #include "tui/screens/explain_screen.hpp"
 #include "tui/screens/filters_screen.hpp"
@@ -42,6 +43,7 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme) {
     for (const auto& e : library.errors)
         signal->add_log(fmt::format(fmt::runtime(tr("tui.user_filters.broken")), fmt::arg("error", e)), LogLine::warn);
     auto designer = std::make_shared<DesignerModel>();
+    auto decomposition = std::make_shared<DecompositionModel>(signal);
     auto comparison = std::make_shared<ComparisonSet>();
     for (auto role : {FilterRole::h0, FilterRole::h1}) (void)comparison->add({FilterRef::Kind::bank, "db2", role});
     JobRunner jobs{[&app] { app.PostEvent(ftxui::Event::Custom); }};
@@ -62,6 +64,7 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme) {
     screens[0] = make_signal_screen(ui, signal);
     screens[2] = make_filters_screen(ui, comparison);
     designer->set_p(3, jobs);
+    screens[4] = make_decomposition_screen(ui, decomposition);
     screens[3] = make_subtabs(tr("tui.tab.bank"), {{tr("tui.sub.designer"), make_designer_screen(ui, designer)},
                                                   {tr("tui.sub.diagram"), make_placeholder(tr("tui.sub.diagram"), tr("tui.placeholder.diagram.title"),
                                                                                            tr("tui.placeholder.diagram.text"), "M6", &ui)}});
