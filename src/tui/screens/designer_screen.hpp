@@ -4,6 +4,8 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <numbers>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -15,6 +17,7 @@
 #include "tui/shell/layout.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/shell/plot_zoom.hpp"
 #include "tui/widgets/zplane.hpp"
 
 namespace signals::tui {
@@ -34,10 +37,12 @@ public:
     std::vector<MenuItem> context_menu(int x, int y) override;
 
     ftxui::Box area(std::string_view id) const;
+    Axis plot_axis(std::string_view id) const;
     std::vector<ZHit> root_hits() const { return hits_ ? *hits_ : std::vector<ZHit>{}; }
 
 private:
     enum Panel { roots, splits, result, magnitude, phi, phi_dual, panel_count };
+
     struct Clickable {
         std::string id;
         ftxui::Box box;
@@ -52,6 +57,7 @@ private:
     ftxui::Element cascade_panel(const DesignerResult* r, bool dual);
     ftxui::Element clickable(std::string id, ftxui::Element e, std::function<void()> action);
     void save();
+    double zplane_extent(const DesignerData* d) const;
     JobRunner* jobs() const { return ui_.jobs; }
 
     UiContext& ui_;
@@ -64,6 +70,9 @@ private:
     std::shared_ptr<std::vector<ZHit>> hits_ = std::make_shared<std::vector<ZHit>>();
     ftxui::Box roots_box_{};
     std::string notice_;
+    std::optional<Panel> maximized_;
+    PlotZoom zoom_;
+    double zplane_zoom_ = 1;
 };
 
 std::shared_ptr<TabScreen> make_designer_screen(UiContext& ui, std::shared_ptr<DesignerModel> model);

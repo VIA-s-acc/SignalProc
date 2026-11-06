@@ -16,6 +16,7 @@
 #include "tui/screens/explain_model.hpp"
 #include "tui/shell/layout.hpp"
 #include "tui/shell/panel.hpp"
+#include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
 
 namespace signals::tui {
@@ -37,6 +38,8 @@ public:
     std::size_t step() const { return step_; }
     ExplainOptions options() const { return options_; }
     ftxui::Box area(std::string_view id) const;
+    Axis plot_axis(std::string_view id) const;
+    std::vector<MenuItem> context_menu(int x, int y) override;
 
 private:
     enum Panel { scheme, steps, story, matrix, freq, p0, panel_count };
@@ -69,6 +72,8 @@ private:
     PanelLayout layout_;
     Breakpoint breakpoint_ = Breakpoint::primary;
     Panel focus_ = scheme;
+    std::optional<Panel> maximized_;
+    PlotZoom zoom_;
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::array<ftxui::Box, 12> step_boxes_{};
     std::array<ftxui::Box, 4> bank_boxes_{};

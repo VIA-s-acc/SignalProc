@@ -1,8 +1,10 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
 #include <filesystem>
 #include <memory>
+#include <numbers>
 #include <sstream>
 #include <string>
 
@@ -158,4 +160,66 @@ TEST_CASE("the selected preset keeps both brackets at every size", "[tui][design
             CHECK(frame.find("[" + label + "]") != std::string::npos);
         }
     }
+}
+
+TEST_CASE("z shows the focused designer panel on the whole screen and Esc restores", "[tui][designer][zoom]") {
+    DesignerFixture f;
+    for (int i = 0; i < 3; ++i) f.h.send(ftxui::Event::Tab);
+    CHECK(f.h.send(ftxui::Event::Character('z')));
+    auto frame = f.h.frame();
+    CHECK(frame.find("АЧХ H₀") != std::string::npos);
+    CHECK(frame.find("Разбиение") == std::string::npos);
+    CHECK(f.h.send(ftxui::Event::Escape));
+    frame = f.h.frame();
+    CHECK(frame.find("Разбиение") != std::string::npos);
+}
+
+TEST_CASE("the wheel zooms designer plots at the mouse and the menu resets them", "[tui][designer][zoom]") {
+    constexpr double pi = std::numbers::pi;
+    DesignerFixture f;
+    const auto b = f.screen->area("magnitude");
+    REQUIRE(b.x_max > b.x_min);
+    const int x = (b.x_min + b.x_max) / 2, y = (b.y_min + b.y_max) / 2;
+    CHECK(f.h.wheel(x, y, true));
+    f.h.frame();
+    auto a = f.screen->plot_axis("magnitude");
+    CHECK(a.lo > 0.05 * pi);
+    CHECK(a.hi < 0.95 * pi);
+    auto items = f.screen->context_menu(x, y);
+    REQUIRE_FALSE(items.empty());
+    CHECK(items.back().label == "Сбросить масштаб");
+    items.back().action();
+    f.h.frame();
+    a = f.screen->plot_axis("magnitude");
+    CHECK(a.lo == 0);
+    CHECK(a.hi == Catch::Approx(pi));
+
+    const auto c = f.screen->area("phi");
+    REQUIRE(c.x_max > c.x_min);
+    const auto before = f.screen->plot_axis("phi");
+    CHECK(f.h.wheel((c.x_min + c.x_max) / 2, (c.y_min + c.y_max) / 2, true));
+    f.h.frame();
+    const auto after = f.screen->plot_axis("phi");
+    CHECK(after.hi - after.lo < before.hi - before.lo);
+
+    const auto r = f.screen->area("roots");
+    const auto wide = f.screen->plot_axis("roots");
+    CHECK(f.h.wheel((r.x_min + r.x_max) / 2, (r.y_min + r.y_max) / 2, true));
+    f.h.frame();
+    CHECK(f.screen->plot_axis("roots").hi < wide.hi);
+}
+
+TEST_CASE("dragging a zoomed designer plot pans it", "[tui][designer][zoom]") {
+    DesignerFixture f;
+    const auto b = f.screen->area("magnitude");
+    const int x = (b.x_min + b.x_max) / 2, y = (b.y_min + b.y_max) / 2;
+    f.h.wheel(x, y, true);
+    f.h.wheel(x, y, true);
+    f.h.frame();
+    const auto before = f.screen->plot_axis("magnitude");
+    CHECK(f.h.drag(x, y, x - 10, y));
+    f.h.frame();
+    const auto after = f.screen->plot_axis("magnitude");
+    CHECK(after.lo > before.lo);
+    CHECK(after.hi - after.lo == Catch::Approx(before.hi - before.lo));
 }

@@ -469,3 +469,31 @@ TEST_CASE("b switches the arrow keys between cursors A and B", "[tui][signal]") 
     CHECK(*r.m->cursor_a() < 1.0);
     CHECK(r.h.frame().find("←→ A") != std::string::npos);
 }
+
+TEST_CASE("the wheel zooms the spectrum in decades and the menu resets it", "[tui][signal][zoom]") {
+    auto ui = signals::test::make_ui(150, 44);
+    JobRunner jobs{[] {}, 0ms, true};
+    ui->jobs = &jobs;
+    auto model = loaded(jobs);
+    auto screen = std::make_shared<SignalScreen>(*ui, model);
+    screen->set_breakpoint(Breakpoint::primary);
+    Harness h{screen, 150, 41};
+    h.frame();
+    const auto s = screen->area("spectrum_plot");
+    REQUIRE(s.x_max > s.x_min);
+    const int x = (s.x_min + s.x_max) / 2, y = (s.y_min + s.y_max) / 2;
+    const auto before = screen->plot_axis("spectrum");
+    CHECK(h.wheel(x, y, true));
+    h.frame();
+    const auto after = screen->plot_axis("spectrum");
+    CHECK(after.lo > before.lo);
+    CHECK(after.hi < before.hi);
+    CHECK(h.drag(x, y, x - 10, y));
+    h.frame();
+    CHECK(screen->plot_axis("spectrum").lo > after.lo);
+    auto items = screen->context_menu(x, y);
+    REQUIRE(items.size() == 1);
+    items[0].action();
+    h.frame();
+    CHECK(screen->plot_axis("spectrum").lo == before.lo);
+}

@@ -5,6 +5,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -16,6 +17,7 @@
 #include "tui/shell/layout.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/axis_zoom.hpp"
 
 namespace signals::tui {
 
@@ -33,7 +35,13 @@ public:
     std::vector<JumpTarget> jump_targets() const override;
     std::vector<Command> commands() override;
 
+    struct Block {
+        std::size_t r0 = 0, rows = 0, c0 = 0, cols = 0;
+    };
+
     std::size_t row() const { return row_; }
+    Block block() const { return block_; }
+    std::vector<MenuItem> context_menu(int x, int y) override;
     bool numbers() const { return numbers_; }
     ftxui::Box area(std::string_view id) const;
 
@@ -53,6 +61,8 @@ private:
     ftxui::Element row_info(const MatrixData& d);
     ftxui::Element origin_panel(const MatrixData* d);
     void apply(MatrixOptions o);
+    void update_block(std::size_t rows, std::size_t cols);
+    std::pair<double, double> fractions_at(int x, int y) const;
     int max_numbers_n(int width) const;
     std::chrono::steady_clock::time_point now() const;
 
@@ -70,6 +80,11 @@ private:
     std::chrono::steady_clock::time_point last_step_{};
     int main_width_ = 100;
     std::string notice_;
+    std::optional<Panel> maximized_;
+    AxisZoom row_zoom_, col_zoom_;
+    Block block_;
+    bool drag_ = false;
+    int drag_x_ = 0, drag_y_ = 0;
 };
 
 std::shared_ptr<TabScreen> make_matrix_screen(UiContext& ui, std::shared_ptr<MatrixModel> model);

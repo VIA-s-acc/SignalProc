@@ -190,3 +190,14 @@ TEST_CASE("o on an empty decomposition asks for a file", "[tui][decomposition]")
     CHECK(f.h.send(ftxui::Event::Character('o')));
     CHECK(asked == 1);
 }
+
+TEST_CASE("z shows the focused decomposition panel on the whole screen", "[tui][decomposition][zoom]") {
+    DecompositionFixture f;
+    f.h.send(ftxui::Event::Tab);
+    CHECK(f.h.send(ftxui::Event::Character('z')));
+    auto frame = f.h.frame();
+    CHECK(frame.find("Энергия по полосам") != std::string::npos);
+    CHECK(frame.find("Прослушивание") == std::string::npos);
+    CHECK(f.h.send(ftxui::Event::Escape));
+    CHECK(f.h.frame().find("Прослушивание") != std::string::npos);
+}

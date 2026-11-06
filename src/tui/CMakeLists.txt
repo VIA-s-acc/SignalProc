@@ -10,6 +10,7 @@ add_library(signals_tui STATIC
   widgets/screen_util.cpp
   widgets/bank_diagram.cpp
   widgets/plot.cpp
+  widgets/axis_zoom.cpp
   widgets/heatmap.cpp
   widgets/zplane.cpp
   theme/theme.cpp
@@ -28,6 +29,7 @@ add_library(signals_tui STATIC
   shell/palette.cpp
   shell/overlays.cpp
   shell/ticker.cpp
+  shell/plot_zoom.cpp
   shell/subtabs.cpp
   shell/errors.cpp
   screens/signal_model.cpp

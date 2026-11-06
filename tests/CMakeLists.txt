@@ -40,6 +40,7 @@ add_executable(signals_tests
   tui/test_caps.cpp
   tui/test_pyramid.cpp
   tui/test_plot.cpp
+  tui/test_axis_zoom.cpp
   tui/test_heatmap.cpp
   tui/test_zplane.cpp
   tui/test_jobs.cpp

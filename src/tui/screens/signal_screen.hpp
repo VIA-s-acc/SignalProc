@@ -15,6 +15,7 @@
 #include "tui/screens/signal_model.hpp"
 #include "tui/shell/layout.hpp"
 #include "tui/shell/panel.hpp"
+#include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
 
 namespace signals::tui {
@@ -32,6 +33,7 @@ public:
     bool OnEvent(ftxui::Event e) override;
 
     ftxui::Box area(std::string_view id) const;
+    Axis plot_axis(std::string_view id) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
     std::vector<JumpTarget> jump_targets() const override;
     std::optional<double> playhead() const;
@@ -80,6 +82,7 @@ private:
     bool wave_labels_ = true;
     bool wave_split_ = true;
     Drag drag_;
+    PlotZoom zoom_;
     DragMode drag_mode_ = DragMode::pan;
     ftxui::Box drag_chip_{};
     bool audio_warned_ = false;

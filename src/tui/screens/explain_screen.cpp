@@ -78,7 +78,8 @@ std::string ExplainScreen::tab_label() const { return tr("tui.sub.explain"); }
 std::vector<Hint> ExplainScreen::hints() const {
     return {{"←→", tr("tui.explain.hint.step")},   {"Space", tr("tui.explain.hint.auto")}, {"w", tr("tui.explain.hint.bank")},
             {"p", tr("tui.explain.hint.phase")},   {"e", tr("tui.explain.hint.perturb")},  {"f", tr("tui.explain.hint.fractions")},
-            {"Enter", tr("tui.explain.hint.open")}, {"Tab", tr("tui.explain.hint.tab")}};
+            {"Enter", tr("tui.explain.hint.open")}, {"Tab", tr("tui.explain.hint.tab")},    {"z", tr("tui.signal.hint.zoom")},
+            {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")}};
 }
 
 std::string ExplainScreen::context() const { return tr("tui.explain.context"); }
@@ -369,14 +370,21 @@ ftxui::Element ExplainScreen::matrix_panel(const Walkthrough& w) {
 ftxui::Element ExplainScreen::freq_panel(const Walkthrough& w) {
     using namespace ftxui;
     const auto& th = ui_.theme;
+    auto& zoom = zoom_.axis("freq", {0, std::numbers::pi, AxisScale::pi});
     PlotSpec spec;
-    spec.x = {0, std::numbers::pi, AxisScale::pi};
+    spec.x = zoom.axis();
     double peak = 0;
     for (double m : w.h0_response.magnitude) peak = std::max(peak, m);
     for (double m : w.h1_response.magnitude) peak = std::max(peak, m);
     spec.y = {0, std::max(peak, 1e-9) * 1.08};
-    spec.traces.push_back({w.h1_response.magnitude, w.h1_response.omega, th.trace[1]});
-    spec.traces.push_back({w.h0_response.magnitude, w.h0_response.omega, th.trace[0]});
+    auto omega = [&](const std::vector<double>& v) {
+        std::vector<double> out;
+        out.reserve(v.size());
+        for (double x : v) out.push_back(zoom.plot_x(x));
+        return out;
+    };
+    spec.traces.push_back({w.h1_response.magnitude, omega(w.h1_response.omega), th.trace[1]});
+    spec.traces.push_back({w.h0_response.magnitude, omega(w.h0_response.omega), th.trace[0]});
     const auto mid0 = nearest(w.h0_response.omega, std::numbers::pi / 2), mid1 = nearest(w.h1_response.omega, std::numbers::pi / 2);
     const double g0 = mid0 < w.h0_response.group_delay.size() ? w.h0_response.group_delay[mid0] : NAN;
     const double g1 = mid1 < w.h1_response.group_delay.size() ? w.h1_response.group_delay[mid1] : NAN;
@@ -387,7 +395,8 @@ ftxui::Element ExplainScreen::freq_panel(const Walkthrough& w) {
         auto r = fill(s, w);
         return r ? *r : std::string{s};
     };
-    auto body = vbox({plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex, text(gd) | fg(th.dim, ui_),
+    auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs);
+    auto body = vbox({zoom_.track("freq", std::move(spec), std::move(drawn)) | flex, text(gd) | fg(th.dim, ui_),
                       text(fmt::format(fmt::runtime(tr("tui.explain.cutoff")), fmt::arg("value", filled("{{cutoff}}")))) | fg(th.dim, ui_),
                       text(fmt::format(fmt::runtime(tr("tui.explain.leak")), fmt::arg("value", filled("{{leak}}")))) | fg(th.dim, ui_)});
     return frame_panel(freq, body, {}, tr("tui.explain.freq"));
@@ -428,6 +437,7 @@ ftxui::Element ExplainScreen::p0_panel(const Walkthrough& w) {
 ftxui::Element ExplainScreen::OnRender() {
     using namespace ftxui;
     panel_boxes_.fill(kNoBox);
+    zoom_.begin_frame();
     step_boxes_.fill(kNoBox);
     bank_boxes_.fill(kNoBox);
     prev_box_ = next_box_ = auto_box_ = kNoBox;
@@ -444,8 +454,8 @@ ftxui::Element ExplainScreen::OnRender() {
     layout_.resize(cols, rows);
     const auto* w = current();
     if (!w) return frame_panel(scheme, text(error_.value_or("")) | fg(ui_.theme.err, ui_), {}, tr("tui.sub.explain"));
-    if (breakpoint_ <= Breakpoint::small) {
-        const auto p = static_cast<Panel>(layout_.small_index() % panel_count);
+    if (breakpoint_ <= Breakpoint::small || maximized_) {
+        const auto p = maximized_ ? *maximized_ : static_cast<Panel>(layout_.small_index() % panel_count);
         focus_ = p;
         switch (p) {
         case scheme: return scheme_panel(*w, cols, false);
@@ -469,6 +479,7 @@ bool ExplainScreen::OnEvent(ftxui::Event e) {
     using ftxui::Event;
     if (e.is_mouse()) {
         const auto& m = e.mouse();
+        if (zoom_.on_mouse(m)) return true;
         if (m.button != ftxui::Mouse::Left || m.motion != ftxui::Mouse::Pressed) return false;
         for (std::size_t i = 0; i < step_boxes_.size(); ++i)
             if (step_boxes_[i].Contain(m.x, m.y)) {
@@ -488,9 +499,18 @@ bool ExplainScreen::OnEvent(ftxui::Event e) {
         for (int p = 0; p < panel_count; ++p)
             if (panel_boxes_[static_cast<std::size_t>(p)].Contain(m.x, m.y)) {
                 focus_ = static_cast<Panel>(p);
+                zoom_.press(m.x, m.y);
                 return true;
             }
         return false;
+    }
+    if (e == Event::Character('z')) {
+        maximized_ = maximized_ ? std::nullopt : std::optional<Panel>{focus_};
+        return true;
+    }
+    if (e == Event::Escape && maximized_) {
+        maximized_.reset();
+        return true;
     }
     if (e == Event::ArrowRight) return set_step(step_ + 1), true;
     if (e == Event::ArrowLeft) return set_step(step_ - 1), true;
@@ -523,14 +543,22 @@ bool ExplainScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (e == Event::Tab) {
-        if (breakpoint_ <= Breakpoint::small) layout_.next_panel(panel_count);
+        if (breakpoint_ <= Breakpoint::small && !maximized_) layout_.next_panel(panel_count);
         else focus_ = static_cast<Panel>((focus_ + 1) % panel_count);
         return true;
     }
     return false;
 }
 
+Axis ExplainScreen::plot_axis(std::string_view id) const { return zoom_.view(id).value_or(Axis{}); }
+
+std::vector<MenuItem> ExplainScreen::context_menu(int x, int y) {
+    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
+    return {};
+}
+
 ftxui::Box ExplainScreen::area(std::string_view id) const {
+    if (id == "freq") return zoom_.box(id);
     if (id.starts_with("step_")) {
         const auto n = static_cast<std::size_t>(std::atoi(std::string{id.substr(5)}.c_str()));
         return n >= 1 && n <= step_boxes_.size() ? step_boxes_[n - 1] : kNoBox;
