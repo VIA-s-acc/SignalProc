@@ -2,6 +2,8 @@
 
 #include <chrono>
 #include <cstdio>
+#include <filesystem>
+#include <string>
 #include <memory>
 #include <optional>
 #include <thread>
@@ -21,6 +23,8 @@
 #include "tui/screens/designer_screen.hpp"
 #include "tui/screens/explain_screen.hpp"
 #include "tui/screens/matrix_screen.hpp"
+#include "tui/screens/pipeline_model.hpp"
+#include "tui/screens/pipeline_screen.hpp"
 #include "tui/screens/filters_screen.hpp"
 #include "tui/screens/signal_model.hpp"
 #include "tui/screens/signal_screen.hpp"
@@ -147,6 +151,23 @@ void bench_tui(const std::filesystem::path& ten_minutes) {
     auto matrix_shell = make_shell(*ui, {std::make_shared<MatrixScreen>(*ui, matrix_model)}, [] {});
     draw(matrix_shell);
     b.run("frame «Матрица», db2 N = 32", [&] { draw(matrix_shell); });
+
+    auto pipeline_model = std::make_shared<PipelineModel>();
+    (void)pipeline_model->load(std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples" / "denoise.sig");
+    pipeline_model->selection = {Selection::Kind::node, "thr", {}};
+    auto pipeline_shell = make_shell(*ui, {std::make_shared<PipelineScreen>(*ui, pipeline_model)}, [] {});
+    draw(pipeline_shell);
+    b.run("frame «Конвейер», denoise.sig", [&] { draw(pipeline_shell); });
+    auto chain_model = std::make_shared<PipelineModel>();
+    std::string prev = chain_model->add_node("gen");
+    for (int i = 0; i < 39; ++i) {
+        const auto id = chain_model->add_node("gain");
+        (void)chain_model->connect({prev, {}, 0, 0}, {id, {}, 0, 0});
+        prev = id;
+    }
+    auto chain_shell = make_shell(*ui, {std::make_shared<PipelineScreen>(*ui, chain_model)}, [] {});
+    draw(chain_shell);
+    b.run("frame «Конвейер», 40 nodes", [&] { draw(chain_shell); });
 
     const auto formulas_start = std::chrono::steady_clock::now();
     std::size_t formulas = 0;
