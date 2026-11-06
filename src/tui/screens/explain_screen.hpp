@@ -27,6 +27,7 @@ public:
 
     std::string tab_label() const override;
     std::vector<Hint> hints() const override;
+    std::optional<TheoryLink> theory_link() const override { return TheoryLink{TheoryLink::Kind::section, "haar"}; }
     std::string context() const override;
     void set_breakpoint(Breakpoint b) override { breakpoint_ = b; }
     ftxui::Element OnRender() override;

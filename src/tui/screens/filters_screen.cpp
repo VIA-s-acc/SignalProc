@@ -13,6 +13,9 @@
 #include <ftxui/dom/elements.hpp>
 
 #include "i18n/i18n.hpp"
+#include "core/design/families.hpp"
+#include "core/bank.hpp"
+#include "tui/screens/publish_util.hpp"
 #include "tui/shell/palette.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/text_util.hpp"
@@ -120,12 +123,43 @@ std::vector<Hint> FiltersScreen::hints() const {
                           {"←→", tr("tui.filters.hint.cursor")},     {"l", tr("tui.filters.hint.log")},
                           {"d", tr("tui.filters.hint.db")},          {"n", tr("tui.filters.hint.normalise")},
                           {"t", tr("tui.filters.hint.role")},        {"z", tr("tui.signal.hint.zoom")},
-                          {"Tab", tr("tui.signal.hint.tab")}};
+                          {"F1", tr("tui.filters.hint.f1")},          {"Tab", tr("tui.signal.hint.tab")}};
     if (breakpoint_ <= Breakpoint::small) std::rotate(out.begin(), out.end() - 1, out.end());
     return out;
 }
 
 std::string FiltersScreen::context() const { return tr("tui.filters.context"); }
+
+std::optional<TheoryLink> FiltersScreen::theory_link() const {
+    const auto* e = focused();
+    const bool equivalent = e && e->ref.kind == FilterRef::Kind::equivalent;
+    return TheoryLink{TheoryLink::Kind::card, equivalent ? "equivalent_filters" : "freq_response"};
+}
+
+void FiltersScreen::publish(theory::LiveValues& v) const {
+    const auto* e = focused();
+    v.source = tab_label() + " ▸ " + (e ? e->ref.label() : std::string{"—"});
+    if (!e || !e->analysis) return;
+    const auto& a = *e->analysis;
+    const auto pi = [](double w) { return format_fixed(w, 3) + "π"; };
+    v.set("block.filter", e->ref.label());
+    v.set("block.length", std::to_string(a.h.coeffs.size()));
+    v.set("block.points", std::to_string(a.response.omega.size()));
+    v.set("block.zeros_at_minus_one", a.zeros_at_minus_one ? std::to_string(*a.zeros_at_minus_one) : std::string{"—"});
+    v.set("block.linear_phase", yes_no(a.linear_phase));
+    v.set("metric.cutoff_3db", pi(a.metrics.cutoff_3db));
+    v.set("metric.ripple_db", format_fixed(a.metrics.passband_ripple_db, 2) + " " + tr("tui.unit.db"));
+    v.set("metric.attenuation_db", format_fixed(a.metrics.stopband_attenuation_db, 1) + " " + tr("tui.unit.db"));
+    v.set("metric.transition", pi(a.metrics.transition_width));
+    v.set("block.bank", e->ref.wavelet);
+    v.set("block.band", std::string{e->ref.detail ? "d" : "a"} + subscript_number(e->ref.level));
+    v.set("block.level", std::to_string(e->ref.level));
+    if (const auto bank = core::wavelet(e->ref.wavelet)) {
+        const auto pr = core::check_pr(*bank, 1e-9);
+        v.set_check(renamed(pr.alias, "check.pr_alias"));
+        v.set_check(renamed(pr.distortion, "check.pr_distortion"));
+    }
+}
 
 std::string FiltersScreen::key_of(Panel p) {
     static constexpr std::array<std::string_view, panel_count> keys{"magnitude", "phase",    "delay",   "impulse",   "zeros",

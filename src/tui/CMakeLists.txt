@@ -41,6 +41,7 @@ add_library(signals_tui STATIC
   screens/explain_screen.cpp
   screens/theory_navigator.cpp
   screens/theory_screen.cpp
+  screens/publish_util.cpp
   screens/designer_model.cpp
   screens/designer_screen.cpp
   screens/decomposition_model.cpp

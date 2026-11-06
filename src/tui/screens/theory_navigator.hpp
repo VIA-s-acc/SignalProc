@@ -1,11 +1,15 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
+#include <string>
 #include <vector>
 
 #include "tui/shell/screen.hpp"
 
 namespace signals::tui {
+
+TheoryPage make_theory_page(const std::shared_ptr<TabScreen>& screen, std::string origin);
 
 class TheoryNavigator {
 public:

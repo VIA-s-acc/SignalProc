@@ -75,6 +75,7 @@ struct UiContext {
     std::function<void(std::filesystem::path)> open_in_editor;
     std::function<void(std::string)> copy_text;
     std::filesystem::path repo_root;
+    std::function<void(TheoryPage)> open_theory;
 };
 
 struct MenuItem {
@@ -107,6 +108,9 @@ public:
     virtual std::vector<Command> commands() { return {}; }
     virtual ftxui::Element context_element(const UiContext& ui);
     virtual void select_child(std::size_t) {}
+    virtual std::optional<TheoryLink> theory_link() const { return {}; }
+    virtual void publish(theory::LiveValues&) const {}
+    virtual std::shared_ptr<TabScreen> active_child() const { return nullptr; }
 };
 
 }  // namespace signals::tui

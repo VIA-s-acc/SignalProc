@@ -111,3 +111,12 @@ TEST_CASE("singular values are sorted and a singular matrix has infinite conditi
     CHECK(std::isinf(condition_number(s)));
     CHECK(std::isinf(condition_number(std::vector<double>{})));
 }
+
+TEST_CASE("circulant times x equals FFT circular convolution", "[core][matrix]") {
+    const auto bank = signals::core::wavelet("db4");
+    REQUIRE(bank);
+    auto r = signals::core::check_circulant_fft(bank->h0, 64, 1e-12);
+    CHECK(r.id == "check.circulant_fft");
+    CHECK(r.passed());
+    CHECK(r.value < 1e-12);
+}

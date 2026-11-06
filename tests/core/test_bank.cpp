@@ -5,6 +5,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "core/bank.hpp"
+#include "core/design/families.hpp"
 #include "core/metrics.hpp"
 #include "core/scalar.hpp"
 #include "support/golden.hpp"
@@ -94,4 +95,15 @@ TEST_CASE("make_bank rejects non-finite coefficients", "[bank]") {
 TEST_CASE("trim keeps nan coefficients", "[laurent]") {
     auto t = trim(Laurent{{0, 1, std::nan("")}, 0}, 0.0);
     CHECK(t.coeffs.size() == 2);
+}
+
+TEST_CASE("vanishing moments of db2 h1 vanish to rounding", "[core][bank]") {
+    const auto bank = signals::core::wavelet("db2");
+    REQUIRE(bank);
+    auto r = check_vanishing_moments(bank->h1, 2, 1e-12);
+    CHECK(r.id == "check.vanishing_moments");
+    CHECK(r.passed());
+    auto three = check_vanishing_moments(bank->h1, 3, 1e-12);
+    CHECK_FALSE(three.passed());
+    CHECK(check_vanishing_moments(signals::core::wavelet("haar")->h1, 1, 1e-12).passed());
 }

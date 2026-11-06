@@ -10,6 +10,11 @@
 
 #include "core/design/families.hpp"
 #include "i18n/i18n.hpp"
+#include "core/check.hpp"
+#include "core/wavedec.hpp"
+#include "core/wavelet/regularity.hpp"
+#include "core/bank.hpp"
+#include "tui/screens/publish_util.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/heatmap.hpp"
 #include "tui/widgets/plot.hpp"
@@ -41,7 +46,82 @@ std::vector<Hint> DecompositionScreen::hints() const {
     return {{"↑↓", tr("tui.decomposition.hint.band")},      {"Enter", tr("tui.decomposition.hint.toggle")}, {"Space", tr("tui.decomposition.hint.listen")},
             {"a/b/x", tr("tui.decomposition.hint.ab")},     {tr("tui.signal.key.wheel"), tr("tui.decomposition.hint.zoom")},
             {"v", tr("tui.decomposition.hint.view")},       {"u", tr("tui.decomposition.hint.undo")},       {"Tab", tr("tui.explain.hint.tab")},
-            {"z", tr("tui.signal.hint.zoom")}};
+            {"z", tr("tui.signal.hint.zoom")},                  {"F1", tr("tui.decomposition.hint.f1")}};
+}
+
+std::optional<TheoryLink> DecompositionScreen::theory_link() const {
+    return TheoryLink{TheoryLink::Kind::card, focus_ == denoise ? "threshold" : "dwt"};
+}
+
+void DecompositionScreen::publish(theory::LiveValues& v) const {
+    const auto d = model_->data();
+    const auto r = model_->recon();
+    const auto s = model_->source();
+    v.source = tab_label() + " ▸ " + (s ? s->path.filename().string() : std::string{"—"});
+    if (!d) return;
+    const auto& o = d->options;
+    v.source += " · " + o.wavelet + " · J = " + std::to_string(o.levels);
+    const auto bank = core::wavelet(o.wavelet);
+    if (!bank) return;
+    const auto n = d->x.size();
+    const auto length = bank->length();
+    const auto J = o.levels;
+    v.set("block.n", group(n));
+    v.set("block.wavelet", o.wavelet);
+    v.set("block.levels", std::to_string(J));
+    v.set("block.mode", std::string{core::to_string(o.mode)});
+    v.set("block.filter_length", std::to_string(length));
+    v.set("block.max_level", std::to_string(core::dwt_max_level(n, length)));
+    std::vector<std::string> lengths, ranges, energies, names;
+    std::size_t total = 0;
+    for (std::size_t i = 0; i < d->coeffs.bands.size(); ++i) {
+        const auto name = (i == 0 ? "a" : "d") + subscript_number(i == 0 ? J : J + 1 - i);
+        names.push_back(name);
+        lengths.push_back(name + " " + group(d->coeffs.bands[i].size()));
+        total += d->coeffs.bands[i].size();
+    }
+    for (const auto& b : d->bands) {
+        ranges.push_back(b.name + " " + hz_text(b.lo_hz) + "–" + hz_text(b.hi_hz));
+        energies.push_back(b.name + " " + format_fixed(b.energy_pct, 2) + " %");
+    }
+    v.set("block.band_lengths", joined(lengths));
+    v.set("block.band_sum", group(total) + (total > n ? " = N + " + std::to_string(total - n) : " = N"));
+    v.set("block.band_ranges", joined(ranges));
+    v.set("block.linear_phase", yes_no(core::is_linear_phase(bank->h0, 1e-9)));
+    v.set("metric.multiplies", format_number(static_cast<double>(n) * static_cast<double>(bank->h0.coeffs.size() + bank->h1.coeffs.size()), 2));
+    double peak = 0;
+    for (double x : d->x) peak = std::max(peak, std::abs(x));
+    v.set_check({"check.round_trip", o.wavelet, d->pr_error, core::default_tolerance(J, length, peak)});
+    v.set_check(renamed(core::check_orthogonality(*bank, 1e-9), "check.orthogonality"));
+    v.set_check(core::check_vanishing_moments(bank->h1, std::max(1, core::zeros_at_minus_one(bank->f0, 1e-6)), 1e-9));
+    v.set_check({"check.parseval", o.wavelet, d->parseval_error, 1e-10});
+    v.set("block.bands", joined(names));
+    v.set("metric.energies", joined(energies));
+    const auto& p = r ? r->processing : Processing{};
+    v.set("block.rule", p.rule ? std::string{*p.rule == core::ShrinkRule::bayes ? "BayesShrink" : "VisuShrink"} : tr("tui.theory.value.none"));
+    v.set("block.mode", std::string{core::to_string(o.mode)});
+    v.set("block.levels", std::to_string(J));
+    std::vector<std::string> lambdas;
+    if (r)
+        for (double l : r->lambdas) lambdas.push_back(format_number(l, 3));
+    v.set("block.thresholds", lambdas.empty() ? std::string{"—"} : joined(lambdas));
+    v.set("metric.sigma", format_number(d->sigma, 3));
+    v.set("metric.kept", p.keep_fraction ? format_fixed(100 * *p.keep_fraction, 1) + " %" : std::string{"100 %"});
+    const double kept = r ? r->energy_kept_pct : 100.0;
+    v.set("metric.energy_removed", format_fixed(std::max(0.0, 100.0 - kept), 2) + " %");
+    v.set("metric.energy_kept", format_fixed(kept, 2) + " %");
+    std::vector<std::string> on, gains;
+    bool any_off = false;
+    const auto enabled = model_->enabled();
+    for (std::size_t i = 0; i < enabled.size() && i < names.size(); ++i) {
+        if (enabled[i]) on.push_back(names[names.size() - 1 - i]);
+        any_off = any_off || !enabled[i];
+    }
+    for (std::size_t i = 0; i < p.gains_db.size() && i < names.size(); ++i)
+        if (p.gains_db[i] != 0) gains.push_back(names[names.size() - 1 - i] + " " + format_fixed(p.gains_db[i], 1) + " " + tr("tui.unit.db"));
+    v.set("block.enabled", on.empty() ? std::string{"—"} : joined(on));
+    v.set("block.gains", gains.empty() ? "0 " + tr("tui.unit.db") : joined(gains));
+    v.set("block.aliasing", tr(any_off ? "tui.theory.value.aliasing" : "tui.theory.value.no"));
 }
 
 std::string DecompositionScreen::context() const {

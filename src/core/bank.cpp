@@ -36,6 +36,21 @@ PrReport check_pr(const FilterBank& bank, double tol) {
     return report;
 }
 
+CheckResult check_vanishing_moments(const Laurent& h1, int moments, double tol) {
+    const auto& h = h1.coeffs;
+    double total = 0.0;
+    for (double v : h) total += std::abs(v);
+    const double n_max = h.empty() ? 1.0 : std::max(1.0, static_cast<double>(h.size() - 1));
+    double worst = 0.0;
+    for (int p = 0; p < moments; ++p) {
+        double s = 0.0;
+        for (std::size_t i = 0; i < h.size(); ++i) s += std::pow(static_cast<double>(i), p) * h[i];
+        const double scale = std::max(total * std::pow(n_max, p), 1e-300);
+        worst = nan_max(worst, std::abs(s) / scale);
+    }
+    return {"check.vanishing_moments", "h1", worst, tol};
+}
+
 CheckResult check_orthogonality(const FilterBank& bank, double tol) {
     const auto& h = bank.h0.coeffs;
     const auto& f = bank.f0.coeffs;

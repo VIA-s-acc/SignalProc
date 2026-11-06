@@ -9,6 +9,22 @@ constexpr std::size_t kHistory = 100;
 
 }  // namespace
 
+TheoryPage make_theory_page(const std::shared_ptr<TabScreen>& screen, std::string origin) {
+    TheoryPage page;
+    page.origin = std::move(origin);
+    page.values = std::make_shared<theory::LiveValues>();
+    const auto link = screen ? screen->theory_link() : std::nullopt;
+    page.link = link.value_or(TheoryLink{TheoryLink::Kind::section, "theory"});
+    if (link && link->kind == TheoryLink::Kind::card) {
+        std::weak_ptr<TabScreen> weak = screen;
+        page.publisher = [weak](theory::LiveValues& v) {
+            if (auto s = weak.lock()) s->publish(v);
+            else v.snapshot = true;
+        };
+    }
+    return page;
+}
+
 void TheoryNavigator::open(TheoryPage page) {
     if (!history_.empty()) history_.resize(index_ + 1);
     history_.push_back(std::move(page));
