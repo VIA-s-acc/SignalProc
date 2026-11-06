@@ -5,6 +5,7 @@ signals_embed_text(${PROJECT_SOURCE_DIR}/resources/theory/explain/haar.toml ${CM
 
 add_library(signals_tui STATIC
   run.cpp
+  app_screens.cpp
   widgets/format.cpp
   widgets/screen_util.cpp
   widgets/bank_diagram.cpp

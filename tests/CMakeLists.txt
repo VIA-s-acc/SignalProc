@@ -60,6 +60,7 @@ add_executable(signals_tests
   tui/test_decomposition_screen.cpp
   tui/test_matrix_model.cpp
   tui/test_matrix_screen.cpp
+  tui/test_app_screens.cpp
   tui/harness.cpp
   audio/test_player.cpp
   test_golden_files.cpp

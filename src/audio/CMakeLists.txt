@@ -13,7 +13,7 @@ target_link_libraries(signals_audio PUBLIC signals_core PRIVATE Threads::Threads
 if(APPLE)
   target_compile_definitions(signals_audio PRIVATE MA_NO_RUNTIME_LINKING)
   target_link_libraries(signals_audio PRIVATE "-framework CoreFoundation" "-framework CoreAudio" "-framework AudioToolbox")
-else()
+elseif(UNIX)
   target_link_libraries(signals_audio PRIVATE ${CMAKE_DL_LIBS} m)
 endif()
 signals_configure_target(signals_audio)
