@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
@@ -14,6 +15,7 @@
 #include "tui/screens/decomposition_screen.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/ui_fixture.hpp"
+#include "tui/widgets/screen_util.hpp"
 
 using namespace signals::tui;
 using signals::test::Harness;
@@ -200,4 +202,40 @@ TEST_CASE("z shows the focused decomposition panel on the whole screen", "[tui][
     CHECK(frame.find("Прослушивание") == std::string::npos);
     CHECK(f.h.send(ftxui::Event::Escape));
     CHECK(f.h.frame().find("Прослушивание") != std::string::npos);
+}
+
+TEST_CASE("decomposition keys move the cursor, zoom time, change levels and edges", "[tui][decomposition]") {
+    DecompositionFixture f;
+    const auto [b0, e0] = f.screen->time_view();
+    f.h.send(ftxui::Event::ArrowRight);
+    REQUIRE(f.screen->cursor());
+    const double c = *f.screen->cursor();
+    f.h.send(ftxui::Event::ArrowRight);
+    CHECK(*f.screen->cursor() > c);
+    CHECK(f.h.send(ftxui::Event::Character('+')));
+    const auto [b1, e1] = f.screen->time_view();
+    CHECK(e1 - b1 < e0 - b0);
+    f.h.send(ftxui::Event::Character('0'));
+    const auto [b2, e2] = f.screen->time_view();
+    CHECK(e2 - b2 == Catch::Approx(e0 - b0));
+    const auto levels = f.model->options().levels;
+    CHECK(f.h.send(ftxui::Event::Character('j')));
+    CHECK(f.model->options().levels == levels + 1);
+    f.h.send(ftxui::Event::Character('J'));
+    CHECK(f.model->options().levels == levels);
+    const auto mode = f.model->options().mode;
+    CHECK(f.h.send(ftxui::Event::Character('e')));
+    CHECK(f.model->options().mode != mode);
+}
+
+TEST_CASE("the band list follows the selected band when it does not fit", "[tui][decomposition]") {
+    DecompositionFixture f{true, 80, 24};
+    for (int i = 0; i < 6; ++i) f.h.send(ftxui::Event::Character('j'));
+    REQUIRE(f.model->options().levels >= 12);
+    auto frame = f.h.frame();
+    CHECK(frame.find("ещё") != std::string::npos);
+    for (int i = 0; i < 30; ++i) f.h.send(ftxui::Event::ArrowDown);
+    frame = f.h.frame();
+    const auto last = band_name(0, f.model->options().levels, GlyphMode::unicode);
+    CHECK(frame.find(last) != std::string::npos);
 }

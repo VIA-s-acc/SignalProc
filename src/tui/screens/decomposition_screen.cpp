@@ -24,6 +24,31 @@
 namespace signals::tui {
 namespace {
 
+struct BandWindow {
+    std::size_t first = 0, shown = 0;
+};
+
+BandWindow band_window(std::size_t& first, std::size_t n, int budget, int row_height, std::size_t follow) {
+    if (n == 0) return {};
+    const auto fit = [&](std::size_t f) {
+        int left = budget - (f > 0 ? 1 : 0);
+        auto k = static_cast<std::size_t>(std::max(1, left / row_height));
+        if (f + k < n) {
+            left -= 1;
+            k = static_cast<std::size_t>(std::max(1, left / row_height));
+        }
+        return std::min(k, n - std::min(f, n));
+    };
+    follow = std::min(follow, n - 1);
+    if (follow < first) first = follow;
+    while (follow >= first + fit(first)) ++first;
+    std::size_t last = 0;
+    while (last + fit(last) < n) ++last;
+    first = std::min(first, last);
+    return {first, fit(first)};
+}
+
+
 constexpr int kLabelWidth = 27;
 constexpr int kRightWidth = 39;
 constexpr double kWheelStep = 1.25;
@@ -44,7 +69,10 @@ std::string DecompositionScreen::tab_label() const { return tr("tui.tab.decompos
 
 std::vector<Hint> DecompositionScreen::hints() const {
     return {{"Tab", tr("tui.explain.hint.tab")},          {"z", tr("tui.signal.hint.zoom")},
-            {"↑↓", tr("tui.decomposition.hint.band")},    {"Enter", tr("tui.decomposition.hint.toggle")},
+            {"↑↓ PgUp PgDn", tr("tui.decomposition.hint.band")}, {"Enter", tr("tui.decomposition.hint.toggle")},
+            {"←→ Home End", tr("tui.decomposition.hint.cursor")}, {"+ − 0 < >", tr("tui.hint.plot_zoom")},
+            {"j/J", tr("tui.decomposition.hint.levels")},  {"e/E", tr("tui.decomposition.hint.edges")},
+            {"w", tr("tui.decomposition.hint.wavelet")},
             {"Space", tr("tui.decomposition.hint.listen")}, {"a/b/x", tr("tui.decomposition.hint.ab")},
             {"v", tr("tui.decomposition.hint.view")},     {"u", tr("tui.decomposition.hint.undo")},
             {"F1", tr("tui.decomposition.hint.f1")},      {tr("tui.signal.key.wheel"), tr("tui.decomposition.hint.zoom")}};
@@ -238,7 +266,13 @@ ftxui::Element DecompositionScreen::clickable(std::string id, ftxui::Element e, 
     return std::move(e) | ftxui::reflect(clickables_.back().box);
 }
 
-ftxui::Element DecompositionScreen::toolbar() {
+ftxui::Element DecompositionScreen::more_row(bool up, std::size_t count) const {
+    const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
+    const std::string arrow = ascii ? (up ? "^ " : "v ") : (up ? "▲ " : "▼ ");
+    return ftxui::text(arrow + fmt::format(fmt::runtime(tr("tui.theory.blocks_more")), fmt::arg("count", count))) | fg(ui_.theme.dim, ui_);
+}
+
+ftxui::Element DecompositionScreen::toolbar(bool two_rows) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     auto chip = [&](std::string id, std::string label, bool on, bool later, std::function<void()> action) {
@@ -254,21 +288,22 @@ ftxui::Element DecompositionScreen::toolbar() {
                    chip("view_mra", "MRA", view_ == View::mra, false, [this] { view_ = View::mra; }),
                    chip("view_tiles", tr("tui.decomposition.view.tiles"), view_ == View::tiles, false, [this] { view_ = View::tiles; }),
                    chip("chip_packets", tr("tui.decomposition.view.packets"), false, true, later),
-                   chip("chip_scalogram", tr("tui.decomposition.view.scalogram"), false, true, later),
-                   text(" │ " + tr("tui.decomposition.transform") + " ") | fg(th.dim, ui_),
-                   chip("chip_dwt", "DWT", true, false, [] {}),
-                   chip("chip_swt", "SWT", false, true, later),
-                   chip("chip_modwt", "MODWT", false, true, later),
-                   text(" │ " + tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_),
+                   chip("chip_scalogram", tr("tui.decomposition.view.scalogram"), false, true, later)};
+    Elements second{text((two_rows ? "" : " │ ") + tr("tui.decomposition.transform") + " ") | fg(th.dim, ui_),
+                    chip("chip_dwt", "DWT", true, false, [] {}),
+                    chip("chip_swt", "SWT", false, true, later),
+                    chip("chip_modwt", "MODWT", false, true, later),
+                    text(" │ " + tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_),
                    clickable("wavelet", text(o.wavelet + " ▾") | fg(th.fg, ui_), [this] {
                        if (ui_.open_palette) ui_.open_palette(tr("tui.decomposition.cmd.wavelet"));
                    }),
                    text(" │ J ") | fg(th.dim, ui_),
-                   clickable("levels_less", text(std::to_string(o.levels) + " ◂") | fg(th.fg, ui_), [this, &jobs] {
+                   clickable("levels_less", text("◂ ") | fg(th.fg, ui_), [this, &jobs] {
                        auto k = model_->options();
                        if (k.levels > 1) --k.levels;
                        model_->set_options(k, jobs);
                    }),
+                   text(std::to_string(o.levels) + " ") | bold | fg(th.fg, ui_),
                    clickable("levels_more", text("▸") | fg(th.fg, ui_), [this, &jobs] {
                        auto k = model_->options();
                        ++k.levels;
@@ -281,6 +316,8 @@ ftxui::Element DecompositionScreen::toolbar() {
                        k.mode = it == kModes.end() || it + 1 == kModes.end() ? kModes.front() : *(it + 1);
                        model_->set_options(k, jobs);
                    })};
+    if (two_rows) return vbox({hbox(std::move(parts)), hbox(std::move(second))});
+    for (auto& e : second) parts.push_back(std::move(e));
     return hbox(std::move(parts));
 }
 
@@ -303,7 +340,7 @@ ftxui::Element DecompositionScreen::time_axis(int width) const {
     return ftxui::text(out) | fg(ui_.theme.dim, ui_);
 }
 
-ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const Reconstruction* r, int width) {
+ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const Reconstruction* r, int width, int max_rows) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto J = d.options.levels;
@@ -323,32 +360,35 @@ ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const 
         return std::pair{std::min(a, len - 1), b};
     };
     Elements rows;
+    const auto [first, shown] = band_window(band_first_, bands, std::max(3, max_rows - 1), 2, selected_);
+    const auto label_pad = [&](Element e) { return hbox({std::move(e) | size(WIDTH, EQUAL, kLabelWidth)}); };
+    if (first > 0) rows.push_back(label_pad(more_row(true, first)));
     if (view_ == View::tiles) {
         HeatmapSpec spec;
-        spec.rows = d.tiles.rows;
+        spec.rows = std::min(shown, d.tiles.rows - std::min(first, d.tiles.rows));
         const auto c0 = static_cast<std::size_t>(std::floor(begin_ / std::max(1e-12, d.duration()) * static_cast<double>(d.tiles.cols)));
         auto c1 = static_cast<std::size_t>(std::ceil(end_ / std::max(1e-12, d.duration()) * static_cast<double>(d.tiles.cols)));
         c1 = std::clamp(c1, c0 + 1, d.tiles.cols);
         spec.cols = c1 - c0;
-        for (std::size_t row = 0; row < d.tiles.rows; ++row)
+        for (std::size_t row = first; row < first + spec.rows; ++row)
             for (std::size_t c = c0; c < c1; ++c) spec.values.push_back(d.tiles.db[row * d.tiles.cols + c]);
         spec.floor = -48;
         spec.ceil = 0;
         Elements labels;
-        for (std::size_t i = 0; i < bands; ++i) {
+        for (std::size_t i = first; i < first + spec.rows; ++i) {
             labels.push_back(text(band_label(i) + " " + hz_text(d.bands[i].lo_hz) + "–" + hz_text(d.bands[i].hi_hz) + " Гц") |
                              fg(i == selected_ ? th.accent : th.fg, ui_));
             labels.push_back(text(""));
         }
         rows.push_back(hbox({vbox(std::move(labels)) | size(WIDTH, EQUAL, kLabelWidth),
-                             heatmap(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, static_cast<int>(2 * bands)) |
+                             heatmap(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, static_cast<int>(2 * shown)) |
                                  size(WIDTH, EQUAL, plot_width) | reflect(plot_boxes_[0])}));
     } else {
         const bool mra = view_ == View::mra;
         if (mra && r && r->components.empty()) {
             rows.push_back(text(r->mra_skipped.value_or(tr("tui.decomposition.mra_wait"))) | fg(th.warn, ui_));
         } else {
-            for (std::size_t i = 0; i < bands; ++i) {
+            for (std::size_t i = first; i < first + shown; ++i) {
                 const bool on = r && i < r->enabled.size() ? r->enabled[i] : true;
                 const auto name = band_label(i);
                 PlotSpec spec;
@@ -393,21 +433,25 @@ ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const 
             }
         }
     }
+    if (first + shown < bands) rows.push_back(label_pad(more_row(false, bands - first - shown)));
     rows.push_back(hbox({text(std::string(kLabelWidth, ' ')), time_axis(plot_width)}));
     return vbox(std::move(rows));
 }
 
-ftxui::Element DecompositionScreen::energy_panel(const DecompositionData& d) {
+ftxui::Element DecompositionScreen::energy_panel(const DecompositionData& d, int max_rows, int bar_width) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     Elements rows;
-    for (std::size_t i = 0; i < d.bands.size(); ++i) {
+    const auto [first, shown] = band_window(energy_first_, d.bands.size(), std::max(2, max_rows - 1), 1, selected_);
+    if (first > 0) rows.push_back(more_row(true, first));
+    for (std::size_t i = first; i < first + shown; ++i) {
         const auto& b = d.bands[i];
         rows.push_back(hbox({text(pad_right(band_label(i), 3)) | bold | fg(th.trace[0], ui_),
                              text(" " + pad_right(hz_text(b.lo_hz) + "–" + hz_text(b.hi_hz), 12)) | fg(th.dim, ui_),
-                             text(bar(b.energy_pct / 100, 18, ui_.caps.glyphs)) | fg(th.trace[0], ui_), text(pad_left(pct(b.energy_pct), 9)) | fg(th.fg, ui_),
+                             text(bar(b.energy_pct / 100, bar_width, ui_.caps.glyphs)) | fg(th.trace[0], ui_), text(pad_left(pct(b.energy_pct), 9)) | fg(th.fg, ui_),
                              text(pad_left(b.energy_pct > 0 ? format_fixed(10 * std::log10(b.energy_pct / 100), 1) + " дБ" : "—", 10)) | fg(th.dim, ui_)}));
     }
+    if (first + shown < d.bands.size()) rows.push_back(more_row(false, d.bands.size() - first - shown));
     const bool exact = d.orthogonal && d.options.mode == core::Extension::periodization && d.parseval_error < 1e-12;
     rows.push_back(text(exact ? tr("tui.decomposition.parseval_exact") + " " + std::string{glyph(Glyph::check, ui_.caps.glyphs)}
                               : fmt::format(fmt::runtime(tr("tui.decomposition.parseval_approx")), fmt::arg("error", format_number(d.parseval_error, 2)))) |
@@ -584,13 +628,21 @@ ftxui::Element DecompositionScreen::OnRender() {
     const std::vector<Chip> view_chips{{tr(view_ == View::tiles ? "tui.decomposition.chip.tiles" : "tui.decomposition.chip.scale"), false}};
     const bool small = breakpoint_ <= Breakpoint::small || maximized_;
     const int main_width = small ? cols : cols - kRightWidth - 1;
-    auto main = frame_panel(view_panel, view_body(*d, r.get(), main_width), view_chips, title);
+    const bool two_rows = cols < 150;
+    const int toolbar_rows = two_rows ? 2 : 1;
+    const int total = std::max(8, rows - 3);
+    const int body_rows = small ? total - toolbar_rows - 2 : std::max(6, total - toolbar_rows - 1 - 2 - 1 - 9);
+    const auto body = view_body(*d, r.get(), main_width, body_rows);
+    const int used = std::min(body_rows, static_cast<int>(2 * std::min(d->bands.size(), static_cast<std::size_t>(body_rows))) + 3);
+    const int energy_rows = small ? total - 2 : std::max(4, total - toolbar_rows - 1 - (used + 2) - 1 - 2);
+    const int bar_width = maximized_ ? std::max(18, cols - 50) : 18;
+    auto main = frame_panel(view_panel, body, view_chips, title);
     if (small) {
         const auto p = maximized_ ? *maximized_ : static_cast<Panel>(layout_.small_index() % panel_count);
         focus_ = p;
         switch (p) {
-        case view_panel: return vbox({toolbar(), main | flex});
-        case energy: return energy_panel(*d);
+        case view_panel: return vbox({toolbar(two_rows), main | flex});
+        case energy: return energy_panel(*d, energy_rows, bar_width);
         case cursor_panel: return frame_panel(cursor_panel, cursor_body(*d, r.get()), {}, tr("tui.decomposition.cursor"));
         case denoise: return denoise_panel(*d, r.get());
         case listen: return listen_panel(*d);
@@ -600,11 +652,11 @@ ftxui::Element DecompositionScreen::OnRender() {
     }
     const auto cursor_title = cursor_ ? fmt::format(fmt::runtime(tr("tui.decomposition.cursor_at")), fmt::arg("t", format_fixed(*cursor_, 3)))
                                       : tr("tui.decomposition.cursor");
-    auto bottom = hbox({energy_panel(*d) | flex, text(" "),
+    auto bottom = hbox({energy_panel(*d, energy_rows, bar_width) | flex, text(" "),
                         frame_panel(cursor_panel, cursor_body(*d, r.get()), {}, cursor_title) | size(WIDTH, EQUAL, 42)});
     auto left = vbox({main, text(""), bottom | flex});
     auto right = vbox({denoise_panel(*d, r.get()), text(""), listen_panel(*d), text(""), summary_panel(*d, r.get()) | flex});
-    return vbox({toolbar(), text(""), hbox({left | flex, text(" "), right | size(WIDTH, EQUAL, kRightWidth)}) | flex});
+    return vbox({toolbar(two_rows), text(""), hbox({left | flex, text(" "), right | size(WIDTH, EQUAL, kRightWidth)}) | flex});
 }
 
 bool DecompositionScreen::OnEvent(ftxui::Event e) {
@@ -669,6 +721,46 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
     if (!d) return false;
     if (e == Event::ArrowDown) return selected_ = std::min(selected_ + 1, d->bands.size() - 1), true;
     if (e == Event::ArrowUp) return selected_ = selected_ > 0 ? selected_ - 1 : 0, true;
+    if (e == Event::PageDown) return selected_ = std::min(selected_ + 5, d->bands.size() - 1), true;
+    if (e == Event::PageUp) return selected_ = selected_ > 5 ? selected_ - 5 : 0, true;
+    if (e == Event::ArrowLeft || e == Event::ArrowRight) {
+        const int width = std::max(1, plot_area().x_max - plot_area().x_min + 1);
+        const double step = (end_ - begin_) / width;
+        const double t = cursor_.value_or((begin_ + end_) / 2) + (e == Event::ArrowLeft ? -step : step);
+        set_cursor(t);
+        if (*cursor_ < begin_) pan(*cursor_ - begin_);
+        if (*cursor_ > end_) pan(*cursor_ - end_);
+        return true;
+    }
+    if (e == Event::Home) return set_cursor(begin_), true;
+    if (e == Event::End) return set_cursor(end_), true;
+    if (e == Event::Character('+') || e == Event::Character('=') || e == Event::Character('-')) {
+        const double anchor = cursor_ && *cursor_ >= begin_ && *cursor_ <= end_ ? *cursor_ : (begin_ + end_) / 2;
+        zoom(e == Event::Character('-') ? 1 / kWheelStep : kWheelStep, anchor);
+        return true;
+    }
+    if (e == Event::Character('>') || e == Event::Character('.')) return pan(0.2 * (end_ - begin_)), true;
+    if (e == Event::Character('<') || e == Event::Character(',')) return pan(-0.2 * (end_ - begin_)), true;
+    if (e == Event::Character('0')) return zoom(1e-12, begin_), true;
+    if (e == Event::Character('j') || e == Event::Character('J')) {
+        auto k = model_->options();
+        if (e == Event::Character('j')) ++k.levels;
+        else if (k.levels > 1) --k.levels;
+        model_->set_options(k, jobs);
+        return true;
+    }
+    if (e == Event::Character('e') || e == Event::Character('E')) {
+        auto k = model_->options();
+        auto it = std::find(kModes.begin(), kModes.end(), k.mode);
+        if (e == Event::Character('e')) k.mode = it == kModes.end() || it + 1 == kModes.end() ? kModes.front() : *(it + 1);
+        else k.mode = it == kModes.begin() || it == kModes.end() ? kModes.back() : *(it - 1);
+        model_->set_options(k, jobs);
+        return true;
+    }
+    if (e == Event::Character('w')) {
+        if (ui_.open_palette) ui_.open_palette(tr("tui.decomposition.cmd.wavelet"));
+        return true;
+    }
     if (e == Event::Return) {
         if (focus_ == denoise) model_->apply(draft_, jobs);
         else model_->toggle(selected_, jobs);
