@@ -31,7 +31,10 @@ public:
 private:
     std::vector<Command> commands_;
     std::string query_;
+    void select(std::size_t index, std::size_t count);
+
     std::size_t selected_ = 0;
+    std::size_t first_ = 0;
     bool open_ = false;
     std::string prompt_;
     std::function<void(std::string)> path_done_;

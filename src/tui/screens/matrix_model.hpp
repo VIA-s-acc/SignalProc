@@ -49,6 +49,8 @@ struct MatrixData {
     bool orthogonal_bank = false;
     std::size_t filter_length = 0;
     std::optional<std::string> error;
+    std::optional<std::string> note;
+    std::size_t levels = 0;
     Eigen::MatrixXd toeplitz;
 };
 

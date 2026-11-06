@@ -106,13 +106,35 @@ TEST_CASE("the Gram toggle shows AᵀA", "[tui][matrix]") {
     CHECK((r.m.data()->m - Eigen::MatrixXd::Identity(32, 32)).cwiseAbs().maxCoeff() < 1e-14);
 }
 
-TEST_CASE("a level count the signal cannot hold reports an error", "[tui][matrix]") {
+TEST_CASE("a signal shorter than the filter says which N is needed", "[tui][matrix]") {
     Rig r;
     r.m.set({.wavelet = "db10", .op = MatrixOp::multilevel, .n = 8}, r.jobs);
     const auto d = r.m.data();
     REQUIRE(d);
     REQUIRE(d->error);
     CHECK(d->m.size() == 0);
+    CHECK(d->error->find("N ≥ 38") != std::string::npos);
+    CHECK(d->error->find("wavedec") == std::string::npos);
+}
+
+TEST_CASE("levels the signal cannot hold are lowered with a note", "[tui][matrix]") {
+    Rig r;
+    r.m.set({.wavelet = "bior3.7", .op = MatrixOp::multilevel, .n = 32, .levels = 3}, r.jobs);
+    auto d = r.m.data();
+    REQUIRE(d);
+    CHECK_FALSE(d->error);
+    CHECK(d->levels == 1);
+    CHECK(d->m.rows() == 32);
+    CHECK(d->row_names.back() == "d₁[15]");
+    REQUIRE(d->note);
+    CHECK(d->note->find("J = 1") != std::string::npos);
+    CHECK(d->note->find("N ≥ 120") != std::string::npos);
+    CHECK_FALSE(r.m.job());
+    r.m.set({.wavelet = "bior3.7", .op = MatrixOp::multilevel, .n = 128, .levels = 3}, r.jobs);
+    d = r.m.data();
+    REQUIRE(d);
+    CHECK(d->levels == 3);
+    CHECK_FALSE(d->note);
 }
 
 TEST_CASE("odd and out-of-range N are clamped", "[tui][matrix]") {

@@ -85,7 +85,12 @@ TEST_CASE("perturbing f1 breaks alias cancellation", "[tui][explain]") {
 TEST_CASE("zeroing details leaves the Haar alias at -6 dB", "[tui][explain]") {
     auto w = walkthrough(kX, {.zero_detail = true});
     REQUIRE(w);
-    CHECK(w->max_alias_db == Catch::Approx(-6.0206).margin(0.01));
+    CHECK(w->branch_alias_db == Catch::Approx(-6.0206).margin(0.01));
+    CHECK(w->max_alias_db < -250);
+    CHECK(check_invariant("alias_cancelled", *w).passed);
+    const auto line = fill("максимум {{alias_db}} дБ", *w);
+    REQUIRE(line);
+    CHECK(*line == "максимум −6,02 дБ");
     for (std::size_t n = 0; n < 8; ++n) CHECK(w->xhat[w->window + n] == Catch::Approx(w->w0[w->window + n]));
     CHECK(check_invariant("zero_detail_error", *w).passed);
 }

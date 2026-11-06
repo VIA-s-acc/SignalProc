@@ -139,6 +139,7 @@ ftxui::Element MatrixScreen::checks_panel(const MatrixData* d) {
     const auto& th = ui_.theme;
     if (!d) return frame_panel(checks, text("…") | fg(th.dim, ui_), {}, tr("tui.matrix.checks"));
     Elements rows;
+    if (d->note) rows.push_back(paragraph(*d->note) | fg(th.warn, ui_));
     if (d->error) {
         rows.push_back(paragraph(*d->error) | fg(th.err, ui_));
         return frame_panel(checks, vbox(std::move(rows)), {}, tr("tui.matrix.checks"));
@@ -216,7 +217,7 @@ ftxui::Element MatrixScreen::main_panel(const MatrixData* d, int width, int heig
     const auto& th = ui_.theme;
     if (!d) return frame_panel(main, text("…") | fg(th.dim, ui_), {}, tr("tui.matrix.title_empty"));
     if (d->error || d->m.size() == 0)
-        return frame_panel(main, text(d->error.value_or("—")) | fg(th.err, ui_), {}, tr("tui.matrix.title_empty"));
+        return frame_panel(main, paragraph(d->error.value_or("—")) | fg(th.err, ui_), {}, tr("tui.matrix.title_empty"));
     const auto rows = static_cast<std::size_t>(d->m.rows()), cols = static_cast<std::size_t>(d->m.cols());
     row_ = std::min(row_, rows - 1);
     std::string name = "A = [L; B]";

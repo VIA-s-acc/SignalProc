@@ -412,7 +412,7 @@ ftxui::Element ExplainScreen::p0_panel(const Walkthrough& w) {
     out.push_back(text(fmt::format(fmt::runtime(tr("tui.explain.t_line")), fmt::arg("value", t_value))) | fg(t ? th.fg : th.err, ui_));
     out.push_back(text(tr("tui.explain.a_line")) | fg(th.fg, ui_));
     const auto alias = check_invariant("alias_cancelled", w);
-    if (!options_.zero_detail && alias.passed)
+    if (alias.passed)
         out.push_back(text(fmt::format(fmt::runtime(tr("tui.explain.a_zero")), fmt::arg("mark", ok))) | fg(th.ok, ui_));
     else
         out.push_back(text(fmt::format(fmt::runtime(tr("tui.explain.a_max")), fmt::arg("db", db_text(w.max_alias_db)), fmt::arg("mark", bad))) | fg(th.err, ui_));

@@ -187,3 +187,11 @@ TEST_CASE("facts carry no check mark and a user bank does not leak into other ta
     CHECK(f.nav_target == "matrix");
     CHECK(f.nav_args.wavelet.empty());
 }
+
+TEST_CASE("the d = 0 experiment does not mark the bank's alias as broken", "[tui][explain]") {
+    ExplainFixture f{12};
+    const auto frame = f.h.frame();
+    CHECK(frame.find("= 0 ✓ (−∞ дБ)") != std::string::npos);
+    CHECK(frame.find("max |A| = −6") == std::string::npos);
+    CHECK(frame.find("сейчас d = 0: max|A| = −6,0 дБ") != std::string::npos);
+}

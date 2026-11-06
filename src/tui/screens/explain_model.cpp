@@ -147,7 +147,7 @@ core::Result<Walkthrough> walkthrough(std::span<const double> x, const ExplainOp
     w.h0_response = core::frequency_response(w.bank.h0, 256);
     w.h1_response = core::frequency_response(w.bank.h1, 256);
     w.branch_alias_db = to_db(max_magnitude(core::scale(core::multiply(w.bank.f0, core::alternate(w.bank.h0)), 0.5)));
-    w.max_alias_db = options.zero_detail ? w.branch_alias_db : to_db(max_magnitude(core::alias_transfer(w.bank)));
+    w.max_alias_db = to_db(max_magnitude(core::alias_transfer(w.bank)));
     return w;
 }
 
@@ -294,7 +294,7 @@ core::Result<std::string> fill(std::string_view line, const Walkthrough& w) {
         {"d2", w.tree.size() >= 3 ? tree_band(w.tree.size() - 2) : std::string{"—"}},
         {"a3", w.tree.size() == 4 ? tree_band(0) : std::string{"—"}},
         {"d3", w.tree.size() == 4 ? tree_band(1) : std::string{"—"}},
-        {"alias_db", std::isinf(w.max_alias_db) ? "−∞" : format_fixed(w.max_alias_db, 2)},
+        {"alias_db", std::isinf(w.branch_alias_db) ? "−∞" : format_fixed(w.branch_alias_db, 2)},
     };
     {
         std::string kept;

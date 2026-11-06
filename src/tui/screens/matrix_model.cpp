@@ -4,6 +4,8 @@
 #include <cmath>
 #include <numbers>
 
+#include <fmt/format.h>
+
 #include "core/bank.hpp"
 #include "core/design/families.hpp"
 #include "core/matrix.hpp"
@@ -126,13 +128,32 @@ void MatrixModel::set(MatrixOptions o, JobRunner& jobs) {
             break;
         }
         case MatrixOp::multilevel: {
-            auto w = core::multilevel_matrix(*bank, o.n, o.levels, dwt);
+            const auto length = bank->length();
+            auto need = [&](std::size_t levels) {
+                std::size_t n = o.n;
+                while (n < kMaxN && core::dwt_max_level(n, length) < levels) n += 2;
+                return n;
+            };
+            const auto fits = core::dwt_max_level(o.n, length);
+            if (fits == 0)
+                return fail(fmt::format(fmt::runtime(tr("tui.matrix.too_short")), fmt::arg("wavelet", o.wavelet), fmt::arg("l", length),
+                                        fmt::arg("need", need(1)), fmt::arg("n", o.n)));
+            d->levels = std::min(o.levels, fits);
+            if (d->levels < o.levels) {
+                const auto n_for_asked = need(o.levels);
+                const bool reachable = core::dwt_max_level(n_for_asked, length) >= o.levels;
+                d->note = fmt::format(fmt::runtime(tr(reachable ? "tui.matrix.levels_lowered" : "tui.matrix.levels_lowered_max")),
+                                      fmt::arg("asked", o.levels), fmt::arg("j", d->levels), fmt::arg("n", o.n), fmt::arg("l", length),
+                                      fmt::arg("need", n_for_asked));
+            }
+            const auto levels = d->levels;
+            auto w = core::multilevel_matrix(*bank, o.n, levels, dwt);
             if (!w) return fail(w.error().message);
             a = std::move(*w);
-            const auto probe = core::wavedec<double>(std::vector<double>(o.n, 0.0), *bank, o.levels, dwt);
+            const auto probe = core::wavedec<double>(std::vector<double>(o.n, 0.0), *bank, levels, dwt);
             if (probe) {
                 for (std::size_t b = 0; b < probe->bands.size(); ++b) {
-                    const auto band = (b == 0 ? "a" : "d") + sub(b == 0 ? o.levels : o.levels + 1 - b);
+                    const auto band = (b == 0 ? "a" : "d") + sub(b == 0 ? levels : levels + 1 - b);
                     if (b == 1) d->detail_start = d->row_names.size();
                     for (std::size_t k = 0; k < probe->bands[b].size(); ++k) {
                         d->row_names.push_back(band + "[" + std::to_string(k) + "]");
