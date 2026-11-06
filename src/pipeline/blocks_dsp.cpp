@@ -161,17 +161,17 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        if (!bank) return std::unexpected{bank.error()};
                        const auto& c = in_coeffs(in);
                        const auto mode = core::parse_extension(param_text(p, "ext"));
-                       core::AudioBuffer out;
-                       out.sample_rate = c.rate;
+                       core::AudioBuffer result;
+                       result.sample_rate = c.rate;
                        const double share = 1.0 / static_cast<double>(std::max<std::size_t>(1, c.channels.size()));
                        for (std::size_t i = 0; i < c.channels.size(); ++i) {
                            ScaledProgress part{ctx.progress, share * static_cast<double>(i), share};
                            auto y = core::waverec<double>(c.channels[i], *bank, {*mode, false}, &part);
                            if (!y) return std::unexpected{y.error()};
                            if (i < c.lengths.size()) y->resize(c.lengths[i]);
-                           out.channels.push_back(std::move(*y));
+                           result.channels.push_back(std::move(*y));
                        }
-                       return std::vector<Value>{std::move(out)};
+                       return std::vector<Value>{std::move(result)};
                    }});
     out.push_back({"threshold",
                    kCoeffsIn,

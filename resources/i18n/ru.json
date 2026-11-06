@@ -803,5 +803,21 @@
   "tui.matrix.origin8": "продолжение; Левинсон — O(N²)",
   "pipeline.run.cancelled": "запуск отменён",
   "pipeline.run.node_failed": "строка {line}, узел {node}: {message}",
-  "pipeline.run.no_band": "у {node} нет полосы {band}"
+  "pipeline.run.no_band": "у {node} нет полосы {band}",
+  "cli.run.description": "запустить конвейер .sig",
+  "cli.run.file": "файл конвейера .sig",
+  "cli.run.set": "подставить параметр: узел.параметр=значение (можно несколько раз)",
+  "cli.run.output": "путь записи первого wav_out",
+  "cli.run.probe_dir": "каталог для щупов: сигналы — WAV, остальное — JSON",
+  "cli.graph.description": "нарисовать граф конвейера текстом",
+  "cli.graph.ascii": "только ASCII-символы",
+  "cli.dither": "дизеринг при записи: tpdf или none",
+  "pipeline.cli.cannot_read": "не удалось прочитать {path}",
+  "pipeline.cli.no_output": "-o задан, но в графе нет узла wav_out",
+  "pipeline.cli.listen_skipped": "узел {node}: прослушивание в CLI пропускается",
+  "pipeline.cli.cancelled": "запуск прерван",
+  "pipeline.cli.header": "конвейер «{name}»: узлов {nodes}",
+  "pipeline.cli.probes": "щупы:",
+  "pipeline.cli.reports": "отчёты:",
+  "pipeline.cli.failed": "проверка не прошла"
 }

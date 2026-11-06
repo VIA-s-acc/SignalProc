@@ -129,6 +129,7 @@ public:
         sub_->add_option("--ext", ext_, tr("cli.ext"))->check(CLI::IsMember(kExtensions));
         sub_->add_option("--format", format_, tr("cli.format"))->check(CLI::IsMember({"s16", "s24", "s32", "f32"}));
         sub_->add_option("--reference", reference_, tr("cli.denoise.reference"));
+        sub_->add_option("--dither", dither_, tr("cli.dither"))->check(CLI::IsMember({"none", "tpdf"}));
         sub_->add_flag("--json", json_, tr("cli.json.description"));
     }
     bool parsed() const override { return sub_->parsed(); }
@@ -156,7 +157,10 @@ public:
                             : format_ == "s32" ? io::SampleFormat::pcm_s32
                             : format_ == "f32" ? io::SampleFormat::float32
                                                : io::SampleFormat::pcm_s24;
-        const auto written = io::write_wav(output_, result->first, {format});
+        io::WavWriteOptions write_options;
+        write_options.format = format;
+        write_options.dither = dither_ == "tpdf";
+        const auto written = io::write_wav(output_, result->first, write_options);
         if (!written) return report_error(err, written.error());
 
         nlohmann::json channels = nlohmann::json::array();
@@ -197,7 +201,7 @@ public:
 
 private:
     CLI::App* sub_;
-    std::string input_, output_, rule_ = "bayes", mode_ = "soft", ext_ = "symmetric", format_ = "s24", reference_;
+    std::string input_, output_, rule_ = "bayes", mode_ = "soft", ext_ = "symmetric", format_ = "s24", reference_, dither_ = "tpdf";
     std::optional<std::size_t> levels_;
     core::DenoiseOptions options_;
     bool json_ = false;

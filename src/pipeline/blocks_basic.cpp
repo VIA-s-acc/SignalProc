@@ -138,14 +138,14 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                        const auto b = param_samples(p, "begin", a.sample_rate), e = param_samples(p, "end", a.sample_rate);
                        if (!b) return std::unexpected{b.error()};
                        if (!e) return std::unexpected{e.error()};
-                       core::AudioBuffer out;
-                       out.sample_rate = a.sample_rate;
+                       core::AudioBuffer result;
+                       result.sample_rate = a.sample_rate;
                        for (const auto& c : a.channels) {
                            auto piece = core::cut(c, *b, *e);
                            if (!piece) return std::unexpected{piece.error()};
-                           out.channels.push_back(std::move(*piece));
+                           result.channels.push_back(std::move(*piece));
                        }
-                       return std::vector<Value>{std::move(out)};
+                       return std::vector<Value>{std::move(result)};
                    }});
 }
 

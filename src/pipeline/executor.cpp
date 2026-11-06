@@ -242,7 +242,7 @@ private:
             if (!outputs_[i]) continue;
             for (const auto& v : *outputs_[i])
                 if (const auto* report = std::get_if<Report>(&v)) {
-                    out.reports.push_back(*report);
+                    out.reports.push_back({g_.nodes[i].id, *report});
                     if (g_.nodes[i].type->id == "check" && !report->passed) out.checks_passed = false;
                 }
         }

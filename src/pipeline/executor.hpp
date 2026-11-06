@@ -27,10 +27,15 @@ struct RunEvents {
     std::function<void(const NodeStatus&)> on_node;
 };
 
+struct NodeReport {
+    std::string node;
+    Report report;
+};
+
 struct RunResult {
     std::map<std::string, Value, std::less<>> probes;
     std::vector<NodeStatus> nodes;
-    std::vector<Report> reports;
+    std::vector<NodeReport> reports;
     bool checks_passed = true;
 };
 
