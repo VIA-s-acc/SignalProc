@@ -196,3 +196,23 @@ TEST_CASE("writing replaces an existing file in one step", "[wav]") {
     CHECK(std::filesystem::file_size(path) > 3);
     CHECK(std::distance(std::filesystem::directory_iterator{dir}, std::filesystem::directory_iterator{}) == 1);
 }
+
+TEST_CASE("the temporary file has an unpredictable name and is never reused", "[wav]") {
+    const auto dir = temp_path("wav-temp-name");
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    const auto path = dir / "out.wav";
+    const auto decoy = dir / ".out.wav.partial";
+    {
+        std::ofstream keep{decoy};
+        keep << "keep";
+    }
+    AudioBuffer audio;
+    audio.sample_rate = 8000;
+    audio.channels.push_back(sine(440, 0.5, 0, 8000, 800));
+    REQUIRE(write_wav(path, audio, {}));
+    std::ifstream in{decoy};
+    const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+    CHECK(text == "keep");
+    CHECK(std::distance(std::filesystem::directory_iterator{dir}, std::filesystem::directory_iterator{}) == 2);
+}
