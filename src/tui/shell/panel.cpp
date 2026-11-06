@@ -58,18 +58,15 @@ public:
             ++x;
         }
         if (title_box_) *title_box_ = {x0 + 2, x - 1, y0, y0};
-        std::vector<std::pair<std::string, bool>> parts;
         int width = 0;
-        for (const auto& c : chips_) {
-            const std::string text = c.on ? "[" + c.label + "]" : c.label;
-            parts.emplace_back(text, c.on);
-            width += static_cast<int>(split_codepoints(text).size()) + 1;
-        }
+        for (const auto& c : chips_) width += static_cast<int>(split_codepoints(c.on ? "[" + c.label + "]" : c.label).size()) + 1;
         int cx = x1 - 1 - width;
-        if (parts.empty() || cx <= x + 1) return;
-        for (const auto& [text, on] : parts) {
+        if (chips_.empty() || cx <= x + 1) return;
+        for (const auto& c : chips_) {
             put(screen, cx++, y0, " ", border);
-            for (const auto& ch : split_codepoints(text)) put(screen, cx++, y0, ch, on ? theme_.accent : theme_.dim, on);
+            const int start = cx;
+            for (const auto& ch : split_codepoints(c.on ? "[" + c.label + "]" : c.label)) put(screen, cx++, y0, ch, c.on ? theme_.accent : theme_.dim, c.on);
+            if (c.box) *c.box = {start, cx - 1, y0, y0};
         }
     }
 

@@ -3,16 +3,16 @@
 #include <memory>
 #include <utility>
 
+#include <fmt/format.h>
 #include <ftxui/component/app.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/screen/terminal.hpp>
 
+#include "i18n/i18n.hpp"
+#include "tui/app_screens.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/monitor/monitor.hpp"
-#include "tui/screens/filters_model.hpp"
-#include "tui/screens/filters_screen.hpp"
-#include "tui/screens/signal_model.hpp"
-#include "tui/screens/signal_screen.hpp"
+#include "tui/data/user_filters.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/term/caps.hpp"
 
@@ -29,10 +29,17 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme) {
         const auto d = ftxui::Terminal::Size();
         return std::pair{d.dimx, d.dimy};
     };
-    auto signal = std::make_shared<SignalModel>();
-    auto comparison = std::make_shared<ComparisonSet>();
-    for (auto role : {FilterRole::h0, FilterRole::h1}) (void)comparison->add({FilterRef::Kind::bank, "db2", role});
+    ui.user_filters = user_filters_dir(env);
+    const auto library = load_user_banks(ui.user_filters);
+    set_user_banks(library.banks);
+    auto models = make_app_models();
+    for (const auto& e : library.errors)
+        models.signal->add_log(fmt::format(fmt::runtime(tr("tui.user_filters.broken")), fmt::arg("error", e)), LogLine::warn);
     JobRunner jobs{[&app] { app.PostEvent(ftxui::Event::Custom); }};
+    audio::Player player{audio::make_device_sink()};
+    Ticker ticker{[&app] { app.PostEvent(ftxui::Event::Custom); }};
+    ui.player = &player;
+    ui.ticker = &ticker;
     ResourceMonitor monitor{[&app] { app.PostEvent(ftxui::Event::Custom); }};
     monitor.set_queue_probe([&jobs] { return jobs.queued(); });
     ui.jobs = &jobs;
@@ -41,11 +48,10 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme) {
     ui.history = [&monitor] { return monitor.history(); };
     ui.prefs_file = prefs_path(env);
     ui.first_run_check = !prefs || !prefs->checked;
-    ui.open_file = [signal, &jobs](const std::filesystem::path& path) { signal->open(path, jobs); };
-    auto screens = placeholder_screens(ui);
-    screens[0] = make_signal_screen(ui, signal);
-    screens[2] = make_filters_screen(ui, comparison);
-    if (file) signal->open(*file, jobs);
+    ui.warn = [signal = models.signal](std::string line) { signal->add_log(std::move(line), LogLine::warn); };
+    ui.open_file = [signal = models.signal, &jobs](const std::filesystem::path& path) { signal->open(path, jobs); };
+    auto screens = make_app_screens(ui, models);
+    if (file) models.signal->open(*file, jobs);
     auto shell = make_shell(ui, std::move(screens), [&app] { app.Exit(); });
     app.Loop(shell);
     return 0;

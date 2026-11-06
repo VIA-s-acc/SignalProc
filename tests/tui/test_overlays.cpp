@@ -30,6 +30,36 @@ struct Rig {
 
 }  // namespace
 
+TEST_CASE("palette also finds commands by their English id", "[tui][palette]") {
+    std::vector<Command> all{{"file.open", "Открыть WAV…", {}}, {"quit", "Выход", {}}};
+    const auto f = filter_commands(all, "open");
+    REQUIRE(f.size() == 1);
+    CHECK(f.front()->id == "file.open");
+    CHECK(filter_commands(all, "откр").front()->id == "file.open");
+}
+
+TEST_CASE("palette scrolls to keep the selection visible", "[tui][palette]") {
+    auto ui = signals::test::make_ui(150, 44);
+    std::vector<Command> all;
+    for (int i = 0; i < 30; ++i) all.push_back({"cmd." + std::to_string(i), "Команда " + std::string(i < 10 ? "0" : "") + std::to_string(i), {}});
+    Palette p;
+    p.open(all);
+    for (int i = 0; i < 20; ++i) p.on_event(ftxui::Event::ArrowDown);
+    auto text = signals::test::render_text(p.render(*ui), 80, 20);
+    CHECK(text.find("Команда 20") != std::string::npos);
+    CHECK(text.find("Команда 00") == std::string::npos);
+    CHECK(text.find("21 / 30") != std::string::npos);
+    for (int i = 0; i < 20; ++i) p.on_event(ftxui::Event::ArrowUp);
+    text = signals::test::render_text(p.render(*ui), 80, 20);
+    CHECK(text.find("Команда 00") != std::string::npos);
+    p.on_event(ftxui::Event::PageDown);
+    p.on_event(ftxui::Event::PageDown);
+    p.on_event(ftxui::Event::PageDown);
+    text = signals::test::render_text(p.render(*ui), 80, 20);
+    CHECK(text.find("Команда 29") != std::string::npos);
+    CHECK(text.find("30 / 30") != std::string::npos);
+}
+
 TEST_CASE("palette filters by subsequence", "[tui][palette]") {
     std::vector<Command> all{{"theme.light", "Тема: светлая", {}}, {"theme.dark", "Тема: тёмная", {}}, {"quit", "Выход", {}}};
     auto f = filter_commands(all, "тем");

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <optional>
 #include <string>
+#include <utility>
 #include <string_view>
 
 #include <ftxui/component/component.hpp>
@@ -21,8 +23,10 @@ struct Harness {
     bool click(int x, int y, bool shift = false);
     bool wheel(int x, int y, bool up, bool shift = false);
     bool drag(int x0, int y0, int x1, int y1, bool ctrl = false);
+    bool right_click(int x, int y);
 };
 
 void check_snapshot(std::string_view name, const std::string& text);
+std::optional<std::pair<int, int>> locate(const std::string& frame, std::string_view needle);
 
 }  // namespace signals::test

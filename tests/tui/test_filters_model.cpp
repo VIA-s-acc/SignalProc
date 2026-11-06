@@ -67,7 +67,7 @@ TEST_CASE("library lists every wavelet once and marks later groups", "[tui][filt
     for (const auto& g : lib.children) {
         if (g.later.empty()) continue;
         ++later;
-        CHECK(g.later == "M6");
+        CHECK(g.later == (g.label == "Мои фильтры" ? std::string{"пусто (Банк)"} : std::string{"M6"}));
         std::vector<FilterRef> none;
         collect(g, none);
         CHECK(none.empty());

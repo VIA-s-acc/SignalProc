@@ -167,6 +167,17 @@ std::shared_ptr<const SignalData> SignalModel::data() const {
     return data_;
 }
 
+std::optional<audio::Clip> SignalModel::clip() const {
+    auto d = data();
+    if (!d || d->samples.empty()) return std::nullopt;
+    audio::Clip c;
+    for (const auto& ch : d->samples) c.channels.emplace_back(ch);
+    c.rate = d->info.sample_rate;
+    c.owner = d;
+    c.tag = "signal";
+    return c;
+}
+
 std::vector<LogLine> SignalModel::log() const {
     std::lock_guard lock{mutex_};
     return log_;
@@ -273,6 +284,13 @@ void SignalModel::select(double t0, double t1) {
     t0 = clamp_time(t0);
     t1 = clamp_time(t1);
     selection_ = std::pair{std::min(t0, t1), std::max(t0, t1)};
+}
+
+void SignalModel::clear_selection() {
+    sync_view();
+    selection_.reset();
+    std::lock_guard lock{mutex_};
+    selection_stats_.clear();
 }
 
 void SignalModel::compute_selection(JobRunner& jobs) {

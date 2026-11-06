@@ -73,10 +73,11 @@ TEST_CASE("cpu load of a busy thread is about one core", "[tui][monitor]") {
     std::atomic<bool> stop{false};
     std::thread busy{[&] { while (!stop) {} }};
     std::this_thread::sleep_for(1s);
-    stop = true;
-    busy.join();
+    // Sample before joining: macOS adds a joined thread's CPU time to the process a moment later.
     auto cur = sample_process();
     const double c1 = clock_seconds(CLOCK_PROCESS_CPUTIME_ID), w1 = clock_seconds(CLOCK_MONOTONIC);
+    stop = true;
+    busy.join();
     REQUIRE(prev);
     REQUIRE(cur);
     const double truth = (c1 - c0) / (w1 - w0) * 100;

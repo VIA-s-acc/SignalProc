@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -31,8 +32,12 @@ public:
     bool OnEvent(ftxui::Event e) override;
 
     ftxui::Box area(std::string_view id) const;
+    std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<JumpTarget> jump_targets() const override;
+    std::optional<double> playhead() const;
 
 private:
+    enum class DragMode { pan, select };
     enum Panel { wave, spectrum, bands, source, progress, log, panel_count };
 
     struct Drag {
@@ -57,6 +62,8 @@ private:
     double time_at(int x) const;
     int wave_columns() const;
     bool loading() const;
+    bool playing() const;
+    void toggle_playback();
     static Panel panel_of(const std::string& key);
     static std::string key_of(Panel p);
 
@@ -73,6 +80,10 @@ private:
     bool wave_labels_ = true;
     bool wave_split_ = true;
     Drag drag_;
+    DragMode drag_mode_ = DragMode::pan;
+    ftxui::Box drag_chip_{};
+    bool audio_warned_ = false;
+    bool arrows_move_b_ = false;
     Panel last_title_ = panel_count;
     std::chrono::steady_clock::time_point last_title_click_{};
 };

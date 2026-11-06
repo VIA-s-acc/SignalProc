@@ -52,25 +52,31 @@ void pop_codepoint(std::string& s) {
 std::vector<const Command*> filter_commands(const std::vector<Command>& all, std::string_view query) {
     const auto q = lower_codepoints(query);
     std::vector<std::pair<std::size_t, const Command*>> ranked;
-    for (const auto& c : all)
-        if (auto pos = first_match(lower_codepoints(c.title), q)) ranked.emplace_back(*pos, &c);
+    for (const auto& c : all) {
+        auto pos = first_match(lower_codepoints(c.title), q);
+        if (!pos) pos = first_match(lower_codepoints(c.id), q);
+        if (pos) ranked.emplace_back(*pos, &c);
+    }
     std::stable_sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
     std::vector<const Command*> out;
     for (const auto& [pos, c] : ranked) out.push_back(c);
     return out;
 }
 
-void Palette::open(std::vector<Command> commands) {
+void Palette::open(std::vector<Command> commands, std::string filter) {
     commands_ = std::move(commands);
-    query_.clear();
+    query_ = std::move(filter);
     selected_ = 0;
+    first_ = 0;
     prompt_.clear();
     path_done_ = nullptr;
     open_ = true;
 }
 
-void Palette::ask_path(std::string prompt, std::function<void(std::string)> done) {
-    query_.clear();
+void Palette::ask_path(std::string prompt, std::function<void(std::string)> done) { ask_text(std::move(prompt), {}, std::move(done)); }
+
+void Palette::ask_text(std::string prompt, std::string initial, std::function<void(std::string)> done) {
+    query_ = std::move(initial);
     prompt_ = std::move(prompt);
     path_done_ = std::move(done);
     open_ = true;
@@ -88,7 +94,7 @@ bool Palette::on_event(const ftxui::Event& e) {
     }
     if (e == ftxui::Event::Backspace) {
         pop_codepoint(query_);
-        selected_ = 0;
+        selected_ = first_ = 0;
         return true;
     }
     if (path_done_) {
@@ -103,14 +109,18 @@ bool Palette::on_event(const ftxui::Event& e) {
         return true;
     }
     const auto matches = filter_commands(commands_, query_);
-    if (e == ftxui::Event::ArrowDown) {
-        if (!matches.empty()) selected_ = std::min(selected_ + 1, matches.size() - 1);
-        return true;
-    }
-    if (e == ftxui::Event::ArrowUp) {
-        if (selected_ > 0) --selected_;
-        return true;
-    }
+    const auto n = matches.size();
+    auto wheel = [&](ftxui::Mouse::Button b) {
+        auto copy = e;
+        return copy.is_mouse() && copy.mouse().button == b;
+    };
+    if (e == ftxui::Event::ArrowDown || wheel(ftxui::Mouse::WheelDown)) return select(selected_ + 1, n), true;
+    if (e == ftxui::Event::ArrowUp || wheel(ftxui::Mouse::WheelUp)) return select(selected_ == 0 ? 0 : selected_ - 1, n), true;
+    if (e == ftxui::Event::PageDown) return select(selected_ + kVisible, n), true;
+    if (e == ftxui::Event::PageUp) return select(selected_ > kVisible ? selected_ - kVisible : 0, n), true;
+    if (e == ftxui::Event::Home) return select(0, n), true;
+    if (e == ftxui::Event::End) return select(n == 0 ? 0 : n - 1, n), true;
+    if (e.is_mouse()) return true;
     if (e == ftxui::Event::Return) {
         if (selected_ < matches.size()) {
             auto run = matches[selected_]->run;
@@ -121,9 +131,19 @@ bool Palette::on_event(const ftxui::Event& e) {
     }
     if (e.is_character()) {
         query_ += e.character();
-        selected_ = 0;
+        selected_ = first_ = 0;
     }
     return true;
+}
+
+void Palette::select(std::size_t index, std::size_t count) {
+    if (count == 0) {
+        selected_ = first_ = 0;
+        return;
+    }
+    selected_ = std::min(index, count - 1);
+    if (selected_ < first_) first_ = selected_;
+    if (selected_ >= first_ + kVisible) first_ = selected_ - kVisible + 1;
 }
 
 ftxui::Element Palette::render(const UiContext& ui) const {
@@ -136,12 +156,14 @@ ftxui::Element Palette::render(const UiContext& ui) const {
     }
     rows.push_back(text(": " + query_ + "▏") | bold);
     const auto matches = filter_commands(commands_, query_);
-    for (std::size_t i = 0; i < matches.size() && i < kVisible; ++i) {
+    for (std::size_t i = first_; i < matches.size() && i < first_ + kVisible; ++i) {
         auto row = text(" " + matches[i]->title + " ");
         rows.push_back(i == selected_ ? row | bold | fg(ui.theme.bg, ui) | bg(ui.theme.accent, ui) : row);
     }
     if (matches.empty()) rows.push_back(text(tr("tui.help.nothing")) | fg(ui.theme.dim, ui));
-    rows.push_back(text(tr("tui.palette.keys")) | fg(ui.theme.dim, ui));
+    auto keys = tr("tui.palette.keys");
+    if (matches.size() > kVisible) keys += " · " + std::to_string(selected_ + 1) + " / " + std::to_string(matches.size());
+    rows.push_back(text(keys) | fg(ui.theme.dim, ui));
     return panel(tr("tui.palette.title"), {}, vbox(std::move(rows)) | size(WIDTH, GREATER_THAN, 60), true, ui);
 }
 

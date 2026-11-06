@@ -69,6 +69,31 @@ bool Harness::drag(int x0, int y0, int x1, int y1, bool ctrl) {
     return send(mouse(ftxui::Mouse::Left, ftxui::Mouse::Released, x1, y1, false, ctrl)) || handled;
 }
 
+bool Harness::right_click(int x, int y) {
+    const bool a = send(mouse(ftxui::Mouse::Right, ftxui::Mouse::Pressed, x, y, false, false));
+    const bool b = send(mouse(ftxui::Mouse::Right, ftxui::Mouse::Released, x, y, false, false));
+    return a || b;
+}
+
+std::optional<std::pair<int, int>> locate(const std::string& frame, std::string_view needle) {
+    int y = 0;
+    std::size_t start = 0;
+    while (start <= frame.size()) {
+        const auto end = frame.find('\n', start);
+        const auto line = std::string_view{frame}.substr(start, end == std::string::npos ? std::string::npos : end - start);
+        if (const auto at = line.find(needle); at != std::string_view::npos) {
+            int x = 0;
+            for (std::size_t i = 0; i < at; ++i)
+                if ((static_cast<unsigned char>(line[i]) & 0xC0) != 0x80) ++x;
+            return std::pair{x, y};
+        }
+        if (end == std::string::npos) break;
+        start = end + 1;
+        ++y;
+    }
+    return std::nullopt;
+}
+
 void check_snapshot(std::string_view name, const std::string& text) {
     const auto path = std::filesystem::path{SIGNALS_SOURCE_DIR} / "tests" / "snapshots" / (std::string{name} + ".txt");
     if (const char* update = std::getenv("SIGNALS_UPDATE_SNAPSHOTS"); update && std::string_view{update} == "1") {

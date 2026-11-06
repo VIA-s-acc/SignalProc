@@ -1,4 +1,5 @@
 #include "tui/screens/signal_screen.hpp"
+#include "tui/widgets/screen_util.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -25,47 +26,6 @@ constexpr auto kDoubleClick = 400ms;
 constexpr int kMinLeft = 24;
 constexpr int kSourceRows = 10;
 constexpr int kLogRows = 8;
-const ftxui::Box kNoBox{1, 0, 1, 0};
-
-bool valid(const ftxui::Box& b) { return b.x_max >= b.x_min && b.y_max >= b.y_min; }
-
-std::string group(std::uint64_t n) {
-    const auto digits = std::to_string(n);
-    std::string out;
-    for (std::size_t i = 0; i < digits.size(); ++i) {
-        if (i > 0 && (digits.size() - i) % 3 == 0) out += ' ';
-        out += digits[i];
-    }
-    return out;
-}
-
-std::string time_text(double t, double span) {
-    const int decimals = span < 0.01 ? 5 : span < 0.1 ? 4 : span < 1 ? 3 : 2;
-    return format_fixed(t, decimals) + " с";
-}
-
-std::string hz_text(double f) {
-    if (f >= 1000) return format_fixed(f / 1000, f >= 10000 ? 1 : 2) + "к";
-    return format_fixed(std::round(f), 0);
-}
-
-std::string band_name(std::size_t k, std::size_t levels, GlyphMode g) {
-    const std::size_t level = k == 0 ? levels : levels + 1 - k;
-    return std::string{k == 0 ? "a" : "d"} + (g == GlyphMode::ascii ? std::to_string(level) : subscript_count(level));
-}
-
-std::pair<double, double> band_range(std::size_t k, std::size_t levels, double fs) {
-    if (k == 0) return {0.0, fs / std::ldexp(1.0, static_cast<int>(levels) + 1)};
-    const auto level = static_cast<int>(levels + 1 - k);
-    return {fs / std::ldexp(1.0, level + 1), fs / std::ldexp(1.0, level)};
-}
-
-std::string bar(double f, int width, GlyphMode g) {
-    if (g == GlyphMode::unicode) return eighths_bar(f, width);
-    const auto n = static_cast<int>(std::lround(std::clamp(std::isnan(f) ? 0.0 : f, 0.0, 1.0) * width));
-    return std::string(static_cast<std::size_t>(n), '#') + std::string(static_cast<std::size_t>(width - n), ' ');
-}
-
 std::string channel_name(std::size_t c, std::size_t channels) {
     if (channels == 2) return c == 0 ? "L" : "R";
     if (channels == 1) return "";
@@ -93,27 +53,6 @@ std::string format_text(const io::WavInfo& info) {
     return (pcm ? "PCM " : "") + bits_text(info) + (info.extensible ? " · EXTENSIBLE" : " · WAVE");
 }
 
-struct Span {
-    std::string text;
-    Rgb color;
-    bool bold = false;
-};
-
-ftxui::Element line(const std::vector<Span>& spans, const UiContext& ui) {
-    ftxui::Elements out;
-    for (const auto& s : spans) {
-        auto t = ftxui::text(s.text) | fg(s.color, ui);
-        out.push_back(s.bold ? t | ftxui::bold : t);
-    }
-    return ftxui::hbox(std::move(out));
-}
-
-ftxui::Element centered(std::vector<ftxui::Element> rows) {
-    ftxui::Elements out{ftxui::filler()};
-    for (auto& r : rows) out.push_back(std::move(r) | ftxui::hcenter);
-    out.push_back(ftxui::filler());
-    return ftxui::vbox(std::move(out));
-}
 
 }  // namespace
 
@@ -123,21 +62,25 @@ SignalScreen::SignalScreen(UiContext& ui, std::shared_ptr<SignalModel> model)
     title_boxes_.fill(kNoBox);
     wave_boxes_.fill(kNoBox);
     divider_box_ = kNoBox;
+    drag_chip_ = kNoBox;
 }
 
 std::string SignalScreen::tab_label() const { return tr("tui.tab.signal"); }
 
 std::vector<Hint> SignalScreen::hints() const {
     std::vector<Hint> out{{"o", tr("tui.signal.hint.open")},
+                          {"Space", tr("tui.signal.hint.play")},
                           {tr("tui.signal.key.wheel"), tr("tui.signal.hint.wheel")},
-                          {tr("tui.signal.key.ctrl_drag"), tr("tui.signal.hint.select")},
+                          {"s", tr("tui.signal.hint.drag_mode")},
                           {tr("tui.signal.key.click"), tr("tui.signal.hint.click")},
                           {tr("tui.signal.key.drag"), tr("tui.signal.hint.drag")},
                           {"z", tr("tui.signal.hint.zoom")},
                           {"Tab", tr("tui.signal.hint.tab")},
                           {"←→", tr("tui.signal.hint.arrows")},
-                          {"Esc", tr("tui.signal.hint.cancel")}};
-    if (breakpoint_ <= Breakpoint::small) std::rotate(out.begin(), out.begin() + 6, out.begin() + 7);
+                          {"b", tr("tui.signal.hint.cursor_b")},
+                          {"Esc", tr("tui.signal.hint.cancel")},
+                          {tr("tui.signal.key.ctrl_drag"), tr("tui.signal.hint.select")}};
+    if (breakpoint_ <= Breakpoint::small) std::rotate(out.begin(), out.begin() + 7, out.begin() + 8);
     return out;
 }
 
@@ -296,6 +239,11 @@ ftxui::Element SignalScreen::wave_panel(const std::shared_ptr<const SignalData>&
         return frame_panel(wave, centered({text(tr("tui.signal.empty")) | fg(th.dim, ui_), text(tr("tui.signal.empty_hint")) | fg(th.fg, ui_)}),
                            {}, tr("tui.signal.wave"));
     const double fs = d->info.sample_rate;
+    const auto head_at = playhead();
+    if (head_at && *head_at > model_->view_end()) {
+        const double s = model_->view_end() - model_->view_begin();
+        model_->pan(*head_at - (model_->view_begin() + 0.1 * s));
+    }
     const double b = model_->view_begin(), e = model_->view_end(), span = e - b;
     const int plot_rows = std::max(2, rows - 4);
     const std::size_t shown = std::min<std::size_t>(2, d->samples.size());
@@ -320,6 +268,7 @@ ftxui::Element SignalScreen::wave_panel(const std::shared_ptr<const SignalData>&
             Envelope{{}, c == 0 ? th.fg : th.dim, [d, c, s0, s1](int cols) { return d->pyramids[c].query(s0, s1, static_cast<std::size_t>(cols)); }});
         spec.cursor_a = cursor_a;
         spec.cursor_b = cursor_b;
+        spec.playhead = head_at;
         spec.selection = selection;
         auto chart = plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | reflect(wave_boxes_[c]);
         auto label = vbox({text(channel_name(c, d->samples.size())) | fg(th.dim, ui_)});
@@ -354,6 +303,7 @@ ftxui::Element SignalScreen::wave_panel(const std::shared_ptr<const SignalData>&
     } else {
         head.push_back({"—", th.fg});
     }
+    head.push_back({std::string{ui_.caps.glyphs == GlyphMode::ascii ? "   <-> " : "   ←→ "} + (arrows_move_b_ ? "B" : "A"), th.dim});
     std::vector<Span> sel_line;
     if (selection) {
         const auto [t0, t1] = *selection;
@@ -380,10 +330,15 @@ ftxui::Element SignalScreen::wave_panel(const std::shared_ptr<const SignalData>&
     }
     Elements body{line(head, ui_), line(sel_line, ui_)};
     for (auto& p : plots) body.push_back(std::move(p));
-    return frame_panel(wave, vbox(std::move(body)),
-                       {{tr("tui.signal.chip.minmax"), true},
-                        {fmt::format(fmt::runtime(tr("tui.signal.chip.scale")), fmt::arg("ratio", ratio)), false}},
-                       tr("tui.signal.wave"));
+    drag_chip_ = kNoBox;
+    const bool selecting = drag_mode_ == DragMode::select;
+    const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
+    const std::string play_chip = head_at ? std::string{ascii ? "> " : "▶ "} + format_fixed(*head_at, 2) + " с" : std::string{ascii ? "#" : "■"};
+    std::vector<Chip> chips{{tr(selecting ? "tui.signal.chip.drag_select" : "tui.signal.chip.drag_pan"), selecting, &drag_chip_},
+                            {tr("tui.signal.chip.minmax"), true},
+                            {fmt::format(fmt::runtime(tr("tui.signal.chip.scale")), fmt::arg("ratio", ratio)), false}};
+    if (ui_.player) chips.insert(chips.begin(), Chip{play_chip, head_at.has_value()});
+    return frame_panel(wave, vbox(std::move(body)), std::move(chips), tr("tui.signal.wave"));
 }
 
 ftxui::Element SignalScreen::spectrum_panel(const SignalData* d, int, int width) {
@@ -519,6 +474,7 @@ double SignalScreen::time_at(int x) const {
 }
 
 ftxui::Box SignalScreen::area(std::string_view id) const {
+    if (id == "drag_chip") return drag_chip_;
     if (id == "waveform") {
         ftxui::Box out = kNoBox;
         bool any = false;
@@ -552,6 +508,10 @@ bool SignalScreen::on_mouse(const ftxui::Mouse& m) {
         return true;
     }
     if (m.button == Mouse::Left && m.motion == Mouse::Pressed) {
+        if (drag_chip_.Contain(m.x, m.y)) {
+            drag_mode_ = drag_mode_ == DragMode::pan ? DragMode::select : DragMode::pan;
+            return true;
+        }
         if (divider_box_.Contain(m.x, m.y)) {
             drag_ = {Drag::divider, m.x};
             return true;
@@ -573,7 +533,8 @@ bool SignalScreen::on_mouse(const ftxui::Mouse& m) {
         for (int p = 0; p < panel_count; ++p)
             if (panel_boxes_[static_cast<std::size_t>(p)].Contain(m.x, m.y)) focus_ = static_cast<Panel>(p), hit = true;
         if (model_->data() && in_wave(m.x, m.y)) {
-            drag_ = {m.control ? Drag::select : Drag::pan, m.x, time_at(m.x), false, m.shift};
+            const bool select = m.control || drag_mode_ == DragMode::select;
+            drag_ = {select ? Drag::select : Drag::pan, m.x, time_at(m.x), false, m.shift};
             return true;
         }
         return hit;
@@ -614,7 +575,15 @@ bool SignalScreen::on_mouse(const ftxui::Mouse& m) {
 bool SignalScreen::OnEvent(ftxui::Event e) {
     using ftxui::Event;
     if (e.is_mouse()) return on_mouse(e.mouse());
+    if (e == Event::Character(' ')) {
+        toggle_playback();
+        return true;
+    }
     if (e == Event::Escape) {
+        if (playing()) {
+            ui_.player->stop();
+            return true;
+        }
         if (loading()) {
             ui_.jobs->cancel(*model_->job());
             return true;
@@ -633,6 +602,10 @@ bool SignalScreen::OnEvent(ftxui::Event e) {
         layout_.toggle_maximize(key_of(focus_));
         return true;
     }
+    if (e == Event::Character('s')) {
+        drag_mode_ = drag_mode_ == DragMode::pan ? DragMode::select : DragMode::pan;
+        return true;
+    }
     if (e == Event::Tab) {
         if (breakpoint_ <= Breakpoint::small && !layout_.maximized()) layout_.next_panel(panel_count);
         else focus_ = static_cast<Panel>((focus_ + 1) % panel_count);
@@ -643,18 +616,82 @@ bool SignalScreen::OnEvent(ftxui::Event e) {
     const double begin = model_->view_begin(), end = model_->view_end();
     const double step = (end - begin) / (2.0 * wave_columns());
     auto move_cursor = [&](double t) {
-        model_->set_cursor_a(t);
-        const double a = *model_->cursor_a();
+        if (arrows_move_b_) model_->set_cursor_b(t);
+        else model_->set_cursor_a(t);
+        const double a = arrows_move_b_ ? *model_->cursor_b() : *model_->cursor_a();
         if (a < model_->view_begin()) model_->pan(a - model_->view_begin());
         if (a > model_->view_end()) model_->pan(a - model_->view_end());
         return true;
     };
-    const double current = model_->cursor_a().value_or((begin + end) / 2);
+    if (e == Event::Character('b')) {
+        arrows_move_b_ = !arrows_move_b_;
+        if (arrows_move_b_ && !model_->cursor_b()) model_->set_cursor_b(model_->cursor_a().value_or((begin + end) / 2));
+        return true;
+    }
+    const double current = (arrows_move_b_ ? model_->cursor_b() : model_->cursor_a()).value_or((begin + end) / 2);
     if (e == Event::ArrowLeft) return move_cursor(current - step);
     if (e == Event::ArrowRight) return move_cursor(current + step);
     if (e == Event::Home) return move_cursor(0);
     if (e == Event::End) return move_cursor(d->duration());
     return false;
+}
+
+bool SignalScreen::playing() const {
+    return ui_.player && ui_.player->state() == audio::PlayState::playing && ui_.player->tag() == "signal";
+}
+
+std::optional<double> SignalScreen::playhead() const {
+    const auto d = model_->data();
+    if (!playing() || !d || d->info.sample_rate == 0) return std::nullopt;
+    return static_cast<double>(ui_.player->position()) / d->info.sample_rate;
+}
+
+void SignalScreen::toggle_playback() {
+    if (!ui_.player) return;
+    if (playing()) {
+        ui_.player->stop();
+        return;
+    }
+    const auto d = model_->data();
+    auto clip = model_->clip();
+    if (!d || !clip) return;
+    const double fs = d->info.sample_rate;
+    double t0 = model_->cursor_a().value_or(model_->view_begin());
+    std::optional<std::size_t> to;
+    if (const auto s = model_->selection(); s && s->second > s->first) {
+        t0 = s->first;
+        to = static_cast<std::size_t>(std::llround(s->second * fs));
+    }
+    const auto from = static_cast<std::size_t>(std::llround(t0 * fs));
+    if (auto r = ui_.player->play(std::move(*clip), from, to); !r && ui_.player->state() == audio::PlayState::unavailable && !audio_warned_) {
+        audio_warned_ = true;
+        model_->add_log(fmt::format(fmt::runtime(tr("tui.signal.audio_unavailable")), fmt::arg("reason", r.error().message)), LogLine::warn);
+    }
+}
+
+std::vector<MenuItem> SignalScreen::context_menu(int x, int y) {
+    if (!model_->data() || !in_wave(x, y)) return {};
+    const double t = time_at(x);
+    const bool both = model_->cursor_a() && model_->cursor_b();
+    return {
+        {tr("tui.menu.cursor_a"), tr("tui.signal.key.click"), [this, t] { model_->set_cursor_a(t); }},
+        {tr("tui.menu.cursor_b"), "Shift+" + tr("tui.signal.key.click"), [this, t] { model_->set_cursor_b(t); }},
+        {tr("tui.menu.select_ab"), "", [this] {
+             model_->select(*model_->cursor_a(), *model_->cursor_b());
+             if (ui_.jobs) model_->compute_selection(*ui_.jobs);
+         }, both},
+        {tr("tui.menu.clear_selection"), "", [this] { model_->clear_selection(); }, model_->selection().has_value()},
+        {tr("tui.menu.whole_signal"), "", [this] {
+             model_->zoom(1e-12, 0);
+             model_->zoom_amplitude(1e-12);
+         }},
+    };
+}
+
+std::vector<JumpTarget> SignalScreen::jump_targets() const {
+    std::vector<JumpTarget> out{{drag_chip_, tr("tui.signal.chip.drag_pan")}};
+    for (int p = 0; p < panel_count; ++p) out.push_back({title_boxes_[static_cast<std::size_t>(p)], key_of(static_cast<Panel>(p))});
+    return out;
 }
 
 std::shared_ptr<TabScreen> make_signal_screen(UiContext& ui, std::shared_ptr<SignalModel> model) {

@@ -11,6 +11,7 @@ add_executable(signals_tests
   core/test_wavedec.cpp
   core/test_maxflat.cpp
   core/test_regularity.cpp
+  core/test_cascade.cpp
   core/test_split.cpp
   core/test_daubechies.cpp
   core/test_families.cpp
@@ -42,19 +43,32 @@ add_executable(signals_tests
   tui/test_heatmap.cpp
   tui/test_zplane.cpp
   tui/test_jobs.cpp
+  tui/test_ticker.cpp
   tui/test_monitor.cpp
   tui/test_shell.cpp
+  tui/test_subtabs.cpp
   tui/test_overlays.cpp
   tui/test_signal_screen.cpp
   tui/test_filters_model.cpp
   tui/test_filters_screen.cpp
+  tui/test_explain_model.cpp
+  tui/test_explain_screen.cpp
+  tui/test_designer_model.cpp
+  tui/test_user_filters.cpp
+  tui/test_designer_screen.cpp
+  tui/test_decomposition_model.cpp
+  tui/test_decomposition_screen.cpp
+  tui/test_matrix_model.cpp
+  tui/test_matrix_screen.cpp
+  tui/test_app_screens.cpp
   tui/harness.cpp
+  audio/test_player.cpp
   test_golden_files.cpp
   test_i18n_keys.cpp
   support/golden.cpp
   support/banks.cpp
 )
-target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_tui Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
+target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_tui signals_audio Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
 target_include_directories(signals_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(signals_tests PRIVATE SIGNALS_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden"
                           SIGNALS_SOURCE_DIR="${PROJECT_SOURCE_DIR}"

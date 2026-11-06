@@ -55,3 +55,28 @@ TEST_CASE("nan pixels take the background colour", "[tui][heatmap]") {
     auto sc = draw(s, ColorDepth::truecolor, GlyphMode::unicode);
     CHECK(sc.CellAt(0, 0).foreground_color == to_color(builtin_theme("dark").bg, ColorDepth::truecolor));
 }
+
+TEST_CASE("diverging heatmap colours sign and highlights a row", "[tui][heatmap]") {
+    const auto theme = builtin_theme("dark");
+    HeatmapSpec spec;
+    spec.rows = 2;
+    spec.cols = 2;
+    spec.values = {1, -1, 0, 0.5};
+    spec.scale = HeatScale::diverging;
+    spec.highlight_row = 1;
+    auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(2), ftxui::Dimension::Fixed(1));
+    ftxui::Render(screen, heatmap(spec, theme, ColorDepth::truecolor, GlyphMode::unicode));
+    CHECK(screen.CellAt(0, 0).foreground_color == to_color(diverging_color(1, 1, theme), ColorDepth::truecolor));
+    CHECK(diverging_color(1, 1, theme) == theme.trace[0]);
+    CHECK(diverging_color(-1, 1, theme) == theme.trace[1]);
+    CHECK(screen.CellAt(1, 0).foreground_color == to_color(theme.trace[1], ColorDepth::truecolor));
+    CHECK(screen.CellAt(0, 0).background_color == to_color(highlight_color(theme), ColorDepth::truecolor));
+    spec.highlight_row.reset();
+    auto plain = ftxui::Screen::Create(ftxui::Dimension::Fixed(2), ftxui::Dimension::Fixed(1));
+    ftxui::Render(plain, heatmap(spec, theme, ColorDepth::truecolor, GlyphMode::unicode));
+    CHECK(plain.CellAt(0, 0).background_color == to_color(diverging_color(0, 1, theme), ColorDepth::truecolor));
+    auto ascii = ftxui::Screen::Create(ftxui::Dimension::Fixed(2), ftxui::Dimension::Fixed(1));
+    ftxui::Render(ascii, heatmap(spec, theme, ColorDepth::none, GlyphMode::ascii));
+    CHECK(ascii.CellAt(0, 0).character == "+");
+    CHECK(ascii.CellAt(1, 0).character == "-");
+}

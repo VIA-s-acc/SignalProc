@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "audio/player.hpp"
 #include "core/memory.hpp"
 #include "io/stats.hpp"
 #include "io/wav.hpp"
@@ -68,12 +69,15 @@ public:
     void set_cursor_b(double t);
     std::optional<std::pair<double, double>> selection() const;
     void select(double t0, double t1);
+    void clear_selection();
     void compute_selection(JobRunner& jobs);
     std::vector<SelectionStats> selection_stats() const;
 
+    std::optional<audio::Clip> clip() const;
+    void add_log(std::string text, LogLine::Level level);
+
 private:
     void publish(std::shared_ptr<const SignalData> d);
-    void add_log(std::string text, LogLine::Level level);
     double sync_view() const;
     double clamp_time(double t) const;
 

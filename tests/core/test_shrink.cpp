@@ -138,3 +138,21 @@ TEST_CASE("unit band gains reproduce the signal", "[shrink]") {
     REQUIRE(low);
     CHECK(energy(*low) < energy(x));
 }
+
+TEST_CASE("keep_largest leaves the requested share of details", "[core][shrink]") {
+    std::vector<std::vector<double>> b{{9, 9}, {1, -5, 3}, {0.5, -4, 2, 7, 0.1, 6, 0.2}};
+    CHECK(keep_largest(b, 0.3) == 3);
+    CHECK(b[0] == std::vector<double>{9, 9});
+    CHECK(b[1] == std::vector<double>{0, -5, 0});
+    CHECK(b[2] == std::vector<double>{0, 0, 0, 7, 0, 6, 0});
+}
+
+TEST_CASE("keep_largest keeps everything at one and earlier ties first", "[core][shrink]") {
+    std::vector<std::vector<double>> b{{1}, {2, -2, 2, 1}};
+    CHECK(keep_largest(b, 1.0) == 4);
+    CHECK(b[1] == std::vector<double>{2, -2, 2, 1});
+    CHECK(keep_largest(b, 0.5) == 2);
+    CHECK(b[1] == std::vector<double>{2, -2, 0, 0});
+    std::vector<std::vector<double>> none{{1}};
+    CHECK(keep_largest(none, 0.1) == 0);
+}

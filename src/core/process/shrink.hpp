@@ -42,6 +42,7 @@ struct DenoiseReport {
 Result<std::pair<std::vector<double>, DenoiseReport>> denoise(std::span<const double> x, const DenoiseOptions& options);
 Result<std::pair<AudioBuffer, std::vector<DenoiseReport>>> denoise(const AudioBuffer& audio, const DenoiseOptions& options);
 
+std::size_t keep_largest(std::vector<std::vector<double>>& bands, double fraction, std::size_t first_band = 1);
 Result<std::vector<double>> edit_bands(std::span<const double> x, const FilterBank& bank, std::size_t levels,
                                        const DwtOptions& options, std::span<const double> gains);
 

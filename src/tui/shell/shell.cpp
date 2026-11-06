@@ -1,5 +1,7 @@
 #include "tui/shell/shell.hpp"
 
+#include <cstdlib>
+
 #include <fmt/format.h>
 
 #include <ftxui/component/event.hpp>
@@ -8,6 +10,7 @@
 
 #include "i18n/i18n.hpp"
 #include "tui/monitor/resources_panel.hpp"
+#include "tui/shell/overlays.hpp"
 #include "tui/shell/palette.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/term/check_screen.hpp"
@@ -22,9 +25,19 @@ public:
         : ui_{ui}, screens_{std::move(screens)}, on_quit_{std::move(on_quit)}, tab_boxes_(screens_.size()) {
         if (ui_.first_run_check) check_.open();
         ui_.ask_open = [this] { ask_open_file(); };
+        ui_.navigate = [this](std::string_view target, const NavArgs& args) { navigate(target, args); };
+        ui_.open_palette = [this](std::string filter) { palette_.open(commands(), std::move(filter)); };
+        ui_.ask_text = [this](std::string prompt, std::string initial, std::function<void(std::string)> done) {
+            palette_.ask_text(std::move(prompt), std::move(initial), std::move(done));
+        };
     }
 
-    ~ShellComponent() override { ui_.ask_open = nullptr; }
+    ~ShellComponent() override {
+        ui_.ask_open = nullptr;
+        ui_.navigate = nullptr;
+        ui_.open_palette = nullptr;
+        ui_.ask_text = nullptr;
+    }
 
     int active() const { return active_; }
 
@@ -33,6 +46,13 @@ public:
         const auto [w, h] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
         const auto bp = classify(w, h);
         if (ui_.monitor) ui_.monitor->frame_rendered();
+        if (ui_.ticker) ui_.ticker->begin_frame();
+        if (ui_.player) {
+            ui_.player->poll();
+            if (auto why = ui_.player->take_interruption(); why && ui_.warn)
+                ui_.warn(fmt::format(fmt::runtime(tr("tui.audio.interrupted")), fmt::arg("reason", *why)));
+            if (ui_.ticker) ui_.ticker->want("player", ui_.player->state() == audio::PlayState::playing);
+        }
         auto paint = [&](Element e) { return ui_.caps.color == ColorDepth::none ? e : e | bg(ui_.theme.bg, ui_) | fg(ui_.theme.fg, ui_); };
         if (bp == Breakpoint::tiny)
             return paint(vbox({filler(), text(fmt::format(fmt::runtime(tr("tui.small.warning")), fmt::arg("w", w), fmt::arg("h", h))) | hcenter,
@@ -53,7 +73,8 @@ public:
             tabs.push_back(label | reflect(tab_boxes_[i]));
         }
         tabs.push_back(filler());
-        tabs.push_back(text(screen.context() + "  ") | fg(ui_.theme.dim, ui_));
+        tabs.push_back(screen.context_element(ui_));
+        tabs.push_back(text("  "));
         tabs.push_back(key_label(" ? ", ui_));
         Elements hints;
         auto all = screen.hints();
@@ -73,6 +94,8 @@ public:
             all.push_back(g);
             row.push_back(g);
         }
+        all.push_back({"'", tr("tui.hint.jump")});
+        all.push_back({tr("tui.key.right_click"), tr("tui.hint.menu")});
         for (const auto& hint : row) {
             hints.push_back(key_label(" " + hint.key + " ", ui_));
             hints.push_back(text(" " + hint.label + "  ") | fg(ui_.theme.dim, ui_));
@@ -83,6 +106,8 @@ public:
         if (palette_.is_open()) return paint(dbox({base, palette_.render(ui_) | clear_under | center}));
         if (check_.is_open()) return paint(dbox({base, check_.render(ui_) | clear_under | center}));
         if (resources_open_) return paint(dbox({base, resources_panel(ui_) | clear_under | center}));
+        if (menu_.is_open()) return paint(dbox({base, menu_.render(ui_, w, h)}));
+        if (jump_.is_active()) return paint(dbox({base, jump_.render(ui_)}));
         if (!help_open_) return paint(base);
         return paint(dbox({base, help_overlay(all, help_filter_, ui_) | clear_under | center}));
     }
@@ -95,6 +120,8 @@ public:
             return true;
         }
         if (help_open_) return help_event(e);
+        if (menu_.is_open()) return menu_.on_event(e);
+        if (jump_.is_active()) return jump_event(e);
         if (e == ftxui::Event::CtrlP || e == ftxui::Event::Character(':')) {
             palette_.open(commands());
             return true;
@@ -103,6 +130,13 @@ public:
         if (screen.capturing_text()) return screen.OnEvent(e);
         if (e.is_mouse()) {
             const auto& m = e.mouse();
+            if (m.button == ftxui::Mouse::Right && m.motion == ftxui::Mouse::Pressed) {
+                auto items = screen.context_menu(m.x, m.y);
+                if (!items.empty()) {
+                    menu_.open(std::move(items), m.x, m.y);
+                    return true;
+                }
+            }
             if (m.button == ftxui::Mouse::Left && m.motion == ftxui::Mouse::Pressed && status_box_.Contain(m.x, m.y)) {
                 resources_open_ = true;
                 return true;
@@ -120,6 +154,10 @@ public:
             if (c.size() == 1 && c[0] >= '1' && c[0] <= '9') {
                 const int idx = c[0] - '1';
                 if (idx < static_cast<int>(screens_.size())) active_ = idx;
+                return true;
+            }
+            if (c == "'") {
+                start_jump();
                 return true;
             }
             if (c == "?") {
@@ -140,14 +178,65 @@ public:
     }
 
 private:
+    void start_jump() {
+        std::vector<JumpTarget> targets;
+        for (std::size_t i = 0; i < tab_boxes_.size(); ++i) targets.push_back({tab_boxes_[i], screens_[i]->tab_label()});
+        for (auto& t : screens_[static_cast<std::size_t>(active_)]->jump_targets()) targets.push_back(std::move(t));
+        targets.push_back({status_box_, tr("tui.cmd.resources")});
+        jump_.start(std::move(targets));
+    }
+
+    bool jump_event(ftxui::Event e) {
+        if (e == ftxui::Event::Custom) return false;
+        if (e.is_mouse() && (e.mouse().motion == ftxui::Mouse::Moved || e.mouse().button == ftxui::Mouse::None)) return true;
+        if (!e.is_character()) {
+            jump_.cancel();
+            return true;
+        }
+        const auto box = jump_.on_key(e.character());
+        if (!box) return true;
+        ftxui::Mouse m;
+        m.button = ftxui::Mouse::Left;
+        m.x = (box->x_min + box->x_max) / 2;
+        m.y = (box->y_min + box->y_max) / 2;
+        m.motion = ftxui::Mouse::Pressed;
+        OnEvent(ftxui::Event::Mouse("", m));
+        m.motion = ftxui::Mouse::Released;
+        OnEvent(ftxui::Event::Mouse("", m));
+        return true;
+    }
+
     void ask_open_file() {
         palette_.ask_path(tr("tui.cmd.open_prompt"), [this](std::string path) {
             if (ui_.open_file) ui_.open_file(expand_path(path));
         });
     }
 
+    void navigate(std::string_view target, const NavArgs& args) {
+        struct Route {
+            std::string_view target;
+            int tab;
+            int sub;
+        };
+        static constexpr Route routes[]{{"signal", 0, -1},     {"filters", 2, -1}, {"designer", 3, 0},       {"decomposition", 4, -1},
+                                        {"matrix", 5, -1},     {"explain", 8, 0},  {"under_the_hood", 8, 1}, {"tutorial", 8, 2}};
+        int tab = -1, sub = -1;
+        if (target.starts_with("tab:")) {
+            const auto n = std::atoi(std::string{target.substr(4)}.c_str());
+            tab = n - 1;
+        } else {
+            for (const auto& r : routes)
+                if (r.target == target) tab = r.tab, sub = r.sub;
+        }
+        if (tab < 0 || tab >= static_cast<int>(screens_.size())) return;
+        active_ = tab;
+        auto& screen = *screens_[static_cast<std::size_t>(tab)];
+        if (sub >= 0) screen.select_child(static_cast<std::size_t>(sub));
+        screen.open_with(args);
+    }
+
     std::vector<Command> commands() {
-        std::vector<Command> out;
+        std::vector<Command> out = screens_.empty() ? std::vector<Command>{} : screens_[static_cast<std::size_t>(active_)]->commands();
         for (std::size_t i = 0; i < screens_.size(); ++i)
             out.push_back({"tab." + std::to_string(i + 1), tr("tui.cmd.tab") + std::to_string(i + 1) + " " + screens_[i]->tab_label(),
                            [this, i] { active_ = static_cast<int>(i); }});
@@ -162,6 +251,7 @@ private:
         out.push_back({"color.none", tr("tui.cmd.color_none"), [this] { ui_.caps.color = ColorDepth::none; }});
         out.push_back({"terminal.check", tr("tui.cmd.check"), [this] { check_.open(); }});
         out.push_back({"resources", tr("tui.cmd.resources"), [this] { resources_open_ = true; }});
+        out.push_back({"jump", tr("tui.cmd.jump"), [this] { start_jump(); }});
         out.push_back({"help", tr("tui.cmd.help"), [this] { help_open_ = true; help_filter_.clear(); }});
         out.push_back({"quit", tr("tui.cmd.quit"), [this] { if (on_quit_) on_quit_(); }});
         return out;
@@ -191,6 +281,8 @@ private:
     std::string help_filter_;
     Palette palette_;
     TerminalCheck check_;
+    ContextMenu menu_;
+    JumpMode jump_;
 };
 
 }  // namespace
@@ -198,6 +290,8 @@ private:
 ftxui::Component make_shell(UiContext& ui, std::vector<std::shared_ptr<TabScreen>> screens, std::function<void()> on_quit) {
     return std::make_shared<ShellComponent>(ui, std::move(screens), std::move(on_quit));
 }
+
+ftxui::Element TabScreen::context_element(const UiContext& ui) { return ftxui::text(context()) | fg(ui.theme.dim, ui); }
 
 int active_tab(const ftxui::Component& shell) {
     auto s = std::dynamic_pointer_cast<ShellComponent>(shell);

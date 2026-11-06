@@ -14,6 +14,7 @@ namespace signals::tui {
 struct Chip {
     std::string label;
     bool on = false;
+    ftxui::Box* box = nullptr;
 };
 
 ftxui::Element panel(std::string_view title, std::vector<Chip> chips, ftxui::Element body, bool focused, const UiContext& ui,

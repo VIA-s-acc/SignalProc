@@ -1,6 +1,8 @@
 #include "core/matrix.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <complex>
 
 #include "core/detail/pocketfft.hpp"
@@ -122,6 +124,19 @@ CheckResult check_orthogonal_matrix(const Eigen::MatrixXd& a, double tol) {
                              ? (gram - Eigen::MatrixXd::Identity(gram.rows(), gram.cols())).cwiseAbs().maxCoeff()
                              : std::nan("");
     return {"check.ata_identity", "", error, tol};
+}
+
+std::vector<double> singular_values(const Eigen::MatrixXd& a) {
+    if (a.size() == 0) return {};
+    const Eigen::JacobiSVD<Eigen::MatrixXd> svd(a);
+    const auto& s = svd.singularValues();
+    return {s.data(), s.data() + s.size()};
+}
+
+double condition_number(std::span<const double> singular) {
+    if (singular.empty()) return std::numeric_limits<double>::infinity();
+    const auto [lo, hi] = std::minmax_element(singular.begin(), singular.end());
+    return *lo > 0 ? *hi / *lo : std::numeric_limits<double>::infinity();
 }
 
 }  // namespace signals::core

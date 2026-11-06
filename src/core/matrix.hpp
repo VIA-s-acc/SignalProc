@@ -21,6 +21,8 @@ Result<Eigen::MatrixXd> synthesis_matrix(const FilterBank& bank, std::size_t n, 
 Result<Eigen::MatrixXd> multilevel_matrix(const FilterBank& bank, std::size_t n, std::size_t levels,
                                           const DwtOptions& options);
 
+std::vector<double> singular_values(const Eigen::MatrixXd& a);
+double condition_number(std::span<const double> singular);
 CheckResult check_left_inverse(const Eigen::MatrixXd& s, const Eigen::MatrixXd& a, double tol);
 CheckResult check_orthogonal_matrix(const Eigen::MatrixXd& a, double tol);
 
