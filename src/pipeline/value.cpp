@@ -95,4 +95,27 @@ std::size_t value_bytes(const Value& v) {
         v);
 }
 
+std::optional<std::size_t> band_index(const Coeffs& c, std::string_view name) {
+    const auto levels = c.levels();
+    if (name == "a" || name == "a" + std::to_string(levels)) return 0;
+    if (name.size() < 2 || name[0] != 'd') return std::nullopt;
+    std::size_t k = 0;
+    for (char ch : name.substr(1)) {
+        if (ch < '0' || ch > '9') return std::nullopt;
+        k = k * 10 + static_cast<std::size_t>(ch - '0');
+    }
+    if (k < 1 || k > levels) return std::nullopt;
+    return levels + 1 - k;
+}
+
+std::optional<Value> band_port(const Coeffs& c, std::string_view name) {
+    const auto i = band_index(c, name);
+    if (!i) return std::nullopt;
+    const auto level = *i == 0 ? c.levels() : c.levels() + 1 - *i;
+    core::AudioBuffer out;
+    out.sample_rate = c.rate / static_cast<double>(std::size_t{1} << level);
+    for (const auto& ch : c.channels) out.channels.push_back(ch.bands[*i]);
+    return Value{std::move(out)};
+}
+
 }  // namespace signals::pipeline

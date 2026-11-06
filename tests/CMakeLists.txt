@@ -70,6 +70,7 @@ add_executable(signals_tests
   audio/test_player.cpp
   theory/test_sections.cpp
   pipeline/test_blocks_basic.cpp
+  pipeline/test_blocks_dsp.cpp
   theory/test_latex.cpp
   theory/test_math_layout.cpp
   theory/test_markdown.cpp

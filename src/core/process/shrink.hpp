@@ -18,6 +18,7 @@ namespace signals::core {
 
 inline constexpr double kNormalQuartile = 0.6744897501960817;
 
+std::size_t default_levels(std::size_t n, std::size_t filter_len);
 double noise_sigma_mad(std::span<const double> finest_detail);
 double universal_threshold(double sigma, std::size_t n);
 double bayes_threshold(std::span<const double> detail, double sigma);

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
+#include <string_view>
 #include <string>
 #include <utility>
 #include <variant>
@@ -18,9 +20,11 @@ enum class PortType { signal, coeffs, filter, scalar, report };
 
 struct Coeffs {
     std::vector<core::BasicCoeffs<double>> channels;
+    std::vector<std::size_t> lengths;
     std::string wavelet;
     core::Extension mode = core::Extension::symmetric;
     double rate = 0;
+    std::size_t levels() const { return channels.empty() ? 0 : channels.front().bands.size() - 1; }
 };
 
 struct Report {
@@ -34,5 +38,7 @@ PortType type_of(const Value& v);
 std::string_view to_string(PortType t);
 std::uint64_t value_key(const Value& v);
 std::size_t value_bytes(const Value& v);
+std::optional<std::size_t> band_index(const Coeffs& c, std::string_view name);
+std::optional<Value> band_port(const Coeffs& c, std::string_view name);
 
 }  // namespace signals::pipeline

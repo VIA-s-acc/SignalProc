@@ -42,6 +42,7 @@ struct BlockType {
     std::vector<PortSpec> inputs, outputs;
     std::vector<ParamSpec> params;
     RunFn run;
+    bool side_effect = false;
 };
 
 const BlockType* find_block_type(std::string_view id);
