@@ -130,7 +130,11 @@ jobs:
               vtool -show-build "$BIN"
               ;;
             Windows)
-              objdump -p "$BIN" | grep 'DLL Name' || true
+              objdump -p "$BIN" | grep 'DLL Name'
+              if objdump -p "$BIN" | grep -iE 'DLL Name: (msvcp|vcruntime|api-ms-win-crt)'; then
+                echo "::error::the MSVC runtime is linked dynamically"
+                exit 1
+              fi
               ;;
           esac
       - name: Package

@@ -15,7 +15,7 @@
 | Система | Архив |
 |---|---|
 | macOS 14 и новее, Apple Silicon | `signals-vX.Y.Z-macos-arm64.tar.gz` |
-| Linux x86_64 | `signals-vX.Y.Z-linux-x86_64.tar.gz` |
+| Linux x86_64, glibc 2.28 и новее (Ubuntu 20.04, Debian 10, RHEL 8) | `signals-vX.Y.Z-linux-x86_64.tar.gz` |
 | Windows 10 и 11, x86_64 | `signals-vX.Y.Z-windows-x86_64.zip` |
 
 В архиве — `signals` (на Windows `signals.exe`), `README.md` и `LICENSE`; контрольные суммы — в `SHA256SUMS`. Установка не нужна:
@@ -138,7 +138,7 @@ cmake --build --preset dev
 ctest --preset dev
 ```
 
-Нужны CMake ≥ 3.28 и компилятор с C++23: Apple Clang 17 или GCC 14.
+Нужны CMake ≥ 3.28 и компилятор с C++23: Apple Clang 17, GCC 14 или MSVC из Visual Studio 2026.
 
 ## Лицензия
 
