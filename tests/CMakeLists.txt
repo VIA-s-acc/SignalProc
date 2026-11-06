@@ -69,6 +69,7 @@ add_executable(signals_tests
   tui/harness.cpp
   audio/test_player.cpp
   theory/test_sections.cpp
+  pipeline/test_blocks_basic.cpp
   theory/test_latex.cpp
   theory/test_math_layout.cpp
   theory/test_markdown.cpp
@@ -80,7 +81,7 @@ add_executable(signals_tests
   support/golden.cpp
   support/banks.cpp
 )
-target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_tui signals_audio signals_theory Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
+target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_tui signals_audio signals_theory signals_pipeline Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
 target_include_directories(signals_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(signals_tests PRIVATE SIGNALS_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden"
                           SIGNALS_SOURCE_DIR="${PROJECT_SOURCE_DIR}"

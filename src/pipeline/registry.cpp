@@ -1,0 +1,133 @@
+#include <algorithm>
+#include <charconv>
+#include <cmath>
+#include <locale>
+#include <sstream>
+#include <utility>
+
+#include <fmt/format.h>
+
+#include "i18n/i18n.hpp"
+#include "pipeline/block.hpp"
+
+namespace signals::pipeline {
+namespace {
+
+const std::vector<BlockType>& registry() {
+    static const std::vector<BlockType> all = [] {
+        std::vector<BlockType> out;
+        register_basic_blocks(out);
+        register_dsp_blocks(out);
+        return out;
+    }();
+    return all;
+}
+
+bool parse_real(std::string_view s, double& out) {
+    if (s.empty()) return false;
+    std::istringstream in{std::string{s}};
+    in.imbue(std::locale::classic());
+    in >> out;
+    return !in.fail() && in.peek() == std::char_traits<char>::eof() && std::isfinite(out);
+}
+
+bool parse_int(std::string_view s, long long& out) {
+    const auto* end = s.data() + s.size();
+    const auto r = std::from_chars(s.data(), end, out);
+    return r.ec == std::errc{} && r.ptr == end;
+}
+
+core::Error bad(std::string_view key, const ParamSpec& p, std::string_view value) {
+    std::string choices;
+    for (const auto& c : p.choices) choices += (choices.empty() ? "" : ", ") + c;
+    return {core::Errc::invalid_argument, fmt::format(fmt::runtime(tr(key)), fmt::arg("param", p.name), fmt::arg("value", value), fmt::arg("choices", choices))};
+}
+
+}  // namespace
+
+std::span<const BlockType> block_types() { return registry(); }
+
+const BlockType* find_block_type(std::string_view id) {
+    for (const auto& t : registry())
+        if (t.id == id) return &t;
+    return nullptr;
+}
+
+core::Result<Params> resolve_params(const BlockType& t, const Params& given) {
+    for (const auto& [name, value] : given)
+        if (std::none_of(t.params.begin(), t.params.end(), [&](const ParamSpec& p) { return p.name == name; }))
+            return std::unexpected{core::Error{core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.unknown_param")),
+                                                                                       fmt::arg("block", t.id), fmt::arg("param", name))}};
+    Params out;
+    for (const auto& p : t.params) {
+        const auto it = given.find(p.name);
+        const std::string value = it == given.end() ? p.fallback : it->second;
+        double real = 0;
+        long long integer = 0;
+        switch (p.kind) {
+        case ParamSpec::Kind::integer:
+            if (!parse_int(value, integer)) return std::unexpected{bad("pipeline.error.bad_integer", p, value)};
+            break;
+        case ParamSpec::Kind::real:
+            if (!parse_real(value, real)) return std::unexpected{bad("pipeline.error.bad_number", p, value)};
+            break;
+        case ParamSpec::Kind::choice:
+            if (std::find(p.choices.begin(), p.choices.end(), value) == p.choices.end()) return std::unexpected{bad("pipeline.error.bad_choice", p, value)};
+            break;
+        case ParamSpec::Kind::range: {
+            const auto dots = value.find("..");
+            long long a = 0, b = 0;
+            const bool ok = dots == std::string::npos ? parse_int(value, a) : parse_int(std::string_view{value}.substr(0, dots), a) && parse_int(std::string_view{value}.substr(dots + 2), b);
+            if (!ok || a < 0 || (dots != std::string::npos && b < a)) return std::unexpected{bad("pipeline.error.bad_range", p, value)};
+            break;
+        }
+        case ParamSpec::Kind::samples: {
+            const bool seconds = value.ends_with("s");
+            const auto number = seconds ? std::string_view{value}.substr(0, value.size() - 1) : std::string_view{value};
+            if (seconds ? !parse_real(number, real) || real < 0 : !parse_int(number, integer) || integer < 0)
+                return std::unexpected{bad("pipeline.error.bad_samples", p, value)};
+            break;
+        }
+        case ParamSpec::Kind::text:
+        case ParamSpec::Kind::path: break;
+        }
+        out.emplace(p.name, value);
+    }
+    return out;
+}
+
+const std::string& param_text(const Params& p, std::string_view name) { return p.find(name)->second; }
+
+double param_real(const Params& p, std::string_view name) {
+    double v = 0;
+    parse_real(param_text(p, name), v);
+    return v;
+}
+
+long long param_int(const Params& p, std::string_view name) {
+    long long v = 0;
+    const auto& s = param_text(p, name);
+    std::from_chars(s.data(), s.data() + s.size(), v);
+    return v;
+}
+
+core::Result<std::size_t> param_samples(const Params& p, std::string_view name, double rate) {
+    const auto& s = param_text(p, name);
+    if (!s.ends_with("s")) return static_cast<std::size_t>(param_int(p, name));
+    double seconds = 0;
+    parse_real(std::string_view{s}.substr(0, s.size() - 1), seconds);
+    if (!(rate > 0)) return core::make_error(core::Errc::invalid_argument, "seconds need a sample rate");
+    return static_cast<std::size_t>(std::llround(seconds * rate));
+}
+
+std::pair<std::size_t, std::size_t> param_range(const Params& p, std::string_view name) {
+    const auto& s = param_text(p, name);
+    const auto dots = s.find("..");
+    long long a = 0, b = 0;
+    std::from_chars(s.data(), s.data() + (dots == std::string::npos ? s.size() : dots), a);
+    if (dots == std::string::npos) return {static_cast<std::size_t>(a), static_cast<std::size_t>(a)};
+    std::from_chars(s.data() + dots + 2, s.data() + s.size(), b);
+    return {static_cast<std::size_t>(a), static_cast<std::size_t>(b)};
+}
+
+}  // namespace signals::pipeline
