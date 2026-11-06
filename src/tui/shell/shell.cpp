@@ -88,7 +88,7 @@ public:
         int room = w;
         for (const auto& g : visible) room -= hint_width(g);
         if (!all.empty() && hint_width(all.front()) > room) {
-            const auto resources = std::find_if(visible.begin(), visible.end(), [](const Hint& h) { return h.key == "R"; });
+            const auto resources = std::find_if(visible.begin(), visible.end(), [](const Hint& hint) { return hint.key == "R"; });
             if (resources != visible.end()) {
                 room += hint_width(*resources);
                 visible.erase(resources);
