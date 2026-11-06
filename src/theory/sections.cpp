@@ -4,9 +4,11 @@
 #include <cctype>
 #include <utility>
 
+#include "i18n/i18n.hpp"
 #include "theory/text.hpp"
 
 extern const char kSignalsTheoryBook[];
+extern const char kSignalsTheoryBookEn[];
 
 namespace signals::theory {
 namespace {
@@ -99,8 +101,12 @@ std::vector<Section> parse_book(std::string_view text) {
 }  // namespace
 
 const std::vector<Section>& sections() {
-    static const std::vector<Section> all = parse_book(kSignalsTheoryBook);
-    return all;
+    if (language() == Language::en) {
+        static const std::vector<Section> en = parse_book(kSignalsTheoryBookEn);
+        return en;
+    }
+    static const std::vector<Section> ru = parse_book(kSignalsTheoryBook);
+    return ru;
 }
 
 const Section* find_section(std::string_view id) {

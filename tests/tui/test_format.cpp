@@ -4,6 +4,7 @@
 #include <cmath>
 #include <numbers>
 
+#include "i18n/i18n.hpp"
 #include "tui/widgets/format.hpp"
 
 using namespace signals::tui;
@@ -60,4 +61,22 @@ TEST_CASE("eighths bar has a fixed width", "[tui][format]") {
     CHECK(eighths_bar(-1.0, 2) == "  ");
     CHECK(eighths_bar(0.6875, 2) == "█▍");
     CHECK(eighths_bar(0.3125, 2) == "▋ ");
+}
+
+TEST_CASE("English numbers use a point, comma groups and Latin units", "[tui][format][i18n]") {
+    const signals::LanguageScope en{signals::Language::en};
+    CHECK(format_number(-0.013326) == "−0.0133");
+    CHECK(format_number(450'686) == "450,686");
+    CHECK(format_fixed(1234.5, 2) == "1,234.50");
+    CHECK(format_si(0.01161, signals::tr("unit.s")) == "11.6 ms");
+    CHECK(format_si(1378.1, signals::tr("unit.hz")) == "1.38 kHz");
+    CHECK(format_si(190'840'832, signals::tr("unit.byte")) == "182 MB");
+    CHECK(format_si(512, signals::tr("unit.byte")) == "512 B");
+    const auto ticks = log_ticks(20, 22050, 12);
+    CHECK(std::ranges::any_of(ticks, [](const Tick& t) { return t.label == "20 k"; }));
+}
+
+TEST_CASE("Russian units come from the dictionary too", "[tui][format][i18n]") {
+    CHECK(format_si(1378.1, signals::tr("unit.hz")) == "1,38 кГц");
+    CHECK(format_si(190'840'832, signals::tr("unit.byte")) == "182 МБ");
 }

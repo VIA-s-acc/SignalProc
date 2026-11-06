@@ -7,6 +7,8 @@
 #include <numbers>
 #include <numeric>
 
+#include "i18n/i18n.hpp"
+
 namespace signals::tui {
 namespace {
 
@@ -16,7 +18,7 @@ std::string group_thousands(std::string digits) {
     std::string out;
     const auto n = digits.size();
     for (std::size_t i = 0; i < n; ++i) {
-        if (i > 0 && (n - i) % 3 == 0) out += ' ';
+        if (i > 0 && (n - i) % 3 == 0) out += signals::language() == signals::Language::en ? ',' : ' ';
         out += digits[i];
     }
     return out;
@@ -31,7 +33,7 @@ std::string fixed(double v, int decimals, bool trim) {
     if (trim)
         while (!frac.empty() && frac.back() == '0') frac.pop_back();
     std::string out = group_thousands(int_part);
-    if (!frac.empty()) out += "," + frac;
+    if (!frac.empty()) out += (signals::language() == signals::Language::en ? "." : ",") + frac;
     const bool zero = std::all_of(s.begin(), s.end(), [](char c) { return c == '0' || c == '.'; });
     return (v < 0 && !zero ? std::string{kMinus} : std::string{}) + out;
 }
@@ -53,7 +55,7 @@ double nice(double x, bool round) {
 }
 
 std::string log_label(double v) {
-    if (v >= 1000) return fixed(v / 1000, v / 1000 < 10 && std::fmod(v / 1000, 1) != 0 ? 1 : 0, true) + " к";
+    if (v >= 1000) return fixed(v / 1000, v / 1000 < 10 && std::fmod(v / 1000, 1) != 0 ? 1 : 0, true) + " " + signals::tr("unit.prefix.kilo");
     return fixed(v, v < 1 ? 2 : 0, true);
 }
 
@@ -97,10 +99,11 @@ std::string format_fixed(double v, int decimals) {
 }
 
 std::string format_si(double v, std::string_view unit, int significant) {
-    const bool bytes = unit == "Б";
+    const bool bytes = unit == signals::tr("unit.byte");
     if (v == 0 || !std::isfinite(v)) return format_number(v, significant) + " " + std::string{unit};
-    static constexpr std::array<std::string_view, 6> decimal{"мк", "м", "", "к", "М", "Г"};
-    static constexpr std::array<std::string_view, 4> binary{"", "К", "М", "Г"};
+    const std::array<std::string, 6> decimal{signals::tr("unit.prefix.micro"), signals::tr("unit.prefix.milli"), "",
+                                             signals::tr("unit.prefix.kilo"),  signals::tr("unit.prefix.mega"),  signals::tr("unit.prefix.giga")};
+    const std::array<std::string, 4> binary{"", signals::tr("unit.prefix.kibi"), signals::tr("unit.prefix.mebi"), signals::tr("unit.prefix.gibi")};
     const double a = std::abs(v);
     if (bytes) {
         int k = 0;
@@ -109,12 +112,12 @@ std::string format_si(double v, std::string_view unit, int significant) {
             m /= 1024;
             ++k;
         }
-        return format_number(m, significant) + " " + std::string{binary[static_cast<std::size_t>(k)]} + std::string{unit};
+        return format_number(m, significant) + " " + binary[static_cast<std::size_t>(k)] + std::string{unit};
     }
     int k = static_cast<int>(std::floor(std::log10(a) / 3));
     k = std::clamp(k, -2, 3);
     const double m = v / std::pow(1000.0, k);
-    return format_number(m, significant) + " " + std::string{decimal[static_cast<std::size_t>(k + 2)]} + std::string{unit};
+    return format_number(m, significant) + " " + decimal[static_cast<std::size_t>(k + 2)] + std::string{unit};
 }
 
 std::vector<Tick> nice_ticks(double lo, double hi, int max_ticks) {

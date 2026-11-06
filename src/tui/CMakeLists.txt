@@ -2,6 +2,7 @@ include(${PROJECT_SOURCE_DIR}/cmake/EmbedText.cmake)
 signals_embed_text(${PROJECT_SOURCE_DIR}/resources/themes/dark.toml ${CMAKE_CURRENT_BINARY_DIR}/theme_dark.cpp kSignalsThemeDark)
 signals_embed_text(${PROJECT_SOURCE_DIR}/resources/themes/light.toml ${CMAKE_CURRENT_BINARY_DIR}/theme_light.cpp kSignalsThemeLight)
 signals_embed_text(${PROJECT_SOURCE_DIR}/resources/theory/explain/haar.toml ${CMAKE_CURRENT_BINARY_DIR}/explain_haar.cpp kSignalsExplainHaar)
+signals_embed_text(${PROJECT_SOURCE_DIR}/resources/theory/explain/haar.en.toml ${CMAKE_CURRENT_BINARY_DIR}/explain_haar_en.cpp kSignalsExplainHaarEn)
 
 add_library(signals_tui STATIC
   run.cpp
@@ -55,6 +56,7 @@ add_library(signals_tui STATIC
   ${CMAKE_CURRENT_BINARY_DIR}/theme_dark.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theme_light.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/explain_haar.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/explain_haar_en.cpp
 )
 target_include_directories(signals_tui PUBLIC ${PROJECT_SOURCE_DIR}/src)
 find_package(Threads REQUIRED)

@@ -16,6 +16,7 @@
 #include "tui/widgets/format.hpp"
 
 extern const char kSignalsExplainHaar[];
+extern const char kSignalsExplainHaarEn[];
 
 namespace signals::tui {
 namespace {
@@ -90,7 +91,7 @@ core::Result<Walkthrough> walkthrough(std::span<const double> x, const ExplainOp
     w.options = options;
     core::Result<core::FilterBank> bank = core::make_error(core::Errc::invalid_argument, "walkthrough: no bank");
     switch (options.bank) {
-    case ExplainBank::haar: bank = core::wavelet("haar"), w.bank_name = "Хаар"; break;
+    case ExplainBank::haar: bank = core::wavelet("haar"), w.bank_name = tr("unit.haar"); break;
     case ExplainBank::db2: bank = core::wavelet("db2"), w.bank_name = "db2"; break;
     case ExplainBank::legall53: bank = core::wavelet("bior2.2"), w.bank_name = "5/3"; break;
     case ExplainBank::user:
@@ -258,11 +259,16 @@ core::Result<std::vector<ExplainStep>> load_script(std::string_view text) {
 }
 
 const std::vector<ExplainStep>& haar_script() {
-    static const std::vector<ExplainStep> script = [] {
-        auto s = load_script(kSignalsExplainHaar);
+    const auto load = [](const char* text) {
+        auto s = load_script(text);
         return s ? std::move(*s) : std::vector<ExplainStep>{};
-    }();
-    return script;
+    };
+    if (language() == Language::en) {
+        static const std::vector<ExplainStep> en = load(kSignalsExplainHaarEn);
+        return en;
+    }
+    static const std::vector<ExplainStep> ru = load(kSignalsExplainHaar);
+    return ru;
 }
 
 core::Result<std::string> fill(std::string_view line, const Walkthrough& w) {
@@ -334,7 +340,7 @@ core::Result<std::string> fill(std::string_view line, const Walkthrough& w) {
         const auto h1 = core::evaluate(w.bank.h1, std::numbers::pi / 4);
         double peak1 = 0;
         for (double m : w.h1_response.magnitude) peak1 = std::max(peak1, m);
-        values["leak"] = peak1 > 0 ? format_fixed(to_db(std::abs(h1) / peak1), 1) + " дБ" : "—";
+        values["leak"] = peak1 > 0 ? format_fixed(to_db(std::abs(h1) / peak1), 1) + " " + tr("unit.db") : "—";
     }
     std::string out;
     std::size_t pos = 0;

@@ -48,15 +48,15 @@ ftxui::Element resources_panel(const UiContext& ui, int width, int height, float
                                                                 fmt::arg("all", format_number(latest.cpu_all_cores_pct, 2)), fmt::arg("cores", cores),
                                                                 fmt::arg("seconds", format_number(latest.cpu_seconds, 3)))));
     now.push_back(row(tr("tui.resources.memory_row"),
-                      fmt::format(fmt::runtime(tr("tui.resources.memory_value")), fmt::arg("rss", format_si(static_cast<double>(latest.rss), "Б")),
-                                  fmt::arg("peak", format_si(static_cast<double>(latest.peak_rss), "Б")),
+                      fmt::format(fmt::runtime(tr("tui.resources.memory_value")), fmt::arg("rss", format_si(static_cast<double>(latest.rss), tr("unit.byte"))),
+                                  fmt::arg("peak", format_si(static_cast<double>(latest.peak_rss), tr("unit.byte"))),
                                   fmt::arg("share", format_number(latest.ram_share_pct, 2)))));
     now.push_back(row(tr("tui.resources.threads_row"), std::to_string(latest.threads)));
     now.push_back(row(tr("tui.resources.disk_row"),
-                      fmt::format(fmt::runtime(tr("tui.resources.disk_value")), fmt::arg("read", format_si(static_cast<double>(latest.disk_read_bytes), "Б")),
-                                  fmt::arg("read_rate", format_si(latest.disk_read_rate, "Б/с")),
-                                  fmt::arg("written", format_si(static_cast<double>(latest.disk_written_bytes), "Б")),
-                                  fmt::arg("write_rate", format_si(latest.disk_write_rate, "Б/с")))));
+                      fmt::format(fmt::runtime(tr("tui.resources.disk_value")), fmt::arg("read", format_si(static_cast<double>(latest.disk_read_bytes), tr("unit.byte"))),
+                                  fmt::arg("read_rate", format_si(latest.disk_read_rate, tr("unit.byte_rate"))),
+                                  fmt::arg("written", format_si(static_cast<double>(latest.disk_written_bytes), tr("unit.byte"))),
+                                  fmt::arg("write_rate", format_si(latest.disk_write_rate, tr("unit.byte_rate"))))));
     now.push_back(row(tr("tui.resources.frames_row"), format_number(latest.fps, 2) + " " + tr("tui.resources.fps")));
     if (!latest.build.empty())
         now.push_back(row(tr("tui.resources.build_row"), "Signals " + std::string{core::version()} + " · " + tr("tui.resources.build_" + latest.build)) |
@@ -98,7 +98,7 @@ ftxui::Element resources_panel(const UiContext& ui, int width, int height, float
     for (std::size_t i = 0; i < latest.buffers.size(); ++i) {
         const bool untracked = static_cast<core::MemoryCategory>(i) == core::MemoryCategory::fft_plans;
         buffers.push_back(hbox({text(buffer_name(i)) | size(WIDTH, EQUAL, 22),
-                                text(untracked ? tr("tui.resources.untracked") : format_si(static_cast<double>(latest.buffers[i]), "Б"))}));
+                                text(untracked ? tr("tui.resources.untracked") : format_si(static_cast<double>(latest.buffers[i]), tr("unit.byte")))}));
     }
     Elements queue{heading(tr("tui.resources.queue"))};
     if (ui.jobs)

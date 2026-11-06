@@ -2,7 +2,9 @@
 
 #include <set>
 #include <string>
+#include <vector>
 
+#include "i18n/i18n.hpp"
 #include "theory/sections.hpp"
 #include "theory/text.hpp"
 
@@ -66,4 +68,19 @@ TEST_CASE("search finds symbols written in LaTeX", "[theory][sections]") {
     CHECK_FALSE(search_sections("P₀").empty());
     CHECK(search_sections("P₀") == search_sections("P_0"));
     CHECK_FALSE(search_sections("h₀[n]").empty());
+}
+
+TEST_CASE("the English book has the same sections in the same order", "[theory][sections][i18n]") {
+    std::vector<std::string> ru_ids;
+    for (const auto& s : sections()) ru_ids.push_back(s.id);
+    const signals::LanguageScope en{signals::Language::en};
+    const auto& s = sections();
+    REQUIRE(s.size() == ru_ids.size());
+    for (std::size_t i = 0; i < s.size(); ++i) CHECK(s[i].id == ru_ids[i]);
+    const auto* dwt = find_section("dwt-mallat");
+    REQUIRE(dwt);
+    CHECK(dwt->number == "11.1");
+    CHECK(dwt->title.starts_with("DWT"));
+    CHECK(dwt->tier == "core");
+    CHECK(find_section("haar-walkthrough")->body.find("x=[4,6,10,12,8,6,5,5]") != std::string::npos);
 }

@@ -122,7 +122,7 @@ std::string SignalScreen::context() const {
     auto d = model_->data();
     if (!d) return {};
     return fmt::format(fmt::runtime(tr("tui.signal.context")), fmt::arg("name", d->path.filename().string()),
-                       fmt::arg("channels", d->info.channels), fmt::arg("rate", format_si(d->info.sample_rate, "Гц")),
+                       fmt::arg("channels", d->info.channels), fmt::arg("rate", format_si(d->info.sample_rate, tr("unit.hz"))),
                        fmt::arg("bits", bits_text(d->info)));
 }
 
@@ -169,13 +169,13 @@ ftxui::Element SignalScreen::source_panel(const SignalData* d) {
             const auto name = channel_name(c, n);
             out += (c ? "  " : "") + (name.empty() ? "" : name + " ") + value(d->stats[c]);
         }
-        return out + " дБFS";
+        return out + " " + tr("unit.dbfs");
     };
     Elements rows{text(d->path.filename().string()) | bold | fg(th.fg, ui_), kv(tr("tui.signal.format"), format_text(d->info)),
                   kv(tr("tui.signal.channels"), n == 2 ? "2 (L, R)" : std::to_string(n)),
-                  kv(tr("tui.signal.rate"), group(d->info.sample_rate) + " Гц"),
+                  kv(tr("tui.signal.rate"), group(d->info.sample_rate) + " " + tr("unit.hz")),
                   kv(tr("tui.signal.length"), fmt::format(fmt::runtime(tr("tui.signal.frames")), fmt::arg("count", group(d->info.frames)),
-                                                          fmt::arg("time", format_fixed(d->duration(), 2) + " с"))),
+                                                          fmt::arg("time", format_fixed(d->duration(), 2) + " " + tr("unit.s")))),
                   kv(tr("tui.signal.peak"), per_channel([](const io::ChannelStats& s) { return format_fixed(s.peak_dbfs, 1); })),
                   kv(tr("tui.signal.rms"), per_channel([](const io::ChannelStats& s) { return format_fixed(s.rms_dbfs, 1); }))};
     if (d->full_scale_samples > 0) {
@@ -217,7 +217,7 @@ ftxui::Element SignalScreen::run_panel(int panel_width) {
         case StageState::skipped: icon = "–"; break;
         }
         elapsed += s.seconds;
-        const auto time = s.state == StageState::waiting ? std::string{"—"} : format_si(s.seconds, "с");
+        const auto time = s.state == StageState::waiting ? std::string{"—"} : format_si(s.seconds, tr("unit.s"));
         rows.push_back(hbox({text(icon) | fg(color, ui_), text(" " + s.name) | fg(s.state == StageState::waiting ? th.dim : th.fg, ui_), filler(),
                              text(" " + time) | fg(th.dim, ui_)}));
         if (s.state == StageState::running)
@@ -232,7 +232,7 @@ ftxui::Element SignalScreen::run_panel(int panel_width) {
     for (int i = 0; i < width; ++i) rule += glyph(Glyph::h, g);
     rows.push_back(text(rule) | fg(th.dim, ui_));
     const auto threads = ui_.resources ? ui_.resources().threads : 0;
-    rows.push_back(line({{tr("tui.signal.elapsed") + " ", th.dim}, {pad_left(format_si(elapsed, "с"), 8), th.fg},
+    rows.push_back(line({{tr("tui.signal.elapsed") + " ", th.dim}, {pad_left(format_si(elapsed, tr("unit.s")), 8), th.fg},
                          {" · " + tr("tui.signal.threads") + " ", th.dim}, {std::to_string(threads), th.fg}},
                         ui_));
     if (running) rows.push_back(hbox({key_label(" Esc ", ui_), text(" " + tr("tui.signal.cancel")) | fg(th.dim, ui_)}));
@@ -342,7 +342,7 @@ ftxui::Element SignalScreen::wave_panel(const std::shared_ptr<const SignalData>&
     if (selection) {
         const auto [t0, t1] = *selection;
         sel_line = {{tr("tui.signal.selected") + " ", th.dim},
-                    {format_fixed(t0, 2) + "–" + format_fixed(t1, 2) + " с", th.accent},
+                    {format_fixed(t0, 2) + "–" + format_fixed(t1, 2) + " " + tr("unit.s"), th.accent},
                     {" (" + time_text(t1 - t0, t1 - t0) + ")", th.dim}};
         const auto stats = model_->selection_stats();
         if (!stats.empty() && std::abs(stats[0].duration - (t1 - t0)) < 1e-9) {
@@ -357,7 +357,7 @@ ftxui::Element SignalScreen::wave_panel(const std::shared_ptr<const SignalData>&
             sel_line.push_back({" · " + tr("tui.signal.peak") + " ", th.dim});
             sel_line.push_back({per(&SelectionStats::peak_dbfs), th.fg});
             sel_line.push_back({" · " + tr("tui.signal.rms") + " ", th.dim});
-            sel_line.push_back({per(&SelectionStats::rms_dbfs) + " дБFS", th.fg});
+            sel_line.push_back({per(&SelectionStats::rms_dbfs) + " " + tr("unit.dbfs"), th.fg});
         }
     } else {
         sel_line = {{tr("tui.signal.no_selection"), th.dim}};
@@ -367,7 +367,7 @@ ftxui::Element SignalScreen::wave_panel(const std::shared_ptr<const SignalData>&
     drag_chip_ = kNoBox;
     const bool selecting = drag_mode_ == DragMode::select;
     const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
-    const std::string play_chip = head_at ? std::string{ascii ? "> " : "▶ "} + format_fixed(*head_at, 2) + " с" : std::string{ascii ? "#" : "■"};
+    const std::string play_chip = head_at ? std::string{ascii ? "> " : "▶ "} + format_fixed(*head_at, 2) + " " + tr("unit.s") : std::string{ascii ? "#" : "■"};
     std::vector<Chip> chips{{tr(selecting ? "tui.signal.chip.drag_select" : "tui.signal.chip.drag_pan"), selecting, &drag_chip_},
                             {tr("tui.signal.chip.minmax"), true},
                             {fmt::format(fmt::runtime(tr("tui.signal.chip.scale")), fmt::arg("ratio", ratio)), false}};
@@ -429,7 +429,7 @@ ftxui::Element SignalScreen::bands_panel(const SignalData* d, int width) {
         const auto [lo, hi] = band_range(k, levels, fs);
         const double f = d->band_energy[k];
         rows.push_back(hbox({text(pad_right(band_name(k, levels, ui_.caps.glyphs), 3)) | bold | fg(th.trace[0], ui_),
-                             text(" " + pad_right(hz_text(lo) + "–" + hz_text(hi) + " Гц", 16)) | fg(th.dim, ui_),
+                             text(" " + pad_right(hz_text(lo) + "–" + hz_text(hi) + " " + tr("unit.hz"), 16)) | fg(th.dim, ui_),
                              text(" " + bar(f, bar_width, ui_.caps.glyphs)) | fg(th.trace[0], ui_),
                              text(pad_left(format_fixed(100 * f, 2) + " %", 9)) | fg(th.fg, ui_),
                              text("  " + (k < d->band_lengths.size() ? group(d->band_lengths[k]) : std::string{"—"})) | fg(th.dim, ui_)}));

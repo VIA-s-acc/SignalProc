@@ -20,6 +20,8 @@ struct SignalsEmbeddedFile {
 };
 extern const SignalsEmbeddedFile kSignalsTheoryCards[];
 extern const std::size_t kSignalsTheoryCardsCount;
+extern const SignalsEmbeddedFile kSignalsTheoryCardsEn[];
+extern const std::size_t kSignalsTheoryCardsEnCount;
 
 namespace signals::theory {
 namespace {
@@ -117,13 +119,18 @@ core::Result<Card> parse_card(std::string_view text) {
 }
 
 const std::vector<Card>& cards() {
-    static const std::vector<Card> all = [] {
+    const auto parse_all = [](const SignalsEmbeddedFile* files, std::size_t count) {
         std::vector<Card> out;
-        for (std::size_t i = 0; i < kSignalsTheoryCardsCount; ++i)
-            if (auto c = parse_card(kSignalsTheoryCards[i].text)) out.push_back(std::move(*c));
+        for (std::size_t i = 0; i < count; ++i)
+            if (auto c = parse_card(files[i].text)) out.push_back(std::move(*c));
         return out;
-    }();
-    return all;
+    };
+    if (signals::language() == signals::Language::en) {
+        static const std::vector<Card> en = parse_all(kSignalsTheoryCardsEn, kSignalsTheoryCardsEnCount);
+        return en;
+    }
+    static const std::vector<Card> ru = parse_all(kSignalsTheoryCards, kSignalsTheoryCardsCount);
+    return ru;
 }
 
 const Card* find_card(std::string_view id) {
