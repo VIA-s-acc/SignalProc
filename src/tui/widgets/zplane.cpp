@@ -88,6 +88,21 @@ public:
         auto poles = spec_.poles;
         for (std::ptrdiff_t k = 0; k < spec_.poles_at_origin; ++k) poles.emplace_back(0.0, 0.0);
         for (const auto& m : group(poles)) place(m, "×", "x", theme_.trace[1]);
+        if (spec_.hits) spec_.hits->clear();
+        for (const auto& m : spec_.markers) {
+            double re = m.z.real(), im = m.z.imag();
+            re = std::clamp(re, -spec_.extent, spec_.extent);
+            im = std::clamp(im, -spec_.extent, spec_.extent);
+            const int x = box_.x_min + std::clamp(static_cast<int>(std::lround(cxd + scale * re)) / 2, 0, W - 1);
+            const int y = box_.y_min + std::clamp(static_cast<int>(std::lround(cyd - scale * im)) / 4, 0, H - 1);
+            put(screen, x, y, glyphs_ == GlyphMode::ascii ? (m.glyph == "●" ? "*" : m.glyph == "◉" ? "@" : "o") : m.glyph, m.color);
+            if (spec_.hits && m.id >= 0) spec_.hits->push_back({m.id, x, y});
+            if (m.id < 0 && spec_.minus_one_label) {
+                const auto label = split_codepoints(*spec_.minus_one_label);
+                const int lx = std::max(box_.x_min, x - static_cast<int>(label.size()) / 2);
+                for (std::size_t k = 0; k < label.size(); ++k) put(screen, lx + static_cast<int>(k), y + 1, label[k], theme_.dim);
+            }
+        }
         if (outside > 0) {
             const auto label = split_codepoints(tr("tui.zplane.outside") + std::to_string(outside));
             for (std::size_t k = 0; k < label.size(); ++k) put(screen, box_.x_min + static_cast<int>(k), box_.y_min, label[k], theme_.warn);
