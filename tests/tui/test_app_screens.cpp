@@ -40,6 +40,7 @@ TEST_CASE("every tab renders at both sizes without nan", "[tui][shell][app]") {
                 CHECK(frame.find("nan") == std::string::npos);
                 CHECK(frame.find("inf") == std::string::npos);
                 CHECK_FALSE(std::regex_search(frame, std::regex{R"(\{[^#])"}));
+                CHECK_FALSE(std::regex_search(frame, std::regex{"M[0-4][ab]?\\."}));
                 shell.send(ftxui::Event::Character(']'));
             }
         }
