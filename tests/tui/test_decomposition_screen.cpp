@@ -159,3 +159,8 @@ TEST_CASE("decomposition snapshots", "[tui][decomposition][snapshot]") {
         signals::test::check_snapshot("decomposition_" + std::to_string(w) + "x" + std::to_string(h), shell.frame());
     }
 }
+
+TEST_CASE("round-off-level PR errors print the same on every compiler", "[tui][decomposition]") {
+    DecompositionFixture f;
+    CHECK(line_with(f.h.frame(), "PR (все ☑)").find("< 10⁻¹⁴") != std::string::npos);
+}

@@ -442,7 +442,7 @@ ftxui::Element DecompositionScreen::summary_panel(const DecompositionData& d, co
         }
     if (off == 0) included = fmt::format(fmt::runtime(tr("tui.decomposition.all_bands")), fmt::arg("n", d.bands.size()));
     const bool pr_ok = d.pr_error < 1e-9;
-    const auto pr_text = d.pr_error < 1e-15 ? std::string{"< 10⁻¹⁵"} : format_number(d.pr_error, 2);
+    const auto pr_text = d.pr_error < 1e-14 ? std::string{"< 10⁻¹⁴"} : format_number(d.pr_error, 2);
     Elements rows{hbox({label("tui.decomposition.in_synthesis"), text(included) | fg(th.fg, ui_)}),
                   hbox({label("tui.decomposition.energy_kept"), text(r ? pct(r->energy_kept_pct) : "—") | fg(th.fg, ui_),
                         text(" " + tr("tui.decomposition.of_original")) | fg(th.dim, ui_)}),

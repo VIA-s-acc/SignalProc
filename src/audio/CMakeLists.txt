@@ -10,7 +10,10 @@ target_compile_definitions(signals_audio PRIVATE MA_NO_DECODING MA_NO_ENCODING M
 set_source_files_properties(miniaudio_impl.cpp PROPERTIES COMPILE_OPTIONS "-w")
 find_package(Threads REQUIRED)
 target_link_libraries(signals_audio PUBLIC signals_core PRIVATE Threads::Threads)
-if(APPLE)
+if(APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  # Apple's CoreAudio headers use Clang blocks, which GCC cannot parse; GCC builds on macOS get no audio device.
+  target_compile_definitions(signals_audio PRIVATE MA_NO_COREAUDIO)
+elseif(APPLE)
   target_compile_definitions(signals_audio PRIVATE MA_NO_RUNTIME_LINKING)
   target_link_libraries(signals_audio PRIVATE "-framework CoreFoundation" "-framework CoreAudio" "-framework AudioToolbox")
 elseif(UNIX)

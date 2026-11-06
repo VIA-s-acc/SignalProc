@@ -81,8 +81,7 @@ void DecompositionModel::compute(JobRunner& jobs) {
         error_ = bank.error().message;
         return;
     }
-    const auto n = static_cast<std::size_t>(s->info.frames);
-    const auto max_level = core::dwt_max_level(n, bank->length());
+    const auto max_level = core::dwt_max_level(static_cast<std::size_t>(s->info.frames), bank->length());
     options_.levels = std::clamp<std::size_t>(options_.levels, 1, std::max<std::size_t>(1, max_level));
     if (options_.channel >= static_cast<int>(s->samples.size())) options_.channel = -1;
     enabled_.assign(options_.levels + 1, true);

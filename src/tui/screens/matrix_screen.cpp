@@ -26,7 +26,7 @@ std::string signed_fixed(double v, int decimals) { return (v < 0 ? "−" : "+") 
 
 std::string check_value(const std::optional<double>& v) {
     if (!v) return "—";
-    return *v < 1e-15 ? "< 10⁻¹⁵" : format_number(*v, 2);
+    return *v < 1e-14 ? "< 10⁻¹⁴" : format_number(*v, 2);
 }
 
 }  // namespace
