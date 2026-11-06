@@ -846,5 +846,8 @@
   "pipeline.error.idwt_ext": "коэффициенты получены с краями {coeffs}, а idwt задан с {ext}",
   "pipeline.graph.need_output": "у узла {node} несколько выходов ({ports}) — укажите порт, например {node}.{first}",
   "pipeline.run.out_of_memory": "не хватило памяти",
-  "pipeline.graph.bypass_types": "узел {node}: блок {block} нельзя обойти — у него вход и выход разных типов"
+  "pipeline.graph.bypass_types": "узел {node}: блок {block} нельзя обойти — у него вход и выход разных типов",
+  "tui.pipeline.empty": "граф пуст: a — добавить блок, o — открыть .sig",
+  "tui.pipeline.no_wire": "такого провода нет",
+  "tui.pipeline.no_node": "такого узла нет"
 }

@@ -846,5 +846,8 @@
   "pipeline.error.idwt_ext": "the coefficients use edges {coeffs}, but idwt is set to {ext}",
   "pipeline.graph.need_output": "node {node} has several outputs ({ports}) — name the port, for example {node}.{first}",
   "pipeline.run.out_of_memory": "out of memory",
-  "pipeline.graph.bypass_types": "node {node}: block {block} cannot be bypassed — its input and output have different types"
+  "pipeline.graph.bypass_types": "node {node}: block {block} cannot be bypassed — its input and output have different types",
+  "tui.pipeline.empty": "the graph is empty: a — add a block, o — open a .sig",
+  "tui.pipeline.no_wire": "no such wire",
+  "tui.pipeline.no_node": "no such node"
 }

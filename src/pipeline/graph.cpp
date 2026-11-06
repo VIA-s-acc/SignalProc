@@ -49,12 +49,14 @@ struct Wire {
 
 class Builder {
 public:
-    Builder(const PipelineDoc& doc, std::filesystem::path base_dir) : doc_{doc} { graph_.base_dir = std::move(base_dir); }
+    Builder(const PipelineDoc& doc, std::filesystem::path base_dir, BuildOptions options) : doc_{doc}, options_{options} {
+        graph_.base_dir = std::move(base_dir);
+    }
 
     Graph run() {
         add_nodes();
         add_wires();
-        check_inputs();
+        if (!options_.partial) check_inputs();
         sort();
         check_bands();
         add_probes();
@@ -258,6 +260,7 @@ private:
     }
 
     const PipelineDoc& doc_;
+    BuildOptions options_;
     Graph graph_;
     std::map<std::string, std::size_t, std::less<>> index_;
     std::vector<std::string> ids_;
@@ -266,9 +269,9 @@ private:
 
 }  // namespace
 
-std::expected<Graph, SigError> build_graph(const PipelineDoc& doc, std::filesystem::path base_dir) {
+std::expected<Graph, SigError> build_graph(const PipelineDoc& doc, std::filesystem::path base_dir, BuildOptions options) {
     try {
-        return Builder{doc, std::move(base_dir)}.run();
+        return Builder{doc, std::move(base_dir), options}.run();
     } catch (const Failure& f) {
         return std::unexpected{f.error};
     }

@@ -41,6 +41,10 @@ struct Graph {
     std::filesystem::path base_dir;
 };
 
-std::expected<Graph, SigError> build_graph(const PipelineDoc& doc, std::filesystem::path base_dir);
+struct BuildOptions {
+    bool partial = false;
+};
+
+std::expected<Graph, SigError> build_graph(const PipelineDoc& doc, std::filesystem::path base_dir, BuildOptions options = {});
 
 }  // namespace signals::pipeline
