@@ -165,7 +165,6 @@ void JobRunner::loop() {
             current_ = job;
         }
         execute(job);
-        if (stop_) return;
     }
 }
 
@@ -178,7 +177,15 @@ void JobRunner::execute(const std::shared_ptr<detail::Job>& job) {
     } catch (...) {
         ctx.fail("unknown error");
     }
-    if (ctx.stage_) ctx.finish();
+    if (ctx.stage_) {
+        if (job->cancel) {
+            std::lock_guard lock{mutex_};
+            auto& stage = job->view.stages[*ctx.stage_];
+            if (stage.state == StageState::running) stage.state = StageState::skipped;
+        } else {
+            ctx.finish();
+        }
+    }
     retire(job);
 }
 

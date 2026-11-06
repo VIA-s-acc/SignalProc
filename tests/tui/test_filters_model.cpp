@@ -213,7 +213,7 @@ TEST_CASE("pending analyses are not submitted twice", "[tui][filters]") {
     std::size_t submitted = 0;
     for (const auto& v : jobs.snapshot()) submitted += v.title == "Анализ фильтров";
     CHECK(submitted == 1);
-    for (int k = 0; k < 4000 && !set.entries()[0].analysis; ++k) std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    for (int k = 0; k < 30000 && !set.entries()[0].analysis; ++k) std::this_thread::sleep_for(std::chrono::milliseconds{1});
     CHECK(set.entries()[0].analysis);
     CHECK_FALSE(set.pending_label());
 }

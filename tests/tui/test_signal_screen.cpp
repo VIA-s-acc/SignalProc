@@ -3,6 +3,7 @@
 
 #include <ftxui/component/event.hpp>
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <memory>
@@ -246,4 +247,33 @@ TEST_CASE("signal screen in ascii mode draws no unicode graphics", "[tui][signal
         CHECK(t.find(g) == std::string::npos);
     }
     CHECK(t.find("a6") != std::string::npos);
+}
+
+TEST_CASE("a cancelled load reads as interrupted without raw placeholders", "[tui][signal]") {
+    auto ui = signals::test::make_ui(150, 44);
+    std::atomic<bool> release{false}, started{false};
+    JobRunner jobs{[] {}};
+    ui->jobs = &jobs;
+    jobs.submit("blocker", {"wait"}, [&](JobContext&) {
+        started = true;
+        while (!release) std::this_thread::sleep_for(1ms);
+    });
+    while (!started) std::this_thread::sleep_for(1ms);
+    auto model = std::make_shared<SignalModel>();
+    model->open(signals::test::sample("test.wav"), jobs);
+    auto screen = std::make_shared<SignalScreen>(*ui, model);
+    screen->set_breakpoint(Breakpoint::primary);
+    Harness h{screen, 150, 41};
+    h.send(ftxui::Event::Escape);
+    release = true;
+    for (int k = 0; k < 2000; ++k) {
+        bool done = false;
+        for (const auto& v : jobs.snapshot()) done = done || (v.id == *model->job() && v.finished);
+        if (done) break;
+        std::this_thread::sleep_for(1ms);
+    }
+    const auto t = h.frame();
+    CHECK(t.find("задача прервана") != std::string::npos);
+    CHECK(t.find("{") == std::string::npos);
+    CHECK(t.find("✓ Чтение WAV") == std::string::npos);
 }

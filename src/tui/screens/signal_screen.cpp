@@ -249,7 +249,7 @@ ftxui::Element SignalScreen::run_panel(int panel_width) {
         if (!s.detail.empty()) rows.push_back(text("  " + s.detail) | fg(th.dim, ui_));
     }
     if (job->error) rows.push_back(text(*job->error) | fg(th.err, ui_));
-    if (job->cancelled) rows.push_back(text(tr("error.cancelled")) | fg(th.warn, ui_));
+    if (job->cancelled) rows.push_back(text(tr("tui.jobs.cancelled")) | fg(th.warn, ui_));
     rows.push_back(filler());
     std::string rule;
     for (int i = 0; i < width; ++i) rule += glyph(Glyph::h, g);

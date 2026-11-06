@@ -86,6 +86,7 @@ TEST_CASE("a cancelled job skips its remaining stages", "[tui][jobs]") {
     auto v = wait_finished(r, id);
     CHECK(v.cancelled);
     CHECK_FALSE(v.error);
+    CHECK(v.stages[0].state == StageState::skipped);
     CHECK(v.stages[1].state == StageState::skipped);
 }
 
