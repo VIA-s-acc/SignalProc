@@ -60,17 +60,19 @@ std::vector<const Command*> filter_commands(const std::vector<Command>& all, std
     return out;
 }
 
-void Palette::open(std::vector<Command> commands) {
+void Palette::open(std::vector<Command> commands, std::string filter) {
     commands_ = std::move(commands);
-    query_.clear();
+    query_ = std::move(filter);
     selected_ = 0;
     prompt_.clear();
     path_done_ = nullptr;
     open_ = true;
 }
 
-void Palette::ask_path(std::string prompt, std::function<void(std::string)> done) {
-    query_.clear();
+void Palette::ask_path(std::string prompt, std::function<void(std::string)> done) { ask_text(std::move(prompt), {}, std::move(done)); }
+
+void Palette::ask_text(std::string prompt, std::string initial, std::function<void(std::string)> done) {
+    query_ = std::move(initial);
     prompt_ = std::move(prompt);
     path_done_ = std::move(done);
     open_ = true;

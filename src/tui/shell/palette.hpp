@@ -15,18 +15,14 @@
 
 namespace signals::tui {
 
-struct Command {
-    std::string id;
-    std::string title;
-    std::function<void()> run;
-};
 
 std::vector<const Command*> filter_commands(const std::vector<Command>& all, std::string_view query);
 
 class Palette {
 public:
-    void open(std::vector<Command> commands);
+    void open(std::vector<Command> commands, std::string filter = {});
     void ask_path(std::string prompt, std::function<void(std::string)> done);
+    void ask_text(std::string prompt, std::string initial, std::function<void(std::string)> done);
     void close();
     bool is_open() const { return open_; }
     bool on_event(const ftxui::Event& e);

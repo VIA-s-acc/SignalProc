@@ -1,5 +1,7 @@
 #include "tui/shell/shell.hpp"
 
+#include <cstdlib>
+
 #include <fmt/format.h>
 
 #include <ftxui/component/event.hpp>
@@ -23,9 +25,19 @@ public:
         : ui_{ui}, screens_{std::move(screens)}, on_quit_{std::move(on_quit)}, tab_boxes_(screens_.size()) {
         if (ui_.first_run_check) check_.open();
         ui_.ask_open = [this] { ask_open_file(); };
+        ui_.navigate = [this](std::string_view target, const NavArgs& args) { navigate(target, args); };
+        ui_.open_palette = [this](std::string filter) { palette_.open(commands(), std::move(filter)); };
+        ui_.ask_text = [this](std::string prompt, std::string initial, std::function<void(std::string)> done) {
+            palette_.ask_text(std::move(prompt), std::move(initial), std::move(done));
+        };
     }
 
-    ~ShellComponent() override { ui_.ask_open = nullptr; }
+    ~ShellComponent() override {
+        ui_.ask_open = nullptr;
+        ui_.navigate = nullptr;
+        ui_.open_palette = nullptr;
+        ui_.ask_text = nullptr;
+    }
 
     int active() const { return active_; }
 
@@ -58,7 +70,8 @@ public:
             tabs.push_back(label | reflect(tab_boxes_[i]));
         }
         tabs.push_back(filler());
-        tabs.push_back(text(screen.context() + "  ") | fg(ui_.theme.dim, ui_));
+        tabs.push_back(screen.context_element(ui_));
+        tabs.push_back(text("  "));
         tabs.push_back(key_label(" ? ", ui_));
         Elements hints;
         auto all = screen.hints();
@@ -194,8 +207,31 @@ private:
         });
     }
 
+    void navigate(std::string_view target, const NavArgs& args) {
+        struct Route {
+            std::string_view target;
+            int tab;
+            int sub;
+        };
+        static constexpr Route routes[]{{"signal", 0, -1},     {"filters", 2, -1}, {"designer", 3, 0},       {"decomposition", 4, -1},
+                                        {"matrix", 5, -1},     {"explain", 8, 0},  {"under_the_hood", 8, 1}, {"tutorial", 8, 2}};
+        int tab = -1, sub = -1;
+        if (target.starts_with("tab:")) {
+            const auto n = std::atoi(std::string{target.substr(4)}.c_str());
+            tab = n - 1;
+        } else {
+            for (const auto& r : routes)
+                if (r.target == target) tab = r.tab, sub = r.sub;
+        }
+        if (tab < 0 || tab >= static_cast<int>(screens_.size())) return;
+        active_ = tab;
+        auto& screen = *screens_[static_cast<std::size_t>(tab)];
+        if (sub >= 0) screen.select_child(static_cast<std::size_t>(sub));
+        screen.open_with(args);
+    }
+
     std::vector<Command> commands() {
-        std::vector<Command> out;
+        std::vector<Command> out = screens_.empty() ? std::vector<Command>{} : screens_[static_cast<std::size_t>(active_)]->commands();
         for (std::size_t i = 0; i < screens_.size(); ++i)
             out.push_back({"tab." + std::to_string(i + 1), tr("tui.cmd.tab") + std::to_string(i + 1) + " " + screens_[i]->tab_label(),
                            [this, i] { active_ = static_cast<int>(i); }});
@@ -249,6 +285,8 @@ private:
 ftxui::Component make_shell(UiContext& ui, std::vector<std::shared_ptr<TabScreen>> screens, std::function<void()> on_quit) {
     return std::make_shared<ShellComponent>(ui, std::move(screens), std::move(on_quit));
 }
+
+ftxui::Element TabScreen::context_element(const UiContext& ui) { return ftxui::text(context()) | fg(ui.theme.dim, ui); }
 
 int active_tab(const ftxui::Component& shell) {
     auto s = std::dynamic_pointer_cast<ShellComponent>(shell);

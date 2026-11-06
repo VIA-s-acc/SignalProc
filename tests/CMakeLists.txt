@@ -45,6 +45,7 @@ add_executable(signals_tests
   tui/test_ticker.cpp
   tui/test_monitor.cpp
   tui/test_shell.cpp
+  tui/test_subtabs.cpp
   tui/test_overlays.cpp
   tui/test_signal_screen.cpp
   tui/test_filters_model.cpp

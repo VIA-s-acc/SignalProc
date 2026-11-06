@@ -23,6 +23,7 @@ add_library(signals_tui STATIC
   shell/palette.cpp
   shell/overlays.cpp
   shell/ticker.cpp
+  shell/subtabs.cpp
   shell/errors.cpp
   screens/signal_model.cpp
   screens/signal_screen.cpp
