@@ -43,6 +43,6 @@ struct WavWriteReport {
 };
 
 core::Result<WavWriteReport> write_wav(const std::filesystem::path& path, const core::AudioBuffer& audio,
-                                       const WavWriteOptions& options);
+                                       const WavWriteOptions& options, core::ProgressSink* progress = nullptr);
 
 }  // namespace signals::io

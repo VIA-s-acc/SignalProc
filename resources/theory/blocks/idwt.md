@@ -56,6 +56,7 @@ $$n_{\mathrm{out}} = 2n - L + 2$$
 
 ```cpp
     for (std::ptrdiff_t i = 0; i < out_len; ++i) {
+        if (stop_requested(progress, static_cast<std::size_t>(i))) return std::unexpected{cancelled_error("idwt")};
         const auto pos = i + filter_len - 2;
         T acc(0);
         for (std::ptrdiff_t k = std::max<std::ptrdiff_t>(0, (pos - filter_len + 2) / 2); k < n; ++k) {

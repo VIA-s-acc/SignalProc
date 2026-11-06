@@ -132,7 +132,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    kSignalIn,
                    kCoeffsOut,
                    {{"wavelet", Kind::text, "db2"}, {"levels", Kind::integer, "0", {}, 0, 64}, {"ext", Kind::choice, "symmetric", kExtensions}},
-                   [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                   [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                        auto bank = bank_of(param_text(p, "wavelet"));
                        if (!bank) return std::unexpected{bank.error()};
                        const auto& a = in_audio(in);
@@ -141,9 +141,11 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        c.wavelet = param_text(p, "wavelet");
                        c.mode = *mode;
                        c.rate = a.sample_rate;
+                       const double share = 1.0 / static_cast<double>(std::max<std::size_t>(1, a.channels.size()));
                        for (const auto& ch : a.channels) {
                            const auto levels = param_int(p, "levels") > 0 ? static_cast<std::size_t>(param_int(p, "levels")) : core::default_levels(ch.size(), bank->length());
-                           auto r = core::wavedec<double>(ch, *bank, levels, {*mode, false});
+                           ScaledProgress part{ctx.progress, share * static_cast<double>(c.channels.size()), share};
+                           auto r = core::wavedec<double>(ch, *bank, levels, {*mode, false}, &part);
                            if (!r) return std::unexpected{r.error()};
                            c.channels.push_back(std::move(*r));
                            c.lengths.push_back(ch.size());
@@ -154,15 +156,17 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    kCoeffsIn,
                    kSignalOut,
                    {{"wavelet", Kind::text, "db2"}, {"ext", Kind::choice, "symmetric", kExtensions}},
-                   [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                   [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                        auto bank = bank_of(param_text(p, "wavelet"));
                        if (!bank) return std::unexpected{bank.error()};
                        const auto& c = in_coeffs(in);
                        const auto mode = core::parse_extension(param_text(p, "ext"));
                        core::AudioBuffer out;
                        out.sample_rate = c.rate;
+                       const double share = 1.0 / static_cast<double>(std::max<std::size_t>(1, c.channels.size()));
                        for (std::size_t i = 0; i < c.channels.size(); ++i) {
-                           auto y = core::waverec<double>(c.channels[i], *bank, {*mode, false});
+                           ScaledProgress part{ctx.progress, share * static_cast<double>(i), share};
+                           auto y = core::waverec<double>(c.channels[i], *bank, {*mode, false}, &part);
                            if (!y) return std::unexpected{y.error()};
                            if (i < c.lengths.size()) y->resize(c.lengths[i]);
                            out.channels.push_back(std::move(*y));
@@ -274,7 +278,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        o.format = bits == "16" ? io::SampleFormat::pcm_s16 : bits == "32" ? io::SampleFormat::pcm_s32 : bits == "f32" ? io::SampleFormat::float32 : io::SampleFormat::pcm_s24;
                        o.dither = param_text(p, "dither") == "tpdf";
                        o.dither_seed = static_cast<std::uint64_t>(param_int(p, "seed"));
-                       const auto written = io::write_wav(path, in_audio(in), o);
+                       const auto written = io::write_wav(path, in_audio(in), o, ctx.progress);
                        if (!written) return std::unexpected{written.error()};
                        Report r;
                        r.fields = {{"path", path.string()}, {"clipped", static_cast<double>(written->clipped_samples)}};

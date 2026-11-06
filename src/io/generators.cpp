@@ -61,17 +61,22 @@ double donoho_johnstone_at(DonohoJohnstone kind, double t) {
 
 }  // namespace
 
-std::vector<double> sine(double freq_hz, double amplitude, double phase0, double fs, std::size_t n) {
-    std::vector<double> x(n);
-    for (std::size_t k = 0; k < n; ++k) x[k] = amplitude * std::sin(phase(freq_hz, k, fs) + phase0);
+std::vector<double> sine(double freq_hz, double amplitude, double phase0, double fs, std::size_t n, const core::ProgressSink* progress) {
+    std::vector<double> x;
+    x.reserve(n);
+    for (std::size_t k = 0; k < n; ++k) {
+        if (core::stop_requested(progress, k)) return x;
+        x.push_back(amplitude * std::sin(phase(freq_hz, k, fs) + phase0));
+    }
     return x;
 }
 
-std::vector<double> sweep(double f0, double f1, SweepKind kind, double fs, std::size_t n) {
+std::vector<double> sweep(double f0, double f1, SweepKind kind, double fs, std::size_t n, const core::ProgressSink* progress) {
     std::vector<double> x(n, 1.0);
     if (n < 2) return x;
     const double t1 = static_cast<double>(n - 1) / fs;
     for (std::size_t k = 0; k < n; ++k) {
+        if (core::stop_requested(progress, k)) return x;
         const double t = static_cast<double>(k) / fs;
         double ph = 0;
         if (kind == SweepKind::linear) {
@@ -100,21 +105,28 @@ std::vector<double> step(std::size_t n, std::size_t at) {
     return x;
 }
 
-std::vector<double> noise(NoiseColor color, double rms, std::size_t n, std::uint64_t seed) {
+std::vector<double> noise(NoiseColor color, double rms, std::size_t n, std::uint64_t seed, const core::ProgressSink* progress) {
     std::mt19937_64 rng{seed};
     std::normal_distribution<double> normal{0.0, 1.0};
-    std::vector<double> x(n);
-    for (double& v : x) v = normal(rng);
+    std::vector<double> x;
+    x.reserve(n);
+    for (std::size_t k = 0; k < n; ++k) {
+        if (core::stop_requested(progress, k)) return x;
+        x.push_back(normal(rng));
+    }
     if (n > 0 && color != NoiseColor::white) shape_spectrum(x, color == NoiseColor::pink ? -0.5 : -1.0);
     scale_to_rms(x, rms);
     return x;
 }
 
-std::vector<double> harmonics(double f0, std::span<const double> amplitudes, double fs, std::size_t n) {
+std::vector<double> harmonics(double f0, std::span<const double> amplitudes, double fs, std::size_t n, const core::ProgressSink* progress) {
     std::vector<double> x(n, 0.0);
     for (std::size_t h = 0; h < amplitudes.size(); ++h) {
         const double freq = static_cast<double>(h + 1) * f0;
-        for (std::size_t k = 0; k < n; ++k) x[k] += amplitudes[h] * std::sin(phase(freq, k, fs));
+        for (std::size_t k = 0; k < n; ++k) {
+            if (core::stop_requested(progress, k)) return x;
+            x[k] += amplitudes[h] * std::sin(phase(freq, k, fs));
+        }
     }
     return x;
 }

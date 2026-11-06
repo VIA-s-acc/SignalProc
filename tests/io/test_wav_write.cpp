@@ -148,3 +148,51 @@ TEST_CASE("high sample rates and the channel limit round trip", "[wav]") {
     const AudioBuffer too_many{8000, std::vector<std::vector<double>>(257, std::vector<double>(4, 0.1))};
     CHECK(write_wav(path, too_many, {}).error().code == Errc::invalid_argument);
 }
+
+namespace {
+
+struct StopNow final : signals::core::ProgressSink {
+    void report(double) override {}
+    bool cancelled() const override { return true; }
+};
+
+}  // namespace
+
+TEST_CASE("a cancelled write leaves the old file and no temporary files", "[wav][cancel]") {
+    const auto dir = temp_path("wav-cancel");
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    const auto path = dir / "out.wav";
+    {
+        std::ofstream old{path};
+        old << "old";
+    }
+    AudioBuffer audio;
+    audio.sample_rate = 8000;
+    audio.channels.push_back(sine(440, 0.5, 0, 8000, 200000));
+    StopNow stop;
+    const auto r = write_wav(path, audio, {}, &stop);
+    REQUIRE_FALSE(r);
+    CHECK(r.error().code == Errc::cancelled);
+    std::ifstream in{path};
+    const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+    CHECK(text == "old");
+    CHECK(std::distance(std::filesystem::directory_iterator{dir}, std::filesystem::directory_iterator{}) == 1);
+}
+
+TEST_CASE("writing replaces an existing file in one step", "[wav]") {
+    const auto dir = temp_path("wav-replace");
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    const auto path = dir / "out.wav";
+    {
+        std::ofstream old{path};
+        old << "old";
+    }
+    AudioBuffer audio;
+    audio.sample_rate = 8000;
+    audio.channels.push_back(sine(440, 0.5, 0, 8000, 800));
+    REQUIRE(write_wav(path, audio, {}));
+    CHECK(std::filesystem::file_size(path) > 3);
+    CHECK(std::distance(std::filesystem::directory_iterator{dir}, std::filesystem::directory_iterator{}) == 1);
+}

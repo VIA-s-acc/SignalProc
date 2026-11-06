@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <numbers>
 #include <string>
@@ -104,4 +105,38 @@ TEST_CASE("too short signal names the needed length", "[wavedec]") {
     REQUIRE_FALSE(c);
     CHECK(c.error().code == signals::core::Errc::level_out_of_range);
     CHECK(c.error().message == "signal too short: n=10 needs at least L-1=15 samples");
+}
+
+namespace {
+
+struct StopAfter final : ProgressSink {
+    double last = 0;
+    void report(double f) override { last = f; }
+    bool cancelled() const override { return true; }
+};
+
+struct Watch final : ProgressSink {
+    std::vector<double> seen;
+    void report(double f) override { seen.push_back(f); }
+    bool cancelled() const override { return false; }
+};
+
+}  // namespace
+
+TEST_CASE("a cancelled decomposition stops with a cancelled error", "[wavedec][cancel]") {
+    const auto bank = golden_bank("db4");
+    const auto x = signal_of_length(1 << 18);
+    StopAfter stop;
+    const auto c = wavedec<double>(x, bank, 5, {}, &stop);
+    REQUIRE_FALSE(c);
+    CHECK(c.error().code == Errc::cancelled);
+    Watch watch;
+    const auto ok = wavedec<double>(x, bank, 5, {}, &watch);
+    REQUIRE(ok);
+    REQUIRE_FALSE(watch.seen.empty());
+    CHECK(watch.seen.back() == 1.0);
+    CHECK(std::is_sorted(watch.seen.begin(), watch.seen.end()));
+    const auto back = waverec<double>(*ok, bank, {}, &stop);
+    REQUIRE_FALSE(back);
+    CHECK(back.error().code == Errc::cancelled);
 }

@@ -37,7 +37,7 @@ const std::vector<PortSpec> kOneOut{{"out", PortType::signal}};
 
 void register_basic_blocks(std::vector<BlockType>& out) {
     out.push_back({"wav", {}, kOneOut, {{"path", Kind::path, ""}}, [](const RunContext& ctx, std::span<const Value>, const Params& p) -> Out {
-                       auto file = io::read_wav(resolve(ctx, param_text(p, "path")));
+                       auto file = io::read_wav(resolve(ctx, param_text(p, "path")), ctx.progress);
                        if (!file) return std::unexpected{file.error()};
                        return std::vector<Value>{std::move(file->audio)};
                    }});
@@ -51,7 +51,7 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                     {"rate", Kind::integer, "44100", {}, 1, 768000},
                     {"duration", Kind::real, "1", {}, 0, 3600},
                     {"seed", Kind::integer, "1"}},
-                   [](const RunContext&, std::span<const Value>, const Params& p) -> Out {
+                   [](const RunContext& ctx, std::span<const Value>, const Params& p) -> Out {
                        const double rate = static_cast<double>(param_int(p, "rate"));
                        if (param_real(p, "duration") * rate > kMaxSamples)
                            return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.too_long")), fmt::arg("param", "duration"),
@@ -60,16 +60,17 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                        const auto& kind = param_text(p, "kind");
                        const double f = param_real(p, "freq"), a = param_real(p, "amplitude");
                        std::vector<double> x;
-                       if (kind == "sine") x = io::sine(f, a, 0.0, rate, n);
-                       else if (kind == "sweep") x = io::sweep(f, param_real(p, "f1"), io::SweepKind::logarithmic, rate, n);
+                       if (kind == "sine") x = io::sine(f, a, 0.0, rate, n, ctx.progress);
+                       else if (kind == "sweep") x = io::sweep(f, param_real(p, "f1"), io::SweepKind::logarithmic, rate, n, ctx.progress);
                        else if (kind == "impulse") x = io::impulse(n, 0);
                        else if (kind == "step") x = io::step(n, 0);
                        else if (kind == "white" || kind == "pink")
-                           x = io::noise(kind == "white" ? io::NoiseColor::white : io::NoiseColor::pink, a, n, static_cast<std::uint64_t>(param_int(p, "seed")));
+                           x = io::noise(kind == "white" ? io::NoiseColor::white : io::NoiseColor::pink, a, n, static_cast<std::uint64_t>(param_int(p, "seed")), ctx.progress);
                        else {
                            const std::vector<double> amplitudes{a, a / 2, a / 4, a / 8};
-                           x = io::harmonics(f, amplitudes, rate, n);
+                           x = io::harmonics(f, amplitudes, rate, n, ctx.progress);
                        }
+                       if (cancelled(ctx)) return core::make_error(core::Errc::cancelled, "gen: cancelled");
                        core::AudioBuffer buffer;
                        buffer.sample_rate = rate;
                        buffer.channels.push_back(std::move(x));

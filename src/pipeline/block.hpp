@@ -40,6 +40,21 @@ struct RunContext {
     core::ProgressSink* progress = nullptr;
 };
 
+class ScaledProgress final : public core::ProgressSink {
+public:
+    ScaledProgress(core::ProgressSink* outer, double base, double span) : outer_{outer}, base_{base}, span_{span} {}
+    void report(double fraction) override {
+        if (outer_) outer_->report(base_ + span_ * fraction);
+    }
+    bool cancelled() const override { return outer_ && outer_->cancelled(); }
+
+private:
+    core::ProgressSink* outer_;
+    double base_, span_;
+};
+
+inline bool cancelled(const RunContext& ctx) { return ctx.progress && ctx.progress->cancelled(); }
+
 using RunFn = std::function<core::Result<std::vector<Value>>(const RunContext&, std::span<const Value>, const Params&)>;
 
 struct BlockType {

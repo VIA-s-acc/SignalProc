@@ -800,5 +800,8 @@
   "tui.matrix.origin5": "C(h)·x = h ⊛ x (круговая)",
   "tui.matrix.origin6": "C(h) = F⁻¹ diag(ĥ) F → O(N log N)",
   "tui.matrix.origin7": "Тёплиц + Ганкель — симметричное",
-  "tui.matrix.origin8": "продолжение; Левинсон — O(N²)"
+  "tui.matrix.origin8": "продолжение; Левинсон — O(N²)",
+  "pipeline.run.cancelled": "запуск отменён",
+  "pipeline.run.node_failed": "строка {line}, узел {node}: {message}",
+  "pipeline.run.no_band": "у {node} нет полосы {band}"
 }

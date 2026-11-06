@@ -195,11 +195,15 @@ private:
     std::uniform_real_distribution<double> uniform_{0.0, 1.0};
 };
 
-core::Result<WavWriteReport> write_failed(drwav* wav, const std::filesystem::path& path, bool remove_file) {
+core::Result<WavWriteReport> write_failed(drwav* wav, const std::filesystem::path& temp, const std::filesystem::path& target) {
     if (wav) drwav_uninit(wav);
     std::error_code ignored;
-    if (remove_file) std::filesystem::remove(path, ignored);
-    return make_error(Errc::io_error, "cannot write WAV file: " + path.string());
+    std::filesystem::remove(temp, ignored);
+    return make_error(Errc::io_error, "cannot write WAV file: " + target.string());
+}
+
+std::filesystem::path partial_path(const std::filesystem::path& path) {
+    return path.parent_path() / ("." + path.filename().string() + ".partial");
 }
 
 }  // namespace
@@ -255,7 +259,7 @@ core::Result<WavFile> read_wav(const std::filesystem::path& path, core::Progress
 }
 
 core::Result<WavWriteReport> write_wav(const std::filesystem::path& path, const core::AudioBuffer& audio,
-                                       const WavWriteOptions& options) {
+                                       const WavWriteOptions& options, core::ProgressSink* progress) {
     const auto encoding = write_encoding(options.format);
     if (!encoding)
         return make_error(Errc::invalid_argument, "cannot write WAV as " + std::string{to_string(options.format)});
@@ -264,22 +268,36 @@ core::Result<WavWriteReport> write_wav(const std::filesystem::path& path, const 
     const auto nch = audio.channels.size();
     drwav_data_format format{drwav_container_riff, encoding->tag, static_cast<drwav_uint32>(nch),
                              static_cast<drwav_uint32>(audio.sample_rate), encoding->bits};
-    std::error_code ec;
-    const bool existed = std::filesystem::exists(path, ec);
+    const auto temp = partial_path(path);
     drwav wav;
-    if (!drwav_init_file_write(&wav, path.string().c_str(), &format, nullptr)) return write_failed(nullptr, path, !existed);
+    if (!drwav_init_file_write(&wav, temp.string().c_str(), &format, nullptr)) return write_failed(nullptr, temp, path);
 
     Quantizer quantizer{*encoding, options};
     const auto frames = audio.frames();
     std::vector<unsigned char> block(kBlockFrames * nch * quantizer.bytes());
     for (std::size_t start = 0; start < frames; start += kBlockFrames) {
+        if (progress && progress->cancelled()) {
+            drwav_uninit(&wav);
+            std::error_code ignored;
+            std::filesystem::remove(temp, ignored);
+            return make_error(Errc::cancelled, "write WAV: cancelled");
+        }
         const auto n = std::min<std::size_t>(kBlockFrames, frames - start);
         unsigned char* p = block.data();
         for (std::size_t f = start; f < start + n; ++f)
             for (std::size_t c = 0; c < nch; ++c, p += quantizer.bytes()) quantizer.encode(audio.channels[c][f], p);
-        if (drwav_write_pcm_frames(&wav, n, block.data()) != n) return write_failed(&wav, path, true);
+        if (drwav_write_pcm_frames(&wav, n, block.data()) != n) return write_failed(&wav, temp, path);
+        if (progress) progress->report(static_cast<double>(start + n) / static_cast<double>(frames));
     }
-    if (drwav_uninit(&wav) != DRWAV_SUCCESS) return write_failed(nullptr, path, true);
+    if (drwav_uninit(&wav) != DRWAV_SUCCESS) return write_failed(nullptr, temp, path);
+    if (progress && progress->cancelled()) {
+        std::error_code ignored;
+        std::filesystem::remove(temp, ignored);
+        return make_error(Errc::cancelled, "write WAV: cancelled");
+    }
+    std::error_code ec;
+    std::filesystem::rename(temp, path, ec);
+    if (ec) return write_failed(nullptr, temp, path);
     return WavWriteReport{quantizer.clipped()};
 }
 
