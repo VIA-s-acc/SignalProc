@@ -36,6 +36,7 @@ add_executable(signals_tests
   cli/test_cli_tui.cpp
   tui/test_harness.cpp
   tui/test_format.cpp
+  tui/test_list_window.cpp
   tui/test_theme.cpp
   tui/test_caps.cpp
   tui/test_pyramid.cpp

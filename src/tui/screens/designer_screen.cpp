@@ -16,6 +16,7 @@
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/plot.hpp"
 #include "tui/widgets/screen_util.hpp"
+#include "tui/widgets/list_window.hpp"
 #include "tui/widgets/text_util.hpp"
 
 namespace signals::tui {
@@ -147,7 +148,7 @@ ftxui::Element DesignerScreen::roots_panel(const DesignerData* d, const Designer
     return frame_panel(roots, body, {}, tr("tui.designer.roots"));
 }
 
-ftxui::Element DesignerScreen::splits_panel(const DesignerData* d) {
+ftxui::Element DesignerScreen::splits_panel(const DesignerData* d, int max_rows) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto f0_color = tint(th.trace[0], th.fg, 0.5);
@@ -167,7 +168,17 @@ ftxui::Element DesignerScreen::splits_panel(const DesignerData* d) {
                          text(pad_right(dots_f, 8)) | fg(f0_color, ui_),
                          clickable("zeros_less", text(" ◂ ") | fg(th.accent, ui_), [this, &jobs] { model_->zeros(-1, jobs); }),
                          clickable("zeros_more", text(" ▸ ") | fg(th.accent, ui_), [this, &jobs] { model_->zeros(1, jobs); })}));
-    for (std::size_t g = 0; g < d->f.groups.size(); ++g) {
+    constexpr int kFixedRows = 10;
+    const auto [first, shown] = list_window(groups_first_, d->f.groups.size(), std::max(3, max_rows - kFixedRows), 1,
+                                             follow_group_ ? std::optional{group_cursor_} : std::nullopt);
+    follow_group_ = false;
+    const auto more = [&](bool up, std::size_t count) {
+        return text(std::string{ascii ? (up ? "^ " : "v ") : (up ? "▲ " : "▼ ")} +
+                    fmt::format(fmt::runtime(tr("tui.theory.blocks_more")), fmt::arg("count", count))) |
+               fg(th.dim, ui_);
+    };
+    if (first > 0) rows.push_back(more(true, first));
+    for (std::size_t g = first; g < first + shown; ++g) {
         const auto& grp = d->f.groups[g];
         const bool in_h0 = g < s.group_in_h0.size() && s.group_in_h0[g];
         const int count = grp.conjugate_pair ? 2 : 1;
@@ -182,6 +193,7 @@ ftxui::Element DesignerScreen::splits_panel(const DesignerData* d) {
             model_->toggle_group(g, jobs);
         }));
     }
+    if (first + shown < d->f.groups.size()) rows.push_back(more(false, d->f.groups.size() - first - shown));
     std::string rule;
     for (int i = 0; i < 42; ++i) rule += glyph(Glyph::h, ui_.caps.glyphs);
     rows.push_back(text(rule) | fg(th.dim, ui_));
@@ -332,7 +344,7 @@ ftxui::Element DesignerScreen::OnRender() {
         focus_ = p;
         switch (p) {
         case roots: return roots_panel(d.get(), r.get());
-        case splits: return splits_panel(d.get());
+        case splits: return splits_panel(d.get(), height - 2);
         case result: return result_panel(r.get(), cols);
         case magnitude: return magnitude_panel(r.get());
         case phi: return cascade_panel(r.get(), false);
@@ -342,7 +354,7 @@ ftxui::Element DesignerScreen::OnRender() {
     }
     const int left = kLeft;
     const int roots_rows = height / 2 - 1;
-    auto left_column = vbox({roots_panel(d.get(), r.get()) | size(HEIGHT, EQUAL, roots_rows), text(""), splits_panel(d.get()) | flex});
+    auto left_column = vbox({roots_panel(d.get(), r.get()) | size(HEIGHT, EQUAL, roots_rows), text(""), splits_panel(d.get(), height - roots_rows - 3) | flex});
     const int result_rows = notice_.empty() ? 7 : 8;
     const int magnitude_rows = std::max(8, (height - result_rows - 2) / 2);
     auto right_column = vbox({result_panel(r.get(), cols - left - 1) | size(HEIGHT, EQUAL, result_rows), text(""),
@@ -386,6 +398,11 @@ bool DesignerScreen::OnEvent(ftxui::Event e) {
                 zplane_zoom_ = std::clamp(zplane_zoom_ * (m.button == ftxui::Mouse::WheelUp ? kWheelStep : 1 / kWheelStep), 1.0, 50.0);
                 return true;
             }
+            if (panel_boxes_[splits].Contain(m.x, m.y)) {
+                if (m.button == ftxui::Mouse::WheelDown) ++groups_first_;
+                else if (groups_first_ > 0) --groups_first_;
+                return true;
+            }
         }
         if (zoom_.on_mouse(m)) return true;
         if (m.button != ftxui::Mouse::Left || m.motion != ftxui::Mouse::Pressed) return false;
@@ -424,10 +441,10 @@ bool DesignerScreen::OnEvent(ftxui::Event e) {
     if (const auto d = model_->data(); d && !d->f.groups.empty()) {
         const auto n = d->f.groups.size();
         group_cursor_ = std::min(group_cursor_, n - 1);
-        if (e == Event::ArrowDown) return group_cursor_ = std::min(group_cursor_ + 1, n - 1), focus_ = splits, true;
-        if (e == Event::ArrowUp) return group_cursor_ = group_cursor_ > 0 ? group_cursor_ - 1 : 0, focus_ = splits, true;
-        if (e == Event::PageDown || e == Event::End) return group_cursor_ = e == Event::End ? n - 1 : std::min(group_cursor_ + 5, n - 1), focus_ = splits, true;
-        if (e == Event::PageUp || e == Event::Home) return group_cursor_ = e == Event::Home ? 0 : group_cursor_ - std::min<std::size_t>(group_cursor_, 5), focus_ = splits, true;
+        if (e == Event::ArrowDown) return follow_group_ = true, group_cursor_ = std::min(group_cursor_ + 1, n - 1), focus_ = splits, true;
+        if (e == Event::ArrowUp) return follow_group_ = true, group_cursor_ = group_cursor_ > 0 ? group_cursor_ - 1 : 0, focus_ = splits, true;
+        if (e == Event::PageDown || e == Event::End) return follow_group_ = true, group_cursor_ = e == Event::End ? n - 1 : std::min(group_cursor_ + 5, n - 1), focus_ = splits, true;
+        if (e == Event::PageUp || e == Event::Home) return follow_group_ = true, group_cursor_ = e == Event::Home ? 0 : group_cursor_ - std::min<std::size_t>(group_cursor_, 5), focus_ = splits, true;
         if (e == Event::Character(' ')) return model_->toggle_group(group_cursor_, jobs), true;
     }
     const auto flip = [&](bool Constraints::* field) {
