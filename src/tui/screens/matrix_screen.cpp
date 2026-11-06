@@ -68,9 +68,11 @@ void MatrixScreen::publish(theory::LiveValues& v) const {
 }
 
 std::vector<Hint> MatrixScreen::hints() const {
-    return {{"Tab", tr("tui.explain.hint.tab")},   {"↑↓", tr("tui.matrix.hint.row")},      {"Space", tr("tui.matrix.hint.animate")}, {"c", tr("tui.matrix.hint.numbers")},
+    return {{"Tab", tr("tui.explain.hint.tab")},   {"↑↓ PgUp PgDn Home End", tr("tui.matrix.hint.row")}, {"←→", tr("tui.matrix.hint.column")},
+            {"v/V", tr("tui.matrix.hint.operation")}, {"+ − 0 < >", tr("tui.hint.plot_zoom")},
+            {"Space", tr("tui.matrix.hint.animate")}, {"c", tr("tui.matrix.hint.numbers")},
             {"t", "AᵀA"},                           {"b", tr("tui.matrix.hint.edges")},       {"o", tr("tui.matrix.hint.order")},
-            {"+/−", "N"},                           {tr("tui.signal.key.click"), tr("tui.matrix.hint.cell")},
+            {"n/N", "N"},                           {tr("tui.signal.key.click"), tr("tui.matrix.hint.cell")},
             {"z", tr("tui.signal.hint.zoom")},      {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")},
             {"F1", tr("tui.matrix.hint.f1")}};
 }
@@ -224,15 +226,17 @@ ftxui::Element MatrixScreen::row_info(const MatrixData& d) {
     out.push_back(text(""));
     out.push_back(text(tr("tui.matrix.dot")) | fg(th.dim, ui_));
     const auto terms = model_->row_terms(r);
+    const std::size_t terms_limit = maximized_ ? terms.size() : 8;
     double total = 0;
     for (std::size_t i = 0; i < terms.size(); ++i) {
         total += terms[i].product;
-        if (i < 8)
+        if (i < terms_limit)
             out.push_back(text("  " + signed_fixed(terms[i].coef, 4) + " · x" + subscript_count(terms[i].column) + " (" + format_number(terms[i].x) + ")  = " +
                                signed_fixed(terms[i].product, 3)) |
                           fg(th.fg, ui_));
     }
-    if (terms.size() > 8) out.push_back(text(fmt::format(fmt::runtime(tr("tui.matrix.more_terms")), fmt::arg("n", terms.size() - 8))) | fg(th.dim, ui_));
+    if (terms.size() > terms_limit)
+        out.push_back(text(fmt::format(fmt::runtime(tr("tui.matrix.more_terms")), fmt::arg("n", terms.size() - terms_limit))) | fg(th.dim, ui_));
     out.push_back(hbox({text("  = "), text(signed_fixed(total, 4)) | bold | fg(th.accent, ui_),
                         text(r < d.outputs.size() ? "  = " + d.outputs[r] : std::string{}) | fg(th.dim, ui_)}));
     out.push_back(text(""));
@@ -270,7 +274,7 @@ ftxui::Element MatrixScreen::main_panel(const MatrixData* d, int width, int heig
                              fmt::arg("c1", c0 + nc - 1));
     const int info_width = 44;
     const int room_w = std::max(8, width - info_width - 10), room_h = std::max(2, height - 4);
-    const int scale = zoomed ? std::max(1, std::min(room_w / static_cast<int>(2 * nc), 2 * room_h / static_cast<int>(nr))) : 1;
+    const int scale = std::max(1, std::min(room_w / static_cast<int>(2 * nc), 2 * room_h / static_cast<int>(nr)));
     const int map_width = std::max(8, std::min(static_cast<int>(2 * nc) * scale, room_w));
     const bool fits_numbers = static_cast<int>(nc) <= max_numbers_n(width - info_width);
     Element map;
@@ -333,7 +337,7 @@ ftxui::Element MatrixScreen::main_panel(const MatrixData* d, int width, int heig
     return frame_panel(main, body, {{tr("tui.matrix.legend"), false}}, title);
 }
 
-ftxui::Element MatrixScreen::origin_panel(const MatrixData* d) {
+ftxui::Element MatrixScreen::origin_panel(const MatrixData* d, int width) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     Elements left{text(tr("tui.matrix.toeplitz")) | fg(th.dim, ui_)};
@@ -350,13 +354,17 @@ ftxui::Element MatrixScreen::origin_panel(const MatrixData* d) {
             }
             left.push_back(hbox(std::move(cells)));
         }
+    const int matrix_width = d ? static_cast<int>(d->toeplitz.cols()) * kNumberWidth : 0;
+    const bool stacked = width - 4 - matrix_width - 3 < 36;
     Elements right;
     for (const char* key : {"tui.matrix.origin1", "tui.matrix.origin2", "tui.matrix.origin3", "", "tui.matrix.origin4", "tui.matrix.origin5",
-                            "tui.matrix.origin6", "", "tui.matrix.origin7", "tui.matrix.origin8"})
-        right.push_back(*key ? text(tr(key)) | fg(std::string_view{key} == "tui.matrix.origin2" || std::string_view{key} == "tui.matrix.origin3" ? th.fg : th.dim, ui_)
-                             : text(""));
-    return frame_panel(origin, hbox({vbox(std::move(left)), text("   "), vbox(std::move(right)) | flex}), {{tr("tui.matrix.origin_chip"), false}},
-                       tr("tui.matrix.origin"));
+                            "tui.matrix.origin6", "", "tui.matrix.origin7", "tui.matrix.origin8"}) {
+        const bool strong = std::string_view{key} == "tui.matrix.origin2" || std::string_view{key} == "tui.matrix.origin3";
+        right.push_back(*key ? paragraph(tr(key)) | fg(strong ? th.fg : th.dim, ui_) : text(""));
+    }
+    auto body = stacked ? vbox({vbox(std::move(left)), text(""), vbox(std::move(right))})
+                        : hbox({vbox(std::move(left)), text("   "), vbox(std::move(right)) | flex});
+    return frame_panel(origin, body, {{tr("tui.matrix.origin_chip"), false}}, tr("tui.matrix.origin"));
 }
 
 ftxui::Element MatrixScreen::OnRender() {
@@ -388,7 +396,7 @@ ftxui::Element MatrixScreen::OnRender() {
         case controls: return controls_panel();
         case checks: return checks_panel(d.get());
         case main: return main_panel(d.get(), cols, height);
-        case origin: return origin_panel(d.get());
+        case origin: return origin_panel(d.get(), cols);
         case panel_count: break;
         }
     }
@@ -396,8 +404,16 @@ ftxui::Element MatrixScreen::OnRender() {
     const int origin_rows = 15;
     const int main_rows = std::max(8, height - origin_rows - 1);
     auto left = vbox({controls_panel(), text(""), checks_panel(d.get()) | flex});
-    auto right = vbox({main_panel(d.get(), main_width_, main_rows) | size(HEIGHT, EQUAL, main_rows), text(""), origin_panel(d.get()) | flex});
+    auto right = vbox({main_panel(d.get(), main_width_, main_rows) | size(HEIGHT, EQUAL, main_rows), text(""), origin_panel(d.get(), main_width_) | flex});
     return hbox({left | size(WIDTH, EQUAL, kLeftWidth), text(" "), right | flex});
+}
+
+void MatrixScreen::show_cell() {
+    const auto d = model_->data();
+    if (!d || d->m.size() == 0) return;
+    const auto r = std::min<std::size_t>(row_, static_cast<std::size_t>(d->m.rows() - 1));
+    const auto c = std::min<std::size_t>(col_, static_cast<std::size_t>(d->m.cols() - 1));
+    notice_ = fmt::format("A[{}, {}] = {}", r, c, signed_fixed(d->m(static_cast<Eigen::Index>(r), static_cast<Eigen::Index>(c)), 4));
 }
 
 bool MatrixScreen::OnEvent(ftxui::Event e) {
@@ -448,6 +464,7 @@ bool MatrixScreen::OnEvent(ftxui::Event e) {
             r = std::min(r, rows - 1);
             c = std::min(c, cols - 1);
             row_ = r;
+            col_ = c;
             drag_ = true;
             drag_x_ = m.x, drag_y_ = m.y;
             notice_ = fmt::format("A[{}, {}] = {}", r, c, signed_fixed(d->m(static_cast<Eigen::Index>(r), static_cast<Eigen::Index>(c)), 4));
@@ -468,11 +485,48 @@ bool MatrixScreen::OnEvent(ftxui::Event e) {
         maximized_.reset();
         return true;
     }
-    if (e == Event::ArrowDown) {
-        if (d && row_ + 1 < static_cast<std::size_t>(d->m.rows())) ++row_;
+    const auto rows = d ? static_cast<std::size_t>(d->m.rows()) : 0, cols = d ? static_cast<std::size_t>(d->m.cols()) : 0;
+    const auto move_row = [&](std::size_t r) {
+        if (rows == 0) return true;
+        row_ = std::min(r, rows - 1);
+        row_zoom_.show((static_cast<double>(row_) + 0.5) / static_cast<double>(rows));
+        show_cell();
+        return true;
+    };
+    if (e == Event::ArrowDown) return move_row(row_ + 1);
+    if (e == Event::ArrowUp) return move_row(row_ > 0 ? row_ - 1 : 0);
+    if (e == Event::PageDown) return move_row(row_ + 8);
+    if (e == Event::PageUp) return move_row(row_ > 8 ? row_ - 8 : 0);
+    if (e == Event::Home) return move_row(0);
+    if (e == Event::End) return move_row(rows > 0 ? rows - 1 : 0);
+    if ((e == Event::ArrowRight || e == Event::ArrowLeft) && cols > 0) {
+        col_ = e == Event::ArrowRight ? std::min(col_ + 1, cols - 1) : (col_ > 0 ? col_ - 1 : 0);
+        col_zoom_.show((static_cast<double>(col_) + 0.5) / static_cast<double>(cols));
+        show_cell();
         return true;
     }
-    if (e == Event::ArrowUp) return row_ = row_ > 0 ? row_ - 1 : 0, true;
+    if (e == Event::Character('+') || e == Event::Character('=') || e == Event::Character('-')) {
+        const double f = e == Event::Character('-') ? 1 / kWheelStep : kWheelStep;
+        row_zoom_.zoom(f, rows ? (static_cast<double>(row_) + 0.5) / static_cast<double>(rows) : 0.5);
+        col_zoom_.zoom(f, cols ? (static_cast<double>(col_) + 0.5) / static_cast<double>(cols) : 0.5);
+        return true;
+    }
+    if (e == Event::Character('>') || e == Event::Character('.')) return col_zoom_.pan_view(0.2), true;
+    if (e == Event::Character('<') || e == Event::Character(',')) return col_zoom_.pan_view(-0.2), true;
+    if (e == Event::Character('0')) {
+        row_zoom_.reset();
+        col_zoom_.reset();
+        return true;
+    }
+    if (e == Event::Character('v') || e == Event::Character('V')) {
+        constexpr std::array ops{MatrixOp::analysis, MatrixOp::multilevel, MatrixOp::convolution, MatrixOp::circulant, MatrixOp::synthesis_product};
+        auto k = model_->options();
+        const auto it = std::find(ops.begin(), ops.end(), k.op);
+        const auto i = static_cast<std::size_t>(it - ops.begin());
+        k.op = ops[e == Event::Character('v') ? (i + 1) % ops.size() : (i + ops.size() - 1) % ops.size()];
+        apply(k);
+        return true;
+    }
     if (e == Event::Character(' ')) {
         animate_ = !animate_;
         last_step_ = now();
@@ -498,13 +552,13 @@ bool MatrixScreen::OnEvent(ftxui::Event e) {
         apply(k);
         return true;
     }
-    if (e == Event::Character('+') || e == Event::Character('=')) {
+    if (e == Event::Character('n')) {
         auto k = model_->options();
-        k.n += 2;
+        k.n = std::min<std::size_t>(k.n + 2, 1024);
         apply(k);
         return true;
     }
-    if (e == Event::Character('-')) {
+    if (e == Event::Character('N')) {
         auto k = model_->options();
         k.n = k.n > 2 ? k.n - 2 : 2;
         apply(k);

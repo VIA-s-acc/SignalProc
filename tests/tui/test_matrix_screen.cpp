@@ -150,3 +150,40 @@ TEST_CASE("the wheel zooms into a block of the matrix and the menu resets it", "
     CHECK(f.screen->block().cols == 128);
     CHECK(f.h.frame().find("участок") == std::string::npos);
 }
+
+TEST_CASE("matrix keys change N, walk rows and columns, cycle the operation and zoom", "[tui][matrix]") {
+    MatrixFixture f;
+    const auto n = f.model->options().n;
+    CHECK(f.h.send(ftxui::Event::Character('n')));
+    CHECK(f.model->options().n == n + 2);
+    f.h.send(ftxui::Event::Character('N'));
+    CHECK(f.model->options().n == n);
+    f.h.frame();
+    f.h.send(ftxui::Event::End);
+    CHECK(f.screen->row() == static_cast<std::size_t>(f.model->data()->m.rows() - 1));
+    f.h.send(ftxui::Event::Home);
+    CHECK(f.screen->row() == 0);
+    f.h.send(ftxui::Event::PageDown);
+    CHECK(f.screen->row() > 1);
+    f.h.send(ftxui::Event::Home);
+    f.h.send(ftxui::Event::ArrowRight);
+    CHECK(f.h.frame().find("A[0, 1]") != std::string::npos);
+    const auto op = f.model->options().op;
+    CHECK(f.h.send(ftxui::Event::Character('v')));
+    CHECK(f.model->options().op != op);
+    f.h.send(ftxui::Event::Character('V'));
+    CHECK(f.model->options().op == op);
+    f.h.frame();
+    const auto full = f.screen->block();
+    CHECK(f.h.send(ftxui::Event::Character('+')));
+    f.h.frame();
+    CHECK(f.screen->block().rows < full.rows);
+    f.h.send(ftxui::Event::End);
+    f.h.frame();
+    const auto b = f.screen->block();
+    CHECK(f.screen->row() >= b.r0);
+    CHECK(f.screen->row() < b.r0 + b.rows);
+    f.h.send(ftxui::Event::Character('0'));
+    f.h.frame();
+    CHECK(f.screen->block().rows == full.rows);
+}
