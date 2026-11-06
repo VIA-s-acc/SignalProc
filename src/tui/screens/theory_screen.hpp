@@ -69,6 +69,8 @@ private:
     NavArgs view_args(const TheoryPage* page) const;
     void open_source();
     void clamp_scroll();
+    bool open_section_card();
+    ftxui::Element more_row(bool up, std::size_t count, int width, ftxui::Box& box) const;
 
     UiContext& ui_;
     std::shared_ptr<TheoryNavigator> nav_;
@@ -89,6 +91,12 @@ private:
     std::map<std::size_t, std::vector<theory::Block>> cache_;
     std::vector<theory::Block> card_blocks_;
     std::vector<std::pair<ftxui::Box, std::string>> block_boxes_;
+    ftxui::Box blocks_box_{}, blocks_up_box_{}, blocks_down_box_{}, card_link_box_{};
+    std::size_t blocks_first_ = 0, blocks_page_ = 1;
+    std::string blocks_followed_;
+    ftxui::Box toc_box_{}, toc_up_box_{}, toc_down_box_{};
+    std::size_t toc_first_ = 0, toc_page_ = 1;
+    std::string toc_followed_;
     bool fold_numbers_ = false;
     std::string notice_;
 };
