@@ -20,7 +20,8 @@ enum class GlyphMode { unicode, ascii };
 struct TerminalCaps {
     ColorDepth color = ColorDepth::ansi16;
     GlyphMode glyphs = GlyphMode::unicode;
-    std::string emulator;
+    std::string emulator = {};
+    bool no_color = false;
 };
 
 TerminalCaps detect_caps(const EnvLookup& env);

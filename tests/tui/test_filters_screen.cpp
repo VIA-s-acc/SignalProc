@@ -194,3 +194,19 @@ TEST_CASE("filters screen snapshots", "[tui][filters][snapshot]") {
         signals::test::check_snapshot("filters_" + std::to_string(w) + "x" + std::to_string(h), shell.frame());
     }
 }
+
+TEST_CASE("phase and delay panels read every visible trace at cursor A", "[tui][filters]") {
+    Fixture f;
+    REQUIRE(f.set->add({Kind::bank, "db2", FilterRole::h0}));
+    REQUIRE(f.set->add({Kind::bank, "db2", FilterRole::h1}));
+    f.screen->set_cursor_a(0.5);
+    const auto frame = Harness{f.screen, 150, 41}.frame();
+    const auto line = line_with(frame, "A: h₀ ");
+    REQUIRE_FALSE(line.empty());
+    CHECK(line.find("π") != std::string::npos);
+    CHECK(line.find("h₁ ") != std::string::npos);
+    std::size_t count = 0;
+    for (std::size_t at = line.find("A: h₀ "); at != std::string::npos; at = line.find("A: h₀ ", at + 1)) ++count;
+    CHECK(count == 2);
+    CHECK(frame.find("nan") == std::string::npos);
+}

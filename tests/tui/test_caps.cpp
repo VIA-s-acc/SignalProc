@@ -77,3 +77,12 @@ TEST_CASE("ascii glyphs have single-column replacements", "[tui][caps]") {
     CHECK(glyph(Glyph::ellipsis, GlyphMode::ascii) == "...");
     CHECK(glyph(Glyph::bullet_on, GlyphMode::unicode) == "◉");
 }
+
+TEST_CASE("NO_COLOR wins over saved preferences and must be non-empty", "[tui][caps]") {
+    CHECK(detect_caps(env({{"NO_COLOR", ""}, {"COLORTERM", "truecolor"}})).color == ColorDepth::truecolor);
+    const auto off = detect_caps(env({{"NO_COLOR", "1"}, {"COLORTERM", "truecolor"}}));
+    TerminalPrefs saved;
+    saved.color = ColorDepth::truecolor;
+    saved.checked = true;
+    CHECK(apply(off, saved).color == ColorDepth::none);
+}

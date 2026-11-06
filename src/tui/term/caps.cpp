@@ -61,7 +61,8 @@ TerminalCaps detect_caps(const EnvLookup& env) {
     caps.emulator = non_empty(env, "TERM_PROGRAM").value_or("");
     const auto term = non_empty(env, "TERM").value_or("");
     const auto colorterm = non_empty(env, "COLORTERM").value_or("");
-    if (env("NO_COLOR")) caps.color = ColorDepth::none;
+    caps.no_color = non_empty(env, "NO_COLOR").has_value();
+    if (caps.no_color) caps.color = ColorDepth::none;
     else if (term == "dumb") caps.color = ColorDepth::none;
     else if (colorterm == "truecolor" || colorterm == "24bit") caps.color = ColorDepth::truecolor;
     else if (term.find("256color") != std::string::npos || caps.emulator == "Apple_Terminal") caps.color = ColorDepth::palette256;
@@ -108,7 +109,7 @@ core::Result<void> save_prefs(const std::filesystem::path& path, const TerminalP
 }
 
 TerminalCaps apply(TerminalCaps caps, const TerminalPrefs& prefs) {
-    if (prefs.color) caps.color = *prefs.color;
+    if (prefs.color && !caps.no_color) caps.color = *prefs.color;
     if (prefs.glyphs) caps.glyphs = *prefs.glyphs;
     return caps;
 }

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -10,6 +11,7 @@
 #include <ftxui/dom/elements.hpp>
 
 #include "tui/shell/screen.hpp"
+#include "tui/term/caps.hpp"
 
 namespace signals::tui {
 
@@ -40,5 +42,6 @@ private:
 };
 
 void pop_codepoint(std::string& s);
+std::filesystem::path expand_path(std::string text, const EnvLookup& env = process_env());
 
 }  // namespace signals::tui

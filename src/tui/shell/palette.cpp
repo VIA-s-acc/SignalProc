@@ -145,4 +145,25 @@ ftxui::Element Palette::render(const UiContext& ui) const {
     return panel(tr("tui.palette.title"), {}, vbox(std::move(rows)) | size(WIDTH, GREATER_THAN, 60), true, ui);
 }
 
+std::filesystem::path expand_path(std::string text, const EnvLookup& env) {
+    const auto blank = [](char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; };
+    while (!text.empty() && blank(text.back())) text.pop_back();
+    std::size_t start = 0;
+    while (start < text.size() && blank(text[start])) ++start;
+    text.erase(0, start);
+    if (text.size() >= 2 && (text.front() == '\'' || text.front() == '"') && text.back() == text.front()) {
+        text = text.substr(1, text.size() - 2);
+    } else {
+        std::string plain;
+        for (std::size_t i = 0; i < text.size(); ++i) {
+            if (text[i] == '\\' && i + 1 < text.size()) ++i;
+            plain += text[i];
+        }
+        text = std::move(plain);
+    }
+    if (!text.empty() && text.front() == '~' && (text.size() == 1 || text[1] == '/'))
+        if (auto home = env("HOME")) text = *home + text.substr(1);
+    return text;
+}
+
 }  // namespace signals::tui

@@ -232,8 +232,7 @@ std::vector<FiltersScreen::Trace> FiltersScreen::traces() const {
     return out;
 }
 
-std::optional<double> FiltersScreen::value_at(const Trace& t, double w) const {
-    const auto& r = *t.response;
+std::optional<std::size_t> FiltersScreen::index_at(const core::FrequencyResponse& r, double w) const {
     if (r.omega.empty()) return std::nullopt;
     const double target = w * kPi;
     if (target < r.omega.front() - 1e-12 || target > r.omega.back() + (r.omega.size() > 1 ? r.omega[1] - r.omega[0] : 0)) return std::nullopt;
@@ -241,8 +240,34 @@ std::optional<double> FiltersScreen::value_at(const Trace& t, double w) const {
     std::size_t k = static_cast<std::size_t>(it - r.omega.begin());
     if (k >= r.omega.size()) k = r.omega.size() - 1;
     if (k > 0 && std::abs(r.omega[k - 1] - target) < std::abs(r.omega[k] - target)) --k;
-    if (decibels_) return r.magnitude_db[k] - (t.normalised ? t.peak_db : 0.0);
-    return r.magnitude[k] / (t.normalised && t.peak > 0 ? t.peak : 1.0);
+    return k;
+}
+
+std::optional<double> FiltersScreen::value_at(const Trace& t, double w) const {
+    const auto k = index_at(*t.response, w);
+    if (!k) return std::nullopt;
+    const auto& r = *t.response;
+    if (decibels_) return r.magnitude_db[*k] - (t.normalised ? t.peak_db : 0.0);
+    return r.magnitude[*k] / (t.normalised && t.peak > 0 ? t.peak : 1.0);
+}
+
+ftxui::Element FiltersScreen::cursor_line(const std::vector<Trace>& ts, const std::function<double(const Trace&, std::size_t)>& value,
+                                          const std::string& unit) const {
+    using namespace ftxui;
+    const auto& th = ui_.theme;
+    if (!cursor_a_) return text("");
+    bool same = true;
+    for (const auto& t : ts) same = same && t.entry->ref.wavelet == ts.front().entry->ref.wavelet;
+    Elements parts{text("A: ") | fg(th.accent, ui_)};
+    for (const auto& t : ts) {
+        auto label = t.entry->ref.label();
+        if (same) label = label.substr(0, label.find(' '));
+        const auto k = index_at(*t.response, *cursor_a_);
+        const double v = k ? value(t, *k) : std::numeric_limits<double>::quiet_NaN();
+        parts.push_back(text(label + " ") | fg(t.color, ui_));
+        parts.push_back(text(format_fixed(v, 2) + (std::isfinite(v) ? unit : std::string{}) + "  ") | fg(th.fg, ui_));
+    }
+    return hbox(std::move(parts));
 }
 
 PlotSpec FiltersScreen::frequency_spec() const {
@@ -519,7 +544,15 @@ ftxui::Element FiltersScreen::phase_panel() {
     if (hi - lo < 0.1) lo -= 0.05, hi += 0.05;
     const double mid = (lo + hi) / 2, half = (hi - lo) / 2 * 1.08 * phase_zoom_;
     spec.y = {mid - half, mid + half};
-    return frame_panel(phase, plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | reflect(plot_boxes_[1]), {}, tr("tui.filters.phase"));
+    auto readout = cursor_line(
+        ts,
+        [](const Trace& t, std::size_t k) {
+            const auto& r = *t.response;
+            return r.magnitude[k] < kMaskRelative * t.peak ? std::numeric_limits<double>::quiet_NaN() : r.phase_unwrapped[k] / kPi;
+        },
+        "π");
+    return frame_panel(phase, vbox({plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | reflect(plot_boxes_[1]) | flex, readout}), {},
+                       tr("tui.filters.phase"));
 }
 
 ftxui::Element FiltersScreen::delay_panel() {
@@ -548,7 +581,15 @@ ftxui::Element FiltersScreen::delay_panel() {
     if (!std::isfinite(hi)) hi = 1;
     if (hi - lo < 1) hi = lo + 1;
     spec.y = {lo, lo + (hi - lo) * 1.1 * delay_zoom_};
-    return frame_panel(delay, plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | reflect(plot_boxes_[2]), {}, tr("tui.filters.delay"));
+    auto readout = cursor_line(
+        ts,
+        [](const Trace& t, std::size_t k) {
+            const auto& r = *t.response;
+            return r.magnitude[k] < kMaskRelative * t.peak ? std::numeric_limits<double>::quiet_NaN() : r.group_delay[k];
+        },
+        "");
+    return frame_panel(delay, vbox({plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | reflect(plot_boxes_[2]) | flex, readout}), {},
+                       tr("tui.filters.delay"));
 }
 
 ftxui::Element FiltersScreen::impulse_panel(int width) {

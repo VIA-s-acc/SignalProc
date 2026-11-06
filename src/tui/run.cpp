@@ -40,7 +40,7 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme) {
     ui.resources = [&monitor] { return monitor.latest(); };
     ui.history = [&monitor] { return monitor.history(); };
     ui.prefs_file = prefs_path(env);
-    ui.first_run_check = prefs && !prefs->checked;
+    ui.first_run_check = !prefs || !prefs->checked;
     ui.open_file = [signal, &jobs](const std::filesystem::path& path) { signal->open(path, jobs); };
     auto screens = placeholder_screens(ui);
     screens[0] = make_signal_screen(ui, signal);

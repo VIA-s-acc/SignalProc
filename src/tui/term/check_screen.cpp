@@ -8,6 +8,13 @@ namespace signals::tui {
 
 bool TerminalCheck::on_event(const ftxui::Event& e, UiContext& ui) {
     if (e == ftxui::Event::Escape) {
+        if (ui.first_run_check && !ui.prefs_file.empty()) {
+            auto prefs = load_prefs(ui.prefs_file);
+            TerminalPrefs keep = prefs ? *prefs : TerminalPrefs{};
+            keep.checked = true;
+            (void)save_prefs(ui.prefs_file, keep);
+            ui.first_run_check = false;
+        }
         close();
         return true;
     }
@@ -24,6 +31,7 @@ bool TerminalCheck::on_event(const ftxui::Event& e, UiContext& ui) {
             status_ = tr("tui.check.nowhere");
         } else {
             auto saved = save_prefs(ui.prefs_file, {ui.caps.color, ui.caps.glyphs, true});
+            if (saved) ui.first_run_check = false;
             status_ = saved ? tr("tui.check.saved") + ui.prefs_file.string() : saved.error().message;
         }
     }

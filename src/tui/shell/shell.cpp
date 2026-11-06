@@ -142,7 +142,7 @@ public:
 private:
     void ask_open_file() {
         palette_.ask_path(tr("tui.cmd.open_prompt"), [this](std::string path) {
-            if (ui_.open_file) ui_.open_file(path);
+            if (ui_.open_file) ui_.open_file(expand_path(path));
         });
     }
 

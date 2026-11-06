@@ -146,3 +146,30 @@ TEST_CASE("overlay snapshots", "[tui][snapshot]") {
         signals::test::check_snapshot("overlay_resources_150x44", r.h.frame());
     }
 }
+
+TEST_CASE("closing the first-run check with Esc stops it reappearing", "[tui][caps]") {
+    auto ui = signals::test::make_ui(150, 44);
+    const auto dir = signals::test::temp_path("xdg-first-run");
+    std::filesystem::remove_all(dir);
+    ui->prefs_file = dir / "signals" / "terminal.toml";
+    ui->first_run_check = true;
+    Rig r{ui};
+    REQUIRE(r.h.frame().find("⣿") != std::string::npos);
+    r.h.send(ftxui::Event::Escape);
+    const auto prefs = load_prefs(ui->prefs_file);
+    REQUIRE(prefs);
+    CHECK(prefs->checked);
+    CHECK_FALSE(prefs->color);
+    CHECK_FALSE(prefs->glyphs);
+}
+
+TEST_CASE("typed and dropped paths are expanded", "[tui][palette]") {
+    const EnvLookup home = [](std::string_view k) -> std::optional<std::string> {
+        return k == "HOME" ? std::optional<std::string>{"/u"} : std::nullopt;
+    };
+    CHECK(expand_path("  '~/My Music/a b.wav'  ", home) == std::filesystem::path{"/u/My Music/a b.wav"});
+    CHECK(expand_path("\"/q/a.wav\"", home) == std::filesystem::path{"/q/a.wav"});
+    CHECK(expand_path("/x/a\\ b\\(1\\).wav ", home) == std::filesystem::path{"/x/a b(1).wav"});
+    CHECK(expand_path("~", home) == std::filesystem::path{"/u"});
+    CHECK(expand_path("a.wav", home) == std::filesystem::path{"a.wav"});
+}

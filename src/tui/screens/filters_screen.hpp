@@ -100,6 +100,9 @@ private:
     std::string legend_mark(std::size_t index) const;
     const ComparisonSet::Entry* focused() const;
     std::optional<double> value_at(const Trace& t, double w) const;
+    std::optional<std::size_t> index_at(const core::FrequencyResponse& r, double w) const;
+    ftxui::Element cursor_line(const std::vector<Trace>& ts, const std::function<double(const Trace&, std::size_t)>& value,
+                               const std::string& unit) const;
 
     void add(const FilterRef& ref);
     void zoom(double factor, double anchor);
