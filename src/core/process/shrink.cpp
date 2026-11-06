@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
+#include <utility>
 
 #include "core/design/families.hpp"
 #include "core/metrics.hpp"
@@ -92,6 +93,19 @@ Result<std::vector<double>> edit_bands(std::span<const double> x, const FilterBa
     for (std::size_t b = 0; b < coeffs->bands.size(); ++b)
         for (double& c : coeffs->bands[b]) c *= gains[b];
     return waverec<double>(*coeffs, bank, options);
+}
+
+std::size_t keep_largest(std::vector<std::vector<double>>& bands, double fraction, std::size_t first_band) {
+    std::vector<std::pair<std::size_t, std::size_t>> where;
+    for (std::size_t b = first_band; b < bands.size(); ++b)
+        for (std::size_t i = 0; i < bands[b].size(); ++i) where.emplace_back(b, i);
+    const auto total = where.size();
+    const auto keep = std::min(total, static_cast<std::size_t>(std::ceil(std::clamp(fraction, 0.0, 1.0) * static_cast<double>(total))));
+    std::stable_sort(where.begin(), where.end(), [&](const auto& x, const auto& y) {
+        return std::abs(bands[x.first][x.second]) > std::abs(bands[y.first][y.second]);
+    });
+    for (std::size_t k = keep; k < total; ++k) bands[where[k].first][where[k].second] = 0.0;
+    return keep;
 }
 
 }  // namespace signals::core

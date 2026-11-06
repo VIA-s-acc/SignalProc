@@ -11,6 +11,7 @@ add_executable(signals_tests
   core/test_wavedec.cpp
   core/test_maxflat.cpp
   core/test_regularity.cpp
+  core/test_cascade.cpp
   core/test_split.cpp
   core/test_daubechies.cpp
   core/test_families.cpp

@@ -92,3 +92,22 @@ TEST_CASE("nan in a matrix never passes a matrix check", "[matrix]") {
     CHECK_FALSE(check_orthogonal_matrix(a, 1e-12).passed());
     CHECK_FALSE(check_left_inverse(Eigen::MatrixXd::Identity(8, 8), a, 1e-12).passed());
 }
+
+TEST_CASE("orthogonal analysis matrices have unit singular values", "[core][matrix]") {
+    auto a = analysis_matrix(*wavelet("db2"), 32, {Extension::periodization});
+    REQUIRE(a);
+    auto s = singular_values(*a);
+    REQUIRE(s.size() == 32);
+    CHECK(std::abs(s.front() - 1) < 1e-12);
+    CHECK(std::abs(s.back() - 1) < 1e-12);
+    CHECK(condition_number(s) == Catch::Approx(1).margin(1e-12));
+}
+
+TEST_CASE("singular values are sorted and a singular matrix has infinite condition", "[core][matrix]") {
+    Eigen::MatrixXd m(2, 2);
+    m << 3, 0, 0, 0;
+    auto s = singular_values(m);
+    CHECK(s == std::vector<double>{3, 0});
+    CHECK(std::isinf(condition_number(s)));
+    CHECK(std::isinf(condition_number(std::vector<double>{})));
+}
