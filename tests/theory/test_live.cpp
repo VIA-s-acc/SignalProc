@@ -25,8 +25,9 @@ TEST_CASE("substitution formats checks and marks missing values", "[theory][live
     CHECK(substitute("{{check.parseval}}", v, Context::prose, num).find("порог") != std::string::npos);
     CHECK(substitute("{{ block.levels }}", v, Context::prose, num) == "—");
     CHECK(substitute("{{check.parseval}}", LiveValues{}, Context::prose, num) == "— нет данных");
-    CHECK(substitute("x = {{check.round_trip}}", v, Context::math, num) == "x = tiny");
-    CHECK(substitute("a {{block.n}} b", LiveValues{}, Context::math, num) == "a — b");
+    CHECK(substitute("x = {{check.round_trip}}", v, Context::math, num) == "x = \\text{tiny}");
+    CHECK(substitute("a {{block.n}} b", LiveValues{}, Context::math, num) == "a \\text{—} b");
+    CHECK(substitute("N = {{block.n}}", v, Context::math, num) == "N = \\text{450 686}");
     CHECK(placeholders("{{a}} и {{ b.c }} {{a}}") == std::vector<std::string>{"a", "b.c"});
 }
 

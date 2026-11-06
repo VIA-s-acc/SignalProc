@@ -51,10 +51,15 @@ std::string substitute(std::string_view text, const LiveValues& v, Context c, co
         out += text.substr(at, i - at);
         const auto name = trim(text.substr(i + 2, close - i - 2));
         const auto* value = v.find(name);
-        if (value && value->check) {
+        if (c == Context::math) {
+            const auto shown = value && value->check ? number(value->check->value) : value ? value->text : std::string{"—"};
+            std::string safe = shown;
+            std::replace(safe.begin(), safe.end(), '{', '(');
+            std::replace(safe.begin(), safe.end(), '}', ')');
+            out += "\\text{" + safe + "}";
+        } else if (value && value->check) {
             const auto& r = *value->check;
-            if (c == Context::math) out += number(r.value);
-            else if (r.passed()) out += "✓ " + number(r.value);
+            if (r.passed()) out += "✓ " + number(r.value);
             else out += "✗ " + number(r.value) + " (" + fmt::format(fmt::runtime(tr("theory.threshold")), fmt::arg("value", number(r.tolerance))) + ")";
         } else if (value) {
             out += value->text;

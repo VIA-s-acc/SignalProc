@@ -328,6 +328,7 @@
   "tui.menu.whole_signal": "Весь сигнал",
   "tui.menu.reset_zoom": "Сбросить масштаб",
   "theory.no_data": "— нет данных",
+  "tui.doc.bad_formula": "формула не разобрана: {message}",
   "theory.threshold": "порог {value}",
   "theory.card.purpose": "Назначение",
   "theory.card.formulas": "Формулы",

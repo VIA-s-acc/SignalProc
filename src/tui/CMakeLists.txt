@@ -11,6 +11,7 @@ add_library(signals_tui STATIC
   widgets/bank_diagram.cpp
   widgets/plot.cpp
   widgets/axis_zoom.cpp
+  widgets/document.cpp
   widgets/heatmap.cpp
   widgets/zplane.cpp
   theme/theme.cpp
@@ -53,7 +54,7 @@ add_library(signals_tui STATIC
 target_include_directories(signals_tui PUBLIC ${PROJECT_SOURCE_DIR}/src)
 find_package(Threads REQUIRED)
 target_link_libraries(signals_tui
-  PUBLIC signals_core signals_io signals_audio signals_i18n ftxui::component ftxui::dom ftxui::screen Threads::Threads
+  PUBLIC signals_core signals_io signals_audio signals_i18n signals_theory ftxui::component ftxui::dom ftxui::screen Threads::Threads
   PRIVATE tomlplusplus::tomlplusplus fmt::fmt)
 signals_configure_target(signals_tui)
 if(APPLE)
