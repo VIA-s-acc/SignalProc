@@ -34,6 +34,9 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme) {
         const auto d = ftxui::Terminal::Size();
         return std::pair{d.dimx, d.dimy};
     };
+    ui.user_filters = user_filters_dir(env);
+    const auto library = load_user_banks(ui.user_filters);
+    set_user_banks(library.banks);
     auto signal = std::make_shared<SignalModel>();
     for (const auto& e : library.errors)
         signal->add_log(fmt::format(fmt::runtime(tr("tui.user_filters.broken")), fmt::arg("error", e)), LogLine::warn);
@@ -51,9 +54,6 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme) {
     ui.resources = [&monitor] { return monitor.latest(); };
     ui.history = [&monitor] { return monitor.history(); };
     ui.prefs_file = prefs_path(env);
-    ui.user_filters = user_filters_dir(env);
-    const auto library = load_user_banks(ui.user_filters);
-    set_user_banks(library.banks);
     ui.first_run_check = !prefs || !prefs->checked;
     ui.open_file = [signal, &jobs](const std::filesystem::path& path) { signal->open(path, jobs); };
     auto screens = placeholder_screens(ui);
