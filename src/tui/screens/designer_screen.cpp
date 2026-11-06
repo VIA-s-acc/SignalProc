@@ -32,14 +32,6 @@ std::string coefficients(const core::Laurent& h) {
     return out;
 }
 
-std::string clip_text(const std::string& s, int width) {
-    const auto cps = split_codepoints(s);
-    if (static_cast<int>(cps.size()) <= width) return s;
-    std::string out;
-    for (int i = 0; i + 1 < width; ++i) out += cps[static_cast<std::size_t>(i)];
-    return out + "…";
-}
-
 std::string root_text(const core::RootGroup& g) {
     const double re = static_cast<double>(g.root.re), im = static_cast<double>(g.root.im);
     std::string s = format_fixed(re, 3);
@@ -96,12 +88,15 @@ void DesignerScreen::publish(theory::LiveValues& v) const {
 std::string DesignerScreen::tab_label() const { return tr("tui.sub.designer"); }
 
 std::vector<Hint> DesignerScreen::hints() const {
-    return {{tr("tui.signal.key.click"), tr("tui.designer.hint.click")}, {"←→", tr("tui.designer.hint.zeros")},
-            {"n/N", tr("tui.designer.hint.next")},                        {"+/−", "p"},
-            {"c", tr("tui.designer.hint.cascade")},                       {"x", tr("tui.designer.hint.swap")},
-            {"Enter", tr("tui.designer.hint.save")},                      {"Tab", tr("tui.explain.hint.tab")},
-            {"z", tr("tui.signal.hint.zoom")},                            {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")},
-            {"F1", tr("tui.designer.hint.f1")}};
+    return {{"Tab", tr("tui.explain.hint.tab")},           {"z", tr("tui.signal.hint.zoom")},
+            {"←→", tr("tui.designer.hint.zeros")},        {"n/N", tr("tui.designer.hint.next")},
+            {"↑↓ PgUp PgDn", tr("tui.designer.hint.group")}, {"Space", tr("tui.designer.hint.toggle")},
+            {"l o w", tr("tui.designer.hint.constraints")}, {"r", tr("tui.designer.hint.preset")},
+            {"p/P", "p"},                                 {"+ − 0", tr("tui.hint.plot_zoom")},
+            {"< >", tr("tui.hint.plot_pan")},             {"c", tr("tui.designer.hint.cascade")},
+            {"x", tr("tui.designer.hint.swap")},          {"Enter", tr("tui.designer.hint.save")},
+            {"F1", tr("tui.designer.hint.f1")},           {tr("tui.signal.key.click"), tr("tui.designer.hint.click")},
+            {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")}};
 }
 
 std::string DesignerScreen::context() const {
@@ -180,9 +175,12 @@ ftxui::Element DesignerScreen::splits_panel(const DesignerData* d) {
         for (int i = 0; i < count; ++i) marks += in_h0 ? full : hollow;
         auto where = in_h0 ? text(marks + " " + tr("tui.designer.in_h0")) | fg(th.trace[0], ui_)
                            : text(std::string(10, ' ') + marks + " " + tr("tui.designer.in_f0")) | fg(f0_color, ui_);
-        rows.push_back(clickable("group_" + std::to_string(g),
-                                 hbox({text(pad_right(root_text(grp), 20) + pad_right(std::to_string(count), 5)), where}),
-                                 [this, g, &jobs] { model_->toggle_group(g, jobs); }));
+        auto row = hbox({text(pad_right(root_text(grp), 20) + pad_right(std::to_string(count), 5)), where, filler()});
+        if (g == group_cursor_ && focus_ == splits) row = row | bg(tint(th.bg, th.accent, 0.3), ui_);
+        rows.push_back(clickable("group_" + std::to_string(g), row, [this, g, &jobs] {
+            group_cursor_ = g;
+            model_->toggle_group(g, jobs);
+        }));
     }
     std::string rule;
     for (int i = 0; i < 42; ++i) rule += glyph(Glyph::h, ui_.caps.glyphs);
@@ -226,12 +224,11 @@ ftxui::Element DesignerScreen::splits_panel(const DesignerData* d) {
     return frame_panel(splits, vbox(std::move(rows)), std::move(chips), tr("tui.designer.splits"));
 }
 
-ftxui::Element DesignerScreen::result_panel(const DesignerResult* r, int width) {
+ftxui::Element DesignerScreen::result_panel(const DesignerResult* r, int) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     if (!r) return frame_panel(result, text(tr("tui.designer.computing")) | fg(th.dim, ui_), {}, tr("tui.designer.result_empty"));
     const auto ok = std::string{glyph(Glyph::check, ui_.caps.glyphs)}, bad = std::string{glyph(Glyph::cross, ui_.caps.glyphs)};
-    const int room = std::max(10, width - 8);
     const auto h0 = core::trim(r->bank.h0, 0.0), f0 = core::trim(r->bank.f0, 0.0);
     const double pr = std::max(r->pr.alias.value, r->pr.distortion.value);
     const bool pr_ok = r->pr.alias.passed() && r->pr.distortion.passed() && r->delay;
@@ -245,8 +242,8 @@ ftxui::Element DesignerScreen::result_panel(const DesignerResult* r, int width) 
     if (r->info.wavelet) note = tr("tui.designer.note.wavelet");
     else note = fmt::format(fmt::runtime(tr("tui.designer.note.diverges")),
                             fmt::arg("filter", converges(r->info.sobolev_h0) ? "F₀" : "H₀"));
-    Elements rows{hbox({text("h₀ ") | fg(th.trace[0], ui_), text(clip_text(coefficients(h0), room)) | fg(th.fg, ui_)}),
-                  hbox({text("f₀ ") | fg(tint(th.trace[0], th.fg, 0.5), ui_), text(clip_text(coefficients(f0), room)) | fg(th.fg, ui_)}),
+    Elements rows{hbox({text("h₀ ") | fg(th.trace[0], ui_), paragraph(coefficients(h0)) | fg(th.fg, ui_) | flex}),
+                  hbox({text("f₀ ") | fg(tint(th.trace[0], th.fg, 0.5), ui_), paragraph(coefficients(f0)) | fg(th.fg, ui_) | flex}),
                   text(tr("tui.designer.convention")) | fg(th.dim, ui_), line(checks, ui_), text(note) | fg(th.dim, ui_)};
     if (!notice_.empty()) rows.push_back(text(notice_) | fg(th.accent, ui_));
     const auto chip = fmt::format(fmt::runtime(tr("tui.designer.lengths")), fmt::arg("delay", r->delay ? std::to_string(*r->delay) : "—"),
@@ -424,8 +421,40 @@ bool DesignerScreen::OnEvent(ftxui::Event e) {
     if (e == Event::ArrowLeft) return model_->zeros(-1, jobs), true;
     if (e == Event::Character('n')) return model_->step(1, jobs), true;
     if (e == Event::Character('N')) return model_->step(-1, jobs), true;
-    if (e == Event::Character('+') || e == Event::Character('=')) return model_->set_p(model_->p() + 1, jobs), true;
-    if (e == Event::Character('-')) return model_->set_p(model_->p() - 1, jobs), true;
+    if (const auto d = model_->data(); d && !d->f.groups.empty()) {
+        const auto n = d->f.groups.size();
+        group_cursor_ = std::min(group_cursor_, n - 1);
+        if (e == Event::ArrowDown) return group_cursor_ = std::min(group_cursor_ + 1, n - 1), focus_ = splits, true;
+        if (e == Event::ArrowUp) return group_cursor_ = group_cursor_ > 0 ? group_cursor_ - 1 : 0, focus_ = splits, true;
+        if (e == Event::PageDown || e == Event::End) return group_cursor_ = e == Event::End ? n - 1 : std::min(group_cursor_ + 5, n - 1), focus_ = splits, true;
+        if (e == Event::PageUp || e == Event::Home) return group_cursor_ = e == Event::Home ? 0 : group_cursor_ - std::min<std::size_t>(group_cursor_, 5), focus_ = splits, true;
+        if (e == Event::Character(' ')) return model_->toggle_group(group_cursor_, jobs), true;
+    }
+    const auto flip = [&](bool Constraints::* field) {
+        auto k = model_->constraints();
+        k.*field = !(k.*field);
+        model_->set_constraints(k, jobs);
+        return true;
+    };
+    if (e == Event::Character('l')) return flip(&Constraints::linear_phase);
+    if (e == Event::Character('o')) return flip(&Constraints::orthogonal);
+    if (e == Event::Character('w')) return flip(&Constraints::wavelet_only);
+    if (e == Event::Character('r')) {
+        constexpr std::array presets{Preset::daubechies, Preset::max_phase, Preset::cdf, Preset::degenerate};
+        preset_index_ = (preset_index_ + 1) % presets.size();
+        model_->preset(presets[preset_index_], jobs);
+        return true;
+    }
+    if (e == Event::Character('p')) return model_->set_p(model_->p() + 1, jobs), true;
+    if (e == Event::Character('P')) return model_->set_p(model_->p() - 1, jobs), true;
+    if (focus_ == magnitude && zoom_.on_key(e, "magnitude")) return true;
+    if (focus_ == phi && zoom_.on_key(e, "phi")) return true;
+    if (focus_ == phi_dual && zoom_.on_key(e, "phi_dual")) return true;
+    if (focus_ == roots) {
+        if (e == Event::Character('+') || e == Event::Character('=')) return zplane_zoom_ = std::min(50.0, zplane_zoom_ * kWheelStep), true;
+        if (e == Event::Character('-')) return zplane_zoom_ = std::max(1.0, zplane_zoom_ / kWheelStep), true;
+        if (e == Event::Character('0')) return zplane_zoom_ = 1.0, true;
+    }
     if (e == Event::Character('x')) return model_->swap(jobs), true;
     if (e == Event::Character('c')) {
         const int next = model_->cascade_iterations() + 1;
@@ -433,9 +462,12 @@ bool DesignerScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (e == Event::Return) return save(), true;
-    if (e == Event::Tab) {
-        if (breakpoint_ <= Breakpoint::small && !maximized_) layout_.next_panel(panel_count);
-        else focus_ = static_cast<Panel>((focus_ + 1) % panel_count);
+    if (e == Event::Tab || e == Event::TabReverse) {
+        const bool back = e == Event::TabReverse;
+        const std::size_t step = back ? panel_count - 1 : 1;
+        if (maximized_) maximized_ = focus_ = static_cast<Panel>((*maximized_ + step) % panel_count);
+        else if (breakpoint_ <= Breakpoint::small) layout_.next_panel(panel_count, back);
+        else focus_ = static_cast<Panel>((focus_ + step) % panel_count);
         return true;
     }
     return false;
@@ -504,6 +536,12 @@ std::vector<MenuItem> DesignerScreen::context_menu(int x, int y) {
                      [this, g] { model_->toggle_group(g, *ui_.jobs); }}};
         }
     return {};
+}
+
+std::optional<std::pair<int, int>> DesignerScreen::menu_anchor() const {
+    const auto& b = panel_boxes_[static_cast<std::size_t>(focus_)];
+    if (b.x_max < b.x_min) return std::nullopt;
+    return std::pair{(b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2};
 }
 
 std::shared_ptr<TabScreen> make_designer_screen(UiContext& ui, std::shared_ptr<DesignerModel> model) {

@@ -31,7 +31,7 @@ public:
     void toggle_maximize(const std::string& panel);
     const std::optional<std::string>& maximized() const { return maximized_; }
 
-    void next_panel(std::size_t count);
+    void next_panel(std::size_t count, bool back = false);
     std::size_t small_index() const { return small_index_; }
 
 private:

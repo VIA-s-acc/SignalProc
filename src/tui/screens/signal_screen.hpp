@@ -37,6 +37,7 @@ public:
     ftxui::Box area(std::string_view id) const;
     Axis plot_axis(std::string_view id) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::optional<std::pair<int, int>> menu_anchor() const override;
     std::vector<JumpTarget> jump_targets() const override;
     std::optional<double> playhead() const;
 

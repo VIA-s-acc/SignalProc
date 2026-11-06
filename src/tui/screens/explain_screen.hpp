@@ -41,6 +41,7 @@ public:
     ftxui::Box area(std::string_view id) const;
     Axis plot_axis(std::string_view id) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::optional<std::pair<int, int>> menu_anchor() const override;
 
 private:
     enum Panel { scheme, steps, story, matrix, freq, p0, panel_count };
@@ -75,6 +76,7 @@ private:
     Panel focus_ = scheme;
     std::optional<Panel> maximized_;
     PlotZoom zoom_;
+    float story_scroll_ = 0;
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::array<ftxui::Box, 12> step_boxes_{};
     std::array<ftxui::Box, 4> bank_boxes_{};

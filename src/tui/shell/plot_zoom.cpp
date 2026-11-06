@@ -61,6 +61,19 @@ bool PlotZoom::on_mouse(const ftxui::Mouse& m) {
     return true;
 }
 
+bool PlotZoom::on_key(const ftxui::Event& e, std::string_view id) {
+    using ftxui::Event;
+    const auto it = plots_.find(id);
+    if (it == plots_.end()) return false;
+    auto& z = it->second.zoom;
+    if (e == Event::Character('+') || e == Event::Character('=')) return z.zoom_center(kWheelStep), true;
+    if (e == Event::Character('-')) return z.zoom_center(1 / kWheelStep), true;
+    if (e == Event::Character('>') || e == Event::Character('.')) return z.pan_view(0.2), true;
+    if (e == Event::Character('<') || e == Event::Character(',')) return z.pan_view(-0.2), true;
+    if (e == Event::Character('0')) return z.reset(), true;
+    return false;
+}
+
 bool PlotZoom::press(int x, int y) {
     drag_ = under(x, y);
     drag_x_ = x;

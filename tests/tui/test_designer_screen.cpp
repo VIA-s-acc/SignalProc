@@ -125,7 +125,7 @@ TEST_CASE("enter saves the bank and the filters library lists it", "[tui][design
 
 TEST_CASE("larger p keeps every root inside the z-plane", "[tui][designer]") {
     DesignerFixture f;
-    for (int i = 0; i < 3; ++i) f.h.send(ftxui::Event::Character('+'));
+    for (int i = 0; i < 3; ++i) f.h.send(ftxui::Event::Character('p'));
     CHECK(f.model->p() == 6);
     f.h.frame();
     const auto area = f.screen->area("roots");
@@ -222,4 +222,48 @@ TEST_CASE("dragging a zoomed designer plot pans it", "[tui][designer][zoom]") {
     const auto after = f.screen->plot_axis("magnitude");
     CHECK(after.lo > before.lo);
     CHECK(after.hi - after.lo == Catch::Approx(before.hi - before.lo));
+}
+
+TEST_CASE("plus, minus, brackets and zero drive the focused designer plot, p and P change p", "[tui][designer]") {
+    DesignerFixture f;
+    for (int i = 0; i < 3; ++i) f.h.send(ftxui::Event::Tab);
+    f.h.frame();
+    const auto full = f.screen->plot_axis("magnitude");
+    CHECK(f.h.send(ftxui::Event::Character('+')));
+    f.h.frame();
+    const auto zoomed = f.screen->plot_axis("magnitude");
+    CHECK(zoomed.hi - zoomed.lo < full.hi - full.lo);
+    f.h.send(ftxui::Event::Character('>'));
+    f.h.frame();
+    CHECK(f.screen->plot_axis("magnitude").lo > zoomed.lo);
+    f.h.send(ftxui::Event::Character('0'));
+    f.h.frame();
+    CHECK(f.screen->plot_axis("magnitude").lo == full.lo);
+    CHECK(f.screen->plot_axis("magnitude").hi == full.hi);
+    const auto p = f.model->p();
+    f.h.send(ftxui::Event::Character('p'));
+    CHECK(f.model->p() == p + 1);
+    f.h.send(ftxui::Event::Character('P'));
+    CHECK(f.model->p() == p);
+}
+
+TEST_CASE("designer groups, constraints and presets work from the keyboard", "[tui][designer]") {
+    DesignerFixture f;
+    f.h.send(ftxui::Event::Tab);
+    f.h.frame();
+    REQUIRE(f.model->split().group_in_h0.size() > 1);
+    const bool second = f.model->split().group_in_h0[1];
+    f.h.send(ftxui::Event::ArrowDown);
+    CHECK(f.h.send(ftxui::Event::Character(' ')));
+    CHECK(f.model->split().group_in_h0[1] != second);
+    const auto c = f.model->constraints();
+    CHECK(f.h.send(ftxui::Event::Character('l')));
+    CHECK(f.model->constraints().linear_phase != c.linear_phase);
+    f.h.send(ftxui::Event::Character('o'));
+    CHECK(f.model->constraints().orthogonal != c.orthogonal);
+    f.h.send(ftxui::Event::Character('w'));
+    CHECK(f.model->constraints().wavelet_only != c.wavelet_only);
+    const auto split = f.model->split();
+    CHECK(f.h.send(ftxui::Event::Character('r')));
+    CHECK((f.model->split().group_in_h0 != split.group_in_h0 || f.model->split().zeros_h0 != split.zeros_h0));
 }

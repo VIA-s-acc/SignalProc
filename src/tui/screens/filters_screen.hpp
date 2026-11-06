@@ -47,6 +47,7 @@ public:
     void set_cursor_a(double w) { cursor_a_ = std::clamp(w, 0.0, 1.0); }
     double omega_at(std::string_view plot, int x) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::optional<std::pair<int, int>> menu_anchor() const override;
     std::vector<JumpTarget> jump_targets() const override;
 
 private:
@@ -84,9 +85,9 @@ private:
     ftxui::Element impulse_panel(int width);
     ftxui::Element zeros_panel(int rows);
     ftxui::Element properties_panel();
-    ftxui::Element measures_panel();
+    ftxui::Element measures_panel(int width);
     ftxui::Element library_panel(int width);
-    ftxui::Element comparison_panel();
+    ftxui::Element comparison_panel(int width);
     ftxui::Element clickable(ftxui::Element e, std::function<void()> action);
     struct Item {
         std::string label;
@@ -142,6 +143,7 @@ private:
     std::vector<std::string> collapsed_;
     std::string notice_;
     bool searching_ = false;
+    bool arrows_move_b_ = false;
     std::string query_;
     std::size_t match_index_ = 0;
     Drag drag_;

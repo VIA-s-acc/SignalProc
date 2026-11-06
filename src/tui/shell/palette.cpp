@@ -1,3 +1,4 @@
+#include "tui/widgets/text_util.hpp"
 #include "tui/shell/palette.hpp"
 
 #include <algorithm>
@@ -150,7 +151,11 @@ ftxui::Element Palette::render(const UiContext& ui) const {
     using namespace ftxui;
     Elements rows;
     if (path_done_) {
-        rows.push_back(text(prompt_ + query_ + "▏"));
+        const auto cps = split_codepoints(query_);
+        const std::size_t room = 56 - std::min<std::size_t>(40, split_codepoints(prompt_).size());
+        std::string tail;
+        for (std::size_t i = cps.size() > room ? cps.size() - room : 0; i < cps.size(); ++i) tail += cps[i];
+        rows.push_back(text(prompt_ + (cps.size() > room ? "…" : "") + tail + "▏"));
         rows.push_back(text(tr("tui.palette.path_hint")) | fg(ui.theme.dim, ui));
         return panel(tr("tui.palette.title"), {}, vbox(std::move(rows)) | size(WIDTH, GREATER_THAN, 60), true, ui);
     }

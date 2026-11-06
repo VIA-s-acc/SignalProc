@@ -53,7 +53,7 @@ struct Vulgar {
 constexpr std::array kVulgar{Vulgar{"1", "2", "½"},  Vulgar{"1", "3", "⅓"}, Vulgar{"2", "3", "⅔"}, Vulgar{"1", "4", "¼"}, Vulgar{"3", "4", "¾"},
                              Vulgar{"1", "5", "⅕"},  Vulgar{"2", "5", "⅖"}, Vulgar{"3", "5", "⅗"}, Vulgar{"4", "5", "⅘"}, Vulgar{"1", "6", "⅙"},
                              Vulgar{"5", "6", "⅚"},  Vulgar{"1", "8", "⅛"}, Vulgar{"3", "8", "⅜"}, Vulgar{"5", "8", "⅝"}, Vulgar{"7", "8", "⅞"},
-                             Vulgar{"1", "7", "⅐"},  Vulgar{"1", "9", "⅑"}, Vulgar{"1", "10", "⅒"}};
+                                };
 
 struct Delim {
     std::string_view glyph, ascii;

@@ -285,7 +285,7 @@ TEST_CASE("under the hood marks sections with cards and opens them from the cont
     f.ui->navigate = [&](std::string_view t, const NavArgs&) { target = std::string{t}; };
     f.nav->open({{TheoryLink::Kind::card, "threshold", ""}, std::make_shared<signals::theory::LiveValues>()});
     auto frame = f.h.frame();
-    CHECK(frame.find("ⓘ") != std::string::npos);
+    CHECK(frame.find("◈") != std::string::npos);
     f.nav->open({{TheoryLink::Kind::card, "idwt", ""}, std::make_shared<signals::theory::LiveValues>()});
     f.h.frame();
     const auto b = f.screen->area("toc:dwt-mallat");
@@ -398,7 +398,7 @@ TEST_CASE("the tutorial opens the block card of a section under the hood", "[tui
     REQUIRE(cards > 1);
     f.nav->open({{TheoryLink::Kind::section, "conv-signals"}});
     auto frame = f.h.frame();
-    CHECK(frame.find("ⓘ") != std::string::npos);
+    CHECK(frame.find("◈") != std::string::npos);
     CHECK(frame.find(std::string{signals::theory::find_card(expected->id)->title}) != std::string::npos);
     CHECK(frame.find("ещё " + std::to_string(cards - 1)) != std::string::npos);
     CHECK(f.h.send(ftxui::Event::Character('i')));
@@ -451,7 +451,8 @@ TEST_CASE("a contents list that does not fit scrolls with the wheel", "[tui][the
 
 TEST_CASE("under the hood in a small terminal shows the contents until a card is open", "[tui][theory]") {
     TheoryFixture f{TheoryScreen::Mode::under_the_hood, 117, 40};
-    REQUIRE(f.screen->hints().front().key == "t");
+    REQUIRE(f.screen->hints().front().key == "↑↓");
+    REQUIRE(f.screen->hints()[1].key == "Enter");
     auto frame = f.h.frame();
     CHECK(frame.find("Блоки") != std::string::npos);
     CHECK(frame.find("слева") == std::string::npos);
@@ -472,8 +473,8 @@ TEST_CASE("a chapter is marked when one of its subsections has a card", "[tui][t
         REQUIRE(at != std::string::npos);
         return frame.substr(at, frame.find("│", at) - at);
     };
-    CHECK(contents_line("Варианты преобраз").find("ⓘ") != std::string::npos);
-    CHECK(contents_line("Сводный план").find("ⓘ") == std::string::npos);
+    CHECK(contents_line("Варианты преобраз").find("◈") != std::string::npos);
+    CHECK(contents_line("Сводный план").find("◈") == std::string::npos);
 }
 
 TEST_CASE("the contents can be walked with the keyboard", "[tui][theory]") {

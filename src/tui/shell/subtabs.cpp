@@ -1,3 +1,4 @@
+#include "tui/widgets/text_util.hpp"
 #include "tui/shell/subtabs.hpp"
 
 #include <algorithm>
@@ -21,7 +22,7 @@ public:
 
     std::vector<Hint> hints() const override {
         auto out = child().hints();
-        out.push_back({"[ ]", tr("tui.subtabs.hint")});
+        out.insert(out.begin(), {"[ ]", tr("tui.subtabs.hint")});
         return out;
     }
 
@@ -32,16 +33,26 @@ public:
         return inner.empty() ? out : out + " · " + inner;
     }
 
-    ftxui::Element context_element(const UiContext& ui) override {
+    ftxui::Element context_element(const UiContext& ui, int width) override {
         using namespace ftxui;
+        int names = 0;
+        for (std::size_t i = 0; i < children_.size(); ++i) names += display_width(children_[i].first) + (i == active_ ? 2 : 0) + (i ? 1 : 0);
+        const bool all = names <= width;
         Elements parts;
+        int used = 0;
+        for (auto& b : boxes_) b = ftxui::Box{1, 0, 1, 0};
         for (std::size_t i = 0; i < children_.size(); ++i) {
-            if (i) parts.push_back(text(" "));
-            auto label = text(i == active_ ? "[" + children_[i].first + "]" : children_[i].first);
+            if (!all && i != active_) continue;
+            if (!parts.empty()) parts.push_back(text(" ")), ++used;
+            const auto caption = i == active_ ? "[" + children_[i].first + "]" : children_[i].first;
+            used += display_width(caption);
+            auto label = text(caption);
             label = i == active_ ? label | bold | fg(ui.theme.accent, ui) : label | fg(ui.theme.fg, ui);
             parts.push_back(label | reflect(boxes_[i]));
         }
-        if (const auto inner = child().context(); !inner.empty()) parts.push_back(text(" · " + inner) | fg(ui.theme.dim, ui));
+        const auto inner = child().context();
+        const int room = width - used - 3;
+        if (!inner.empty() && room >= 4) parts.push_back(text(" · " + ellipsize(inner, room, ui.caps.glyphs == GlyphMode::ascii)) | fg(ui.theme.dim, ui));
         return hbox(std::move(parts));
     }
 
@@ -51,6 +62,7 @@ public:
     }
     bool capturing_text() const override { return child().capturing_text(); }
     std::vector<MenuItem> context_menu(int x, int y) override { return child().context_menu(x, y); }
+    std::optional<std::pair<int, int>> menu_anchor() const override { return child().menu_anchor(); }
     std::optional<TheoryLink> theory_link() const override { return child().theory_link(); }
     void publish(theory::LiveValues& v) const override { child().publish(v); }
     std::shared_ptr<TabScreen> active_child() const override { return children_[active_].second; }

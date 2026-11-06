@@ -6,6 +6,6 @@
 
 namespace signals::tui {
 
-ftxui::Element resources_panel(const UiContext& ui);
+ftxui::Element resources_panel(const UiContext& ui, int width, int height, float scroll);
 
 }  // namespace signals::tui
