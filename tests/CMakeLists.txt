@@ -72,6 +72,7 @@ add_executable(signals_tests
   pipeline/test_blocks_basic.cpp
   pipeline/test_blocks_dsp.cpp
   pipeline/test_sig.cpp
+  pipeline/test_graph.cpp
   theory/test_latex.cpp
   theory/test_math_layout.cpp
   theory/test_markdown.cpp
