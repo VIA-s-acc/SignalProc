@@ -1,6 +1,7 @@
 #include "tui/screens/pipeline_model.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <fstream>
 #include <iterator>
 #include <utility>
@@ -9,6 +10,7 @@
 
 #include "i18n/i18n.hpp"
 #include "pipeline/block.hpp"
+#include "tui/monitor/sampler.hpp"
 
 namespace signals::tui {
 namespace {
@@ -28,7 +30,11 @@ bool same_port(const pipeline::PortRef& a, const pipeline::PortRef& b) { return 
 
 bool same_wire(const pipeline::Edge& a, const pipeline::Edge& b) { return same_port(a.from, b.from) && same_port(a.to, b.to); }
 
-PipelineModel::PipelineModel() { rebuild(); }
+PipelineModel::PipelineModel() {
+    const auto ram = physical_memory_bytes();
+    cache_ = std::make_shared<pipeline::ResultCache>(ram > 0 ? static_cast<std::size_t>(ram / 4) : std::size_t{1} << 30);
+    rebuild();
+}
 
 std::filesystem::path PipelineModel::base_dir() const {
     if (path_) return std::filesystem::absolute(*path_).parent_path();
@@ -69,6 +75,7 @@ core::Result<void> PipelineModel::load(const std::filesystem::path& file) {
     if (undo_.size() > kUndoLimit) undo_.erase(undo_.begin());
     redo_.clear();
     doc_ = std::move(*doc);
+    saved_ = doc_;
     path_ = file;
     dirty_ = false;
     selection = {};
@@ -102,6 +109,7 @@ core::Result<void> PipelineModel::save(const std::filesystem::path& file) {
     out << pipeline::write_sig(doc_);
     if (!out) return core::make_error(core::Errc::io_error, "cannot write " + file.string());
     path_ = file;
+    saved_ = doc_;
     dirty_ = false;
     rebuild();
     return {};
@@ -200,5 +208,107 @@ bool PipelineModel::redo() {
     rebuild();
     return true;
 }
+
+void PipelineModel::run(JobRunner& jobs) {
+    if (problem_ || !graph_) {
+        std::lock_guard lock{run_->mutex};
+        run_->view.error = problem_ ? problem_->message : tr("tui.pipeline.empty");
+        return;
+    }
+    if (run_->job) cancel(jobs);
+    auto graph = std::make_shared<const pipeline::Graph>(*graph_);
+    auto token = std::make_shared<core::CancelToken>();
+    {
+        std::lock_guard lock{run_->mutex};
+        auto& v = run_->view;
+        ++v.number;
+        v.running = true;
+        v.cancelled = false;
+        v.error.reset();
+        v.nodes.clear();
+        v.probes.clear();
+        v.reports.clear();
+        for (const auto& n : graph->nodes) v.nodes[n.id].status.id = n.id;
+        run_->cancel = token;
+    }
+    auto state = run_;
+    auto cache = cache_;
+    auto listener = run_listener;
+    const auto id = jobs.submit(tr("tui.pipeline.job"), {tr("tui.pipeline.job")}, [state, cache, graph, token, listener](JobContext& ctx) {
+        ctx.begin(0);
+        const auto started = std::chrono::steady_clock::now();
+        const pipeline::RunEvents events{[&](const pipeline::NodeStatus& s) {
+            double done = 0;
+            {
+                std::lock_guard lock{state->mutex};
+                state->view.nodes[s.id].status = s;
+                for (const auto& [name, n] : state->view.nodes) done += n.status.fraction;
+                done /= static_cast<double>(std::max<std::size_t>(1, state->view.nodes.size()));
+            }
+            ctx.report(done);
+            if (listener) listener(s);
+        }};
+        auto result = pipeline::run_graph(*graph, *cache, events, *token);
+        std::lock_guard lock{state->mutex};
+        auto& v = state->view;
+        v.running = false;
+        v.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+        state->job.reset();
+        if (!result) {
+            if (result.error().code == core::Errc::cancelled) v.cancelled = true;
+            else v.error = result.error().message;
+            ctx.finish();
+            return;
+        }
+        for (const auto& s : result->nodes) v.nodes[s.id].status = s;
+        v.probes = std::move(result->probes);
+        v.reports = std::move(result->reports);
+        if (v.seconds > 0.05) {
+            std::string slowest;
+            double longest = -1;
+            for (const auto& [name, n] : v.nodes)
+                if (n.status.state == pipeline::NodeState::done && n.status.wall_seconds > longest) {
+                    longest = n.status.wall_seconds;
+                    slowest = name;
+                }
+            if (!slowest.empty()) v.nodes[slowest].bottleneck = true;
+        }
+        ctx.finish();
+    });
+    std::lock_guard lock{run_->mutex};
+    if (run_->view.running) run_->job = id;
+}
+
+void PipelineModel::cancel(JobRunner& jobs) {
+    std::optional<std::uint64_t> job;
+    {
+        std::lock_guard lock{run_->mutex};
+        if (run_->cancel) run_->cancel->cancel();
+        job = run_->job;
+    }
+    if (job) jobs.cancel(*job);
+}
+
+RunView PipelineModel::run_view() const {
+    RunView v;
+    {
+        std::lock_guard lock{run_->mutex};
+        v = run_->view;
+    }
+    std::erase_if(v.nodes, [&](const auto& entry) {
+        return std::none_of(doc_.nodes.begin(), doc_.nodes.end(), [&](const auto& n) { return n.id == entry.first; });
+    });
+    for (const auto& n : doc_.nodes) {
+        const auto before = std::find_if(saved_.nodes.begin(), saved_.nodes.end(), [&](const auto& s) { return s.id == n.id; });
+        if (before == saved_.nodes.end()) continue;
+        for (const auto& [key, value] : n.params) {
+            const auto old = before->params.find(key);
+            if (old == before->params.end() || old->second != value) v.sets.push_back(n.id + "." + key + "=" + value);
+        }
+    }
+    return v;
+}
+
+std::size_t PipelineModel::cache_bytes() const { return cache_->bytes(); }
 
 }  // namespace signals::tui

@@ -849,5 +849,6 @@
   "pipeline.graph.bypass_types": "узел {node}: блок {block} нельзя обойти — у него вход и выход разных типов",
   "tui.pipeline.empty": "граф пуст: a — добавить блок, o — открыть .sig",
   "tui.pipeline.no_wire": "такого провода нет",
-  "tui.pipeline.no_node": "такого узла нет"
+  "tui.pipeline.no_node": "такого узла нет",
+  "tui.pipeline.job": "Конвейер"
 }

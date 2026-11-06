@@ -8,6 +8,7 @@
 #include <mutex>
 #include <vector>
 
+#include "core/memory.hpp"
 #include "pipeline/value.hpp"
 
 namespace signals::pipeline {
@@ -35,6 +36,7 @@ private:
     std::size_t bytes_ = 0;
     std::list<Entry> recent_;
     std::map<std::uint64_t, std::list<Entry>::iterator> index_;
+    core::TrackedBytes tracked_{core::MemoryCategory::pipeline_cache, 0};
     mutable std::mutex mutex_;
 };
 

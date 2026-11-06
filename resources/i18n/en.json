@@ -849,5 +849,6 @@
   "pipeline.graph.bypass_types": "node {node}: block {block} cannot be bypassed — its input and output have different types",
   "tui.pipeline.empty": "the graph is empty: a — add a block, o — open a .sig",
   "tui.pipeline.no_wire": "no such wire",
-  "tui.pipeline.no_node": "no such node"
+  "tui.pipeline.no_node": "no such node",
+  "tui.pipeline.job": "Pipeline"
 }

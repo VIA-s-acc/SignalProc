@@ -1,16 +1,19 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "commands/cli.hpp"
 #include "pipeline/sig.hpp"
 #include "support/paths.hpp"
+#include "tui/jobs/jobs.hpp"
 #include "tui/screens/pipeline_model.hpp"
 
 using namespace signals;
@@ -163,4 +166,112 @@ TEST_CASE("loading over an edited document can be undone", "[tui][pipeline_model
     const auto r = m.load(bad);
     REQUIRE_FALSE(r);
     CHECK_THAT(r.error().message, ContainsSubstring("bad.sig:1"));
+}
+
+namespace {
+
+PipelineModel denoise_model(const std::string& name) {
+    const auto dir = fresh_dir(name);
+    PipelineModel m;
+    REQUIRE(m.load(std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples" / "denoise.sig"));
+    REQUIRE(m.set_param("out", "path", (dir / "out.wav").string()));
+    REQUIRE(m.save(dir / "denoise.sig"));
+    return m;
+}
+
+JobRunner inline_jobs() { return JobRunner{[] {}, std::chrono::milliseconds{0}, true}; }
+
+}  // namespace
+
+TEST_CASE("running the editor graph fills node states, reports and the bottleneck", "[tui][pipeline_model]") {
+    auto m = denoise_model("model-run");
+    auto jobs = inline_jobs();
+    m.run(jobs);
+    const auto v = m.run_view();
+    CHECK_FALSE(v.running);
+    CHECK_FALSE(v.error);
+    CHECK(v.number == 1);
+    REQUIRE(v.nodes.size() == 6);
+    int bottlenecks = 0;
+    for (const auto& [id, n] : v.nodes) {
+        INFO(id);
+        CHECK(n.status.state == pipeline::NodeState::done);
+        bottlenecks += n.bottleneck ? 1 : 0;
+    }
+    CHECK(bottlenecks == 1);
+    REQUIRE(v.reports.size() == 2);
+    CHECK(v.probes.contains("d1"));
+    CHECK(m.cache_bytes() > 0);
+}
+
+TEST_CASE("after a parameter change only that node and its descendants run again", "[tui][pipeline_model]") {
+    auto m = denoise_model("model-rerun");
+    auto jobs = inline_jobs();
+    m.run(jobs);
+    REQUIRE(m.set_param("thr", "mode", "hard"));
+    m.run(jobs);
+    const auto v = m.run_view();
+    CHECK(v.number == 2);
+    CHECK(v.nodes.at("src").status.state == pipeline::NodeState::cached);
+    CHECK(v.nodes.at("dwt").status.state == pipeline::NodeState::cached);
+    CHECK(v.nodes.at("thr").status.state == pipeline::NodeState::done);
+    CHECK(v.nodes.at("idwt").status.state == pipeline::NodeState::done);
+    CHECK(v.sets == std::vector<std::string>{"thr.mode=hard"});
+}
+
+TEST_CASE("editing during a run drops removed nodes and the next run works", "[tui][pipeline_model]") {
+    auto m = denoise_model("model-edit");
+    auto jobs = inline_jobs();
+    bool removed = false;
+    m.run_listener = [&](const pipeline::NodeStatus& s) {
+        if (!removed && s.id == "src" && s.state == pipeline::NodeState::done) {
+            removed = true;
+            m.remove_node("chk");
+        }
+    };
+    m.run(jobs);
+    CHECK(removed);
+    CHECK_FALSE(m.run_view().nodes.contains("chk"));
+    m.run_listener = {};
+    m.run(jobs);
+    const auto v = m.run_view();
+    CHECK_FALSE(v.error);
+    CHECK(v.nodes.size() == 5);
+}
+
+TEST_CASE("a failing block turns red, its descendants are bypassed, and a fix runs", "[tui][pipeline_model]") {
+    PipelineModel m;
+    m.add_node("wav");
+    REQUIRE(m.set_param("wav", "path", "no-such.wav"));
+    m.add_node("gain");
+    REQUIRE(m.connect(port("wav"), port("gain")));
+    auto jobs = inline_jobs();
+    m.run(jobs);
+    auto v = m.run_view();
+    REQUIRE(v.error);
+    CHECK(v.nodes.at("wav").status.state == pipeline::NodeState::failed);
+    CHECK_FALSE(v.nodes.at("wav").status.message.empty());
+    CHECK(v.nodes.at("gain").status.state == pipeline::NodeState::bypassed);
+    REQUIRE(m.set_param("wav", "path", (std::filesystem::path{SIGNALS_SOURCE_DIR} / "resources" / "samples" / "test.wav").string()));
+    m.run(jobs);
+    v = m.run_view();
+    CHECK_FALSE(v.error);
+    CHECK(v.nodes.at("gain").status.state == pipeline::NodeState::done);
+}
+
+TEST_CASE("cancel stops a long editor run", "[tui][pipeline_model]") {
+    PipelineModel m;
+    m.add_node("gen");
+    REQUIRE(m.set_param("gen", "duration", "600"));
+    m.add_node("dwt");
+    REQUIRE(m.connect(port("gen"), port("dwt")));
+    JobRunner jobs{[] {}, std::chrono::milliseconds{0}};
+    m.run(jobs);
+    std::this_thread::sleep_for(std::chrono::milliseconds{100});
+    m.cancel(jobs);
+    for (int i = 0; i < 400 && m.run_view().running; ++i) std::this_thread::sleep_for(std::chrono::milliseconds{5});
+    const auto v = m.run_view();
+    CHECK_FALSE(v.running);
+    CHECK(v.cancelled);
+    CHECK(v.nodes.at("dwt").status.state != pipeline::NodeState::done);
 }
