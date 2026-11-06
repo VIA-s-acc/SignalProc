@@ -37,7 +37,7 @@ TEST_CASE("tr returns key for unknown entries", "[cli][i18n]") {
     CHECK(signals::tr("cli.version") == "signals {version}");
 }
 
-TEST_CASE("--lang en switches help and errors for one run", "[cli][i18n]") {
+TEST_CASE("the lang flag switches help and errors for one run", "[cli][i18n]") {
     const auto has_cyrillic = [](const std::string& s) {
         for (unsigned char c : s)
             if (c == 0xD0 || c == 0xD1) return true;
@@ -60,7 +60,7 @@ TEST_CASE("--lang en switches help and errors for one run", "[cli][i18n]") {
     CHECK(has_cyrillic(ru_err.str()));
 }
 
-TEST_CASE("--lang reaches the TUI request", "[cli][i18n]") {
+TEST_CASE("the lang flag reaches the TUI request", "[cli][i18n]") {
     std::ostringstream out, err;
     std::optional<signals::cli::TuiRequest> request;
     std::array<std::string_view, 4> args{"signals", "tui", "--lang", "en"};
@@ -69,7 +69,7 @@ TEST_CASE("--lang reaches the TUI request", "[cli][i18n]") {
     CHECK(request->language == signals::Language::en);
 }
 
-TEST_CASE("a bad --lang value is an error", "[cli][i18n]") {
+TEST_CASE("a bad lang value is an error", "[cli][i18n]") {
     std::ostringstream out, err;
     std::array<std::string_view, 4> args{"signals", "--lang", "de", "--version"};
     CHECK(signals::cli::run_cli(args, out, err) == 2);
