@@ -32,6 +32,11 @@ bool Ticker::active() const {
     return !wanted_.empty();
 }
 
+void Ticker::begin_frame() {
+    std::lock_guard lock{mutex_};
+    wanted_.clear();
+}
+
 void Ticker::loop() {
     std::unique_lock lock{mutex_};
     while (!stop_) {

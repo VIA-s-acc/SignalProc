@@ -136,7 +136,7 @@ std::string ExplainScreen::wavelet_name() const {
     case ExplainBank::haar: return "haar";
     case ExplainBank::db2: return "db2";
     case ExplainBank::legall53: return "bior2.2";
-    case ExplainBank::user: return walkthrough_ ? walkthrough_->bank.name : std::string{};
+    case ExplainBank::user: return {};
     }
     return {};
 }
@@ -302,7 +302,8 @@ ftxui::Element ExplainScreen::text_panel(const Walkthrough& w) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto& step = haar_script()[step_ - 1];
-    const auto& lines = options_.bank == ExplainBank::haar && !step.text_haar.empty() ? step.text_haar : step.text;
+    const bool canvas = options_.bank == ExplainBank::haar && !options_.summing && !step.text_haar.empty();
+    const auto& lines = canvas ? step.text_haar : step.text;
     const auto prefix = tr("tui.explain.invariant_prefix");
     Elements out;
     for (const auto& l : lines) {
@@ -310,6 +311,10 @@ ftxui::Element ExplainScreen::text_panel(const Walkthrough& w) {
         std::string s = f ? *f : l;
         if (s.starts_with(prefix) && !step.invariant.empty()) {
             const auto inv = check_invariant(step.invariant, w);
+            if (!inv.checked) {
+                out.push_back(text(s) | fg(th.fg, ui_));
+                continue;
+            }
             s += inv.passed ? " " + std::string{glyph(Glyph::check, ui_.caps.glyphs)}
                             : " " + std::string{glyph(Glyph::cross, ui_.caps.glyphs)} + (std::isnan(inv.value) ? std::string{} : " " + format_number(inv.value, 2));
             out.push_back(text(s) | fg(inv.passed ? th.ok : th.err, ui_));

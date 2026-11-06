@@ -37,6 +37,7 @@ struct DesignerData {
 };
 
 struct DesignerResult {
+    int p = 0;
     core::Split split;
     core::FilterBank bank;
     core::PrReport pr;
@@ -89,6 +90,7 @@ private:
     std::optional<std::uint64_t> data_job_, result_job_;
     int p_ = 3;
     core::Split split_;
+    int split_p_ = 0;
     Constraints constraints_;
     int iterations_ = kMaxIterations;
 };

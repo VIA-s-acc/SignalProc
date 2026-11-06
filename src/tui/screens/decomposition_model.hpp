@@ -94,6 +94,9 @@ public:
     void set_enabled(std::vector<bool> enabled, JobRunner& jobs);
     void apply(Processing p, JobRunner& jobs);
     void undo(JobRunner& jobs);
+    void cancel(JobRunner& jobs);
+    void recompute(JobRunner& jobs);
+    bool cancelled() const;
     std::vector<bool> enabled() const { return enabled_; }
     Processing processing() const { return processing_; }
 
@@ -121,6 +124,8 @@ private:
     std::shared_ptr<const Reconstruction> recon_;
     std::optional<std::string> error_;
     std::optional<std::uint64_t> data_job_, recon_job_;
+    std::uint64_t data_gen_ = 0, recon_gen_ = 0, data_done_ = 0, recon_done_ = 0;
+    bool recon_pending_ = false, cancelled_ = false;
 };
 
 }  // namespace signals::tui

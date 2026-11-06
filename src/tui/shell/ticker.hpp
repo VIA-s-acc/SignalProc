@@ -20,6 +20,7 @@ public:
 
     void want(std::string_view who, bool on);
     bool active() const;
+    void begin_frame();
 
 private:
     void loop();

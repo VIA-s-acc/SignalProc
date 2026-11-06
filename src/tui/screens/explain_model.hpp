@@ -64,6 +64,7 @@ struct Invariant {
     double value = 0;
     double tolerance = 0;
     bool passed = false;
+    bool checked = true;
 };
 Invariant check_invariant(std::string_view id, const Walkthrough& w);
 

@@ -41,3 +41,13 @@ TEST_CASE("a ticker stops cleanly while ticking", "[tui][ticker]") {
     std::this_thread::sleep_for(10ms);
     CHECK(n == after);
 }
+
+TEST_CASE("begin_frame drops wants that are not renewed", "[tui][ticker]") {
+    Ticker t{[] {}, 5ms};
+    t.want("a", true);
+    CHECK(t.active());
+    t.begin_frame();
+    CHECK_FALSE(t.active());
+    t.want("a", true);
+    CHECK(t.active());
+}

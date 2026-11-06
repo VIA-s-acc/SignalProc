@@ -8,6 +8,7 @@
 #include <ftxui/dom/node.hpp>
 #include <ftxui/screen/screen.hpp>
 
+#include "audio/manual_sink.hpp"
 #include "tui/harness.hpp"
 #include "tui/shell/layout.hpp"
 #include "tui/shell/overlays.hpp"
@@ -229,4 +230,36 @@ TEST_CASE("escape and keys drive the menu", "[tui][menu]") {
     h.frame();
     h.send(ftxui::Event::Return);
     CHECK(s->acted == 1);
+}
+
+TEST_CASE("jump mode survives redraw events and mouse moves", "[tui][menu]") {
+    ShellRig r{150, 44};
+    r.h.frame();
+    r.h.send(ftxui::Event::Character('\''));
+    r.h.send(ftxui::Event::Custom);
+    ftxui::Mouse m;
+    m.button = ftxui::Mouse::None;
+    m.motion = ftxui::Mouse::Moved;
+    m.x = 10;
+    m.y = 10;
+    r.h.send(ftxui::Event::Mouse("", m));
+    r.h.send(ftxui::Event::Character('d'));
+    CHECK(active_tab(r.h.root) == 2);
+}
+
+TEST_CASE("a lost audio device is reported once", "[tui][shell][audio]") {
+    signals::test::ManualSink* raw = nullptr;
+    auto player = signals::test::manual_player(raw);
+    ShellRig r{150, 44};
+    std::vector<std::string> warnings;
+    r.ui->player = &player;
+    r.ui->warn = [&](std::string line) { warnings.push_back(std::move(line)); };
+    const std::vector<float> samples(1000, 0.25f);
+    REQUIRE(player.play({.channels = {samples}, .rate = 8000, .tag = "signal"}, 0));
+    raw->lose("device unplugged");
+    r.h.frame();
+    r.h.frame();
+    REQUIRE(warnings.size() == 1);
+    CHECK(warnings[0].find("device unplugged") != std::string::npos);
+    CHECK(player.state() == signals::audio::PlayState::stopped);
 }

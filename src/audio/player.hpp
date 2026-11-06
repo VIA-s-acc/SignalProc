@@ -7,6 +7,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "core/error.hpp"
@@ -27,6 +28,7 @@ public:
     virtual ~Sink() = default;
     virtual core::Result<void> start(std::uint32_t rate, std::uint32_t channels, Pull pull) = 0;
     virtual void stop() = 0;
+    virtual std::optional<std::string> lost() { return std::nullopt; }
 };
 
 core::Result<std::unique_ptr<Sink>> make_device_sink();
@@ -48,6 +50,7 @@ public:
     std::size_t position() const;
     std::string tag() const { return tag_; }
     std::optional<std::string> unavailable_reason() const { return reason_; }
+    std::optional<std::string> take_interruption() { return std::exchange(interruption_, std::nullopt); }
 
 private:
     struct Shared;
@@ -57,6 +60,7 @@ private:
     std::shared_ptr<Shared> shared_;
     PlayState state_ = PlayState::stopped;
     std::optional<std::string> reason_;
+    std::optional<std::string> interruption_;
     std::string tag_;
     std::uint32_t running_rate_ = 0, running_channels_ = 0;
     bool running_ = false;

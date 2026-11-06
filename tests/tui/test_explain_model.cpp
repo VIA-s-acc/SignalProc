@@ -152,3 +152,24 @@ TEST_CASE("a user bank too long for N = 8 still explains what it can", "[tui][ex
     CHECK_FALSE(check_invariant("tree_energy", *w).passed);
     CHECK(*fill("{{a2}}", *w) == "—");
 }
+
+TEST_CASE("fractions mode keeps power complementarity and the matrix identity honest", "[tui][explain]") {
+    auto w = walkthrough(kX, {.summing = true});
+    REQUIRE(w);
+    CHECK(check_invariant("power_complementary", *w).passed);
+    const auto& step9 = haar_script()[8];
+    const auto line = fill(step9.text_haar.back(), *w);
+    REQUIRE(line);
+    CHECK(line->find("S·A₁ = I") != std::string::npos);
+    CHECK(check_invariant("orthogonal_matrix", *w).passed);
+    const auto gain = fill(haar_script()[1].text.back(), *w);
+    REQUIRE(gain);
+    CHECK(gain->ends_with("= 1"));
+}
+
+TEST_CASE("facts are not reported as checks", "[tui][explain]") {
+    auto w = walkthrough(kX, {});
+    REQUIRE(w);
+    for (const char* id : {"energy", "conv_length", "coefficient_count", "upsampled_length"}) CHECK_FALSE(check_invariant(id, *w).checked);
+    CHECK(check_invariant("reconstruction", *w).checked);
+}

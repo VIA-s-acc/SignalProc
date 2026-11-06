@@ -125,21 +125,24 @@ void DesignerModel::set_p(int p, JobRunner& jobs) {
 void DesignerModel::sync(JobRunner& jobs) {
     const auto d = data();
     if (!d) return;
-    if (split_.group_in_h0.size() != d->f.groups.size() || split_.zeros_h0 > 2 * d->f.p || split_.zeros_h0 < 0) {
+    if (split_p_ != d->p || split_.group_in_h0.size() != d->f.groups.size() || split_.zeros_h0 > 2 * d->f.p || split_.zeros_h0 < 0) {
         split_ = preset_split(d->f, Preset::daubechies);
+        split_p_ = d->p;
         request(jobs);
         return;
     }
     const auto r = result();
-    if (!r || !same_split(r->split, split_)) {
+    if (r && r->p == d->p && same_split(r->split, split_)) return;
+    {
         std::lock_guard lock{mutex_};
         if (result_job_) return;
     }
-    if (!r) request(jobs);
+    if (!r || r->p != d->p) request(jobs);
 }
 
 void DesignerModel::set_split(core::Split s, JobRunner& jobs) {
     split_ = std::move(s);
+    split_p_ = p_;
     request(jobs);
 }
 
@@ -159,6 +162,7 @@ void DesignerModel::request(JobRunner& jobs) {
             return;
         }
         auto r = std::make_shared<DesignerResult>();
+        r->p = d->p;
         r->split = split;
         r->bank = std::move(*bank);
         r->pr = core::check_pr(r->bank, 1e-9);
@@ -188,7 +192,7 @@ void DesignerModel::request(JobRunner& jobs) {
         result_job_.reset();
     });
     std::lock_guard lock{mutex_};
-    if (!result_ || !same_split(result_->split, split)) result_job_ = id;
+    if (!result_ || result_->p != d->p || !same_split(result_->split, split)) result_job_ = id;
 }
 
 bool DesignerModel::allowed(const SplitRow& row, const DesignerData& d) const {

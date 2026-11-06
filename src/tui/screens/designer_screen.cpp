@@ -317,9 +317,9 @@ ftxui::Element DesignerScreen::OnRender() {
 void DesignerScreen::save() {
     const auto r = model_->result();
     if (!r) return;
-    const int p = model_->p();
+    const int p = r->p;
     const std::string initial = "p" + std::to_string(p) + "-" +
-                                (r->title.starts_with("db") ? "db" + std::to_string(p) : "k" + std::to_string(model_->split().zeros_h0));
+                                (r->title.starts_with("db") ? "db" + std::to_string(p) : "k" + std::to_string(r->split.zeros_h0));
     auto done = [this, r, p](std::string name) {
         if (name.empty()) return;
         UserBank b{name, r->bank.h0, r->bank.f0, "p = " + std::to_string(p) + ", " + r->title};

@@ -4,6 +4,9 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "audio/player.hpp"
@@ -27,6 +30,14 @@ public:
         running = false;
         ++stops;
     }
+    std::optional<std::string> lost() override {
+        std::lock_guard lock{mutex_};
+        return std::exchange(lost_, std::nullopt);
+    }
+    void lose(std::string reason) {
+        std::lock_guard lock{mutex_};
+        lost_ = std::move(reason);
+    }
     void pump(std::size_t frames) {
         std::lock_guard lock{mutex_};
         last.assign(frames * channels_, -99.0f);
@@ -41,6 +52,7 @@ public:
 
 private:
     std::mutex mutex_;
+    std::optional<std::string> lost_;
     std::uint32_t rate_ = 0, channels_ = 0;
     Pull pull_;
 };

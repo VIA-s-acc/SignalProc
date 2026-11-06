@@ -4,6 +4,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <thread>
 
 #include <ftxui/component/event.hpp>
 
@@ -163,4 +164,25 @@ TEST_CASE("decomposition snapshots", "[tui][decomposition][snapshot]") {
 TEST_CASE("round-off-level PR errors print the same on every compiler", "[tui][decomposition]") {
     DecompositionFixture f;
     CHECK(line_with(f.h.frame(), "PR (все ☑)").find("< 10⁻¹⁴") != std::string::npos);
+}
+
+TEST_CASE("escape cancels a running decomposition", "[tui][decomposition]") {
+    JobRunner inline_jobs{[] {}, 0ms, true};
+    JobRunner jobs{[] {}};
+    auto ui = signals::test::make_ui(150, 44);
+    ui->jobs = &jobs;
+    auto signal = std::make_shared<SignalModel>();
+    signal->open(signals::test::sample("test.wav"), inline_jobs);
+    auto model = std::make_shared<DecompositionModel>(signal);
+    auto screen = std::make_shared<DecompositionScreen>(*ui, model);
+    Harness h{screen, 150, 41};
+    h.frame();
+    REQUIRE(model->job());
+    CHECK(h.send(ftxui::Event::Escape));
+    CHECK_FALSE(model->job());
+    const auto until = std::chrono::steady_clock::now() + 30s;
+    while (std::chrono::steady_clock::now() < until && jobs.queued() > 0) std::this_thread::sleep_for(10ms);
+    std::this_thread::sleep_for(50ms);
+    CHECK_FALSE(model->data());
+    CHECK(h.frame().find("прервано") != std::string::npos);
 }

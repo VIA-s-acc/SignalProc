@@ -54,6 +54,7 @@ struct UiContext {
     std::function<void(std::string_view target, const NavArgs& args)> navigate;
     std::function<void(std::string filter)> open_palette;
     std::function<void(std::string prompt, std::string initial, std::function<void(std::string)> done)> ask_text;
+    std::function<void(std::string line)> warn;
 };
 
 struct MenuItem {

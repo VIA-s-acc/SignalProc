@@ -155,15 +155,15 @@ Invariant check_invariant(std::string_view id, const Walkthrough& w) {
     const double scale = std::max(1.0, w.energy_x);
     double peak = 1;
     for (double v : w.x) peak = std::max(peak, std::abs(v));
-    if (id == "energy") return {w.energy_x, 0, true};
-    if (id == "conv_length") return {static_cast<double>(w.y0.size()), 0, w.y0.size() == w.x.size() + w.bank.length() - 1};
-    if (id == "coefficient_count") return {static_cast<double>(w.a.size() + w.d.size()), 0, w.a.size() == w.kept.size() && w.d.size() == w.kept.size()};
-    if (id == "upsampled_length") return {static_cast<double>(w.u0.size()), 0, w.u0.size() == 2 * w.a.size()};
+    if (id == "energy") return {w.energy_x, 0, true, false};
+    if (id == "conv_length") return {static_cast<double>(w.y0.size()), 0, true, false};
+    if (id == "coefficient_count") return {static_cast<double>(w.a.size() + w.d.size()), 0, true, false};
+    if (id == "upsampled_length") return {static_cast<double>(w.u0.size()), 0, true, false};
     if (id == "power_complementary") {
         double worst = 0;
         for (std::size_t k = 0; k < w.h0_response.magnitude.size() && k < w.h1_response.magnitude.size(); ++k) {
             const double a = w.h0_response.magnitude[k], b = w.h1_response.magnitude[k];
-            const double gain = w.options.summing ? 0.5 : 2.0;
+            const double gain = w.options.summing ? 1.0 : 2.0;
             worst = std::max(worst, std::abs(a * a + b * b - gain));
         }
         return {worst, kTol, worst <= kTol};
@@ -289,6 +289,7 @@ core::Result<std::string> fill(std::string_view line, const Walkthrough& w) {
         {"phase", tr(w.options.odd_phase ? "tui.explain.phase.odd" : "tui.explain.phase.even")},
         {"shift", tr(w.options.odd_phase ? "tui.explain.shift.none" : "tui.explain.shift.one")},
         {"matrix_identity", w.orthogonal ? "A₁ᵀA₁ = I" : "S·A₁ = I"},
+        {"pc_gain", w.options.summing ? "1" : "2"},
         {"a2", w.tree.size() == 3 ? tree_band(0) : std::string{"—"}},
         {"d2", w.tree.size() >= 3 ? tree_band(w.tree.size() - 2) : std::string{"—"}},
         {"a3", w.tree.size() == 4 ? tree_band(0) : std::string{"—"}},

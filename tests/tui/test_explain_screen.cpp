@@ -173,3 +173,17 @@ TEST_CASE("explain snapshots", "[tui][explain][snapshot]") {
         signals::test::check_snapshot("explain_" + std::to_string(w) + "x" + std::to_string(h), shell.frame());
     }
 }
+
+TEST_CASE("facts carry no check mark and a user bank does not leak into other tabs", "[tui][explain]") {
+    ExplainFixture f{1};
+    const auto inv = line_with(f.h.frame(), "инвариант:");
+    CHECK(inv.find("446") != std::string::npos);
+    CHECK(inv.find("✓") == std::string::npos);
+    f.user = *signals::core::wavelet("db3");
+    for (int i = 0; i < 3; ++i) f.h.send(ftxui::Event::Character('w'));
+    REQUIRE(f.screen->options().bank == ExplainBank::user);
+    f.screen->open_with(NavArgs{.step = 9});
+    f.h.send(ftxui::Event::Return);
+    CHECK(f.nav_target == "matrix");
+    CHECK(f.nav_args.wavelet.empty());
+}

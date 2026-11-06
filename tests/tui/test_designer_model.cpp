@@ -167,3 +167,15 @@ TEST_CASE("cascade iterations stay between 1 and 8", "[tui][designer]") {
     r.m.set_cascade_iterations(0);
     CHECK(r.m.cascade_iterations() == 2);
 }
+
+TEST_CASE("changing p to one with the same group count rebuilds the bank", "[tui][designer]") {
+    Rig r{4};
+    REQUIRE(r.m.result());
+    REQUIRE(r.m.result()->title.starts_with("db4"));
+    r.m.set_p(5, r.jobs);
+    REQUIRE(r.m.result());
+    CHECK(r.m.result()->title.starts_with("db5"));
+    CHECK(core::trim(r.m.result()->bank.h0, 0.0).coeffs.size() == 10);
+    r.m.set_p(4, r.jobs);
+    CHECK(r.m.result()->title.starts_with("db4"));
+}

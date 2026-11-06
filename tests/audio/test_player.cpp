@@ -185,3 +185,20 @@ TEST_CASE("the real device plays a short beep", "[audio][.device]") {
     p.poll();
     CHECK(p.state() == PlayState::finished);
 }
+
+TEST_CASE("a lost device stops playback with a reason and the next play restarts it", "[audio]") {
+    ManualSink* raw = nullptr;
+    auto p = signals::test::manual_player(raw);
+    const auto ch = ramp(1000);
+    REQUIRE(p.play(mono(ch), 0));
+    raw->lose("device unplugged");
+    p.poll();
+    CHECK(p.state() == PlayState::stopped);
+    const auto why = p.take_interruption();
+    REQUIRE(why);
+    CHECK(*why == "device unplugged");
+    CHECK_FALSE(p.take_interruption());
+    const int starts = raw->starts;
+    REQUIRE(p.play(mono(ch), 0));
+    CHECK(raw->starts == starts + 1);
+}

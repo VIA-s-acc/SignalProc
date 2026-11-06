@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <memory>
+#include <thread>
 #include <vector>
 
 #include "core/design/families.hpp"
@@ -183,4 +184,44 @@ TEST_CASE("a cancelled decomposition publishes nothing", "[tui][decomposition]")
     DecompositionModel m{signal};
     m.sync(jobs);
     jobs.cancel_all();
+}
+
+TEST_CASE("a toggle during a new decomposition never publishes the old bands", "[tui][decomposition]") {
+    JobRunner inline_jobs{[] {}, 0ms, true};
+    auto signal = std::make_shared<SignalModel>();
+    signal->open(signals::test::sample("test.wav"), inline_jobs);
+    DecompositionModel m{signal};
+    m.sync(inline_jobs);
+    REQUIRE(m.data());
+    JobRunner jobs{[] {}};
+    m.set_options({.wavelet = "haar", .levels = 3}, jobs);
+    m.toggle(0, jobs);
+    const auto until = std::chrono::steady_clock::now() + 60s;
+    while (std::chrono::steady_clock::now() < until) {
+        m.sync(jobs);
+        const auto d = m.data();
+        const auto r = m.recon();
+        if (d && d->bands.size() == 4 && r && r->enabled.size() == 4 && !m.job()) break;
+        std::this_thread::sleep_for(20ms);
+    }
+    const auto d = m.data();
+    const auto r = m.recon();
+    REQUIRE(d);
+    REQUIRE(r);
+    CHECK(d->bands.size() == 4);
+    CHECK(r->components.size() == 4);
+    REQUIRE(r->enabled.size() == 4);
+    CHECK_FALSE(r->enabled[0]);
+}
+
+TEST_CASE("an unknown wavelet keeps the current decomposition and says why", "[tui][decomposition]") {
+    Rig r;
+    const auto before = r.m->data();
+    r.m->set_options({.wavelet = "p3-k2"}, r.jobs);
+    CHECK(r.m->error());
+    CHECK(r.m->options().wavelet == "db2");
+    CHECK(r.m->data() == before);
+    r.m->set_options({.wavelet = "haar", .levels = 3}, r.jobs);
+    CHECK_FALSE(r.m->error());
+    CHECK(r.m->data()->bands.size() == 4);
 }

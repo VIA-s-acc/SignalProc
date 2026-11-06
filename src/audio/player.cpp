@@ -114,6 +114,14 @@ void Player::stop() {
 }
 
 void Player::poll() {
+    if (running_ && sink_) {
+        if (auto why = sink_->lost()) {
+            const bool was_playing = state_ == PlayState::playing;
+            stop();
+            if (was_playing) interruption_ = std::move(why);
+            return;
+        }
+    }
     if (state_ != PlayState::playing || !shared_->ended.load()) return;
     {
         std::lock_guard lock{shared_->mutex};

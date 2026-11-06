@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <set>
 #include <memory>
 #include <mutex>
 #include <system_error>
@@ -70,13 +71,18 @@ std::filesystem::path user_filters_dir(const EnvLookup& env) {
     return std::filesystem::path{"signals-filters"};
 }
 
-core::Result<std::filesystem::path> save_user_bank(const std::filesystem::path& dir, const UserBank& bank) {
+core::Result<std::filesystem::path> save_user_bank(const std::filesystem::path& dir, UserBank& bank) {
     std::error_code ec;
     std::filesystem::create_directories(dir, ec);
     if (ec) return core::make_error(core::Errc::io_error, "cannot create " + dir.string() + ": " + ec.message());
-    const auto stem = file_stem(bank.name);
-    auto path = dir / (stem + ".flt");
-    for (int n = 2; std::filesystem::exists(path); ++n) path = dir / (stem + "-" + std::to_string(n) + ".flt");
+    std::set<std::string, std::less<>> taken;
+    for (const auto& b : load_user_banks(dir).banks) taken.insert(b.name);
+    const auto base = bank.name;
+    auto path = dir / (file_stem(base) + ".flt");
+    for (int n = 2; taken.contains(bank.name) || std::filesystem::exists(path); ++n) {
+        bank.name = base + "-" + std::to_string(n);
+        path = dir / (file_stem(bank.name) + ".flt");
+    }
     std::ofstream out{path, std::ios::binary};
     if (!out) return core::make_error(core::Errc::io_error, "cannot write " + path.string());
     out << "name = " << quoted(bank.name) << "\n"

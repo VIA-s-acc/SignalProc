@@ -46,8 +46,11 @@ public:
         const auto [w, h] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
         const auto bp = classify(w, h);
         if (ui_.monitor) ui_.monitor->frame_rendered();
+        if (ui_.ticker) ui_.ticker->begin_frame();
         if (ui_.player) {
             ui_.player->poll();
+            if (auto why = ui_.player->take_interruption(); why && ui_.warn)
+                ui_.warn(fmt::format(fmt::runtime(tr("tui.audio.interrupted")), fmt::arg("reason", *why)));
             if (ui_.ticker) ui_.ticker->want("player", ui_.player->state() == audio::PlayState::playing);
         }
         auto paint = [&](Element e) { return ui_.caps.color == ColorDepth::none ? e : e | bg(ui_.theme.bg, ui_) | fg(ui_.theme.fg, ui_); };
@@ -183,7 +186,9 @@ private:
         jump_.start(std::move(targets));
     }
 
-    bool jump_event(const ftxui::Event& e) {
+    bool jump_event(ftxui::Event e) {
+        if (e == ftxui::Event::Custom) return false;
+        if (e.is_mouse() && (e.mouse().motion == ftxui::Mouse::Moved || e.mouse().button == ftxui::Mouse::None)) return true;
         if (!e.is_character()) {
             jump_.cancel();
             return true;

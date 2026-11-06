@@ -1,5 +1,5 @@
 # Explanation script: 12 steps on x = [4, 6, 10, 12, 8, 6, 5, 5] (docs/02-theory.md, {#haar-explain-script}).
-# text_haar is the canvas wording (docs/design/Bank.dc.html) and is used for the Haar bank;
+# text_haar is the canvas wording (docs/design/Bank.dc.html) and is used for the orthonormal Haar bank;
 # text is the same idea for any bank. {{name}} placeholders are filled by fill() in explain_model.cpp.
 
 [[step]]
@@ -18,7 +18,7 @@ rows = ["x"]
 invariant = "power_complementary"
 view = "filters"
 text_haar = ["h₀ = [1, 1]/√2 — среднее пары (ФНЧ),", "h₁ = [1, −1]/√2 — разность (ФВЧ).", "f₀ = [1, 1]/√2,  f₁ = [−1, 1]/√2.", "", "инвариант: |H₀|² + |H₁|² = 2"]
-text = ["h₀ = {{h0}} — ФНЧ,", "h₁ = {{h1}} — ФВЧ,", "f₀ = {{f0}},", "f₁ = {{f1}}.", "инвариант: |H₀|² + |H₁|² = 2"]
+text = ["h₀ = {{h0}} — ФНЧ,", "h₁ = {{h1}} — ФВЧ,", "f₀ = {{f0}},", "f₁ = {{f1}}.", "инвариант: |H₀|² + |H₁|² = {{pc_gain}}"]
 
 [[step]]
 title = "свёртки y₀, y₁"
@@ -81,7 +81,7 @@ highlight = ["H0", "H1", "D0", "D1"]
 rows = ["x", "y0", "y1", "a", "d"]
 invariant = "orthogonal_matrix"
 view = "matrix"
-text_haar = ["То же как матрица: [a; d] = A₁ · x.", "Строки L — сдвиги h₀ на 2, строки B —", "сдвиги h₁. Синтез — транспонирование.", "", "инвариант: A₁ᵀA₁ = I"]
+text_haar = ["То же как матрица: [a; d] = A₁ · x.", "Строки L — сдвиги h₀ на 2, строки B —", "сдвиги h₁. Синтез — транспонирование.", "", "инвариант: {{matrix_identity}}"]
 text = ["То же как матрица: [a; d] = A₁ · x.", "Строки L — сдвиги h₀ на 2, строки B —", "сдвиги h₁. Синтез S восстанавливает x.", "", "инвариант: {{matrix_identity}}"]
 
 [[step]]

@@ -53,27 +53,72 @@ std::optional<std::uint64_t> DecompositionModel::job() const {
     return data_job_ ? data_job_ : recon_job_;
 }
 
+bool DecompositionModel::cancelled() const {
+    std::lock_guard lock{mutex_};
+    return cancelled_;
+}
+
 void DecompositionModel::sync(JobRunner& jobs) {
     const auto s = source_->data();
-    if (!s || s == seen_) return;
-    seen_ = s;
-    compute(jobs);
+    if (s && s != seen_) {
+        seen_ = s;
+        compute(jobs);
+        return;
+    }
+    bool pending = false;
+    {
+        std::lock_guard lock{mutex_};
+        pending = recon_pending_ && !data_job_ && data_;
+        if (pending) recon_pending_ = false;
+    }
+    if (pending) reconstruct(jobs);
 }
 
 void DecompositionModel::set_options(DecompositionOptions o, JobRunner& jobs) {
+    if (auto bank = core::wavelet(o.wavelet); !bank) {
+        std::lock_guard lock{mutex_};
+        error_ = bank.error().message;
+        return;
+    }
+    {
+        std::lock_guard lock{mutex_};
+        error_.reset();
+    }
     options_ = std::move(o);
+    if (seen_) compute(jobs);
+}
+
+void DecompositionModel::cancel(JobRunner& jobs) {
+    std::lock_guard lock{mutex_};
+    if (!data_job_ && !recon_job_) return;
+    if (data_job_) jobs.cancel(*data_job_);
+    if (recon_job_) jobs.cancel(*recon_job_);
+    data_job_.reset();
+    recon_job_.reset();
+    ++data_gen_;
+    ++recon_gen_;
+    recon_pending_ = false;
+    cancelled_ = true;
+}
+
+void DecompositionModel::recompute(JobRunner& jobs) {
     if (seen_) compute(jobs);
 }
 
 void DecompositionModel::compute(JobRunner& jobs) {
     const auto s = seen_;
     if (!s || s->samples.empty()) return;
+    std::uint64_t gen = 0;
     {
         std::lock_guard lock{mutex_};
         if (data_job_) jobs.cancel(*data_job_);
         if (recon_job_) jobs.cancel(*recon_job_);
         data_job_.reset();
         recon_job_.reset();
+        gen = ++data_gen_;
+        ++recon_gen_;
+        recon_pending_ = false;
+        cancelled_ = false;
     }
     const auto bank = core::wavelet(options_.wavelet);
     if (!bank) {
@@ -93,7 +138,7 @@ void DecompositionModel::compute(JobRunner& jobs) {
     const auto id = jobs.submit(
         fmt::format(fmt::runtime(tr("tui.decomposition.job")), fmt::arg("name", name), fmt::arg("wavelet", opts.wavelet)),
         {"DWT", tr("tui.decomposition.stage.tiles"), tr("tui.decomposition.stage.recon"), "MRA"},
-        [this, s, opts, bank = *bank, budget = budget_](JobContext& ctx) {
+        [this, s, opts, gen, bank = *bank, budget = budget_](JobContext& ctx) {
             auto d = std::make_shared<DecompositionData>();
             d->options = opts;
             d->fs = s->info.sample_rate;
@@ -112,7 +157,10 @@ void DecompositionModel::compute(JobRunner& jobs) {
             if (!coeffs) {
                 ctx.fail(coeffs.error().message);
                 std::lock_guard lock{mutex_};
+                if (gen != data_gen_) return;
                 error_ = coeffs.error().message;
+                data_job_.reset();
+                data_done_ = gen;
                 return;
             }
             d->coeffs = std::move(*coeffs);
@@ -166,7 +214,9 @@ void DecompositionModel::compute(JobRunner& jobs) {
             std::shared_ptr<const DecompositionData> published = d;
             {
                 std::lock_guard lock{mutex_};
+                if (gen != data_gen_) return;
                 data_ = published;
+                recon_.reset();
                 error_.reset();
             }
             Processing p;
@@ -211,11 +261,13 @@ void DecompositionModel::compute(JobRunner& jobs) {
             if (ctx.cancelled()) return;
             rec->memory = core::TrackedBytes{core::MemoryCategory::display, (rec->components.size() + 2) * n * sizeof(float)};
             std::lock_guard lock{mutex_};
-            recon_ = std::move(rec);
+            if (gen != data_gen_) return;
+            if (!recon_pending_) recon_ = std::move(rec);
             data_job_.reset();
+            data_done_ = gen;
         });
     std::lock_guard lock{mutex_};
-    data_job_ = id;
+    if (data_done_ != gen && data_gen_ == gen) data_job_ = id;
 }
 
 void DecompositionModel::reconstruct(JobRunner& jobs) {
@@ -223,14 +275,22 @@ void DecompositionModel::reconstruct(JobRunner& jobs) {
     if (!d) return;
     const auto bank = core::wavelet(d->options.wavelet);
     if (!bank) return;
+    std::uint64_t gen = 0;
     {
         std::lock_guard lock{mutex_};
+        if (data_job_) {
+            recon_pending_ = true;
+            return;
+        }
         if (recon_job_) jobs.cancel(*recon_job_);
+        recon_job_.reset();
+        gen = ++recon_gen_;
+        cancelled_ = false;
     }
     const auto enabled = enabled_;
     const auto processing = processing_;
     const auto id = jobs.submit(tr("tui.decomposition.job_recon"), {tr("tui.decomposition.stage.recon"), "MRA"},
-                                [this, d, enabled, processing, bank = *bank, budget = budget_](JobContext& ctx) {
+                                [this, d, gen, enabled, processing, bank = *bank, budget = budget_](JobContext& ctx) {
                                     ctx.begin(0);
                                     const auto J = d->options.levels;
                                     const auto n = d->x.size();
@@ -261,6 +321,10 @@ void DecompositionModel::reconstruct(JobRunner& jobs) {
                                     auto xhat = core::waverec<double>(kept, bank, {d->options.mode});
                                     if (!xhat) {
                                         ctx.fail(xhat.error().message);
+                                        std::lock_guard lock{mutex_};
+                                        if (gen != recon_gen_) return;
+                                        recon_job_.reset();
+                                        recon_done_ = gen;
                                         return;
                                     }
                                     xhat->resize(n);
@@ -293,11 +357,13 @@ void DecompositionModel::reconstruct(JobRunner& jobs) {
                                     if (ctx.cancelled()) return;
                                     rec->memory = core::TrackedBytes{core::MemoryCategory::display, (rec->components.size() + 2) * n * sizeof(float)};
                                     std::lock_guard lock{mutex_};
+                                    if (gen != recon_gen_ || data_ != d) return;
                                     recon_ = std::move(rec);
                                     recon_job_.reset();
+                                    recon_done_ = gen;
                                 });
     std::lock_guard lock{mutex_};
-    if (!recon_ || recon_->enabled != enabled) recon_job_ = id;
+    if (recon_done_ != gen && recon_gen_ == gen) recon_job_ = id;
 }
 
 void DecompositionModel::remember() { previous_ = std::pair{enabled_, processing_}; }

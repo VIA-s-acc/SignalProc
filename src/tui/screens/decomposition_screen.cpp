@@ -330,7 +330,8 @@ ftxui::Element DecompositionScreen::cursor_body(const DecompositionData& d, cons
     if (!cursor_) return text(tr("tui.decomposition.cursor_hint")) | fg(th.dim, ui_);
     const auto n = static_cast<std::size_t>(std::min<double>(static_cast<double>(d.x.size() - 1), std::max(0.0, *cursor_ * d.fs)));
     Elements rows{text("x  " + format_number(d.x[n])) | fg(th.fg, ui_)};
-    if (r && !r->components.empty()) {
+    const bool fits = r && !r->components.empty() && std::ranges::all_of(r->components, [n](const auto& c) { return c.size() > n; });
+    if (fits) {
         double sum = 0;
         std::string line;
         for (std::size_t i = 0; i < r->components.size(); ++i) {
@@ -426,6 +427,8 @@ ftxui::Element DecompositionScreen::listen_panel(const DecompositionData& d) {
                         text(" " + format_fixed(pos, 2) + " с") | fg(th.dim, ui_)}),
                   text(tr("tui.decomposition.shared_cursor")) | fg(th.dim, ui_)};
     if (!notice_.empty()) rows.push_back(text(notice_) | fg(th.warn, ui_));
+    if (auto e = model_->error()) rows.push_back(text(*e) | fg(th.err, ui_));
+    else if (model_->cancelled()) rows.push_back(text(tr("tui.decomposition.cancelled")) | fg(th.warn, ui_));
     return frame_panel(listen, vbox(std::move(rows)), {}, tr("tui.decomposition.listen"));
 }
 
@@ -479,6 +482,7 @@ ftxui::Element DecompositionScreen::OnRender() {
     if (!d) {
         Elements lines;
         if (auto e = model_->error()) lines.push_back(text(*e) | fg(th.err, ui_));
+        else if (model_->cancelled()) lines.push_back(text(tr("tui.decomposition.cancelled")) | fg(th.warn, ui_));
         else if (model_->source()) lines.push_back(text(tr("tui.decomposition.computing")) | fg(th.dim, ui_));
         else lines.push_back(text(tr("tui.decomposition.empty")) | fg(th.fg, ui_));
         return frame_panel(view_panel, centered(std::move(lines)), {}, tr("tui.decomposition.title.subbands"));
@@ -558,10 +562,13 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
         }
         return false;
     }
-    if (e == Event::Escape && playhead()) {
-        ui_.player->stop();
+    if (e == Event::Escape) {
+        if (playhead()) ui_.player->stop();
+        else if (model_->job()) model_->cancel(jobs);
+        else return false;
         return true;
     }
+    if (e == Event::Character('r') && !model_->job()) return model_->recompute(jobs), true;
     if (!d) return false;
     if (e == Event::ArrowDown) return selected_ = std::min(selected_ + 1, d->bands.size() - 1), true;
     if (e == Event::ArrowUp) return selected_ = selected_ > 0 ? selected_ - 1 : 0, true;

@@ -40,7 +40,8 @@ TEST_CASE("user banks round-trip through .flt files", "[tui][user_filters]") {
 
 TEST_CASE("a broken .flt is reported and skipped", "[tui][user_filters]") {
     const auto dir = fresh_dir("signals-user-filters-broken");
-    REQUIRE(save_user_bank(dir, {"ok", core::wavelet("haar")->h0, core::wavelet("haar")->f0, ""}));
+    UserBank ok{"ok", core::wavelet("haar")->h0, core::wavelet("haar")->f0, ""};
+    REQUIRE(save_user_bank(dir, ok));
     std::ofstream{dir / "bad.flt"} << "h0 = [";
     std::ofstream{dir / "notes.txt"} << "ignored";
     auto lib = load_user_banks(dir);
@@ -82,4 +83,17 @@ TEST_CASE("the filters library lists saved banks and analyses them", "[tui][user
     const auto empty = build_library();
     for (const auto& g : empty.children)
         if (g.label == "Мои фильтры") CHECK(!g.later.empty());
+}
+
+TEST_CASE("saving the same name twice keeps both banks reachable", "[tui][user_filters]") {
+    const auto dir = fresh_dir("signals-user-filters-unique");
+    UserBank a{"p3-k2", core::wavelet("db3")->h0, core::wavelet("db3")->f0, ""};
+    UserBank b{"p3-k2", core::wavelet("haar")->h0, core::wavelet("haar")->f0, ""};
+    REQUIRE(save_user_bank(dir, a));
+    REQUIRE(save_user_bank(dir, b));
+    CHECK(a.name == "p3-k2");
+    CHECK(b.name == "p3-k2-2");
+    const auto lib = load_user_banks(dir);
+    REQUIRE(lib.banks.size() == 2);
+    CHECK(lib.banks[0].name != lib.banks[1].name);
 }

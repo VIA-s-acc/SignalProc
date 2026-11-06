@@ -48,6 +48,7 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme) {
     ui.history = [&monitor] { return monitor.history(); };
     ui.prefs_file = prefs_path(env);
     ui.first_run_check = !prefs || !prefs->checked;
+    ui.warn = [signal = models.signal](std::string line) { signal->add_log(std::move(line), LogLine::warn); };
     ui.open_file = [signal = models.signal, &jobs](const std::filesystem::path& path) { signal->open(path, jobs); };
     auto screens = make_app_screens(ui, models);
     if (file) models.signal->open(*file, jobs);
