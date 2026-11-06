@@ -52,6 +52,9 @@ The plan `2026-11-06-signals-m4a.md` was executed inline by one implementer, the
 - Final: Ruling: Enter from «Объяснение» with «мой» bank opens the target tab with its current wavelet — other tabs cannot load a user bank by name until M6 — cost if wrong: the user picks the bank there by hand.
 - Final: Ruling: the ticker clears every want at the start of a frame and the player and the visible screen renew theirs — a timer tick that lands between the two is skipped — cost if wrong: one delayed frame of animation.
 
+- After review: Ruling: the M3 test "cpu load of a busy thread is about one core" failed on CI macOS (sampler 0,01 % against a 97 % reference) — macOS adds a joined thread's CPU time to the process a moment after pthread_join, the test sampled in that window; the test now samples before joining — cost if wrong: none for the product, the monitor only shows the time one sample later.
+- After review: user filters live under %APPDATA%\signals\filters on Windows, like the preferences file from PR #6 — the test case is compiled only on Windows (release builds there skip tests) — cost if wrong: Windows users find the folder under HOME instead.
+
 ## Deferred minors
 
 - keep_largest copies every coefficient into a sorted vector (16 B each) — heavy on very long signals.
