@@ -14,6 +14,7 @@
 #include "core/wavedec.hpp"
 #include "io/wav.hpp"
 
+#include "bench_pipeline.hpp"
 #include "bench_tui.hpp"
 
 using namespace signals::core;
@@ -78,6 +79,7 @@ int main() {
     io.title("WAV").minEpochIterations(1).epochs(3);
     io.run("read_wav 10 min stereo 44.1 kHz s24", [&] { ankerl::nanobench::doNotOptimizeAway(signals::io::read_wav(path)); });
     bench_tui(path);
+    bench_pipeline(path);
     std::filesystem::remove(path);
     return 0;
 }

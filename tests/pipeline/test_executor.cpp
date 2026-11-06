@@ -214,3 +214,18 @@ TEST_CASE("the cache evicts the oldest results over its budget", "[pipeline][cac
     cache.put(4, values(2000));
     CHECK_FALSE(cache.get(4));
 }
+
+TEST_CASE("a sole consumer takes its input without changing results or probes", "[pipeline][executor]") {
+    const auto g = graph_of(kChain);
+    core::CancelToken cancel;
+    ResultCache none{0}, all{std::size_t{1} << 30};
+    const auto lean = run_graph(g, none, {}, cancel);
+    const auto kept = run_graph(g, all, {}, cancel);
+    REQUIRE(lean);
+    REQUIRE(kept);
+    CHECK(channel(*lean, "out") == channel(*kept, "out"));
+    CHECK(channel(*lean, "d3") == channel(*kept, "d3"));
+    const auto again = run_graph(g, all, {}, cancel);
+    REQUIRE(again);
+    CHECK(channel(*again, "out") == channel(*kept, "out"));
+}

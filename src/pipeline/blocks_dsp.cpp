@@ -180,8 +180,8 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                     {"mode", Kind::choice, "soft", {"soft", "hard", "garrote"}},
                     {"levels", Kind::range, "1..64"},
                     {"sigma", Kind::text, "mad_d1"}},
-                   [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
-                       Coeffs c = in_coeffs(in);
+                   [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
+                       Coeffs c = take<Coeffs>(ctx, in, 0);
                        const auto [first, last] = param_range(p, "levels");
                        const auto mode = *core::parse_threshold_mode(param_text(p, "mode"));
                        const bool bayes = param_text(p, "rule") == "bayes";
@@ -206,8 +206,8 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    kCoeffsIn,
                    kCoeffsOut,
                    {{"enabled", Kind::text, "all"}, {"gains_db", Kind::text, ""}},
-                   [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
-                       Coeffs c = in_coeffs(in);
+                   [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
+                       Coeffs c = take<Coeffs>(ctx, in, 0);
                        const auto enabled = split_list(param_text(p, "enabled"));
                        std::vector<bool> keep(c.levels() + 1, enabled.empty() || enabled.front() == "all");
                        for (const auto& name : enabled) {

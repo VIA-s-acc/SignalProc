@@ -38,7 +38,16 @@ using Params = std::map<std::string, std::string, std::less<>>;
 struct RunContext {
     std::filesystem::path base_dir;
     core::ProgressSink* progress = nullptr;
+    std::vector<bool> owned = {};
 };
+
+// The executor marks an input as owned when the block is its only reader, nothing caches it and no probe looks at it;
+// only then may the block move from it instead of copying.
+template <class T>
+T take(const RunContext& ctx, std::span<const Value> in, std::size_t i) {
+    if (i < ctx.owned.size() && ctx.owned[i]) return std::move(const_cast<T&>(std::get<T>(in[i])));
+    return std::get<T>(in[i]);
+}
 
 class ScaledProgress final : public core::ProgressSink {
 public:

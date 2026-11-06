@@ -6,7 +6,7 @@
 
 ## Состояние
 
-Готовы M0–M1 (каркас и ядро банков фильтров), M2 (звук, обработка, характеристики, CLI) и M3 (каркас TUI: вкладки, мышь, темы, проверка терминала, экраны «Сигнал» и «Фильтры», мониторинг ресурсов). Следующий этап — M4: «Конструктор», «Разложение», «Матрица», «Объяснение». План M3: [docs/superpowers/plans/2026-11-06-signals-m3.md](docs/superpowers/plans/2026-11-06-signals-m3.md).
+Готовы M0–M3 (ядро банков фильтров, звук и CLI, каркас TUI), M4 (экраны «Конструктор», «Разложение», «Матрица», «Объяснение», «Под капотом» и «Учебник», прослушивание) и M5a — конвейеры: граф блоков, формат `.sig`, исполнитель с прогрессом, отменой и кэшем, команды `signals run` и `signals graph`. Интерфейс и теория — на русском и английском. Следующий этап — M5b: вкладка «8 Конвейер» с редактором графа. План M5a: [docs/superpowers/plans/2026-11-06-signals-m5a.md](docs/superpowers/plans/2026-11-06-signals-m5a.md).
 
 ## Скачать
 
@@ -45,6 +45,8 @@ cd signals-v0.3.0-macos-arm64
 | `signals resample <файл.wav>` | сжатие ↓M или растяжение ↑M с фильтром Кайзера |
 | `signals dwt <файл.wav>` | многоуровневое DWT: коэффициенты в JSON, полосы — в WAV с частотой fs/2^j |
 | `signals denoise <файл.wav>` | шумоподавление BayesShrink или VisuShrink, как в scikit-image |
+| `signals run <файл.sig>` | запустить конвейер: этапы по узлам со временем, щупы, отчёты; `--set`, `-o`, `--probe-dir`, `--json` |
+| `signals graph <файл.sig>` | нарисовать граф конвейера текстом (`--ascii` — только ASCII) |
 | `signals tui [файл.wav]` | интерактивный интерфейс; `signals` без аргументов в терминале делает то же |
 
 Примеры:
@@ -59,6 +61,39 @@ signals filter response db2 --band d --level 2 --points 1024 --json
 ```
 
 WAV читается во всех распространённых форматах: 8, 16, 24 и 32 бита, float32 и float64, A-law и μ-law, `WAVE_FORMAT_EXTENSIBLE`. Пишется 24 бита с TPDF-дизерингом. Значения вне диапазона ограничиваются и считаются, а не заворачиваются. Каналы обрабатываются по отдельности.
+
+## Конвейеры
+
+Обработку можно собрать из блоков и сохранить в текстовом файле `.sig`. Пример — [examples/denoise.sig](examples/denoise.sig), шумоподавление `test.wav`:
+
+```text
+pipeline "denoise" v1
+
+node src  = wav(path="../resources/samples/test.wav")
+node dwt  = dwt(wavelet=sym8, levels=0, ext=symmetric)
+node thr  = threshold(rule=bayes, mode=soft, levels=1..64, sigma=mad_d1)
+node idwt = idwt(wavelet=sym8, ext=symmetric)
+node chk  = check(kind=snr, tol=0)
+node out  = wav_out(path="denoised.wav", bits=24, dither=none)
+
+src -> dwt -> thr -> idwt -> out
+src -> chk.ref
+idwt -> chk.in
+probe dwt.d1 as "d1"
+```
+
+- `node имя = блок(параметр=значение, …)` объявляет узел. Блоки: `wav`, `gen`, `gain`, `normalize`, `remove_dc`, `split`, `mixdown`, `mid_side`, `delay`, `reverse`, `cut`, `downsample`, `upsample`, `resample`, `convolve`, `dwt`, `idwt`, `threshold`, `band_edit`, `band_energy`, `check`, `wav_out`, `listen`. Имена совпадают с карточками «Под капотом».
+- `a -> b -> c` соединяет узлы. Порт пишется, когда у блока их несколько: `chk.ref`, `chk.in`, полосы коэффициентов `dwt.d3`, `dwt.a`.
+- `probe узел.порт as "имя"` — щуп: копия значения на проводе.
+- Относительные пути считаются от каталога самого `.sig`.
+
+```bash
+signals run examples/denoise.sig -o clean.wav
+signals run examples/denoise.sig --set thr.mode=hard --probe-dir probes --json
+signals graph examples/denoise.sig
+```
+
+Перед запуском граф проверяется: циклы, типы портов, не подключённые входы, неизвестные блоки и параметры, два провода в один вход. Ошибка называет строку `.sig` и подсказывает ближайшее имя; ничего не выполняется. Независимые ветви идут параллельно, `Ctrl+C` прерывает запуск, в том числе внутри долгого блока: файл `wav_out` не появляется и временных файлов не остаётся. Код выхода — 0, 1 при ошибке графа или блока, 3, если проверка `check` не прошла, 130 при прерывании.
 
 ## Интерфейс
 

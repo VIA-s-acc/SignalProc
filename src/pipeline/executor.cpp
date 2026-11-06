@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -106,9 +107,25 @@ private:
 class Run {
 public:
     Run(const Graph& g, ResultCache& cache, const RunEvents& events, const core::CancelToken& cancel)
-        : g_{g}, cache_{cache}, events_{events}, cancel_{cancel}, keys_(g.nodes.size()), outputs_(g.nodes.size()), status_(g.nodes.size()) {
+        : g_{g}, cache_{cache}, events_{events}, cancel_{cancel}, keys_(g.nodes.size()), outputs_(g.nodes.size()), fresh_(g.nodes.size()),
+          status_(g.nodes.size()) {
         for (const auto i : g.order) keys_[i] = node_key(g, i, keys_);
         for (std::size_t i = 0; i < g.nodes.size(); ++i) status_[i].id = g.nodes[i].id;
+        pending_.assign(g.nodes.size(), 0);
+        probed_.assign(g.nodes.size(), false);
+        for (const auto& n : g.nodes) {
+            std::set<std::size_t> from;
+            for (const auto& s : n.sources)
+                if (s) {
+                    ++readers_[{s->node, s->output}];
+                    from.insert(s->node);
+                }
+            for (const auto f : from) ++pending_[f];
+        }
+        for (const auto& p : g.probes) {
+            readers_[{p.source.node, p.source.output}] += 2;
+            probed_[p.source.node] = true;
+        }
     }
 
     core::Result<RunResult> execute() {
@@ -165,6 +182,21 @@ private:
     }
 
     void node(std::size_t i) {
+        run_node(i);
+        std::set<std::size_t> from;
+        for (const auto& s : g_.nodes[i].sources)
+            if (s) from.insert(s->node);
+        std::vector<Outputs> released;
+        std::vector<std::shared_ptr<std::vector<Value>>> released_fresh;
+        std::lock_guard lock{mutex_};
+        for (const auto f : from)
+            if (--pending_[f] == 0 && !probed_[f]) {
+                released.push_back(std::move(outputs_[f]));
+                released_fresh.push_back(std::move(fresh_[f]));
+            }
+    }
+
+    void run_node(std::size_t i) {
         const auto& n = g_.nodes[i];
         if (cancel_.cancelled() || stop_.load()) return set(i, NodeState::bypassed);
         if (!n.type->side_effect)
@@ -178,8 +210,13 @@ private:
             }
         std::vector<Value> copies;
         std::span<const Value> inputs;
+        std::vector<bool> owned;
         const bool direct = n.sources.size() == 1 && n.sources[0] && n.sources[0]->band.empty();
-        if (direct) {
+        if (direct && stealable(*n.sources[0])) {
+            copies.push_back(std::move((*fresh_[n.sources[0]->node])[n.sources[0]->output]));
+            inputs = copies;
+            owned = {true};
+        } else if (direct) {
             const auto& from = outputs_[n.sources[0]->node];
             if (!from) return set(i, NodeState::bypassed);
             inputs = std::span<const Value>{&(*from)[n.sources[0]->output], 1};
@@ -215,7 +252,7 @@ private:
                               }};
         const auto wall0 = std::chrono::steady_clock::now();
         const auto cpu0 = thread_cpu_seconds();
-        auto result = n.type->run(RunContext{g_.base_dir, &progress}, inputs, n.params);
+        auto result = n.type->run(RunContext{g_.base_dir, &progress, std::move(owned)}, inputs, n.params);
         {
             std::lock_guard lock{mutex_};
             status_[i].cpu_seconds = thread_cpu_seconds() - cpu0;
@@ -225,14 +262,21 @@ private:
             if (result.error().code == core::Errc::cancelled || progress.cancelled()) return set(i, NodeState::bypassed, result.error().message);
             return fail(i, result.error());
         }
-        auto produced = std::make_shared<const std::vector<Value>>(std::move(*result));
+        auto produced = std::make_shared<std::vector<Value>>(std::move(*result));
         {
             std::lock_guard lock{mutex_};
             status_[i].bytes = outputs_bytes(*produced);
         }
         if (!n.type->side_effect) cache_.put(keys_[i], produced);
-        outputs_[i] = std::move(produced);
+        outputs_[i] = produced;
+        fresh_[i] = std::move(produced);
         set(i, NodeState::done);
+    }
+
+    bool stealable(const Source& s) const {
+        const auto it = readers_.find({s.node, s.output});
+        // outputs_ and fresh_ hold one reference each; a third one means the cache kept the result.
+        return it != readers_.end() && it->second == 1 && fresh_[s.node] && fresh_[s.node].use_count() == 2;
     }
 
     core::Result<RunResult> collect() {
@@ -269,6 +313,10 @@ private:
     const core::CancelToken& cancel_;
     std::vector<std::uint64_t> keys_;
     std::vector<Outputs> outputs_;
+    std::vector<std::shared_ptr<std::vector<Value>>> fresh_;
+    std::map<std::pair<std::size_t, std::size_t>, int> readers_;
+    std::vector<int> pending_;
+    std::vector<bool> probed_;
     std::vector<NodeStatus> status_;
     std::mutex mutex_;
     std::atomic<bool> stop_{false};
