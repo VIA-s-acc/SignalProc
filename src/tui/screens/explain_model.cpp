@@ -12,6 +12,7 @@
 #include "core/design/families.hpp"
 #include "core/matrix.hpp"
 #include "core/wavedec.hpp"
+#include "i18n/i18n.hpp"
 #include "tui/widgets/format.hpp"
 
 extern const char kSignalsExplainHaar[];
@@ -78,6 +79,7 @@ std::string format_cell(double v, bool fractions) {
     auto s = fmt::format("{:.3f}", v);
     while (s.back() == '0') s.pop_back();
     if (s.back() == '.') s.pop_back();
+    if (s == "-0" || s == "0") return "0";
     std::replace(s.begin(), s.end(), '.', ',');
     return with_minus(s);
 }
@@ -144,8 +146,8 @@ core::Result<Walkthrough> walkthrough(std::span<const double> x, const ExplainOp
     if (auto m = core::analysis_matrix(w.bank, 8, {core::Extension::periodization}); m) w.a1 = std::move(*m);
     w.h0_response = core::frequency_response(w.bank.h0, 256);
     w.h1_response = core::frequency_response(w.bank.h1, 256);
-    const auto alias = options.zero_detail ? core::scale(core::multiply(w.bank.f0, core::alternate(w.bank.h0)), 0.5) : core::alias_transfer(w.bank);
-    w.max_alias_db = to_db(max_magnitude(alias));
+    w.branch_alias_db = to_db(max_magnitude(core::scale(core::multiply(w.bank.f0, core::alternate(w.bank.h0)), 0.5)));
+    w.max_alias_db = options.zero_detail ? w.branch_alias_db : to_db(max_magnitude(core::alias_transfer(w.bank)));
     return w;
 }
 
@@ -243,6 +245,10 @@ core::Result<std::vector<ExplainStep>> load_script(std::string_view text) {
             }
             return true;
         };
+        if (const auto* m = t->get("mark_kept")) {
+            if (!m->as_boolean()) return core::make_error(core::Errc::invalid_argument, "explanation step mark_kept must be a boolean");
+            s.mark_kept = m->as_boolean()->get();
+        }
         if (!str("title", s.title) || !str("invariant", s.invariant) || !str("view", s.view) || !list("highlight", s.highlight) ||
             !list("rows", s.rows) || !list("text", s.text) || !list("text_haar", s.text_haar) || s.title.empty())
             return core::make_error(core::Errc::invalid_argument, "explanation step " + std::to_string(out.size() + 1) + " is malformed");
@@ -279,9 +285,9 @@ core::Result<std::string> fill(std::string_view line, const Walkthrough& w) {
         {"a.share", w.energy_x > 0 ? format_number(100 * w.energy_a / w.energy_x) + " %" : "—"},
         {"error", w.max_error < 1e-300 ? "0" : format_number(w.max_error, 2)},
         {"delay", std::to_string(w.delay)},
-        {"parity", w.options.odd_phase ? "нечётные" : "чётные"},
-        {"phase", w.options.odd_phase ? "фаза pywt" : "причинная схема Strang–Nguyen"},
-        {"shift", w.options.odd_phase ? "без задержки" : "с задержкой 1"},
+        {"parity", tr(w.options.odd_phase ? "tui.explain.parity.odd" : "tui.explain.parity.even")},
+        {"phase", tr(w.options.odd_phase ? "tui.explain.phase.odd" : "tui.explain.phase.even")},
+        {"shift", tr(w.options.odd_phase ? "tui.explain.shift.none" : "tui.explain.shift.one")},
         {"matrix_identity", w.orthogonal ? "A₁ᵀA₁ = I" : "S·A₁ = I"},
         {"a2", w.tree.size() == 3 ? tree_band(0) : std::string{"—"}},
         {"d2", w.tree.size() >= 3 ? tree_band(w.tree.size() - 2) : std::string{"—"}},
@@ -316,9 +322,11 @@ core::Result<std::string> fill(std::string_view line, const Walkthrough& w) {
         double peak = 0;
         for (double m : r.magnitude) peak = std::max(peak, m);
         std::string cutoff = "—";
+        const double target = peak / std::sqrt(2.0);
         for (std::size_t k = 1; k < r.magnitude.size(); ++k)
-            if (r.magnitude[k - 1] >= peak / std::sqrt(2.0) && r.magnitude[k] < peak / std::sqrt(2.0)) {
-                cutoff = format_fixed(r.omega[k] / std::numbers::pi, 3) + "π";
+            if (r.magnitude[k - 1] >= target && r.magnitude[k] < target) {
+                const double t = (r.magnitude[k - 1] - target) / (r.magnitude[k - 1] - r.magnitude[k]);
+                cutoff = format_fixed((r.omega[k - 1] + t * (r.omega[k] - r.omega[k - 1])) / std::numbers::pi, 3) + "π";
                 break;
             }
         values["cutoff"] = cutoff;

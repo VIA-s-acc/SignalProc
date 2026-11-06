@@ -6,6 +6,8 @@ signals_embed_text(${PROJECT_SOURCE_DIR}/resources/theory/explain/haar.toml ${CM
 add_library(signals_tui STATIC
   run.cpp
   widgets/format.cpp
+  widgets/screen_util.cpp
+  widgets/bank_diagram.cpp
   widgets/plot.cpp
   widgets/heatmap.cpp
   widgets/zplane.cpp
@@ -31,6 +33,7 @@ add_library(signals_tui STATIC
   screens/filters_model.cpp
   screens/filters_screen.cpp
   screens/explain_model.cpp
+  screens/explain_screen.cpp
   term/check_screen.cpp
   monitor/resources_panel.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theme_dark.cpp

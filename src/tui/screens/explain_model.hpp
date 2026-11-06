@@ -40,6 +40,7 @@ struct Walkthrough {
     bool orthogonal = false;
     core::FrequencyResponse h0_response, h1_response;
     double max_alias_db = 0;
+    double branch_alias_db = 0;
     double max_error = 0;
 };
 
@@ -52,6 +53,7 @@ struct ExplainStep {
     std::vector<std::string> text, text_haar;
     std::string invariant;
     std::string view;
+    bool mark_kept = false;
 };
 
 core::Result<std::vector<ExplainStep>> load_script(std::string_view toml);

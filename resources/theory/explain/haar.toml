@@ -31,6 +31,7 @@ text = ["Полные свёртки длины {{conv_len}}:", "y₀ = h₀ ∗
 
 [[step]]
 title = "прореживание ↓2"
+mark_kept = true
 highlight = ["D0", "D1", "a", "d"]
 rows = ["x", "y0", "y1", "a", "d"]
 invariant = "coefficient_count"
