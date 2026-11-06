@@ -4,6 +4,7 @@ signals_embed_text(${PROJECT_SOURCE_DIR}/docs/02-theory.md ${CMAKE_CURRENT_BINAR
 add_library(signals_theory STATIC
   sections.cpp
   latex.cpp
+  math_layout.cpp
   text.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theory_book.cpp
 )
