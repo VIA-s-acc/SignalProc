@@ -137,3 +137,30 @@ TEST_CASE("a closed source leaves a snapshot", "[tui][f1]") {
     CHECK(frame.find("снимок") != std::string::npos);
     CHECK(frame.find("Источник") != std::string::npos);
 }
+
+TEST_CASE("every tab answers F1 without a crash", "[tui][f1]") {
+    for (auto [w, hgt] : {std::pair{150, 44}, std::pair{80, 24}}) {
+        JobRunner jobs{[] {}, 0ms, true};
+        auto ui = signals::test::make_ui(w, hgt);
+        ui->jobs = &jobs;
+        auto models = make_app_models();
+        models.signal->open(signals::test::sample("test.wav"), jobs);
+        auto screens = make_app_screens(*ui, models);
+        Harness shell{make_shell(*ui, screens, [] {}), w, hgt};
+        const std::pair<char, int> tabs[]{{'1', 1}, {'2', 1}, {'3', 1}, {'4', 2}, {'5', 1}, {'6', 1}, {'7', 1}, {'8', 1}, {'9', 3}};
+        for (const auto& [key, subtabs] : tabs)
+            for (int s = 0; s < subtabs; ++s) {
+                shell.send(ftxui::Event::Character(key));
+                for (int k = 0; k < s; ++k) shell.send(ftxui::Event::Character(']'));
+                shell.frame();
+                shell.send(ftxui::Event::F1);
+                const auto frame = shell.frame();
+                INFO("size " << w << "x" << hgt << " tab " << key << " sub " << s);
+                CHECK(frame.find("nan") == std::string::npos);
+                CHECK(frame.find("inf") == std::string::npos);
+                CHECK(frame.find("формула не разобрана") == std::string::npos);
+                shell.send(ftxui::Event::Escape);
+                shell.frame();
+            }
+    }
+}

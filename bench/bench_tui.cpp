@@ -24,6 +24,11 @@
 #include "tui/screens/filters_screen.hpp"
 #include "tui/screens/signal_model.hpp"
 #include "tui/screens/signal_screen.hpp"
+#include "theory/markdown.hpp"
+#include "theory/math_layout.hpp"
+#include "theory/sections.hpp"
+#include "tui/screens/theory_navigator.hpp"
+#include "tui/screens/theory_screen.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/widgets/text_util.hpp"
 
@@ -143,6 +148,37 @@ void bench_tui(const std::filesystem::path& ten_minutes) {
     draw(matrix_shell);
     b.run("frame «Матрица», db2 N = 32", [&] { draw(matrix_shell); });
 
+    const auto formulas_start = std::chrono::steady_clock::now();
+    std::size_t formulas = 0;
+    for (const auto& s : signals::theory::sections())
+        for (const auto& f : signals::theory::math_spans(signals::theory::own_body(s))) {
+            auto box = signals::theory::render_latex(f, signals::theory::MathStyle::display, signals::theory::MathGlyphs::unicode);
+            ankerl::nanobench::doNotOptimizeAway(box);
+            ++formulas;
+        }
+    const std::chrono::duration<double, std::milli> formulas_ms = std::chrono::steady_clock::now() - formulas_start;
+    std::printf("\nparse and lay out all %zu formulas of the book once: %.1f ms\n", formulas, formulas_ms.count());
+
+    auto nav = std::make_shared<TheoryNavigator>();
+    nav->open(make_theory_page(decomposition, "tab:5"));
+    auto hood_shell = make_shell(*ui, {make_theory_screen(*ui, nav, TheoryScreen::Mode::under_the_hood)}, [] {});
+    draw(hood_shell);
+    b.run("frame «Под капотом», DWT card with live values", [&] { draw(hood_shell); });
+
+    std::size_t longest = 0;
+    for (std::size_t i = 0; i < signals::theory::sections().size(); ++i)
+        if (signals::theory::own_body(signals::theory::sections()[i]).size() > signals::theory::own_body(signals::theory::sections()[longest]).size()) longest = i;
+    auto book = std::make_shared<TheoryNavigator>();
+    book->open({{TheoryLink::Kind::section, signals::theory::sections()[longest].id}});
+    auto tutorial_shell = make_shell(*ui, {make_theory_screen(*ui, book, TheoryScreen::Mode::tutorial)}, [] {});
+    draw(tutorial_shell);
+    bool down = true;
+    b.run("scroll the longest section + frame", [&] {
+        tutorial_shell->OnEvent(down ? ftxui::Event::PageDown : ftxui::Event::PageUp);
+        down = !down;
+        draw(tutorial_shell);
+    });
+
     ui->caps.color = ColorDepth::palette256;
     draw(signal_shell);
     b.run("frame «Сигнал», 256 colours", [&] { draw(signal_shell); });
@@ -153,6 +189,8 @@ void bench_tui(const std::filesystem::path& ten_minutes) {
     b.run("frame «Объяснение», 256 colours", [&] { draw(explain_shell); });
     b.run("frame «Разложение», 256 colours", [&] { draw(decomposition_shell); });
     b.run("frame «Матрица», 256 colours", [&] { draw(matrix_shell); });
+    draw(hood_shell);
+    b.run("frame «Под капотом», 256 colours", [&] { draw(hood_shell); });
     ui->caps.color = ColorDepth::truecolor;
 
     auto threaded_ui = make_ui();

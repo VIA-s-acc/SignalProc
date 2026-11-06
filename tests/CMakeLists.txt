@@ -55,6 +55,7 @@ add_executable(signals_tests
   tui/test_document.cpp
   tui/test_theory_screen.cpp
   tui/test_f1.cpp
+  tui/test_external.cpp
   tui/test_explain_model.cpp
   tui/test_explain_screen.cpp
   tui/test_designer_model.cpp
