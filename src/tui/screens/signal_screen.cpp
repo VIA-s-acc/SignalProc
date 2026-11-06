@@ -350,7 +350,7 @@ ftxui::Element SignalScreen::spectrum_panel(const SignalData* d, int, int width)
                            tr("tui.signal.spectrum"));
     const double fs = d->info.sample_rate;
     PlotSpec spec;
-    spec.x = {20, fs / 2, AxisScale::log10};
+    spec.x = zoom_.axis("spectrum", {20, fs / 2, AxisScale::log10}).axis();
     spec.y = {-100, 0};
     Trace t;
     t.color = th.trace[0];
@@ -368,13 +368,16 @@ ftxui::Element SignalScreen::spectrum_panel(const SignalData* d, int, int width)
     for (std::size_t k = 0; levels > 0 && k <= levels; ++k) {
         const auto [lo, hi] = band_range(k, levels, fs);
         const auto name = band_name(k, levels, ui_.caps.glyphs);
-        const int col = 6 + column_of_value(spec.x, std::sqrt(std::max(lo, 20.0) * hi), columns) - display_width(name) / 2;
+        const double centre = std::sqrt(std::max(lo, 20.0) * hi);
+        if (centre < spec.x.lo || centre > spec.x.hi) continue;
+        const int col = 6 + column_of_value(spec.x, centre, columns) - display_width(name) / 2;
         if (col < pos) continue;
         marks.push_back(text(std::string(static_cast<std::size_t>(col - pos), ' ')));
         marks.push_back(text(name) | fg(th.trace[0], ui_));
         pos = col + display_width(name);
     }
-    return frame_panel(spectrum, vbox({hbox(std::move(marks)), plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex}), std::move(chips),
+    auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs);
+    return frame_panel(spectrum, vbox({hbox(std::move(marks)), zoom_.track("spectrum", std::move(spec), std::move(drawn)) | flex}), std::move(chips),
                        tr("tui.signal.spectrum"));
 }
 
@@ -415,6 +418,7 @@ ftxui::Element SignalScreen::build(Panel p, const std::shared_ptr<const SignalDa
 
 ftxui::Element SignalScreen::OnRender() {
     using namespace ftxui;
+    zoom_.begin_frame();
     panel_boxes_.fill(kNoBox);
     title_boxes_.fill(kNoBox);
     wave_boxes_.fill(kNoBox);
@@ -473,8 +477,11 @@ double SignalScreen::time_at(int x) const {
     return value_at_column(Axis{model_->view_begin(), model_->view_end()}, x - a.x_min, a.x_max - a.x_min + 1);
 }
 
+Axis SignalScreen::plot_axis(std::string_view id) const { return zoom_.view(id).value_or(Axis{}); }
+
 ftxui::Box SignalScreen::area(std::string_view id) const {
     if (id == "drag_chip") return drag_chip_;
+    if (id == "spectrum_plot") return zoom_.box("spectrum");
     if (id == "waveform") {
         ftxui::Box out = kNoBox;
         bool any = false;
@@ -495,7 +502,7 @@ ftxui::Box SignalScreen::area(std::string_view id) const {
 bool SignalScreen::on_mouse(const ftxui::Mouse& m) {
     using ftxui::Mouse;
     if (m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) {
-        if (!model_->data() || !in_wave(m.x, m.y)) return false;
+        if (!model_->data() || !in_wave(m.x, m.y)) return zoom_.on_mouse(m);
         const double f = m.button == Mouse::WheelUp ? kWheelStep : 1 / kWheelStep;
         if (m.shift) model_->zoom_amplitude(f);
         else model_->zoom(f, time_at(m.x));
@@ -532,6 +539,7 @@ bool SignalScreen::on_mouse(const ftxui::Mouse& m) {
         bool hit = false;
         for (int p = 0; p < panel_count; ++p)
             if (panel_boxes_[static_cast<std::size_t>(p)].Contain(m.x, m.y)) focus_ = static_cast<Panel>(p), hit = true;
+        if (zoom_.press(m.x, m.y)) return true;
         if (model_->data() && in_wave(m.x, m.y)) {
             const bool select = m.control || drag_mode_ == DragMode::select;
             drag_ = {select ? Drag::select : Drag::pan, m.x, time_at(m.x), false, m.shift};
@@ -539,6 +547,7 @@ bool SignalScreen::on_mouse(const ftxui::Mouse& m) {
         }
         return hit;
     }
+    if (zoom_.on_mouse(m)) return true;
     if (drag_.kind == Drag::none) return false;
     if (m.motion == Mouse::Released) {
         if (drag_.kind == Drag::pan || drag_.kind == Drag::select) {
@@ -670,6 +679,7 @@ void SignalScreen::toggle_playback() {
 }
 
 std::vector<MenuItem> SignalScreen::context_menu(int x, int y) {
+    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
     if (!model_->data() || !in_wave(x, y)) return {};
     const double t = time_at(x);
     const bool both = model_->cursor_a() && model_->cursor_b();

@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <cmath>
 #include <numbers>
 
 #include "tui/widgets/axis_zoom.hpp"
@@ -70,4 +71,14 @@ TEST_CASE("changing the full range keeps the visible fractions", "[tui][zoom]") 
     z.set_full({0, 20});
     CHECK(z.axis().lo == Approx(5));
     CHECK(z.axis().hi == Approx(15));
+}
+
+TEST_CASE("a log axis zooms evenly in decades", "[tui][zoom]") {
+    AxisZoom z{{10, 10000, AxisScale::log10}};
+    z.zoom(3, 0.5);
+    CHECK(z.axis().scale == AxisScale::log10);
+    CHECK(z.axis().lo == Approx(std::pow(10.0, 2.0)));
+    CHECK(z.axis().hi == Approx(std::pow(10.0, 3.0)));
+    const ftxui::Box area{0, 99, 0, 5};
+    CHECK(z.fraction_at(area, 0) == Approx(1.0 / 3 + 0.005 / 3).margin(1e-6));
 }
