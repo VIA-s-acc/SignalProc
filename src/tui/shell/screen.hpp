@@ -3,6 +3,7 @@
 #include <chrono>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string_view>
 #include <string>
@@ -14,6 +15,7 @@
 #include <ftxui/screen/box.hpp>
 
 #include "audio/player.hpp"
+#include "theory/live.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/monitor/monitor.hpp"
 #include "tui/shell/layout.hpp"
@@ -33,6 +35,21 @@ struct NavArgs {
     std::string wavelet = {};
     std::optional<std::size_t> n = {};
     std::optional<std::size_t> step = {};
+};
+
+struct TheoryLink {
+    enum class Kind { card, section };
+    Kind kind = Kind::section;
+    std::string id;
+    std::string label = {};
+};
+
+struct TheoryPage {
+    TheoryLink link;
+    std::shared_ptr<theory::LiveValues> values = {};
+    std::function<void(theory::LiveValues&)> publisher = {};
+    std::string origin = {};
+    int scroll = 0;
 };
 
 struct UiContext {

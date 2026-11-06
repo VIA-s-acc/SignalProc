@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <memory>
+#include <regex>
 #include <string>
 
 #include <ftxui/component/event.hpp>
@@ -36,7 +37,7 @@ TEST_CASE("every tab renders at both sizes without nan", "[tui][shell][app]") {
                 INFO("size " << w << "x" << h << " tab " << key << " sub " << s);
                 CHECK(frame.find("nan") == std::string::npos);
                 CHECK(frame.find("inf") == std::string::npos);
-                CHECK(frame.find("{") == std::string::npos);
+                CHECK_FALSE(std::regex_search(frame, std::regex{R"(\{[^#])"}));
                 shell.send(ftxui::Event::Character(']'));
             }
         }

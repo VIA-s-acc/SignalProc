@@ -19,6 +19,7 @@ struct DocLink {
     std::string target;
     std::string label;
     ftxui::Box box;
+    int line = -1;
 };
 
 struct DocFormula {

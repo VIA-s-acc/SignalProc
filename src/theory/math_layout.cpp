@@ -22,7 +22,7 @@ enum class Cls { ord, bin, rel, punct, open, close, op, space };
 
 constexpr std::array<std::u32string_view, 21> kRelations{U"=", U"≈", U"≤", U"≥", U"≠", U"∼", U"∝", U"≡", U"∈", U"∉", U"⊂",
                                                          U"⊆", U"→", U"⇔", U"⇒", U"←", U"↔", U"<", U">", U"∣", U":="};
-constexpr std::array<std::u32string_view, 12> kBinary{U"+", U"−", U"±", U"×", U"·", U"⊗", U"⊕", U"⊛", U"∪", U"∩", U"∗", U"/"};
+constexpr std::array<std::u32string_view, 11> kBinary{U"+", U"−", U"±", U"×", U"·", U"⊗", U"⊕", U"⊛", U"∪", U"∩", U"∗"};
 
 struct Pair {
     char32_t from, to;

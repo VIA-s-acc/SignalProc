@@ -207,6 +207,8 @@ private:
                 line.spans.push_back({" ", Style::normal});
                 ++used;
             }
+            if (t.link >= 0 && links_[static_cast<std::size_t>(t.link)].line < 0)
+                links_[static_cast<std::size_t>(t.link)].line = static_cast<int>(lines_.size());
             line.spans.push_back({text, t.style, t.link});
             used += w;
             empty = false;

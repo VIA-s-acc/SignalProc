@@ -12,6 +12,7 @@
 #include "tui/screens/filters_screen.hpp"
 #include "tui/screens/matrix_screen.hpp"
 #include "tui/screens/signal_screen.hpp"
+#include "tui/screens/theory_screen.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/shell/subtabs.hpp"
 
@@ -25,6 +26,7 @@ AppModels make_app_models() {
     m.designer = std::make_shared<DesignerModel>();
     m.decomposition = std::make_shared<DecompositionModel>(m.signal);
     m.matrix = std::make_shared<MatrixModel>();
+    m.theory = std::make_shared<TheoryNavigator>();
     return m;
 }
 
@@ -48,8 +50,7 @@ std::vector<std::shared_ptr<TabScreen>> make_app_screens(UiContext& ui, AppModel
                               {{tr("tui.sub.explain"), make_explain_screen(ui, user_bank)},
                                {tr("tui.sub.under_the_hood"), make_placeholder(tr("tui.sub.under_the_hood"), tr("tui.placeholder.under_the_hood.title"),
                                                                                tr("tui.placeholder.under_the_hood.text"), "M4b", &ui)},
-                               {tr("tui.sub.tutorial"), make_placeholder(tr("tui.sub.tutorial"), tr("tui.placeholder.tutorial.title"),
-                                                                         tr("tui.placeholder.tutorial.text"), "M4b", &ui)}});
+                               {tr("tui.sub.tutorial"), make_theory_screen(ui, models.theory, TheoryScreen::Mode::tutorial)}});
     return screens;
 }
 

@@ -115,6 +115,28 @@ const Section* find_section_by_number(std::string_view number) {
     return nullptr;
 }
 
+std::string_view own_body(const Section& s) {
+    std::string_view body = s.body;
+    bool fence = false;
+    for (std::size_t at = 0; at < body.size();) {
+        if (body.compare(at, 3, "```") == 0) fence = !fence;
+        if (!fence && body[at] == '#' && (at == 0 || body[at - 1] == '\n')) return body.substr(0, at);
+        const auto next = body.find('\n', at);
+        at = next == std::string_view::npos ? body.size() : next + 1;
+    }
+    return body;
+}
+
+std::vector<std::size_t> children_of(std::size_t index) {
+    std::vector<std::size_t> out;
+    const auto& all = sections();
+    for (std::size_t i = index + 1; i < all.size(); ++i)
+        if (all[i].parent && *all[i].parent == index) out.push_back(i);
+    return out;
+}
+
+std::size_t index_of(const Section& s) { return static_cast<std::size_t>(&s - sections().data()); }
+
 std::vector<std::size_t> search_sections(std::string_view query) {
     const auto q = fold_case(trim(query));
     if (q.empty()) return {};
