@@ -895,5 +895,21 @@
   "pipeline.block.band_energy": "Энергия полос",
   "pipeline.block.check": "Проверка",
   "pipeline.block.wav_out": "Запись",
-  "pipeline.block.listen": "Прослушивание"
+  "pipeline.block.listen": "Прослушивание",
+  "tui.pipeline.hint.pick": "выбрать",
+  "tui.pipeline.hint.insert": "вставить",
+  "tui.pipeline.hint.close": "закрыть",
+  "tui.pipeline.hint.add": "добавить блок",
+  "tui.pipeline.hint.params": "параметры",
+  "tui.pipeline.hint.bypass": "обход",
+  "tui.pipeline.hint.probe": "щуп",
+  "tui.pipeline.hint.delete": "удалить",
+  "tui.pipeline.hint.undo": "отмена и повтор",
+  "tui.pipeline.hint.save": "сохранить",
+  "tui.pipeline.hint.open": "открыть .sig",
+  "tui.pipeline.add_title": "Добавить блок · a",
+  "tui.pipeline.add_into_wire": "Enter — в выбранный провод",
+  "tui.pipeline.add_free": "Enter — отдельным узлом",
+  "tui.pipeline.save_as": "сохранить .sig как",
+  "tui.pipeline.open_prompt": "открыть .sig"
 }

@@ -52,11 +52,14 @@ void pop_codepoint(std::string& s) {
 
 std::vector<const Command*> filter_commands(const std::vector<Command>& all, std::string_view query) {
     const auto q = lower_codepoints(query);
-    std::vector<std::pair<std::size_t, const Command*>> ranked;
+    std::vector<std::pair<std::pair<bool, std::size_t>, const Command*>> ranked;
     for (const auto& c : all) {
-        auto pos = first_match(lower_codepoints(c.title), q);
-        if (!pos) pos = first_match(lower_codepoints(c.id), q);
-        if (pos) ranked.emplace_back(*pos, &c);
+        const auto title = lower_codepoints(c.title), id = lower_codepoints(c.id);
+        auto pos = first_match(title, q);
+        if (!pos) pos = first_match(id, q);
+        if (!pos) continue;
+        const bool scattered = !q.empty() && title.find(q) == std::u32string::npos && id.find(q) == std::u32string::npos;
+        ranked.emplace_back(std::pair{scattered, *pos}, &c);
     }
     std::stable_sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
     std::vector<const Command*> out;

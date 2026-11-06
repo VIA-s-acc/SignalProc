@@ -27,6 +27,7 @@ public:
     std::string tab_label() const override;
     std::vector<Hint> hints() const override;
     void set_breakpoint(Breakpoint b) override { breakpoint_ = b; }
+    bool capturing_text() const override { return adding_; }
 
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event e) override;
@@ -42,6 +43,12 @@ private:
     ftxui::Element toolbar() const;
     ftxui::Element graph_panel(int width, int height);
     ftxui::Element inspector_panel();
+    ftxui::Element add_panel();
+    bool on_add_key(const ftxui::Event& e);
+    bool on_inspector_key(const ftxui::Event& e);
+    void edit_param(int step);
+    void report(const core::Result<void>& r);
+    const pipeline::GraphNode* selected_node() const;
     ftxui::Element run_panel();
     ftxui::Element text_panel(int height);
     void follow_selection();
@@ -69,6 +76,9 @@ private:
         int last_x = 0, last_y = 0;
     } drag_;
     std::string notice_;
+    bool adding_ = false;
+    std::string query_;
+    std::size_t pick_ = 0, param_ = 0;
 };
 
 std::shared_ptr<TabScreen> make_pipeline_screen(UiContext& ui, std::shared_ptr<PipelineModel> model);

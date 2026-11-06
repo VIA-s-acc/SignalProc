@@ -895,5 +895,21 @@
   "pipeline.block.band_energy": "Band energy",
   "pipeline.block.check": "Check",
   "pipeline.block.wav_out": "Write",
-  "pipeline.block.listen": "Listen"
+  "pipeline.block.listen": "Listen",
+  "tui.pipeline.hint.pick": "choose",
+  "tui.pipeline.hint.insert": "insert",
+  "tui.pipeline.hint.close": "close",
+  "tui.pipeline.hint.add": "add block",
+  "tui.pipeline.hint.params": "parameters",
+  "tui.pipeline.hint.bypass": "bypass",
+  "tui.pipeline.hint.probe": "probe",
+  "tui.pipeline.hint.delete": "delete",
+  "tui.pipeline.hint.undo": "undo and redo",
+  "tui.pipeline.hint.save": "save",
+  "tui.pipeline.hint.open": "open .sig",
+  "tui.pipeline.add_title": "Add block · a",
+  "tui.pipeline.add_into_wire": "Enter — into the selected wire",
+  "tui.pipeline.add_free": "Enter — as a free node",
+  "tui.pipeline.save_as": "save .sig as",
+  "tui.pipeline.open_prompt": "open .sig"
 }

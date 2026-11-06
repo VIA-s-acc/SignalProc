@@ -1,7 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <algorithm>
 #include <chrono>
+#include <functional>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -9,6 +11,8 @@
 
 #include <ftxui/component/event.hpp>
 
+#include "i18n/i18n.hpp"
+#include "pipeline/sig.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/pipeline_model.hpp"
@@ -139,4 +143,104 @@ TEST_CASE("a finished run marks nodes with their state", "[tui][pipeline_screen]
     f.model->run(f.jobs);
     const auto frame = f.h.frame();
     CHECK(frame.find("✓ dwt") != std::string::npos);
+}
+
+namespace {
+
+void type(Harness& h, const std::vector<std::string>& chars) {
+    for (const auto& c : chars) h.send(ftxui::Event::Character(c));
+}
+
+void chain(PipelineFixture& f) {
+    f.model->add_node("gen");
+    f.model->add_node("dwt");
+    f.model->add_node("idwt");
+    REQUIRE(f.model->connect(port("gen"), port("dwt")));
+    REQUIRE(f.model->connect(port("dwt"), port("idwt")));
+    f.model->selection = {Selection::Kind::wire, {}, {port("dwt"), port("idwt")}};
+    f.h.frame();
+}
+
+}  // namespace
+
+TEST_CASE("a adds a block found by search into the selected wire", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    chain(f);
+    CHECK(f.h.send(ftxui::Event::Character('a')));
+    CHECK(f.screen->capturing_text());
+    type(f.h, {"п", "о", "р"});
+    CHECK(f.h.frame().find("Порог") != std::string::npos);
+    f.h.send(ftxui::Event::Return);
+    CHECK_FALSE(f.screen->capturing_text());
+    CHECK_THAT(pipeline::write_sig(f.model->doc()), ContainsSubstring("dwt -> threshold -> idwt"));
+}
+
+TEST_CASE("in English the block search finds English names", "[tui][pipeline_screen][i18n]") {
+    const signals::LanguageScope en{signals::Language::en};
+    PipelineFixture f{150, 44, false};
+    chain(f);
+    f.h.send(ftxui::Event::Character('a'));
+    type(f.h, {"t", "h", "r", "e", "s", "h"});
+    f.h.send(ftxui::Event::Return);
+    CHECK_THAT(pipeline::write_sig(f.model->doc()), ContainsSubstring("threshold"));
+}
+
+TEST_CASE("the inspector edits a choice and Ctrl+Z undoes it", "[tui][pipeline_screen]") {
+    PipelineFixture f;
+    f.model->selection = {Selection::Kind::node, "thr", {}};
+    f.h.send(ftxui::Event::Return);
+    f.h.send(ftxui::Event::ArrowDown);
+    f.h.send(ftxui::Event::ArrowRight);
+    const auto& thr = *std::find_if(f.model->doc().nodes.begin(), f.model->doc().nodes.end(), [](const auto& n) { return n.id == "thr"; });
+    CHECK(thr.params.at("mode") == "hard");
+    f.h.send(ftxui::Event::CtrlZ);
+    const auto& back = *std::find_if(f.model->doc().nodes.begin(), f.model->doc().nodes.end(), [](const auto& n) { return n.id == "thr"; });
+    CHECK(back.params.at("mode") == "soft");
+    f.h.send(ftxui::Event::CtrlY);
+    CHECK(f.model->dirty());
+}
+
+TEST_CASE("Enter on a text parameter asks for a value", "[tui][pipeline_screen]") {
+    PipelineFixture f;
+    std::string asked;
+    f.ui->ask_text = [&](std::string prompt, std::string initial, std::function<void(std::string)> done) {
+        asked = initial;
+        done("db4");
+    };
+    f.model->selection = {Selection::Kind::node, "dwt", {}};
+    f.h.send(ftxui::Event::Return);
+    f.h.send(ftxui::Event::Return);
+    CHECK(asked == "sym8");
+    const auto& dwt = *std::find_if(f.model->doc().nodes.begin(), f.model->doc().nodes.end(), [](const auto& n) { return n.id == "dwt"; });
+    CHECK(dwt.params.at("wavelet") == "db4");
+}
+
+TEST_CASE("M bypasses a block or explains why not", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    f.model->add_node("gen");
+    f.model->add_node("gain");
+    f.model->add_node("dwt");
+    REQUIRE(f.model->connect(port("gen"), port("gain")));
+    REQUIRE(f.model->connect(port("gain"), port("dwt")));
+    f.model->selection = {Selection::Kind::node, "dwt", {}};
+    f.h.send(ftxui::Event::Character('M'));
+    CHECK_THAT(f.screen->notice(), ContainsSubstring("dwt"));
+    f.model->selection = {Selection::Kind::node, "gain", {}};
+    f.h.send(ftxui::Event::Character('M'));
+    CHECK(f.h.frame().find("┄") != std::string::npos);
+    f.h.send(ftxui::Event::Character('p'));
+    CHECK(f.model->doc().probes.size() == 1);
+    f.h.send(ftxui::Event::Delete);
+    CHECK(f.model->doc().nodes.size() == 2);
+}
+
+TEST_CASE("Ctrl+S on a new document asks for a path and writes the file", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    f.model->add_node("gen");
+    const auto path = signals::test::temp_path("pipeline-save") / "new.sig";
+    std::filesystem::remove_all(path.parent_path());
+    f.ui->ask_text = [&](std::string, std::string, std::function<void(std::string)> done) { done(path.string()); };
+    f.h.send(ftxui::Event::CtrlS);
+    REQUIRE(std::filesystem::exists(path));
+    CHECK_FALSE(f.model->dirty());
 }
