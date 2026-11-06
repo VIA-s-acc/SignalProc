@@ -9,7 +9,6 @@
 #include "theory/sections.hpp"
 
 using namespace signals::theory;
-using signals::test::math_spans;
 using signals::test::own_text;
 
 

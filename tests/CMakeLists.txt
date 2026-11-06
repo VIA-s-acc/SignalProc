@@ -67,6 +67,7 @@ add_executable(signals_tests
   theory/test_sections.cpp
   theory/test_latex.cpp
   theory/test_math_layout.cpp
+  theory/test_markdown.cpp
   support/golden_text.cpp
   test_golden_files.cpp
   test_i18n_keys.cpp

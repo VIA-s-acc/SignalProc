@@ -11,7 +11,6 @@
 #include "theory/text.hpp"
 
 using namespace signals::theory;
-using signals::test::math_spans;
 using signals::test::own_text;
 
 namespace {

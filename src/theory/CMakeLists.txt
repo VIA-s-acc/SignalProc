@@ -5,6 +5,7 @@ add_library(signals_theory STATIC
   sections.cpp
   latex.cpp
   math_layout.cpp
+  markdown.cpp
   text.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theory_book.cpp
 )
