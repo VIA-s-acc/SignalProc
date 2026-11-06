@@ -473,3 +473,58 @@ TEST_CASE("a chapter is marked when one of its subsections has a card", "[tui][t
     CHECK(contents_line("Варианты преобраз").find("ⓘ") != std::string::npos);
     CHECK(contents_line("Сводный план").find("ⓘ") == std::string::npos);
 }
+
+TEST_CASE("the contents can be walked with the keyboard", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::tutorial};
+    f.nav->open({{TheoryLink::Kind::section, "conv-signals"}});
+    f.h.frame();
+    const auto& all = signals::theory::sections();
+    const auto here = signals::theory::index_of(*signals::theory::find_section("conv-signals"));
+    REQUIRE(all[here].parent);
+    const auto siblings = signals::theory::children_of(*all[here].parent);
+    REQUIRE(siblings.size() > 1);
+    REQUIRE(siblings[0] == here);
+    CHECK(f.h.send(ftxui::Event::Character('t')));
+    f.h.frame();
+    f.h.send(ftxui::Event::ArrowDown);
+    f.h.frame();
+    f.h.send(ftxui::Event::Return);
+    CHECK(f.nav->current()->link.id == all[siblings[1]].id);
+
+    f.h.send(ftxui::Event::Character('t'));
+    f.h.send(ftxui::Event::End);
+    f.h.send(ftxui::Event::Escape);
+    f.h.send(ftxui::Event::Return);
+    CHECK(f.nav->current()->link.id == all[siblings[1]].id);
+}
+
+TEST_CASE("search results can be paged with the keyboard", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::tutorial};
+    f.h.send(ftxui::Event::Character('/'));
+    f.h.send(ftxui::Event::Character("и"));
+    f.h.frame();
+    f.h.send(ftxui::Event::End);
+    f.h.frame();
+    f.h.send(ftxui::Event::Return);
+    const auto hits = signals::theory::search_sections("и");
+    REQUIRE(hits.size() > 20);
+    CHECK(f.nav->current()->link.id == signals::theory::sections()[hits.back()].id);
+}
+
+TEST_CASE("under the hood blocks open from the keyboard in a small terminal", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood, 80, 24};
+    const auto absent = [&](const std::string& id) { const auto b = f.screen->area(id); return b.x_max < b.x_min; };
+    f.h.frame();
+    f.h.send(ftxui::Event::End);
+    f.h.frame();
+    const std::string last{signals::theory::block_catalog().back().id};
+    CHECK_FALSE(absent("block:" + last));
+    f.h.send(ftxui::Event::Return);
+    REQUIRE(f.nav->last(TheoryLink::Kind::card));
+    CHECK(f.nav->last(TheoryLink::Kind::card)->link.id == last);
+    CHECK(f.h.frame().find("Блоки") == std::string::npos);
+    f.h.send(ftxui::Event::Character('t'));
+    CHECK(f.h.frame().find("Блоки") != std::string::npos);
+    f.h.send(ftxui::Event::Escape);
+    CHECK(f.h.frame().find("Блоки") == std::string::npos);
+}

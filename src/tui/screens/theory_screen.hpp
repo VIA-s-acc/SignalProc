@@ -64,12 +64,18 @@ private:
     void refresh_values(TheoryPage& page);
     std::string card_markdown(const theory::Card& card) const;
     ftxui::Element origin_line(const TheoryPage* page, int width) const;
-    ftxui::Element blocks_list(const theory::Card* current, int width, int rows);
+    ftxui::Element blocks_list(const theory::Card* current, int width, int rows, std::optional<std::size_t> cursor);
     ftxui::Element card_panel(const TheoryPage* page, int width, int height);
     NavArgs view_args(const TheoryPage* page) const;
     void open_source();
     void clamp_scroll();
     bool open_section_card();
+    std::vector<Entry> toc_entries() const;
+    bool contents_keys() const;
+    void start_cursor();
+    bool activate_section(std::size_t index);
+    bool activate_block(const std::string& id);
+    bool contents_key(ftxui::Event e);
     ftxui::Element more_row(bool up, std::size_t count, int width, ftxui::Box& box) const;
 
     UiContext& ui_;
@@ -97,6 +103,8 @@ private:
     ftxui::Box toc_box_{}, toc_up_box_{}, toc_down_box_{};
     std::size_t toc_first_ = 0, toc_page_ = 1;
     std::string toc_followed_;
+    bool toc_focus_ = false, toc_follow_cursor_ = false;
+    std::size_t toc_cursor_ = 0;
     bool fold_numbers_ = false;
     std::string notice_;
 };
