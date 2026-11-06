@@ -40,6 +40,7 @@ add_library(signals_tui STATIC
   screens/decomposition_model.cpp
   screens/decomposition_screen.cpp
   screens/matrix_model.cpp
+  screens/matrix_screen.cpp
   term/check_screen.cpp
   monitor/resources_panel.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theme_dark.cpp
