@@ -163,6 +163,17 @@ std::shared_ptr<const SignalData> SignalModel::data() const {
     return data_;
 }
 
+std::optional<audio::Clip> SignalModel::clip() const {
+    auto d = data();
+    if (!d || d->samples.empty()) return std::nullopt;
+    audio::Clip c;
+    for (const auto& ch : d->samples) c.channels.emplace_back(ch);
+    c.rate = d->info.sample_rate;
+    c.owner = d;
+    c.tag = "signal";
+    return c;
+}
+
 std::vector<LogLine> SignalModel::log() const {
     std::lock_guard lock{mutex_};
     return log_;

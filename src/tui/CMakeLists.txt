@@ -22,6 +22,7 @@ add_library(signals_tui STATIC
   shell/placeholder.cpp
   shell/palette.cpp
   shell/overlays.cpp
+  shell/ticker.cpp
   shell/errors.cpp
   screens/signal_model.cpp
   screens/signal_screen.cpp
@@ -34,7 +35,7 @@ add_library(signals_tui STATIC
 )
 target_include_directories(signals_tui PUBLIC ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(signals_tui
-  PUBLIC signals_core signals_io signals_i18n ftxui::component ftxui::dom ftxui::screen
+  PUBLIC signals_core signals_io signals_audio signals_i18n ftxui::component ftxui::dom ftxui::screen
   PRIVATE tomlplusplus::tomlplusplus fmt::fmt)
 signals_configure_target(signals_tui)
 if(APPLE)

@@ -42,6 +42,7 @@ struct PlotSpec {
     std::vector<Trace> traces = {};
     std::vector<Envelope> envelopes = {};
     std::optional<double> cursor_a = {}, cursor_b = {};
+    std::optional<double> playhead = {};
     std::optional<std::pair<double, double>> selection = {};
     std::vector<double> x_marks = {};
     std::vector<double> y_marks = {};

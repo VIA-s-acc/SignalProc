@@ -142,6 +142,7 @@ public:
             }
         cursor(screen, spec_.cursor_b, theme_.fg, x0, pw, ph);
         cursor(screen, spec_.cursor_a, theme_.accent, x0, pw, ph);
+        cursor(screen, spec_.playhead, theme_.ok, x0, pw, ph);
         if (labels) {
             int last_row = -10;
             for (const auto& t : yticks) {

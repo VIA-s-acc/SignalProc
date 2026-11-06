@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <filesystem>
 #include <functional>
 #include <string>
@@ -9,9 +10,11 @@
 #include <ftxui/component/component_base.hpp>
 #include <ftxui/screen/box.hpp>
 
+#include "audio/player.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/monitor/monitor.hpp"
 #include "tui/shell/layout.hpp"
+#include "tui/shell/ticker.hpp"
 #include "tui/term/caps.hpp"
 #include "tui/theme/theme.hpp"
 
@@ -29,6 +32,9 @@ struct UiContext {
     std::function<std::vector<ResourceSnapshot>()> history;
     std::filesystem::path prefs_file;
     bool first_run_check = false;
+    audio::Player* player = nullptr;
+    Ticker* ticker = nullptr;
+    std::function<std::chrono::steady_clock::time_point()> now;
 };
 
 struct MenuItem {

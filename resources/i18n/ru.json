@@ -339,5 +339,7 @@
   "tui.hint.jump": "метки для прыжка",
   "tui.hint.menu": "меню",
   "tui.key.right_click": "правый клик",
-  "tui.cmd.jump": "Прыжок по меткам"
+  "tui.cmd.jump": "Прыжок по меткам",
+  "tui.signal.hint.play": "слушать",
+  "tui.signal.audio_unavailable": "Звук недоступен: {reason}"
 }

@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -33,6 +34,7 @@ public:
     ftxui::Box area(std::string_view id) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
     std::vector<JumpTarget> jump_targets() const override;
+    std::optional<double> playhead() const;
 
 private:
     enum class DragMode { pan, select };
@@ -60,6 +62,8 @@ private:
     double time_at(int x) const;
     int wave_columns() const;
     bool loading() const;
+    bool playing() const;
+    void toggle_playback();
     static Panel panel_of(const std::string& key);
     static std::string key_of(Panel p);
 
@@ -78,6 +82,7 @@ private:
     Drag drag_;
     DragMode drag_mode_ = DragMode::pan;
     ftxui::Box drag_chip_{};
+    bool audio_warned_ = false;
     Panel last_title_ = panel_count;
     std::chrono::steady_clock::time_point last_title_click_{};
 };

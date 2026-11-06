@@ -34,6 +34,10 @@ public:
         const auto [w, h] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
         const auto bp = classify(w, h);
         if (ui_.monitor) ui_.monitor->frame_rendered();
+        if (ui_.player) {
+            ui_.player->poll();
+            if (ui_.ticker) ui_.ticker->want("player", ui_.player->state() == audio::PlayState::playing);
+        }
         auto paint = [&](Element e) { return ui_.caps.color == ColorDepth::none ? e : e | bg(ui_.theme.bg, ui_) | fg(ui_.theme.fg, ui_); };
         if (bp == Breakpoint::tiny)
             return paint(vbox({filler(), text(fmt::format(fmt::runtime(tr("tui.small.warning")), fmt::arg("w", w), fmt::arg("h", h))) | hcenter,

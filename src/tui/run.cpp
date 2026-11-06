@@ -33,6 +33,10 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme) {
     auto comparison = std::make_shared<ComparisonSet>();
     for (auto role : {FilterRole::h0, FilterRole::h1}) (void)comparison->add({FilterRef::Kind::bank, "db2", role});
     JobRunner jobs{[&app] { app.PostEvent(ftxui::Event::Custom); }};
+    audio::Player player{audio::make_device_sink()};
+    Ticker ticker{[&app] { app.PostEvent(ftxui::Event::Custom); }};
+    ui.player = &player;
+    ui.ticker = &ticker;
     ResourceMonitor monitor{[&app] { app.PostEvent(ftxui::Event::Custom); }};
     monitor.set_queue_probe([&jobs] { return jobs.queued(); });
     ui.jobs = &jobs;

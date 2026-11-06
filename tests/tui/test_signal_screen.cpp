@@ -11,6 +11,7 @@
 #include <string>
 #include <thread>
 
+#include "audio/manual_sink.hpp"
 #include "core/metrics.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
@@ -368,4 +369,87 @@ TEST_CASE("the waveform menu sets cursors and selects between them", "[tui][sign
     CHECK(r.m->selection()->first == Catch::Approx(*r.m->cursor_a()));
     CHECK(r.m->selection()->second == Catch::Approx(*r.m->cursor_b()));
     CHECK(r.screen->context_menu(a.x_min - 30, y).empty());
+}
+
+namespace {
+
+struct PlayRig {
+    JobRunner jobs{[] {}, 0ms, true};
+    signals::test::ManualSink* raw = nullptr;
+    signals::audio::Player player = signals::test::manual_player(raw);
+    std::shared_ptr<UiContext> ui = signals::test::make_ui(150, 44);
+    std::shared_ptr<SignalModel> m;
+    std::shared_ptr<SignalScreen> screen;
+    Harness h;
+    PlayRig() : m{(ui->jobs = &jobs, ui->player = &player, loaded(jobs))}, screen{std::make_shared<SignalScreen>(*ui, m)}, h{screen, 150, 41} {
+        h.frame();
+    }
+};
+
+}  // namespace
+
+TEST_CASE("space plays from cursor A and the playhead follows", "[tui][signal][audio]") {
+    PlayRig r;
+    r.m->set_cursor_a(1.0);
+    r.h.send(ftxui::Event::Character(' '));
+    CHECK(r.player.state() == signals::audio::PlayState::playing);
+    CHECK(r.player.position() == 44'100);
+    CHECK(r.raw->channels() == 2);
+    r.raw->pump(4'410);
+    REQUIRE(r.screen->playhead());
+    CHECK(*r.screen->playhead() == Catch::Approx(1.1).margin(1e-6));
+    CHECK(r.h.frame().find("▶ 1,10 с") != std::string::npos);
+    r.h.send(ftxui::Event::Character(' '));
+    CHECK(r.player.state() == signals::audio::PlayState::stopped);
+    CHECK_FALSE(r.screen->playhead());
+}
+
+TEST_CASE("space with a selection plays only the selection", "[tui][signal][audio]") {
+    PlayRig r;
+    r.m->select(2.0, 2.5);
+    r.h.send(ftxui::Event::Character(' '));
+    CHECK(r.player.position() == 88'200);
+    r.raw->pump(30'000);
+    CHECK(r.player.position() == 110'250);
+    r.player.poll();
+    CHECK(r.player.state() == signals::audio::PlayState::finished);
+    CHECK(r.h.frame().find("▶") == std::string::npos);
+}
+
+TEST_CASE("the view follows the playhead past its right edge", "[tui][signal][audio]") {
+    PlayRig r;
+    r.m->zoom(10, 0);
+    const double span = r.m->view_end() - r.m->view_begin();
+    r.m->set_cursor_a(r.m->view_end() - span * 0.01);
+    r.h.send(ftxui::Event::Character(' '));
+    r.raw->pump(static_cast<std::size_t>(span * 0.05 * 44'100));
+    r.h.frame();
+    CHECK(r.m->view_begin() < *r.screen->playhead());
+    CHECK(*r.screen->playhead() < r.m->view_end());
+}
+
+TEST_CASE("escape stops playback before cancelling jobs", "[tui][signal][audio]") {
+    PlayRig r;
+    r.h.send(ftxui::Event::Character(' '));
+    CHECK(r.h.send(ftxui::Event::Escape));
+    CHECK(r.player.state() == signals::audio::PlayState::stopped);
+}
+
+TEST_CASE("an unavailable device logs once", "[tui][signal][audio]") {
+    JobRunner jobs{[] {}, 0ms, true};
+    signals::audio::Player player{std::unique_ptr<signals::audio::Sink>{std::make_unique<signals::test::FailingSink>()}};
+    auto ui = signals::test::make_ui(150, 44);
+    ui->jobs = &jobs;
+    ui->player = &player;
+    auto m = loaded(jobs);
+    auto screen = std::make_shared<SignalScreen>(*ui, m);
+    Harness h{screen, 150, 41};
+    h.frame();
+    const auto before = m->log().size();
+    h.send(ftxui::Event::Character(' '));
+    h.send(ftxui::Event::Character(' '));
+    const auto log = m->log();
+    REQUIRE(log.size() == before + 1);
+    CHECK(log.back().text.find("Звук недоступен") != std::string::npos);
+    CHECK(log.back().text.find("no output device") != std::string::npos);
 }
