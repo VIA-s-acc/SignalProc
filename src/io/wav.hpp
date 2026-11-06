@@ -7,6 +7,7 @@
 
 #include "core/audio_buffer.hpp"
 #include "core/error.hpp"
+#include "core/progress.hpp"
 
 namespace signals::io {
 
@@ -27,7 +28,9 @@ struct WavFile {
     core::AudioBuffer audio;
 };
 
+core::Result<WavInfo> probe_wav(const std::filesystem::path& path);
 core::Result<WavFile> read_wav(const std::filesystem::path& path);
+core::Result<WavFile> read_wav(const std::filesystem::path& path, core::ProgressSink* progress);
 
 struct WavWriteOptions {
     SampleFormat format = SampleFormat::pcm_s24;

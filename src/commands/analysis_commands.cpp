@@ -11,7 +11,7 @@
 #include <nlohmann/json.hpp>
 
 #include "commands/command.hpp"
-#include "commands/i18n.hpp"
+#include "i18n/i18n.hpp"
 #include "core/design/families.hpp"
 #include "core/freq.hpp"
 #include "core/metrics.hpp"

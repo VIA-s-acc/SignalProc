@@ -14,6 +14,8 @@
 #include "core/wavedec.hpp"
 #include "io/wav.hpp"
 
+#include "bench_tui.hpp"
+
 using namespace signals::core;
 
 int main() {
@@ -52,8 +54,8 @@ int main() {
 
     ankerl::nanobench::Bench design;
     design.title("filter generation").minEpochIterations(1).epochs(3);
-    design.run("wavelet(\"db38\")", [&] { ankerl::nanobench::doNotOptimizeAway(wavelet("db38")); });
-    design.run("wavelet(\"sym17\")", [&] { ankerl::nanobench::doNotOptimizeAway(wavelet("sym17")); });
+    design.run("wavelet(\"db38\"), cached after the first call", [&] { ankerl::nanobench::doNotOptimizeAway(wavelet("db38")); });
+    design.run("wavelet(\"sym17\"), cached after the first call", [&] { ankerl::nanobench::doNotOptimizeAway(wavelet("sym17")); });
 
     const auto sym8 = *wavelet("sym8");
     ankerl::nanobench::Bench m2;
@@ -75,6 +77,7 @@ int main() {
     ankerl::nanobench::Bench io;
     io.title("WAV").minEpochIterations(1).epochs(3);
     io.run("read_wav 10 min stereo 44.1 kHz s24", [&] { ankerl::nanobench::doNotOptimizeAway(signals::io::read_wav(path)); });
+    bench_tui(path);
     std::filesystem::remove(path);
     return 0;
 }

@@ -22,6 +22,8 @@ add_executable(signals_tests
   core/test_freq_bank.cpp
   core/test_threshold.cpp
   core/test_shrink.cpp
+  core/test_spectral.cpp
+  core/test_progress_memory.cpp
   core/test_exact_reference.cpp
   io/test_wav_read.cpp
   io/test_wav_write.cpp
@@ -30,12 +32,29 @@ add_executable(signals_tests
   cli/test_cli.cpp
   cli/test_cli_commands.cpp
   cli/test_cli_audio.cpp
+  cli/test_cli_tui.cpp
+  tui/test_harness.cpp
+  tui/test_format.cpp
+  tui/test_theme.cpp
+  tui/test_caps.cpp
+  tui/test_pyramid.cpp
+  tui/test_plot.cpp
+  tui/test_heatmap.cpp
+  tui/test_zplane.cpp
+  tui/test_jobs.cpp
+  tui/test_monitor.cpp
+  tui/test_shell.cpp
+  tui/test_overlays.cpp
+  tui/test_signal_screen.cpp
+  tui/test_filters_model.cpp
+  tui/test_filters_screen.cpp
+  tui/harness.cpp
   test_golden_files.cpp
   test_i18n_keys.cpp
   support/golden.cpp
   support/banks.cpp
 )
-target_link_libraries(signals_tests PRIVATE signals_cli signals_io Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
+target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_tui Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
 target_include_directories(signals_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(signals_tests PRIVATE SIGNALS_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden"
                           SIGNALS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")

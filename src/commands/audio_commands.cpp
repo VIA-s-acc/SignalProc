@@ -9,7 +9,7 @@
 #include <nlohmann/json.hpp>
 
 #include "commands/command.hpp"
-#include "commands/i18n.hpp"
+#include "i18n/i18n.hpp"
 #include "core/multirate.hpp"
 #include "io/generators.hpp"
 #include "io/stats.hpp"

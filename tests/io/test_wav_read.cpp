@@ -1,9 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <filesystem>
 #include <string>
 #include <vector>
 
+#include "core/progress.hpp"
 #include "io/wav.hpp"
 #include "support/golden.hpp"
 #include "support/paths.hpp"
@@ -55,4 +57,33 @@ TEST_CASE("test.wav keeps its two channels apart", "[wav]") {
 
 TEST_CASE("an audio buffer without channels has no frames", "[wav]") {
     CHECK(signals::core::AudioBuffer{}.frames() == 0);
+}
+
+TEST_CASE("wav reading reports progress and can be cancelled", "[wav]") {
+    struct Record : signals::core::ProgressSink {
+        std::vector<double> seen;
+        void report(double f) override { seen.push_back(f); }
+        bool cancelled() const override { return false; }
+    } rec;
+    auto w = read_wav(sample("test.wav"), &rec);
+    REQUIRE(w);
+    REQUIRE_FALSE(rec.seen.empty());
+    CHECK(std::is_sorted(rec.seen.begin(), rec.seen.end()));
+    CHECK(rec.seen.back() == 1.0);
+    struct StopAfterFirst : signals::core::ProgressSink {
+        int calls = 0;
+        void report(double) override { ++calls; }
+        bool cancelled() const override { return calls > 0; }
+    } stop;
+    CHECK(read_wav(sample("test.wav"), &stop).error().code == Errc::cancelled);
+}
+
+TEST_CASE("probing a wav reads only its header", "[wav]") {
+    const auto info = signals::io::probe_wav(signals::test::sample("test.wav"));
+    REQUIRE(info);
+    CHECK(info->frames == 450'686);
+    CHECK(info->channels == 2);
+    CHECK(info->sample_rate == 44'100);
+    CHECK(info->format == signals::io::SampleFormat::pcm_s16);
+    CHECK_FALSE(signals::io::probe_wav(signals::test::fixture("not_a_wav.wav")));
 }

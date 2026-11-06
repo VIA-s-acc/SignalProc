@@ -72,38 +72,50 @@ double decode_float32(const unsigned char* p) { return std::bit_cast<float>(le32
 
 double decode_float64(const unsigned char* p) { return std::bit_cast<double>(le64(p)); }
 
+bool keep_going(core::ProgressSink* progress, std::size_t done, drwav_uint64 total) {
+    if (!progress) return true;
+    progress->report(total ? std::min(1.0, static_cast<double>(done) / static_cast<double>(total)) : 1.0);
+    return !progress->cancelled();
+}
+
 template <class Decode>
-void read_raw(drwav& wav, std::size_t bytes_per_sample, Decode decode, std::vector<std::vector<double>>& channels) {
+bool read_raw(drwav& wav, std::size_t bytes_per_sample, Decode decode, std::vector<std::vector<double>>& channels,
+              core::ProgressSink* progress) {
     const std::size_t nch = channels.size();
     std::vector<unsigned char> block(kBlockFrames * nch * bytes_per_sample);
     while (const auto got = drwav_read_pcm_frames(&wav, kBlockFrames, block.data())) {
         const unsigned char* p = block.data();
         for (drwav_uint64 f = 0; f < got; ++f)
             for (std::size_t c = 0; c < nch; ++c, p += bytes_per_sample) channels[c].push_back(decode(p));
+        if (!keep_going(progress, channels.front().size(), wav.totalPCMFrameCount)) return false;
     }
+    return true;
 }
 
-void read_g711(drwav& wav, std::vector<std::vector<double>>& channels) {
+bool read_g711(drwav& wav, std::vector<std::vector<double>>& channels, core::ProgressSink* progress) {
     const std::size_t nch = channels.size();
     std::vector<drwav_int16> block(kBlockFrames * nch);
     while (const auto got = drwav_read_pcm_frames_s16(&wav, kBlockFrames, block.data())) {
         const drwav_int16* p = block.data();
         for (drwav_uint64 f = 0; f < got; ++f)
             for (std::size_t c = 0; c < nch; ++c) channels[c].push_back(*p++ / 32768.0);
+        if (!keep_going(progress, channels.front().size(), wav.totalPCMFrameCount)) return false;
     }
+    return true;
 }
 
-void read_samples(drwav& wav, SampleFormat format, std::vector<std::vector<double>>& channels) {
+bool read_samples(drwav& wav, SampleFormat format, std::vector<std::vector<double>>& channels, core::ProgressSink* progress) {
     switch (format) {
-    case SampleFormat::pcm_u8: return read_raw(wav, 1, decode_pcm_u8, channels);
-    case SampleFormat::pcm_s16: return read_raw(wav, 2, decode_pcm_s16, channels);
-    case SampleFormat::pcm_s24: return read_raw(wav, 3, decode_pcm_s24, channels);
-    case SampleFormat::pcm_s32: return read_raw(wav, 4, decode_pcm_s32, channels);
-    case SampleFormat::float32: return read_raw(wav, 4, decode_float32, channels);
-    case SampleFormat::float64: return read_raw(wav, 8, decode_float64, channels);
+    case SampleFormat::pcm_u8: return read_raw(wav, 1, decode_pcm_u8, channels, progress);
+    case SampleFormat::pcm_s16: return read_raw(wav, 2, decode_pcm_s16, channels, progress);
+    case SampleFormat::pcm_s24: return read_raw(wav, 3, decode_pcm_s24, channels, progress);
+    case SampleFormat::pcm_s32: return read_raw(wav, 4, decode_pcm_s32, channels, progress);
+    case SampleFormat::float32: return read_raw(wav, 4, decode_float32, channels, progress);
+    case SampleFormat::float64: return read_raw(wav, 8, decode_float64, channels, progress);
     case SampleFormat::alaw:
-    case SampleFormat::mulaw: return read_g711(wav, channels);
+    case SampleFormat::mulaw: return read_g711(wav, channels, progress);
     }
+    return true;
 }
 
 struct WriteEncoding {
@@ -206,7 +218,21 @@ std::string_view to_string(SampleFormat format) {
     return "unknown";
 }
 
-core::Result<WavFile> read_wav(const std::filesystem::path& path) {
+core::Result<WavFile> read_wav(const std::filesystem::path& path) { return read_wav(path, nullptr); }
+
+core::Result<WavInfo> probe_wav(const std::filesystem::path& path) {
+    drwav wav;
+    if (!drwav_init_file(&wav, path.string().c_str(), nullptr))
+        return make_error(Errc::io_error, "cannot open or parse WAV file: " + path.string());
+    DrWavGuard guard{wav};
+    const auto format = sample_format(wav);
+    if (!format)
+        return make_error(Errc::invalid_argument, "unsupported WAV format: tag " + std::to_string(wav.translatedFormatTag) +
+                                                      ", " + std::to_string(wav.bitsPerSample) + " bits");
+    return WavInfo{*format, wav.channels, wav.sampleRate, wav.totalPCMFrameCount, wav.fmt.formatTag == DR_WAVE_FORMAT_EXTENSIBLE};
+}
+
+core::Result<WavFile> read_wav(const std::filesystem::path& path, core::ProgressSink* progress) {
     drwav wav;
     if (!drwav_init_file(&wav, path.string().c_str(), nullptr))
         return make_error(Errc::io_error, "cannot open or parse WAV file: " + path.string());
@@ -221,7 +247,7 @@ core::Result<WavFile> read_wav(const std::filesystem::path& path) {
     std::vector<std::vector<double>> channels(wav.channels);
     const auto reserve = static_cast<std::size_t>(std::min<drwav_uint64>(wav.totalPCMFrameCount, kMaxReserveFrames));
     for (auto& c : channels) c.reserve(reserve);
-    read_samples(wav, *format, channels);
+    if (!read_samples(wav, *format, channels, progress)) return make_error(Errc::cancelled, "reading cancelled: " + path.string());
     if (channels.front().empty()) return make_error(Errc::invalid_argument, "empty WAV: " + path.string());
 
     WavInfo info{*format, wav.channels, wav.sampleRate, channels.front().size(), wav.fmt.formatTag == DR_WAVE_FORMAT_EXTENSIBLE};

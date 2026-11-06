@@ -6,7 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include "commands/cli.hpp"
-#include "commands/i18n.hpp"
+#include "i18n/i18n.hpp"
 
 TEST_CASE("version prints localized line", "[cli]") {
     std::ostringstream out, err;
@@ -31,6 +31,6 @@ TEST_CASE("unknown subcommand exits with 2", "[cli]") {
 }
 
 TEST_CASE("tr returns key for unknown entries", "[cli][i18n]") {
-    CHECK(signals::cli::tr("no.such.key") == "no.such.key");
-    CHECK(signals::cli::tr("cli.version") == "signals {version}");
+    CHECK(signals::tr("no.such.key") == "no.such.key");
+    CHECK(signals::tr("cli.version") == "signals {version}");
 }
