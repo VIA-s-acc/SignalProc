@@ -239,3 +239,124 @@ TEST_CASE("the band list follows the selected band when it does not fit", "[tui]
     const auto last = band_name(0, f.model->options().levels, GlyphMode::unicode);
     CHECK(frame.find(last) != std::string::npos);
 }
+
+namespace {
+
+void deepen(DecompositionFixture& f, std::size_t levels) {
+    while (f.model->options().levels < levels) {
+        const auto before = f.model->options().levels;
+        f.h.send(ftxui::Event::Character('j'));
+        if (f.model->options().levels == before) break;
+    }
+    f.h.frame();
+}
+
+}  // namespace
+
+TEST_CASE("the wheel over the band labels scrolls the list, over the plot it zooms", "[tui][decomposition]") {
+    DecompositionFixture f;
+    deepen(f, 17);
+    auto frame = f.h.frame();
+    REQUIRE(frame.find("☑ d₁ ") != std::string::npos);
+    const auto labels = f.screen->area("band_labels");
+    REQUIRE(labels.x_max >= labels.x_min);
+    const auto view = f.screen->time_view();
+    f.h.wheel(labels.x_min + 2, labels.y_min + 3, false);
+    f.h.wheel(labels.x_min + 2, labels.y_min + 3, false);
+    frame = f.h.frame();
+    CHECK(frame.find("☑ d₁ ") == std::string::npos);
+    CHECK(frame.find("▲ ещё 2") != std::string::npos);
+    CHECK(f.screen->time_view() == view);
+    f.h.wheel(labels.x_min + 2, labels.y_min + 3, true);
+    f.h.wheel(labels.x_min + 2, labels.y_min + 3, true);
+    CHECK(f.h.frame().find("☑ d₁ ") != std::string::npos);
+    const auto plot = f.screen->area("view_plot");
+    f.h.wheel(plot.x_min + 10, plot.y_min + 1, true);
+    CHECK(f.screen->time_view() != view);
+}
+
+TEST_CASE("the wheel scrolls the energy list without moving the band list", "[tui][decomposition]") {
+    DecompositionFixture f;
+    deepen(f, 17);
+    auto frame = f.h.frame();
+    REQUIRE(line_with(frame, "d₁  11").find("%") != std::string::npos);
+    const auto energy = f.screen->area("energy_panel");
+    REQUIRE(energy.x_max >= energy.x_min);
+    for (int i = 0; i < 3; ++i) f.h.wheel(energy.x_min + 4, energy.y_min + 2, false);
+    frame = f.h.frame();
+    CHECK(line_with(frame, "d₁  11").empty());
+    CHECK(line_with(frame, "d₄  1,38к").find("%") != std::string::npos);
+    CHECK(frame.find("☑ d₁ ") != std::string::npos);
+}
+
+TEST_CASE("arrows bring a scrolled-away band back into view", "[tui][decomposition]") {
+    DecompositionFixture f;
+    deepen(f, 17);
+    const auto labels = f.screen->area("band_labels");
+    for (int i = 0; i < 5; ++i) f.h.wheel(labels.x_min + 2, labels.y_min + 3, false);
+    REQUIRE(f.h.frame().find("☑ d₁ ") == std::string::npos);
+    f.h.send(ftxui::Event::ArrowDown);
+    f.h.send(ftxui::Event::ArrowUp);
+    CHECK(f.h.frame().find("☑ d₁ ") != std::string::npos);
+}
+
+TEST_CASE("the cursor panel scrolls when the band values do not fit", "[tui][decomposition]") {
+    DecompositionFixture f;
+    deepen(f, 17);
+    f.h.send(ftxui::Event::Character('v'));
+    for (int i = 0; i < 200 && f.model->recon() && f.model->recon()->components.empty(); ++i) {
+        std::this_thread::sleep_for(5ms);
+        f.h.frame();
+    }
+    f.h.send(ftxui::Event::ArrowRight);
+    auto frame = f.h.frame();
+    REQUIRE(frame.find("x  ") != std::string::npos);
+    CHECK(frame.find("▼ ещё") != std::string::npos);
+    const auto cursor = f.screen->area("cursor_panel");
+    REQUIRE(cursor.x_max >= cursor.x_min);
+    for (int i = 0; i < 6; ++i) f.h.wheel(cursor.x_min + 4, cursor.y_min + 2, false);
+    frame = f.h.frame();
+    CHECK(frame.find("a₁₇") != std::string::npos);
+}
+
+TEST_CASE("a narrow energy panel keeps the percent column whole", "[tui][decomposition]") {
+    DecompositionFixture f{true, 120, 40};
+    deepen(f, 17);
+    const auto frame = f.h.frame();
+    const auto row = line_with(frame.substr(frame.find("Энергия")), "d₁");
+    CHECK(row.find("0,79 %") != std::string::npos);
+}
+
+TEST_CASE("the summary names disabled bands as compact ranges", "[tui][decomposition]") {
+    DecompositionFixture f;
+    deepen(f, 17);
+    for (int i = 0; i < 3; ++i) {
+        f.h.send(ftxui::Event::Return);
+        f.h.send(ftxui::Event::ArrowDown);
+    }
+    for (int i = 0; i < 200 && f.model->recon() && f.model->recon()->enabled.size() > 0 && f.model->recon()->enabled[2]; ++i) {
+        std::this_thread::sleep_for(5ms);
+        f.h.frame();
+    }
+    const auto line = line_with(f.h.frame(), "в синтезе");
+    CHECK(line.find("d₄–a₁₇") != std::string::npos);
+}
+
+TEST_CASE("the lambda list stays inside the denoise panel", "[tui][decomposition]") {
+    DecompositionFixture f;
+    deepen(f, 17);
+    f.h.send(ftxui::Event::Tab);
+    f.h.send(ftxui::Event::Tab);
+    f.h.send(ftxui::Event::Tab);
+    f.h.send(ftxui::Event::Return);
+    for (int i = 0; i < 200 && f.model->recon() && !f.model->recon()->processing.rule; ++i) {
+        std::this_thread::sleep_for(5ms);
+        f.h.frame();
+    }
+    const auto frame = f.h.frame();
+    const auto line = line_with(frame, "λ:");
+    REQUIRE_FALSE(line.empty());
+    const auto tail = line.substr(line.find("λ:"));
+    const auto inside = tail.substr(0, tail.find("│"));
+    CHECK((inside.back() == ' ' || inside.ends_with("…")));
+}
