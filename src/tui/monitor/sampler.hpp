@@ -43,6 +43,8 @@ struct ResourceSnapshot {
     double cpu_seconds = 0;
     std::uint64_t disk_read_bytes = 0, disk_written_bytes = 0;
     double disk_read_rate = 0, disk_write_rate = 0;
+    double ram_share_pct = 0;
+    std::string build = {};
     double cpu_one_core_pct = 0;
     double cpu_all_cores_pct = 0;
     std::size_t rss = 0, peak_rss = 0;
@@ -54,6 +56,7 @@ struct ResourceSnapshot {
 };
 
 ResourceSnapshot derive(const ProcessSample& prev, const ProcessSample& cur, unsigned cores, double fps);
+std::string build_kind();
 
 namespace detail {
 double process_cpu_seconds();

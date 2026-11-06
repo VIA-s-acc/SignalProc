@@ -26,6 +26,21 @@ double wall_seconds() {
 
 }  // namespace detail
 
+std::string build_kind() {
+#if defined(__SANITIZE_ADDRESS__)
+    return "asan";
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+    return "asan";
+#endif
+#endif
+#ifdef NDEBUG
+    return "release";
+#else
+    return "debug";
+#endif
+}
+
 ResourceSnapshot derive(const ProcessSample& prev, const ProcessSample& cur, unsigned cores, double fps) {
     ResourceSnapshot s;
     const double dw = cur.wall_seconds - prev.wall_seconds;
@@ -43,6 +58,8 @@ ResourceSnapshot derive(const ProcessSample& prev, const ProcessSample& cur, uns
     }
     s.buffers = core::tracked_memory();
     s.cpu_seconds = cur.cpu_seconds;
+    if (const auto ram = physical_memory_bytes(); ram > 0) s.ram_share_pct = 100.0 * static_cast<double>(cur.rss_bytes) / static_cast<double>(ram);
+    s.build = build_kind();
     s.disk_read_bytes = cur.disk_read_bytes;
     s.disk_written_bytes = cur.disk_written_bytes;
     if (dw > 0) {

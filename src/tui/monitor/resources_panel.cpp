@@ -15,23 +15,6 @@
 namespace signals::tui {
 namespace {
 
-#if defined(__SANITIZE_ADDRESS__)
-constexpr bool kAddressSanitizer = true;
-#elif defined(__has_feature)
-#if __has_feature(address_sanitizer)
-constexpr bool kAddressSanitizer = true;
-#else
-constexpr bool kAddressSanitizer = false;
-#endif
-#else
-constexpr bool kAddressSanitizer = false;
-#endif
-
-#ifdef NDEBUG
-constexpr bool kOptimised = true;
-#else
-constexpr bool kOptimised = false;
-#endif
 
 std::string buffer_name(std::size_t i) {
     switch (static_cast<core::MemoryCategory>(i)) {
@@ -59,7 +42,6 @@ ftxui::Element resources_panel(const UiContext& ui, int width, int height, float
         return hbox({text(key) | fg(th.dim, ui) | size(WIDTH, EQUAL, 12), paragraph(value)});
     };
 
-    const auto ram = physical_memory_bytes();
     const auto cores = latest.core_load_pct.empty() ? std::size_t{1} : latest.core_load_pct.size();
     Elements now{heading(tr("tui.resources.now"))};
     now.push_back(row(tr("tui.resources.cpu_row"), fmt::format(fmt::runtime(tr("tui.resources.cpu_value")), fmt::arg("one", format_number(latest.cpu_one_core_pct, 2)),
@@ -68,7 +50,7 @@ ftxui::Element resources_panel(const UiContext& ui, int width, int height, float
     now.push_back(row(tr("tui.resources.memory_row"),
                       fmt::format(fmt::runtime(tr("tui.resources.memory_value")), fmt::arg("rss", format_si(static_cast<double>(latest.rss), "Б")),
                                   fmt::arg("peak", format_si(static_cast<double>(latest.peak_rss), "Б")),
-                                  fmt::arg("share", format_number(ram ? 100.0 * static_cast<double>(latest.rss) / static_cast<double>(ram) : 0.0, 2)))));
+                                  fmt::arg("share", format_number(latest.ram_share_pct, 2)))));
     now.push_back(row(tr("tui.resources.threads_row"), std::to_string(latest.threads)));
     now.push_back(row(tr("tui.resources.disk_row"),
                       fmt::format(fmt::runtime(tr("tui.resources.disk_value")), fmt::arg("read", format_si(static_cast<double>(latest.disk_read_bytes), "Б")),
@@ -76,9 +58,9 @@ ftxui::Element resources_panel(const UiContext& ui, int width, int height, float
                                   fmt::arg("written", format_si(static_cast<double>(latest.disk_written_bytes), "Б")),
                                   fmt::arg("write_rate", format_si(latest.disk_write_rate, "Б/с")))));
     now.push_back(row(tr("tui.resources.frames_row"), format_number(latest.fps, 2) + " " + tr("tui.resources.fps")));
-    now.push_back(row(tr("tui.resources.build_row"), "Signals " + std::string{core::version()} + " · " +
-                                                      tr(kAddressSanitizer ? "tui.resources.build_asan" : kOptimised ? "tui.resources.build_release" : "tui.resources.build_debug")) |
-                  fg(kAddressSanitizer ? th.warn : th.fg, ui));
+    if (!latest.build.empty())
+        now.push_back(row(tr("tui.resources.build_row"), "Signals " + std::string{core::version()} + " · " + tr("tui.resources.build_" + latest.build)) |
+                      fg(latest.build == "asan" ? th.warn : th.fg, ui));
 
     std::vector<double> cpu, mem;
     double cpu_max = 100, mem_max = 1;

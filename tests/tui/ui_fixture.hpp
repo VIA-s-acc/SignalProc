@@ -18,6 +18,8 @@ inline tui::ResourceSnapshot fixed_resources() {
     s.core_load_pct.assign(8, 10.0);
     s.thread_load = {{"signals-ui", 2.0, 5.0}, {"signals-jobs", 1.1, 2.0}, {"", 0.0, 0.1}};
     s.cpu_seconds = 7.1;
+    s.ram_share_pct = 0.74;
+    s.build = "release";
     return s;
 }
 
