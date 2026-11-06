@@ -125,7 +125,7 @@ TEST_CASE("enter saves the bank and the filters library lists it", "[tui][design
 
 TEST_CASE("larger p keeps every root inside the z-plane", "[tui][designer]") {
     DesignerFixture f;
-    for (int i = 0; i < 3; ++i) f.h.send(ftxui::Event::Character('+'));
+    for (int i = 0; i < 3; ++i) f.h.send(ftxui::Event::Character('p'));
     CHECK(f.model->p() == 6);
     f.h.frame();
     const auto area = f.screen->area("roots");
@@ -222,4 +222,27 @@ TEST_CASE("dragging a zoomed designer plot pans it", "[tui][designer][zoom]") {
     const auto after = f.screen->plot_axis("magnitude");
     CHECK(after.lo > before.lo);
     CHECK(after.hi - after.lo == Catch::Approx(before.hi - before.lo));
+}
+
+TEST_CASE("plus, minus, brackets and zero drive the focused designer plot, p and P change p", "[tui][designer]") {
+    DesignerFixture f;
+    for (int i = 0; i < 3; ++i) f.h.send(ftxui::Event::Tab);
+    f.h.frame();
+    const auto full = f.screen->plot_axis("magnitude");
+    CHECK(f.h.send(ftxui::Event::Character('+')));
+    f.h.frame();
+    const auto zoomed = f.screen->plot_axis("magnitude");
+    CHECK(zoomed.hi - zoomed.lo < full.hi - full.lo);
+    f.h.send(ftxui::Event::Character('>'));
+    f.h.frame();
+    CHECK(f.screen->plot_axis("magnitude").lo > zoomed.lo);
+    f.h.send(ftxui::Event::Character('0'));
+    f.h.frame();
+    CHECK(f.screen->plot_axis("magnitude").lo == full.lo);
+    CHECK(f.screen->plot_axis("magnitude").hi == full.hi);
+    const auto p = f.model->p();
+    f.h.send(ftxui::Event::Character('p'));
+    CHECK(f.model->p() == p + 1);
+    f.h.send(ftxui::Event::Character('P'));
+    CHECK(f.model->p() == p);
 }

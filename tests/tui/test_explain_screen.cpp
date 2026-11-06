@@ -222,3 +222,20 @@ TEST_CASE("z and the wheel work on the explanation", "[tui][explain][zoom]") {
     CHECK(f.h.send(ftxui::Event::Escape));
     CHECK(f.h.frame().find("инвариант") != std::string::npos);
 }
+
+TEST_CASE("explain steps follow the up and down arrows, the story wraps and the frequency plot zooms by keys", "[tui][explain]") {
+    ExplainFixture f{1, 120, 40};
+    auto frame = f.h.frame();
+    CHECK(frame.find("обратно") != std::string::npos);
+    f.h.send(ftxui::Event::ArrowDown);
+    CHECK(f.screen->step() == 2);
+    f.h.send(ftxui::Event::ArrowUp);
+    CHECK(f.screen->step() == 1);
+    for (int i = 0; i < 4; ++i) f.h.send(ftxui::Event::Tab);
+    f.h.frame();
+    const auto full = f.screen->plot_axis("freq");
+    CHECK(f.h.send(ftxui::Event::Character('+')));
+    f.h.frame();
+    const auto zoomed = f.screen->plot_axis("freq");
+    CHECK(zoomed.hi - zoomed.lo < full.hi - full.lo);
+}

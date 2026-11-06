@@ -497,3 +497,35 @@ TEST_CASE("the wheel zooms the spectrum in decades and the menu resets it", "[tu
     h.frame();
     CHECK(screen->plot_axis("spectrum").lo == before.lo);
 }
+
+TEST_CASE("keys zoom and pan the waveform and the spectrum and select between the cursors", "[tui][signal]") {
+    DragRig r;
+    const double full = r.m->view_end() - r.m->view_begin();
+    CHECK(r.h.send(ftxui::Event::Character('+')));
+    const double zoomed = r.m->view_end() - r.m->view_begin();
+    CHECK(zoomed < full);
+    const double begin = r.m->view_begin();
+    r.h.send(ftxui::Event::Character('>'));
+    CHECK(r.m->view_begin() > begin);
+    r.h.send(ftxui::Event::Character('0'));
+    CHECK(r.m->view_end() - r.m->view_begin() == Catch::Approx(full));
+
+    r.h.send(ftxui::Event::ArrowRight);
+    r.h.send(ftxui::Event::Character('b'));
+    for (int i = 0; i < 20; ++i) r.h.send(ftxui::Event::ArrowRight);
+    REQUIRE(r.m->cursor_a());
+    REQUIRE(r.m->cursor_b());
+    CHECK(r.h.send(ftxui::Event::Character('v')));
+    REQUIRE(r.m->selection());
+    CHECK(r.m->selection()->first == Catch::Approx(std::min(*r.m->cursor_a(), *r.m->cursor_b())));
+    r.h.send(ftxui::Event::Escape);
+    CHECK_FALSE(r.m->selection());
+
+    r.h.send(ftxui::Event::Tab);
+    r.h.frame();
+    const auto spectrum = r.screen->plot_axis("spectrum");
+    r.h.send(ftxui::Event::Character('+'));
+    r.h.frame();
+    const auto narrower = r.screen->plot_axis("spectrum");
+    CHECK(narrower.hi - narrower.lo < spectrum.hi - spectrum.lo);
+}

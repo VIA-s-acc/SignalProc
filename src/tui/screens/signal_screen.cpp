@@ -76,6 +76,10 @@ std::vector<Hint> SignalScreen::hints() const {
             {"←→", tr("tui.signal.hint.arrows")},
             {"b", tr("tui.signal.hint.cursor_b")},
             {"s", tr("tui.signal.hint.drag_mode")},
+            {"+ − 0", tr("tui.hint.plot_zoom")},
+            {"< >", tr("tui.hint.plot_pan")},
+            {"[ ]", tr("tui.signal.hint.amplitude")},
+            {"v", tr("tui.signal.hint.select_ab")},
             {"Esc", tr("tui.signal.hint.cancel")},
             {"F1", tr("tui.signal.hint.f1")},
             {tr("tui.signal.key.wheel"), tr("tui.signal.hint.wheel")},
@@ -627,6 +631,10 @@ bool SignalScreen::OnEvent(ftxui::Event e) {
             ui_.jobs->cancel(*model_->job());
             return true;
         }
+        if (model_->selection()) {
+            model_->clear_selection();
+            return true;
+        }
         if (layout_.maximized()) {
             layout_.toggle_maximize(*layout_.maximized());
             return true;
@@ -673,6 +681,28 @@ bool SignalScreen::OnEvent(ftxui::Event e) {
     if (e == Event::Character('b')) {
         arrows_move_b_ = !arrows_move_b_;
         if (arrows_move_b_ && !model_->cursor_b()) model_->set_cursor_b(model_->cursor_a().value_or((begin + end) / 2));
+        return true;
+    }
+    if (focus_ == spectrum && zoom_.on_key(e, "spectrum")) return true;
+    if (e == Event::Character('+') || e == Event::Character('=') || e == Event::Character('-')) {
+        const auto a = model_->cursor_a();
+        const double anchor = a && *a >= begin && *a <= end ? *a : (begin + end) / 2;
+        model_->zoom(e == Event::Character('-') ? 1 / kWheelStep : kWheelStep, anchor);
+        return true;
+    }
+    if (e == Event::Character('>') || e == Event::Character('.')) return model_->pan(0.2 * (end - begin)), true;
+    if (e == Event::Character('<') || e == Event::Character(',')) return model_->pan(-0.2 * (end - begin)), true;
+    if (e == Event::Character(']')) return model_->zoom_amplitude(kWheelStep), true;
+    if (e == Event::Character('[')) return model_->zoom_amplitude(1 / kWheelStep), true;
+    if (e == Event::Character('0')) {
+        model_->zoom(1e-12, 0);
+        model_->zoom_amplitude(1e-12);
+        return true;
+    }
+    if (e == Event::Character('v')) {
+        if (!model_->cursor_a() || !model_->cursor_b()) return true;
+        model_->select(std::min(*model_->cursor_a(), *model_->cursor_b()), std::max(*model_->cursor_a(), *model_->cursor_b()));
+        if (ui_.jobs) model_->compute_selection(*ui_.jobs);
         return true;
     }
     const double current = (arrows_move_b_ ? model_->cursor_b() : model_->cursor_a()).value_or((begin + end) / 2);

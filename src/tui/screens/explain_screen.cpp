@@ -76,7 +76,8 @@ ExplainScreen::ExplainScreen(UiContext& ui, std::function<std::optional<core::Fi
 std::string ExplainScreen::tab_label() const { return tr("tui.sub.explain"); }
 
 std::vector<Hint> ExplainScreen::hints() const {
-    return {{"Tab", tr("tui.explain.hint.tab")},    {"z", tr("tui.signal.hint.zoom")},       {"←→", tr("tui.explain.hint.step")},
+    return {{"Tab", tr("tui.explain.hint.tab")},    {"z", tr("tui.signal.hint.zoom")},       {"←→ ↑↓", tr("tui.explain.hint.step")},
+            {"PgUp/PgDn", tr("tui.explain.hint.three_steps")}, {"Home/End", tr("tui.hint.ends")},  {"+ − 0 < >", tr("tui.hint.plot_zoom")},
             {"Space", tr("tui.explain.hint.auto")}, {"w", tr("tui.explain.hint.bank")},      {"p", tr("tui.explain.hint.phase")},
             {"e", tr("tui.explain.hint.perturb")},  {"f", tr("tui.explain.hint.fractions")}, {"Enter", tr("tui.explain.hint.open")},
             {"F1", tr("tui.explain.hint.f1")},      {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")}};
@@ -245,10 +246,7 @@ ftxui::Element ExplainScreen::rows_table(const Walkthrough& w, int width) {
         }
         const int room = width - used - 3;
         if (!r.note.empty() && room >= 4) {
-            auto cps = split_codepoints(r.note);
-            std::string note_text;
-            for (std::size_t i = 0; i < cps.size() && static_cast<int>(i) < room; ++i) note_text += cps[i];
-            parts.push_back(text("   " + note_text) | fg(th.dim, ui_));
+            parts.push_back(text("   " + ellipsize(r.note, room, ui_.caps.glyphs == GlyphMode::ascii)) | fg(th.dim, ui_));
         }
         out.push_back(hbox(std::move(parts)));
     }
@@ -307,23 +305,34 @@ ftxui::Element ExplainScreen::text_panel(const Walkthrough& w) {
     const auto& lines = canvas ? step.text_haar : step.text;
     const auto prefix = tr("tui.explain.invariant_prefix");
     Elements out;
+    std::string para;
+    const auto flush = [&] {
+        if (!para.empty()) out.push_back(paragraph(para) | fg(th.fg, ui_));
+        para.clear();
+    };
     for (const auto& l : lines) {
         auto f = fill(l, w);
         std::string s = f ? *f : l;
         if (s.starts_with(prefix) && !step.invariant.empty()) {
+            flush();
             const auto inv = check_invariant(step.invariant, w);
             if (!inv.checked) {
-                out.push_back(text(s) | fg(th.fg, ui_));
+                out.push_back(paragraph(s) | fg(th.fg, ui_));
                 continue;
             }
             s += inv.passed ? " " + std::string{glyph(Glyph::check, ui_.caps.glyphs)}
                             : " " + std::string{glyph(Glyph::cross, ui_.caps.glyphs)} + (std::isnan(inv.value) ? std::string{} : " " + format_number(inv.value, 2));
-            out.push_back(text(s) | fg(inv.passed ? th.ok : th.err, ui_));
+            out.push_back(paragraph(s) | fg(inv.passed ? th.ok : th.err, ui_));
+        } else if (s.empty()) {
+            flush();
+            out.push_back(text(""));
         } else {
-            out.push_back(text(s) | fg(th.fg, ui_));
+            para += (para.empty() ? "" : " ") + s;
         }
     }
-    return frame_panel(story, vbox(std::move(out)), {{tr("tui.explain.chip.invariant"), false}}, tr("tui.explain.text"));
+    flush();
+    auto body = vbox(std::move(out)) | focusPositionRelative(0.f, story_scroll_) | yframe;
+    return frame_panel(story, body, {{tr("tui.explain.chip.invariant"), false}}, tr("tui.explain.text"));
 }
 
 ftxui::Element ExplainScreen::matrix_panel(const Walkthrough& w) {
@@ -407,25 +416,25 @@ ftxui::Element ExplainScreen::p0_panel(const Walkthrough& w) {
     const auto& th = ui_.theme;
     const auto ok = std::string{glyph(Glyph::check, ui_.caps.glyphs)}, bad = std::string{glyph(Glyph::cross, ui_.caps.glyphs)};
     Elements out;
-    out.push_back(text(fmt::format(fmt::runtime(tr("tui.explain.p0_formula")), fmt::arg("value", p0_text(w.bank)))) | fg(th.fg, ui_));
-    out.push_back(text(fmt::format(fmt::runtime(tr("tui.explain.p0_diff")), fmt::arg("power", power_text(w.delay)))) | fg(th.fg, ui_));
-    out.push_back(text(fmt::format(fmt::runtime(tr("tui.explain.delay")), fmt::arg("value", w.delay))) | fg(th.dim, ui_));
+    out.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.explain.p0_formula")), fmt::arg("value", p0_text(w.bank)))) | fg(th.fg, ui_));
+    out.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.explain.p0_diff")), fmt::arg("power", power_text(w.delay)))) | fg(th.fg, ui_));
+    out.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.explain.delay")), fmt::arg("value", w.delay))) | fg(th.dim, ui_));
     const auto product = core::trim(core::multiply(w.bank.f0, w.bank.h0), 1e-12);
-    out.push_back(text(fmt::format(fmt::runtime(tr("tui.explain.zeros")), fmt::arg("count", core::zeros_at_minus_one(product, 1e-6)))) | fg(th.dim, ui_));
+    out.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.explain.zeros")), fmt::arg("count", core::zeros_at_minus_one(product, 1e-6)))) | fg(th.dim, ui_));
     std::string rule;
     for (int i = 0; i < 28; ++i) rule += glyph(Glyph::h, ui_.caps.glyphs);
     out.push_back(text(rule) | fg(th.dim, ui_));
     const auto t = core::as_monomial(core::distortion_transfer(w.bank), 1e-9);
     std::string t_value = bad;
     if (t) t_value = (std::abs(t->coef - 1) < 1e-9 ? std::string{} : format_number(t->coef) + "·") + "z" + power_text(t->exponent) + " " + ok;
-    out.push_back(text(fmt::format(fmt::runtime(tr("tui.explain.t_line")), fmt::arg("value", t_value))) | fg(t ? th.fg : th.err, ui_));
+    out.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.explain.t_line")), fmt::arg("value", t_value))) | fg(t ? th.fg : th.err, ui_));
     out.push_back(text(tr("tui.explain.a_line")) | fg(th.fg, ui_));
     const auto alias = check_invariant("alias_cancelled", w);
     if (alias.passed)
-        out.push_back(text(fmt::format(fmt::runtime(tr("tui.explain.a_zero")), fmt::arg("mark", ok))) | fg(th.ok, ui_));
+        out.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.explain.a_zero")), fmt::arg("mark", ok))) | fg(th.ok, ui_));
     else
-        out.push_back(text(fmt::format(fmt::runtime(tr("tui.explain.a_max")), fmt::arg("db", db_text(w.max_alias_db)), fmt::arg("mark", bad))) | fg(th.err, ui_));
-    out.push_back(text(fmt::format(fmt::runtime(tr(step_ == 12 ? "tui.explain.note_now" : "tui.explain.note_later")),
+        out.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.explain.a_max")), fmt::arg("db", db_text(w.max_alias_db)), fmt::arg("mark", bad))) | fg(th.err, ui_));
+    out.push_back(paragraph(fmt::format(fmt::runtime(tr(step_ == 12 ? "tui.explain.note_now" : "tui.explain.note_later")),
                                    fmt::arg("db", db_text(w.branch_alias_db)))) |
                   fg(step_ == 12 ? th.warn : th.dim, ui_));
     out.push_back(text(""));
@@ -512,8 +521,18 @@ bool ExplainScreen::OnEvent(ftxui::Event e) {
         maximized_.reset();
         return true;
     }
-    if (e == Event::ArrowRight) return set_step(step_ + 1), true;
-    if (e == Event::ArrowLeft) return set_step(step_ - 1), true;
+    if (focus_ == freq && zoom_.on_key(e, "freq")) return true;
+    if (focus_ == story) {
+        const auto scroll = [this](float d) { story_scroll_ = std::clamp(story_scroll_ + d, 0.f, 1.f); };
+        if (e == Event::ArrowDown) return scroll(0.15f), true;
+        if (e == Event::ArrowUp) return scroll(-0.15f), true;
+        if (e == Event::PageDown) return scroll(0.5f), true;
+        if (e == Event::PageUp) return scroll(-0.5f), true;
+    }
+    if (e == Event::ArrowRight || e == Event::ArrowDown) return set_step(step_ + 1), true;
+    if (e == Event::ArrowLeft || e == Event::ArrowUp) return set_step(step_ - 1), true;
+    if (e == Event::PageDown) return set_step(std::min<std::size_t>(12, step_ + 3)), true;
+    if (e == Event::PageUp) return set_step(step_ > 3 ? step_ - 3 : 1), true;
     if (e == Event::Home) return set_step(1), true;
     if (e == Event::End) return set_step(12), true;
     if (e == Event::Character(' ')) {

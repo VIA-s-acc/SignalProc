@@ -75,6 +75,7 @@ private:
     Panel focus_ = scheme;
     std::optional<Panel> maximized_;
     PlotZoom zoom_;
+    float story_scroll_ = 0;
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::array<ftxui::Box, 12> step_boxes_{};
     std::array<ftxui::Box, 4> bank_boxes_{};

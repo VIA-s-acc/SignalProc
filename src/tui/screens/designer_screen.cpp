@@ -98,7 +98,8 @@ std::string DesignerScreen::tab_label() const { return tr("tui.sub.designer"); }
 std::vector<Hint> DesignerScreen::hints() const {
     return {{"Tab", tr("tui.explain.hint.tab")},           {"z", tr("tui.signal.hint.zoom")},
             {"←→", tr("tui.designer.hint.zeros")},        {"n/N", tr("tui.designer.hint.next")},
-            {"+/−", "p"},                                 {"c", tr("tui.designer.hint.cascade")},
+            {"p/P", "p"},                                 {"+ − 0", tr("tui.hint.plot_zoom")},
+            {"< >", tr("tui.hint.plot_pan")},             {"c", tr("tui.designer.hint.cascade")},
             {"x", tr("tui.designer.hint.swap")},          {"Enter", tr("tui.designer.hint.save")},
             {"F1", tr("tui.designer.hint.f1")},           {tr("tui.signal.key.click"), tr("tui.designer.hint.click")},
             {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")}};
@@ -424,8 +425,16 @@ bool DesignerScreen::OnEvent(ftxui::Event e) {
     if (e == Event::ArrowLeft) return model_->zeros(-1, jobs), true;
     if (e == Event::Character('n')) return model_->step(1, jobs), true;
     if (e == Event::Character('N')) return model_->step(-1, jobs), true;
-    if (e == Event::Character('+') || e == Event::Character('=')) return model_->set_p(model_->p() + 1, jobs), true;
-    if (e == Event::Character('-')) return model_->set_p(model_->p() - 1, jobs), true;
+    if (e == Event::Character('p')) return model_->set_p(model_->p() + 1, jobs), true;
+    if (e == Event::Character('P')) return model_->set_p(model_->p() - 1, jobs), true;
+    if (focus_ == magnitude && zoom_.on_key(e, "magnitude")) return true;
+    if (focus_ == phi && zoom_.on_key(e, "phi")) return true;
+    if (focus_ == phi_dual && zoom_.on_key(e, "phi_dual")) return true;
+    if (focus_ == roots) {
+        if (e == Event::Character('+') || e == Event::Character('=')) return zplane_zoom_ = std::min(50.0, zplane_zoom_ * kWheelStep), true;
+        if (e == Event::Character('-')) return zplane_zoom_ = std::max(1.0, zplane_zoom_ / kWheelStep), true;
+        if (e == Event::Character('0')) return zplane_zoom_ = 1.0, true;
+    }
     if (e == Event::Character('x')) return model_->swap(jobs), true;
     if (e == Event::Character('c')) {
         const int next = model_->cascade_iterations() + 1;

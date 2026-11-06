@@ -14,6 +14,8 @@ public:
     void zoom(double factor, double anchor);
     void zoom_at(double factor, const ftxui::Box& area, int x);
     void pan(double fraction);
+    void zoom_center(double factor) { zoom(factor, (lo_ + hi_) / 2); }
+    void pan_view(double share) { pan(share * (hi_ - lo_)); }
     void reset();
     bool zoomed() const;
     Axis axis() const;
