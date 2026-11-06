@@ -353,5 +353,6 @@
   "tui.placeholder.under_the_hood.title": "Под капотом",
   "tui.placeholder.under_the_hood.text": "Карточка блока: формулы, стоимость, живые числа, проверки.",
   "tui.placeholder.tutorial.title": "Учебник",
-  "tui.placeholder.tutorial.text": "Теория по разделам, поиск и ссылки."
+  "tui.placeholder.tutorial.text": "Теория по разделам, поиск и ссылки.",
+  "tui.signal.hint.cursor_b": "стрелки: курсор A/B"
 }

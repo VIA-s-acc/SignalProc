@@ -138,6 +138,7 @@ std::vector<Hint> SignalScreen::hints() const {
                           {"z", tr("tui.signal.hint.zoom")},
                           {"Tab", tr("tui.signal.hint.tab")},
                           {"←→", tr("tui.signal.hint.arrows")},
+                          {"b", tr("tui.signal.hint.cursor_b")},
                           {"Esc", tr("tui.signal.hint.cancel")},
                           {tr("tui.signal.key.ctrl_drag"), tr("tui.signal.hint.select")}};
     if (breakpoint_ <= Breakpoint::small) std::rotate(out.begin(), out.begin() + 7, out.begin() + 8);
@@ -363,6 +364,7 @@ ftxui::Element SignalScreen::wave_panel(const std::shared_ptr<const SignalData>&
     } else {
         head.push_back({"—", th.fg});
     }
+    head.push_back({std::string{ui_.caps.glyphs == GlyphMode::ascii ? "   <-> " : "   ←→ "} + (arrows_move_b_ ? "B" : "A"), th.dim});
     std::vector<Span> sel_line;
     if (selection) {
         const auto [t0, t1] = *selection;
@@ -675,13 +677,19 @@ bool SignalScreen::OnEvent(ftxui::Event e) {
     const double begin = model_->view_begin(), end = model_->view_end();
     const double step = (end - begin) / (2.0 * wave_columns());
     auto move_cursor = [&](double t) {
-        model_->set_cursor_a(t);
-        const double a = *model_->cursor_a();
+        if (arrows_move_b_) model_->set_cursor_b(t);
+        else model_->set_cursor_a(t);
+        const double a = arrows_move_b_ ? *model_->cursor_b() : *model_->cursor_a();
         if (a < model_->view_begin()) model_->pan(a - model_->view_begin());
         if (a > model_->view_end()) model_->pan(a - model_->view_end());
         return true;
     };
-    const double current = model_->cursor_a().value_or((begin + end) / 2);
+    if (e == Event::Character('b')) {
+        arrows_move_b_ = !arrows_move_b_;
+        if (arrows_move_b_ && !model_->cursor_b()) model_->set_cursor_b(model_->cursor_a().value_or((begin + end) / 2));
+        return true;
+    }
+    const double current = (arrows_move_b_ ? model_->cursor_b() : model_->cursor_a()).value_or((begin + end) / 2);
     if (e == Event::ArrowLeft) return move_cursor(current - step);
     if (e == Event::ArrowRight) return move_cursor(current + step);
     if (e == Event::Home) return move_cursor(0);

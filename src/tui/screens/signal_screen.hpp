@@ -83,6 +83,7 @@ private:
     DragMode drag_mode_ = DragMode::pan;
     ftxui::Box drag_chip_{};
     bool audio_warned_ = false;
+    bool arrows_move_b_ = false;
     Panel last_title_ = panel_count;
     std::chrono::steady_clock::time_point last_title_click_{};
 };

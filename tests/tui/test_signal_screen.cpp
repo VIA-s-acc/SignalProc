@@ -453,3 +453,19 @@ TEST_CASE("an unavailable device logs once", "[tui][signal][audio]") {
     CHECK(log.back().text.find("Звук недоступен") != std::string::npos);
     CHECK(log.back().text.find("no output device") != std::string::npos);
 }
+
+TEST_CASE("b switches the arrow keys between cursors A and B", "[tui][signal]") {
+    DragRig r;
+    r.m->set_cursor_a(1.0);
+    r.h.send(ftxui::Event::Character('b'));
+    REQUIRE(r.m->cursor_b());
+    CHECK(*r.m->cursor_b() == Catch::Approx(1.0));
+    r.h.send(ftxui::Event::ArrowRight);
+    CHECK(*r.m->cursor_b() > 1.0);
+    CHECK(*r.m->cursor_a() == Catch::Approx(1.0));
+    CHECK(r.h.frame().find("←→ B") != std::string::npos);
+    r.h.send(ftxui::Event::Character('b'));
+    r.h.send(ftxui::Event::ArrowLeft);
+    CHECK(*r.m->cursor_a() < 1.0);
+    CHECK(r.h.frame().find("←→ A") != std::string::npos);
+}
