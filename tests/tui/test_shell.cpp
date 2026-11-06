@@ -142,3 +142,15 @@ TEST_CASE("shell snapshots", "[tui][shell][snapshot]") {
     CHECK(ascii.find("╭") == std::string::npos);
     CHECK(ascii.find("│") == std::string::npos);
 }
+
+TEST_CASE("the theme background is painted unless colour is off", "[tui][shell]") {
+    for (auto depth : {ColorDepth::truecolor, ColorDepth::none}) {
+        auto ui = signals::test::make_ui(150, 44, GlyphMode::unicode, depth);
+        auto shell = make_shell(*ui, placeholder_screens(*ui), [] {});
+        auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(150), ftxui::Dimension::Fixed(44));
+        ftxui::Render(screen, shell->Render());
+        const auto expected = depth == ColorDepth::none ? ftxui::Color{} : to_color(ui->theme.bg, depth);
+        CHECK(screen.CellAt(5, 10).background_color == expected);
+        CHECK(screen.CellAt(140, 30).background_color == expected);
+    }
+}

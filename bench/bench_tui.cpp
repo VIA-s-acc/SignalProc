@@ -89,6 +89,13 @@ void bench_tui(const std::filesystem::path& ten_minutes) {
     draw(filters_shell);
     b.run("frame «Фильтры» with four traces", [&] { draw(filters_shell); });
 
+    ui->caps.color = ColorDepth::palette256;
+    draw(signal_shell);
+    b.run("frame «Сигнал», 256 colours", [&] { draw(signal_shell); });
+    draw(filters_shell);
+    b.run("frame «Фильтры», 256 colours", [&] { draw(filters_shell); });
+    ui->caps.color = ColorDepth::truecolor;
+
     auto threaded_ui = make_ui();
     JobRunner jobs{[] {}};
     threaded_ui->jobs = &jobs;

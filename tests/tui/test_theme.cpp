@@ -1,5 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
+#include <vector>
+
 #include <ftxui/screen/color.hpp>
 
 #include "tui/theme/theme.hpp"
@@ -44,4 +47,14 @@ TEST_CASE("viridis ends match matplotlib", "[tui][theme]") {
     CHECK(viridis(1.0) == Rgb{253, 231, 37});
     CHECK(viridis(-1.0) == viridis(0.0));
     CHECK(viridis(2.0) == viridis(1.0));
+}
+
+TEST_CASE("256-colour lookups are cheap enough for a frame", "[tui][theme]") {
+    const auto t = builtin_theme("dark");
+    const std::vector<Rgb> colours{t.bg, t.fg, t.dim, t.accent, t.ok, t.warn, t.err, t.trace[0], t.trace[1], t.trace[2]};
+    const auto start = std::chrono::steady_clock::now();
+    for (int k = 0; k < 5000; ++k) (void)to_color(colours[static_cast<std::size_t>(k) % colours.size()], ColorDepth::palette256);
+    const std::chrono::duration<double, std::milli> took = std::chrono::steady_clock::now() - start;
+    CHECK(took.count() < 50);
+    CHECK(to_color(Rgb{0x56, 0xB4, 0xE9}, ColorDepth::palette256) == ftxui::Color(static_cast<ftxui::Color::Palette256>(74)));
 }

@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <bit>
+#include <chrono>
 #include <cmath>
 #include <sstream>
 #include <string>
@@ -140,4 +141,47 @@ TEST_CASE("ascii mode draws with asterisks", "[tui][plot]") {
     const auto t = signals::test::render_text(plot(flat(LineStyle::solid), dark(), ColorDepth::none, GlyphMode::ascii), 10, 4);
     CHECK(t.find('*') != std::string::npos);
     for (char32_t c : decode(t)) CHECK_FALSE(is_braille(c));
+}
+
+TEST_CASE("cursors and selections outside the axis are not pinned to the edge", "[tui][plot]") {
+    const auto theme = builtin_theme("dark");
+    auto draw = [&](PlotSpec s) {
+        auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(40), ftxui::Dimension::Fixed(8));
+        ftxui::Render(screen, plot(std::move(s), theme, ColorDepth::truecolor, GlyphMode::unicode));
+        return screen;
+    };
+    PlotSpec s;
+    s.x = {5, 6};
+    s.y = {-1, 1};
+    s.labels = false;
+    s.cursor_a = 0.5;
+    s.cursor_b = 7.0;
+    s.selection = std::pair{0.2, 0.8};
+    auto outside = draw(s);
+    for (int y = 0; y < 8; ++y)
+        for (int x = 0; x < 40; ++x) {
+            CHECK(outside.CellAt(x, y).character != "│");
+            CHECK(outside.CellAt(x, y).background_color == ftxui::Color{});
+        }
+    s.cursor_a.reset();
+    s.cursor_b.reset();
+    s.selection = std::pair{5.5, 9.0};
+    auto partial = draw(s);
+    CHECK(partial.CellAt(5, 3).background_color == ftxui::Color{});
+    CHECK(partial.CellAt(30, 3).background_color != ftxui::Color{});
+    CHECK(partial.CellAt(39, 3).background_color != ftxui::Color{});
+}
+
+TEST_CASE("envelopes far outside the axis are clipped, not looped over", "[tui][plot]") {
+    const auto theme = builtin_theme("dark");
+    PlotSpec s;
+    s.x = {0, 1};
+    s.y = {-1, 1};
+    s.labels = false;
+    s.envelopes.push_back(Envelope{std::vector<MinMaxPyramid::Range>(80, MinMaxPyramid::Range{-1e5f, 1e5f}), theme.fg});
+    const auto t0 = std::chrono::steady_clock::now();
+    const auto text = signals::test::render_text(plot(s, theme, ColorDepth::truecolor, GlyphMode::unicode), 40, 8);
+    const std::chrono::duration<double> took = std::chrono::steady_clock::now() - t0;
+    CHECK(took.count() < 0.25);
+    CHECK(text.find("⣿") != std::string::npos);
 }

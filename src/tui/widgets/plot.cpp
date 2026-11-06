@@ -91,11 +91,15 @@ public:
         Raster r{pw, ph};
         const int DW = r.dots_w(), DH = r.dots_h();
         auto xdot = [&](double v) { return static_cast<int>(std::lround(axis_fraction(spec_.x, v) * (DW - 1))); };
-        auto ydot = [&](double v) { return static_cast<int>(std::lround((1 - axis_fraction(spec_.y, v)) * (DH - 1))); };
+        auto ydot = [&](double v) {
+            return static_cast<int>(std::lround(std::clamp((1 - axis_fraction(spec_.y, v)) * (DH - 1), -2.0, DH + 1.0)));
+        };
 
-        if (spec_.selection) {
-            const auto [a, b] = *spec_.selection;
-            const int c0 = column_of_value(spec_.x, std::min(a, b), pw), c1 = column_of_value(spec_.x, std::max(a, b), pw);
+        const double f0 = spec_.selection ? axis_fraction(spec_.x, std::min(spec_.selection->first, spec_.selection->second)) : 0.0;
+        const double f1 = spec_.selection ? axis_fraction(spec_.x, std::max(spec_.selection->first, spec_.selection->second)) : 0.0;
+        if (spec_.selection && f1 >= 0 && f0 <= 1) {
+            const int c0 = std::clamp(static_cast<int>(std::floor(std::max(f0, 0.0) * pw)), 0, pw - 1);
+            const int c1 = std::clamp(static_cast<int>(std::floor(std::min(f1, 1.0) * pw)), 0, pw - 1);
             const auto bg = to_color(blend(theme_.bg, theme_.accent, 0.15), depth_);
             for (int cy = 0; cy < ph; ++cy)
                 for (int cx = c0; cx <= c1; ++cx) screen.CellAt(x0 + cx, box_.y_min + cy).background_color = bg;
@@ -176,6 +180,8 @@ private:
             const auto& c = e.columns[static_cast<std::size_t>(dx) * e.columns.size() / static_cast<std::size_t>(DW)];
             int top = ydot(c.hi), bot = ydot(c.lo);
             if (top > bot) std::swap(top, bot);
+            top = std::clamp(top, -1, r.dots_h());
+            bot = std::clamp(bot, -1, r.dots_h());
             if (ptop >= 0) {
                 if (bot < ptop) bot = ptop;
                 if (top > pbot) top = pbot;
@@ -217,6 +223,8 @@ private:
 
     void cursor(ftxui::Screen& screen, const std::optional<double>& at, Rgb c, int x0, int pw, int ph) const {
         if (!at) return;
+        const double f = axis_fraction(spec_.x, *at);
+        if (f < 0 || f > 1) return;
         const int cx = x0 + column_of_value(spec_.x, *at, pw);
         for (int cy = 0; cy < ph; ++cy) put(screen, cx, box_.y_min + cy, glyphs_ == GlyphMode::ascii ? "|" : "│", c);
     }

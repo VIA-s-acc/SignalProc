@@ -1,9 +1,12 @@
 #include "tui/theme/theme.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <cmath>
 #include <map>
 #include <optional>
+#include <unordered_map>
 
 #include <toml++/toml.hpp>
 
@@ -109,19 +112,34 @@ Theme builtin_theme(std::string_view name) {
     return t ? *t : Theme{};
 }
 
+namespace {
+
+int nearest256(Rgb c) {
+    static const auto table = [] {
+        std::array<Lab, 240> t{};
+        for (int i = 16; i < 256; ++i) t[static_cast<std::size_t>(i - 16)] = oklab(palette256_rgb(i));
+        return t;
+    }();
+    thread_local std::unordered_map<std::uint32_t, int> cache;
+    const auto key = static_cast<std::uint32_t>(c.r) << 16 | static_cast<std::uint32_t>(c.g) << 8 | c.b;
+    if (auto it = cache.find(key); it != cache.end()) return it->second;
+    const Lab target = oklab(c);
+    int best = 16;
+    double best_d = 1e9;
+    for (int i = 16; i < 256; ++i) {
+        const double d = distance(table[static_cast<std::size_t>(i - 16)], target);
+        if (d < best_d) best_d = d, best = i;
+    }
+    cache.emplace(key, best);
+    return best;
+}
+
+}  // namespace
+
 ftxui::Color to_color(Rgb c, ColorDepth depth) {
     switch (depth) {
     case ColorDepth::truecolor: return ftxui::Color::RGB(c.r, c.g, c.b);
-    case ColorDepth::palette256: {
-        const Lab target = oklab(c);
-        int best = 16;
-        double best_d = 1e9;
-        for (int i = 16; i < 256; ++i) {
-            const double d = distance(oklab(palette256_rgb(i)), target);
-            if (d < best_d) best_d = d, best = i;
-        }
-        return ftxui::Color(static_cast<ftxui::Color::Palette256>(best));
-    }
+    case ColorDepth::palette256: return ftxui::Color(static_cast<ftxui::Color::Palette256>(nearest256(c)));
     case ColorDepth::ansi16: {
         const Lab target = oklab(c);
         int best = 0;

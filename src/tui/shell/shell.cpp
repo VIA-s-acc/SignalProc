@@ -33,10 +33,11 @@ public:
         const auto [w, h] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
         const auto bp = classify(w, h);
         if (ui_.monitor) ui_.monitor->frame_rendered();
+        auto paint = [&](Element e) { return ui_.caps.color == ColorDepth::none ? e : e | bg(ui_.theme.bg, ui_) | fg(ui_.theme.fg, ui_); };
         if (bp == Breakpoint::tiny)
-            return vbox({filler(), text(fmt::format(fmt::runtime(tr("tui.small.warning")), fmt::arg("w", w), fmt::arg("h", h))) | hcenter,
-                         filler()});
-        if (screens_.empty()) return text("");
+            return paint(vbox({filler(), text(fmt::format(fmt::runtime(tr("tui.small.warning")), fmt::arg("w", w), fmt::arg("h", h))) | hcenter,
+                               filler()}));
+        if (screens_.empty()) return paint(text(""));
         auto& screen = *screens_[static_cast<std::size_t>(active_)];
         screen.set_breakpoint(bp);
         Elements tabs;
@@ -79,11 +80,11 @@ public:
         auto resources = ui_.resources ? ui_.resources() : ResourceSnapshot{};
         auto base = vbox({hbox(std::move(tabs)), screen.Render() | flex, hbox(std::move(hints)),
                           status_line(ui_, resources) | reflect(status_box_)});
-        if (palette_.is_open()) return dbox({base, palette_.render(ui_) | clear_under | center});
-        if (check_.is_open()) return dbox({base, check_.render(ui_) | clear_under | center});
-        if (resources_open_) return dbox({base, resources_panel(ui_) | clear_under | center});
-        if (!help_open_) return base;
-        return dbox({base, help_overlay(all, help_filter_, ui_) | clear_under | center});
+        if (palette_.is_open()) return paint(dbox({base, palette_.render(ui_) | clear_under | center}));
+        if (check_.is_open()) return paint(dbox({base, check_.render(ui_) | clear_under | center}));
+        if (resources_open_) return paint(dbox({base, resources_panel(ui_) | clear_under | center}));
+        if (!help_open_) return paint(base);
+        return paint(dbox({base, help_overlay(all, help_filter_, ui_) | clear_under | center}));
     }
 
     bool OnEvent(ftxui::Event e) override {
