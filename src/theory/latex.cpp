@@ -36,7 +36,7 @@ constexpr std::array kSymbols{
     Glyph{"in", "∈", " in "},          Glyph{"notin", "∉", " not in "},   Glyph{"subset", "⊂", " subset "},
     Glyph{"subseteq", "⊆", " subseteq "}, Glyph{"to", "→", "->"},         Glyph{"iff", "⇔", "<=>"},
     Glyph{"Rightarrow", "⇒", "=>"},    Glyph{"leftarrow", "←", "<-"},     Glyph{"leftrightarrow", "↔", "<->"},
-    Glyph{"downarrow", "↓", "v"},      Glyph{"uparrow", "↑", "^"},        Glyph{"mid", "∣", "|"},
+    Glyph{"downarrow", "↓", "v"},      Glyph{"uparrow", "↑", "^"},        Glyph{"mid", "|", "|"},
     Glyph{"pm", "±", "+-"},            Glyph{"times", "×", "x"},          Glyph{"cdot", "·", "*"},
     Glyph{"otimes", "⊗", "(x)"},       Glyph{"oplus", "⊕", "(+)"},        Glyph{"circledast", "⊛", "(*)"},
     Glyph{"cup", "∪", "U"},            Glyph{"cap", "∩", "^"},            Glyph{"lfloor", "⌊", "|_"},

@@ -86,7 +86,7 @@ private:
     ftxui::Element properties_panel();
     ftxui::Element measures_panel();
     ftxui::Element library_panel(int width);
-    ftxui::Element comparison_panel();
+    ftxui::Element comparison_panel(int width);
     ftxui::Element clickable(ftxui::Element e, std::function<void()> action);
     struct Item {
         std::string label;

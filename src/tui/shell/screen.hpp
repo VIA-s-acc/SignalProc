@@ -107,6 +107,7 @@ public:
     virtual void open_with(const NavArgs&) {}
     virtual std::vector<Command> commands() { return {}; }
     virtual ftxui::Element context_element(const UiContext& ui);
+    virtual std::optional<std::pair<int, int>> menu_anchor() const { return std::nullopt; }
     virtual void select_child(std::size_t) {}
     virtual std::optional<TheoryLink> theory_link() const { return {}; }
     virtual void publish(theory::LiveValues&) const {}

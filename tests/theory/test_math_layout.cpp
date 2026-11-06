@@ -76,7 +76,7 @@ TEST_CASE("ascii has no non-ascii bytes", "[theory][math]") {
 }
 
 TEST_CASE("formulas avoid script letters that common terminal fonts lack", "[theory][math]") {
-    const std::u32string missing = U"ₕₖₗₘₙₚₛₜᵦᵧᵨᵩᵪᵝᵞᵟᵠᵡ";
+    const std::u32string missing = U"ₕₖₗₘₙₚₛₜᵦᵧᵨᵩᵪᵝᵞᵟᵠᵡ∣⅐⅑⅒";
     const auto check = [&](const std::string& tex) {
         for (auto style : {MathStyle::display, MathStyle::inline_linear}) {
             const auto box = render_latex(tex, style, MathGlyphs::unicode);

@@ -422,7 +422,7 @@ ftxui::Element TheoryScreen::contents_panel(std::size_t current, int width, int 
         const bool on = query_.empty() ? entries[i].section == current : i == selected;
         const std::string arrow = on && query_.empty() ? (ascii ? " <" : " ◀") : "";
         const bool own = card_for_section(s.id) != nullptr, below = !own && cards_below()[entries[i].section];
-        const std::string info = own || below ? (ascii ? " [i]" : " ⓘ") : "";
+        const std::string info = own || below ? (ascii ? " [i]" : " ◈") : "";
         auto label = std::string(static_cast<std::size_t>(2 * entries[i].depth), ' ') + entry_label(s);
         label = clip(label, inner - static_cast<int>(theory::display_width(info + arrow)), ascii);
         const bool at_cursor = cursor && *cursor == i, plain = on || at_cursor;
@@ -469,7 +469,7 @@ ftxui::Element TheoryScreen::text_panel(std::size_t current, int width, int heig
         std::size_t more = 0;
         for (const auto& b : theory::block_catalog())
             if (b.section == s.id && b.id != card->id && theory::find_card(b.id)) ++more;
-        const auto label = fmt::format(fmt::runtime(tr(more ? "tui.theory.card_link_more" : "tui.theory.card_link")), fmt::arg("mark", ascii ? "[i]" : "ⓘ"),
+        const auto label = fmt::format(fmt::runtime(tr(more ? "tui.theory.card_link_more" : "tui.theory.card_link")), fmt::arg("mark", ascii ? "[i]" : "◈"),
                                        fmt::arg("title", card->title), fmt::arg("more", more));
         body = vbox({text(clip(label, inner, ascii)) | fg(ui_.theme.accent, ui_) | reflect(card_link_box_), body});
     }

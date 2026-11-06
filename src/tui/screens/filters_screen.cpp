@@ -462,7 +462,7 @@ ftxui::Element FiltersScreen::library_panel(int width) {
     return frame_panel(library, vbox(std::move(rows)), {}, tr("tui.filters.library"));
 }
 
-ftxui::Element FiltersScreen::comparison_panel() {
+ftxui::Element FiltersScreen::comparison_panel(int width) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     Elements rows;
@@ -474,10 +474,12 @@ ftxui::Element FiltersScreen::comparison_panel() {
         const auto& e = entries_[i];
         const auto color = color_of(i);
         const std::string eye = e.visible ? (ascii ? "(o)" : "◉") : (ascii ? "( )" : "○");
-        auto name = text((i == focus ? (ascii ? "> " : "▸ ") : "  ") + e.ref.label() + " (" + describe(e.ref) + ")");
+        const auto reference_mark = reference == i ? tr("tui.filters.reference_mark") + " " : std::string{};
+        const int room = std::max(4, width - 5 - display_width(legend_mark(i) + " " + reference_mark + eye) - (e.error ? 2 : 0));
+        auto name = text(ellipsize((i == focus ? (ascii ? "> " : "▸ ") : "  ") + e.ref.label() + " (" + describe(e.ref) + ")", room, ascii));
         name = i == focus ? name | bold | fg(th.fg, ui_) : name | fg(e.visible ? th.fg : th.dim, ui_);
         Elements line{text(legend_mark(i) + " ") | fg(color, ui_), clickable(name, [this, i] { set_->set_focus(i); }), filler()};
-        if (reference == i) line.push_back(text(tr("tui.filters.reference_mark") + " ") | fg(th.accent, ui_));
+        if (!reference_mark.empty()) line.push_back(text(reference_mark) | fg(th.accent, ui_));
         if (e.error) line.push_back(text(std::string{glyph(Glyph::cross, ui_.caps.glyphs)} + " ") | fg(th.err, ui_));
         line.push_back(clickable(text(eye) | fg(e.visible ? th.fg : th.dim, ui_), [this, i] { set_->toggle(i); }));
         rows.push_back(hbox(std::move(line)) | reflect(row_boxes_[i]));
@@ -774,7 +776,7 @@ ftxui::Element FiltersScreen::build(Panel p, int rows, int width) {
     case properties: return properties_panel();
     case measures: return measures_panel();
     case library: return library_panel(width);
-    case comparison: return comparison_panel();
+    case comparison: return comparison_panel(width);
     case panel_count: break;
     }
     return ftxui::text("");

@@ -38,6 +38,15 @@ inline std::vector<std::string> split_codepoints(const std::string& s) {
 
 inline int display_width(const std::string& s) { return static_cast<int>(split_codepoints(s).size()); }
 
+inline std::string ellipsize(const std::string& s, int width, bool ascii) {
+    if (width <= 0) return {};
+    const auto cps = split_codepoints(s);
+    if (static_cast<int>(cps.size()) <= width) return s;
+    std::string out;
+    for (int i = 0; i + 1 < width; ++i) out += cps[static_cast<std::size_t>(i)];
+    return out + (ascii ? "~" : "…");
+}
+
 inline std::string pad_right(std::string s, int width) {
     const int n = display_width(s);
     if (n < width) s.append(static_cast<std::size_t>(width - n), ' ');

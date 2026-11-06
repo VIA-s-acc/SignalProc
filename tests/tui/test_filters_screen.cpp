@@ -238,3 +238,16 @@ TEST_CASE("plot and comparison menus act on the filters screen", "[tui][filters]
     run(f.screen->context_menu(row->first, row->second), "Удалить");
     CHECK(f.set->entries().size() == 1);
 }
+
+TEST_CASE("a long comparison name is clipped before the reference mark", "[tui][filters]") {
+    Fixture f{120, 40};
+    REQUIRE(f.set->add({Kind::bank, "db2", FilterRole::h0}));
+    REQUIRE(f.set->add({Kind::bank, "db2", FilterRole::h1}));
+    Harness h{f.screen, 120, 37};
+    h.frame();
+    h.send(ftxui::Event::Character('r'));
+    const auto line = line_with(h.frame(), "эталон");
+    REQUIRE_FALSE(line.empty());
+    INFO(line);
+    CHECK((line.find("НЧ) эталон") != std::string::npos || line.find("… эталон") != std::string::npos));
+}

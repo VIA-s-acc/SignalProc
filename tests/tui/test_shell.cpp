@@ -263,3 +263,50 @@ TEST_CASE("a lost audio device is reported once", "[tui][shell][audio]") {
     CHECK(warnings[0].find("device unplugged") != std::string::npos);
     CHECK(player.state() == signals::audio::PlayState::stopped);
 }
+
+namespace {
+
+struct ManyHintsScreen final : TabScreen {
+    std::string tab_label() const override { return "H"; }
+    std::vector<Hint> hints() const override {
+        std::vector<Hint> out;
+        for (int i = 0; i < 40; ++i) out.push_back({"k" + std::to_string(i), "hint number " + std::to_string(i)});
+        return out;
+    }
+    void set_breakpoint(Breakpoint) override {}
+    ftxui::Element OnRender() override { return ftxui::text("hints screen"); }
+};
+
+}  // namespace
+
+TEST_CASE("help is split into this screen and everywhere, fits the terminal and scrolls", "[tui][shell]") {
+    auto ui = signals::test::make_ui(80, 24);
+    Harness h{make_shell(*ui, {std::make_shared<ManyHintsScreen>()}, [] {}), 80, 24};
+    h.frame();
+    h.send(ftxui::Event::Character('?'));
+    auto frame = h.frame();
+    CHECK(frame.find("Этот экран") != std::string::npos);
+    CHECK(frame.find("hint number 0") != std::string::npos);
+    CHECK(frame.find("hint number 39") == std::string::npos);
+    CHECK(frame.find("Esc — закрыть") != std::string::npos);
+    CHECK(frame.find(" из ") != std::string::npos);
+    h.send(ftxui::Event::End);
+    frame = h.frame();
+    CHECK(frame.find("hint number 0") == std::string::npos);
+    CHECK(frame.find("Везде") != std::string::npos);
+    CHECK(frame.find("выход") != std::string::npos);
+    CHECK(frame.find("правый клик") != std::string::npos);
+    h.send(ftxui::Event::Home);
+    CHECK(h.frame().find("hint number 0") != std::string::npos);
+}
+
+TEST_CASE("m opens the screen menu from the keyboard", "[tui][menu]") {
+    auto ui = signals::test::make_ui(150, 44);
+    auto s = std::make_shared<MenuScreen>();
+    Harness h{make_shell(*ui, {s}, [] {}), 150, 44};
+    h.frame();
+    CHECK(h.send(ftxui::Event::Character('m')));
+    CHECK(h.frame().find("Первый пункт") != std::string::npos);
+    h.send(ftxui::Event::Return);
+    CHECK(s->acted == 1);
+}
