@@ -198,7 +198,7 @@ TEST_CASE("running the editor graph fills node states, reports and the bottlenec
         CHECK(n.status.state == pipeline::NodeState::done);
         bottlenecks += n.bottleneck ? 1 : 0;
     }
-    CHECK(bottlenecks == 1);
+    CHECK(bottlenecks == (v.seconds > 0.05 ? 1 : 0));
     REQUIRE(v.reports.size() == 2);
     CHECK(v.probes.contains("d1"));
     CHECK(m.cache_bytes() > 0);

@@ -28,8 +28,9 @@ using namespace std::chrono_literals;
 namespace {
 
 void touch(std::vector<char>& v) {
-    // Pseudo-random bytes: the macOS memory compressor squeezes a constant ballast below 64 MB under load.
-    char* volatile data = v.data();
+    // Pseudo-random bytes through a volatile pointee: the macOS memory compressor squeezes a constant ballast under load,
+    // and GCC drops plain stores to memory that is freed before it is read.
+    volatile char* data = v.data();
     std::uint64_t x = 0x9E3779B97F4A7C15ULL;
     for (std::size_t i = 0; i < v.size(); ++i) {
         x ^= x << 13;
