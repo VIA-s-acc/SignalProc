@@ -51,6 +51,7 @@ add_executable(signals_tests
   tui/test_signal_screen.cpp
   tui/test_filters_model.cpp
   tui/test_filters_screen.cpp
+  tui/test_explain_model.cpp
   tui/harness.cpp
   audio/test_player.cpp
   test_golden_files.cpp
