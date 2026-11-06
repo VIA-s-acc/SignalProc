@@ -1,6 +1,7 @@
 #include "tui/screens/filters_screen.hpp"
 
 #include <algorithm>
+#include <functional>
 #include <cctype>
 #include <cmath>
 #include <complex>
@@ -120,6 +121,8 @@ std::vector<Hint> FiltersScreen::hints() const {
             {"/", tr("tui.filters.hint.search")},     {"Enter", tr("tui.filters.hint.add")},
             {"Space", tr("tui.filters.hint.visible")}, {"r", tr("tui.filters.hint.reference")},
             {"Del", tr("tui.filters.hint.remove")},    {"←→", tr("tui.filters.hint.cursor")},
+            {"b", tr("tui.signal.hint.cursor_b")},     {"+ − 0 < >", tr("tui.hint.plot_zoom")},
+            {"[ ]", tr("tui.filters.hint.vertical")},  {"↑↓", tr("tui.filters.hint.focus_row")},
             {"l", tr("tui.filters.hint.log")},         {"d", tr("tui.filters.hint.db")},
             {"n", tr("tui.filters.hint.normalise")},   {"t", tr("tui.filters.hint.role")},
             {"F1", tr("tui.filters.hint.f1")},         {tr("tui.signal.key.wheel"), tr("tui.filters.hint.zoom")},
@@ -669,12 +672,17 @@ ftxui::Element FiltersScreen::zeros_panel(int rows) {
     Elements list;
     const auto roots = group_roots(zp.zeros);
     const int lines = std::max(1, rows - 2);
-    for (std::size_t i = 0; i < roots.size() && static_cast<int>(list.size()) < lines - (zp.poles_at_origin > 0 ? 1 : 0); ++i)
+    const int room = std::max(1, lines - (zp.poles_at_origin > 0 ? 1 : 0));
+    const bool clipped = static_cast<int>(roots.size()) > room;
+    const auto shown = clipped ? static_cast<std::size_t>(room - 1) : roots.size();
+    for (std::size_t i = 0; i < shown; ++i)
         list.push_back(hbox({text(ui_.caps.glyphs == GlyphMode::ascii ? "o " : "○ ") | fg(color, ui_), text(root_text(roots[i])) | fg(th.fg, ui_)}));
+    if (clipped)
+        list.push_back(text(fmt::format(fmt::runtime(tr("tui.filters.more_roots")), fmt::arg("count", roots.size() - shown))) | fg(th.dim, ui_));
     if (zp.poles_at_origin > 0)
         list.push_back(hbox({text("× ") | fg(th.fg, ui_), text("0" + (zp.poles_at_origin > 1 ? " ×" + std::to_string(zp.poles_at_origin) : std::string{})) |
                                                                    fg(th.fg, ui_)}));
-    const int plane = std::clamp(2 * lines, 8, 16);
+    const int plane = layout_.maximized() ? std::clamp(2 * lines, 8, 2 * lines) : std::clamp(2 * lines, 8, 16);
     return frame_panel(zeros,
                        hbox({zplane(ZPlaneSpec{zp.zeros, zp.poles_at_origin}, th, ui_.caps.color, ui_.caps.glyphs) | size(WIDTH, EQUAL, plane),
                              text(" "), vbox(std::move(list))}),
@@ -717,53 +725,83 @@ ftxui::Element FiltersScreen::properties_panel() {
     return frame_panel(properties, vbox(std::move(rows)), {}, tr("tui.filters.properties") + " · " + e->ref.label());
 }
 
-ftxui::Element FiltersScreen::measures_panel() {
+ftxui::Element FiltersScreen::measures_panel(int width) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto g = ui_.caps.glyphs;
     const auto reference = set_->reference();
     const ComparisonSet::Entry* ref = reference && *reference < entries_.size() && entries_[*reference].analysis ? &entries_[*reference] : nullptr;
-    auto head = [&](const std::string& s, int w) { return text(pad_left(s, w)) | fg(th.dim, ui_); };
-    Elements header{text(pad_right(tr("tui.filters.col.filter"), 16)) | fg(th.dim, ui_), head(tr("tui.filters.col.cutoff"), 9),
-                    head(tr("tui.filters.col.ripple"), 11),                              head(tr("tui.filters.col.stop"), 12),
-                    head(tr("tui.filters.col.transition"), 10),                          head(tr("tui.filters.col.vm"), 4),
-                    head("PR", 4),                                                       head(tr("tui.filters.col.orth"), 6),
-                    head(tr("tui.filters.col.linear"), 6)};
-    if (ref) {
-        header.push_back(head("Δ " + tr("tui.filters.col.cutoff"), 11));
-        header.push_back(head("Δ " + tr("tui.filters.col.stop_short"), 11));
-    }
-    Elements rows{hbox(std::move(header))};
     auto flag = [&](std::optional<bool> ok, int w) {
         if (!ok) return text(pad_left("—", w)) | fg(th.dim, ui_);
         return text(pad_left(std::string{glyph(*ok ? Glyph::check : Glyph::cross, g)}, w)) | fg(*ok ? th.ok : th.err, ui_);
     };
+    auto cell = [&](const std::string& s, int w) { return text(pad_left(s, w)) | fg(th.fg, ui_); };
+    struct Column {
+        std::string header;
+        int width;
+        int priority;
+        std::function<Element(const ComparisonSet::Entry&)> draw;
+    };
+    std::vector<Column> columns{
+        {tr("tui.filters.col.cutoff"), 9, 1, [&](const auto& e) { return cell(pi_text(e.analysis->metrics.cutoff_3db), 9); }},
+        {tr("tui.filters.col.ripple"), 11, 9,
+         [&](const auto& e) {
+             const double v = e.analysis->metrics.passband_ripple_db;
+             return cell(std::isfinite(v) ? format_fixed(v, 2) + " " + tr("tui.filters.db") : "—", 11);
+         }},
+        {tr("tui.filters.col.stop"), 12, 2,
+         [&](const auto& e) {
+             const double v = e.analysis->metrics.stopband_attenuation_db;
+             return cell(std::isfinite(v) ? format_fixed(v, 1) + " " + tr("tui.filters.db") : "—", 12);
+         }},
+        {tr("tui.filters.col.transition"), 10, 8, [&](const auto& e) { return cell(pi_text(e.analysis->metrics.transition_width), 10); }},
+        {tr("tui.filters.col.vm"), 4, 5,
+         [&](const auto& e) { return cell(e.analysis->zeros_at_minus_one ? std::to_string(*e.analysis->zeros_at_minus_one) : "—", 4); }},
+        {"PR", 4, 4, [&](const auto& e) { return flag(e.analysis->pr_error ? std::optional<bool>{*e.analysis->pr_error < kCheckTol} : std::nullopt, 4); }},
+        {tr("tui.filters.col.orth"), 6, 6,
+         [&](const auto& e) { return flag(e.analysis->orth_error ? std::optional<bool>{*e.analysis->orth_error < kCheckTol} : std::nullopt, 6); }},
+        {tr("tui.filters.col.linear"), 6, 7, [&](const auto& e) { return flag(e.analysis->linear_phase, 6); }},
+    };
+    if (ref) {
+        columns.push_back({"Δ " + tr("tui.filters.col.cutoff"), 11, 3, [&](const auto& e) {
+                               if (&e == ref) return text(pad_left(tr("tui.filters.reference_mark"), 11)) | fg(th.accent, ui_);
+                               const double d = e.analysis->metrics.cutoff_3db - ref->analysis->metrics.cutoff_3db;
+                               return cell(std::isfinite(d) ? signed_text(d, 3) + "π" : "—", 11);
+                           }});
+        columns.push_back({"Δ " + tr("tui.filters.col.stop_short"), 11, 3, [&](const auto& e) {
+                               if (&e == ref) return text(pad_left("", 11));
+                               return cell(signed_text(e.analysis->metrics.stopband_attenuation_db - ref->analysis->metrics.stopband_attenuation_db, 1), 11);
+                           }});
+    }
+    std::vector<std::size_t> order(columns.size());
+    for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
+    std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) { return columns[a].priority < columns[b].priority; });
+    std::vector<bool> keep(columns.size(), false);
+    int room = std::max(0, width - 4 - 16);
+    std::size_t dropped = 0;
+    for (auto i : order) {
+        if (columns[i].width <= room) {
+            keep[i] = true;
+            room -= columns[i].width;
+        } else {
+            ++dropped;
+        }
+    }
+    Elements header{text(pad_right(tr("tui.filters.col.filter"), 16)) | fg(th.dim, ui_)};
+    for (std::size_t i = 0; i < columns.size(); ++i)
+        if (keep[i]) header.push_back(text(pad_left(columns[i].header, columns[i].width)) | fg(th.dim, ui_));
+    Elements rows{hbox(std::move(header))};
     for (std::size_t i = 0; i < entries_.size(); ++i) {
         const auto& e = entries_[i];
         if (!e.visible || !e.analysis) continue;
-        const auto& a = *e.analysis;
-        const auto& m = a.metrics;
-        auto cell = [&](const std::string& s, int w) { return text(pad_left(s, w)) | fg(th.fg, ui_); };
-        Elements row{text(pad_right(e.ref.label(), 16)) | fg(color_of(i), ui_), cell(pi_text(m.cutoff_3db), 9),
-                     cell(std::isfinite(m.passband_ripple_db) ? format_fixed(m.passband_ripple_db, 2) + " " + tr("tui.filters.db") : "—", 11),
-                     cell(std::isfinite(m.stopband_attenuation_db) ? format_fixed(m.stopband_attenuation_db, 1) + " " + tr("tui.filters.db") : "—", 12),
-                     cell(pi_text(m.transition_width), 10),
-                     cell(a.zeros_at_minus_one ? std::to_string(*a.zeros_at_minus_one) : "—", 4),
-                     flag(a.pr_error ? std::optional<bool>{*a.pr_error < kCheckTol} : std::nullopt, 4),
-                     flag(a.orth_error ? std::optional<bool>{*a.orth_error < kCheckTol} : std::nullopt, 6), flag(a.linear_phase, 6)};
-        if (ref) {
-            if (&e == ref) {
-                row.push_back(text(pad_left(tr("tui.filters.reference_mark"), 11)) | fg(th.accent, ui_));
-            } else {
-                const auto& rm = ref->analysis->metrics;
-                row.push_back(cell(std::isfinite(m.cutoff_3db - rm.cutoff_3db) ? signed_text(m.cutoff_3db - rm.cutoff_3db, 3) + "π" : "—", 11));
-                row.push_back(cell(signed_text(m.stopband_attenuation_db - rm.stopband_attenuation_db, 1), 11));
-            }
-        }
+        Elements row{text(pad_right(e.ref.label(), 16)) | fg(color_of(i), ui_)};
+        for (std::size_t c = 0; c < columns.size(); ++c)
+            if (keep[c]) row.push_back(columns[c].draw(e));
         rows.push_back(hbox(std::move(row)));
     }
     if (rows.size() == 1) rows.push_back(text("—") | fg(th.dim, ui_));
-    return frame_panel(measures, vbox(std::move(rows)), {{tr("tui.filters.chip.bands"), false}}, tr("tui.filters.measures"));
+    const auto title = tr("tui.filters.measures") + (dropped ? fmt::format(fmt::runtime(tr("tui.filters.more_columns")), fmt::arg("count", dropped)) : "");
+    return frame_panel(measures, vbox(std::move(rows)), {{tr("tui.filters.chip.bands"), false}}, title);
 }
 
 ftxui::Element FiltersScreen::build(Panel p, int rows, int width) {
@@ -774,7 +812,7 @@ ftxui::Element FiltersScreen::build(Panel p, int rows, int width) {
     case impulse: return impulse_panel(width);
     case zeros: return zeros_panel(rows);
     case properties: return properties_panel();
-    case measures: return measures_panel();
+    case measures: return measures_panel(width);
     case library: return library_panel(width);
     case comparison: return comparison_panel(width);
     case panel_count: break;
@@ -974,6 +1012,15 @@ bool FiltersScreen::on_search(ftxui::Event e) {
         if (match_index_ > 0) --match_index_;
         return true;
     }
+    if (e == Event::PageDown || e == Event::End) {
+        const auto n = matches().size();
+        if (n) match_index_ = e == Event::End ? n - 1 : std::min(match_index_ + 10, n - 1);
+        return true;
+    }
+    if (e == Event::PageUp || e == Event::Home) {
+        match_index_ = e == Event::Home ? 0 : match_index_ - std::min<std::size_t>(match_index_, 10);
+        return true;
+    }
     if (e.is_character()) {
         query_ += e.character();
         match_index_ = 0;
@@ -1022,10 +1069,44 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
         const auto a = plot_box(0);
         const int columns = valid(a) ? a.x_max - a.x_min + 1 : 100;
         const double step = (hi_ - lo_) / (2.0 * columns);
-        const double current = cursor_a_.value_or((lo_ + hi_) / 2);
-        cursor_a_ = std::clamp(current + (e == Event::ArrowLeft ? -step : step), 0.0, 1.0);
-        if (*cursor_a_ < lo_) pan(*cursor_a_ - lo_);
-        if (*cursor_a_ > hi_) pan(*cursor_a_ - hi_);
+        auto& cursor = arrows_move_b_ ? cursor_b_ : cursor_a_;
+        const double current = cursor.value_or((lo_ + hi_) / 2);
+        cursor = std::clamp(current + (e == Event::ArrowLeft ? -step : step), 0.0, 1.0);
+        if (*cursor < lo_) pan(*cursor - lo_);
+        if (*cursor > hi_) pan(*cursor - hi_);
+        return true;
+    }
+    if (e == Event::Character('b')) {
+        arrows_move_b_ = !arrows_move_b_;
+        if (arrows_move_b_ && !cursor_b_) cursor_b_ = cursor_a_.value_or((lo_ + hi_) / 2);
+        return true;
+    }
+    if (e == Event::Character('+') || e == Event::Character('=') || e == Event::Character('-')) {
+        const double anchor = cursor_a_ && *cursor_a_ >= lo_ && *cursor_a_ <= hi_ ? *cursor_a_ : (lo_ + hi_) / 2;
+        zoom(e == Event::Character('-') ? 1 / kWheelStep : kWheelStep, anchor);
+        return true;
+    }
+    if (e == Event::Character('>') || e == Event::Character('.')) return pan(0.2 * (hi_ - lo_)), true;
+    if (e == Event::Character('<') || e == Event::Character(',')) return pan(-0.2 * (hi_ - lo_)), true;
+    if (e == Event::Character('0')) {
+        lo_ = 0;
+        hi_ = 1;
+        phase_zoom_ = delay_zoom_ = linear_zoom_ = 1;
+        db_floor_ = -80;
+        return true;
+    }
+    if (e == Event::Character(']') || e == Event::Character('[')) {
+        const double f = e == Event::Character(']') ? kWheelStep : 1 / kWheelStep;
+        if (focus_ == phase) phase_zoom_ = std::clamp(phase_zoom_ / f, 1e-3, 1.0);
+        else if (focus_ == delay) delay_zoom_ = std::clamp(delay_zoom_ / f, 1e-3, 1.0);
+        else if (decibels_) db_floor_ = std::clamp(db_floor_ / f, -300.0, -6.0);
+        else linear_zoom_ = std::clamp(linear_zoom_ / f, 0.01, 1.0);
+        return true;
+    }
+    if (e == Event::Return && focus_ == library) {
+        searching_ = true;
+        query_.clear();
+        match_index_ = 0;
         return true;
     }
     if (e == Event::Character('l')) {

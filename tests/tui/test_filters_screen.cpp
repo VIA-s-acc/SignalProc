@@ -251,3 +251,36 @@ TEST_CASE("a long comparison name is clipped before the reference mark", "[tui][
     INFO(line);
     CHECK((line.find("НЧ) эталон") != std::string::npos || line.find("… эталон") != std::string::npos));
 }
+
+TEST_CASE("filters keys zoom and pan the frequency axis and move cursor b", "[tui][filters]") {
+    Fixture f;
+    REQUIRE(f.set->add({Kind::bank, "db2", FilterRole::h0}));
+    Harness h{f.screen, 150, 41};
+    h.frame();
+    CHECK(h.send(ftxui::Event::Character('+')));
+    const auto [lo, hi] = f.screen->view();
+    CHECK(hi - lo < 1.0);
+    h.send(ftxui::Event::Character('>'));
+    CHECK(f.screen->view().first > lo);
+    h.send(ftxui::Event::Character('0'));
+    CHECK(f.screen->view().first == 0.0);
+    CHECK(f.screen->view().second == 1.0);
+    h.send(ftxui::Event::ArrowRight);
+    CHECK(h.send(ftxui::Event::Character('b')));
+    REQUIRE(f.screen->cursor_b());
+    const double b = *f.screen->cursor_b();
+    h.send(ftxui::Event::ArrowRight);
+    CHECK(*f.screen->cursor_b() > b);
+}
+
+TEST_CASE("the measures table keeps the reference deltas in a narrow terminal", "[tui][filters]") {
+    Fixture f{120, 40};
+    REQUIRE(f.set->add({Kind::bank, "db2", FilterRole::h0}));
+    REQUIRE(f.set->add({Kind::bank, "db4", FilterRole::h0}));
+    Harness h{f.screen, 120, 37};
+    h.frame();
+    h.send(ftxui::Event::Character('r'));
+    const auto frame = h.frame();
+    CHECK(frame.find("Δ ") != std::string::npos);
+    CHECK(frame.find("скрыто столбцов") != std::string::npos);
+}

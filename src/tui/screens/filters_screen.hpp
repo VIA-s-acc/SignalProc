@@ -84,7 +84,7 @@ private:
     ftxui::Element impulse_panel(int width);
     ftxui::Element zeros_panel(int rows);
     ftxui::Element properties_panel();
-    ftxui::Element measures_panel();
+    ftxui::Element measures_panel(int width);
     ftxui::Element library_panel(int width);
     ftxui::Element comparison_panel(int width);
     ftxui::Element clickable(ftxui::Element e, std::function<void()> action);
@@ -142,6 +142,7 @@ private:
     std::vector<std::string> collapsed_;
     std::string notice_;
     bool searching_ = false;
+    bool arrows_move_b_ = false;
     std::string query_;
     std::size_t match_index_ = 0;
     Drag drag_;
