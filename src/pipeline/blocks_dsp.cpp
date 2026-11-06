@@ -1,7 +1,10 @@
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <sstream>
 #include <utility>
+
+#include <fmt/format.h>
 
 #include "core/check.hpp"
 #include "core/conv.hpp"
@@ -11,6 +14,7 @@
 #include "core/process/shrink.hpp"
 #include "core/process/threshold.hpp"
 #include "core/wavedec.hpp"
+#include "i18n/i18n.hpp"
 #include "io/wav.hpp"
 #include "pipeline/block.hpp"
 
@@ -28,6 +32,7 @@ const std::vector<PortSpec> kReportOut{{"report", PortType::report}};
 constexpr double kMaxFactor = 1024;
 const ParamSpec kAttenuation{"attenuation_db", Kind::real, "80", {}, 10, 200};
 const std::vector<std::string> kExtensions{"symmetric", "periodization", "zero", "constant", "smooth", "periodic", "reflect", "antisymmetric", "antireflect"};
+const std::vector<std::string> kExtensionsOrAuto{"auto", "symmetric", "periodization", "zero", "constant", "smooth", "periodic", "reflect", "antisymmetric", "antireflect"};
 
 const core::AudioBuffer& in_audio(std::span<const Value> in, std::size_t i = 0) { return std::get<core::AudioBuffer>(in[i]); }
 const Coeffs& in_coeffs(std::span<const Value> in) { return std::get<Coeffs>(in[0]); }
@@ -98,7 +103,10 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        const auto m = static_cast<std::size_t>(param_int(p, "m"));
                        const auto o = multirate(p);
                        return per_channel(in_audio(in), in_audio(in).sample_rate * static_cast<double>(m),
-                                          [&](const std::vector<double>& c) { return core::interpolate(c, m, o); });
+                                          [&](const std::vector<double>& c) -> core::Result<std::vector<double>> {
+                                              if (auto n = checked_length(c.size(), m); !n) return std::unexpected{n.error()};
+                                              return core::interpolate(c, m, o);
+                                          });
                    }});
     out.push_back({"resample",
                    kSignalIn,
@@ -110,6 +118,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        const auto o = multirate(p);
                        return per_channel(in_audio(in), in_audio(in).sample_rate * static_cast<double>(l) / static_cast<double>(m),
                                           [&](const std::vector<double>& c) -> core::Result<std::vector<double>> {
+                                              if (auto n = checked_length(c.size(), l); !n) return std::unexpected{n.error()};
                                               auto up = l > 1 ? core::interpolate(c, l, o) : core::Result<std::vector<double>>{c};
                                               if (!up || m == 1) return up;
                                               return core::decimate(*up, m, o);
@@ -155,12 +164,20 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"idwt",
                    kCoeffsIn,
                    kSignalOut,
-                   {{"wavelet", Kind::text, "db2"}, {"ext", Kind::choice, "symmetric", kExtensions}},
+                   {{"wavelet", Kind::text, "auto"}, {"ext", Kind::choice, "auto", kExtensionsOrAuto}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
-                       auto bank = bank_of(param_text(p, "wavelet"));
-                       if (!bank) return std::unexpected{bank.error()};
                        const auto& c = in_coeffs(in);
-                       const auto mode = core::parse_extension(param_text(p, "ext"));
+                       const auto& wavelet = param_text(p, "wavelet");
+                       const auto& ext = param_text(p, "ext");
+                       if (wavelet != "auto" && wavelet != c.wavelet)
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.idwt_wavelet")),
+                                                                                             fmt::arg("coeffs", c.wavelet), fmt::arg("wavelet", wavelet)));
+                       const auto mode = ext == "auto" ? std::optional{c.mode} : core::parse_extension(ext);
+                       if (*mode != c.mode)
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.idwt_ext")),
+                                                                                             fmt::arg("coeffs", std::string{core::to_string(c.mode)}), fmt::arg("ext", ext)));
+                       auto bank = bank_of(c.wavelet);
+                       if (!bank) return std::unexpected{bank.error()};
                        core::AudioBuffer result;
                        result.sample_rate = c.rate;
                        const double share = 1.0 / static_cast<double>(std::max<std::size_t>(1, c.channels.size()));
@@ -179,7 +196,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    {{"rule", Kind::choice, "bayes", {"bayes", "visu"}},
                     {"mode", Kind::choice, "soft", {"soft", "hard", "garrote"}},
                     {"levels", Kind::range, "1..64"},
-                    {"sigma", Kind::text, "mad_d1"}},
+                    {"sigma", Kind::sigma, "mad_d1"}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                        Coeffs c = take<Coeffs>(ctx, in, 0);
                        const auto [first, last] = param_range(p, "levels");
@@ -205,7 +222,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"band_edit",
                    kCoeffsIn,
                    kCoeffsOut,
-                   {{"enabled", Kind::text, "all"}, {"gains_db", Kind::text, ""}},
+                   {{"enabled", Kind::text, "all"}, {"gains_db", Kind::gains, ""}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                        Coeffs c = take<Coeffs>(ctx, in, 0);
                        const auto enabled = split_list(param_text(p, "enabled"));
@@ -271,7 +288,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                     {"dither", Kind::choice, "tpdf", {"none", "tpdf"}},
                     {"seed", Kind::integer, "24301"}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
-                       std::filesystem::path path{param_text(p, "path")};
+                       auto path = utf8_path(param_text(p, "path"));
                        if (path.is_relative()) path = ctx.base_dir / path;
                        const auto& bits = param_text(p, "bits");
                        io::WavWriteOptions o;

@@ -26,7 +26,7 @@ Out per_channel(std::span<const Value> in, F&& f) {
 }
 
 std::filesystem::path resolve(const RunContext& ctx, const std::string& path) {
-    std::filesystem::path p{path};
+    auto p = utf8_path(path);
     return p.is_relative() ? ctx.base_dir / p : p;
 }
 
@@ -124,6 +124,8 @@ void register_basic_blocks(std::vector<BlockType>& out) {
     out.push_back({"delay", kOneIn, kOneOut, {{"samples", Kind::samples, "0"}}, [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
                        const auto n = param_samples(p, "samples", in_audio(in).sample_rate);
                        if (!n) return std::unexpected{n.error()};
+                       for (const auto& c : in_audio(in).channels)
+                           if (auto total = checked_length(c.size() + *n, 1); !total) return std::unexpected{total.error()};
                        return per_channel(in, [d = *n](const std::vector<double>& c) { return core::delay(c, d); });
                    }});
     out.push_back({"reverse", kOneIn, kOneOut, {}, [](const RunContext&, std::span<const Value> in, const Params&) {

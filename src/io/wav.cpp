@@ -199,6 +199,14 @@ private:
 };
 
 
+bool open_for_reading(drwav& wav, const std::filesystem::path& path) {
+#ifdef _WIN32
+    return drwav_init_file_w(&wav, path.c_str(), nullptr);
+#else
+    return drwav_init_file(&wav, path.c_str(), nullptr);
+#endif
+}
+
 struct TempFile {
     std::filesystem::path path;
     std::FILE* file = nullptr;
@@ -263,7 +271,7 @@ core::Result<WavFile> read_wav(const std::filesystem::path& path) { return read_
 
 core::Result<WavInfo> probe_wav(const std::filesystem::path& path) {
     drwav wav;
-    if (!drwav_init_file(&wav, path.string().c_str(), nullptr))
+    if (!open_for_reading(wav, path))
         return make_error(Errc::io_error, "cannot open or parse WAV file: " + path.string());
     DrWavGuard guard{wav};
     const auto format = sample_format(wav);
@@ -275,7 +283,7 @@ core::Result<WavInfo> probe_wav(const std::filesystem::path& path) {
 
 core::Result<WavFile> read_wav(const std::filesystem::path& path, core::ProgressSink* progress) {
     drwav wav;
-    if (!drwav_init_file(&wav, path.string().c_str(), nullptr))
+    if (!open_for_reading(wav, path))
         return make_error(Errc::io_error, "cannot open or parse WAV file: " + path.string());
     DrWavGuard guard{wav};
 

@@ -72,7 +72,7 @@ pipeline "denoise" v1
 node src  = wav(path="../resources/samples/test.wav")
 node dwt  = dwt(wavelet=sym8, levels=0, ext=symmetric)
 node thr  = threshold(rule=bayes, mode=soft, levels=1..64, sigma=mad_d1)
-node idwt = idwt(wavelet=sym8, ext=symmetric)
+node idwt = idwt()
 node chk  = check(kind=snr, tol=0)
 node out  = wav_out(path="denoised.wav", bits=24, dither=none)
 
@@ -83,7 +83,7 @@ probe dwt.d1 as "d1"
 ```
 
 - `node имя = блок(параметр=значение, …)` объявляет узел. Блоки: `wav`, `gen`, `gain`, `normalize`, `remove_dc`, `split`, `mixdown`, `mid_side`, `delay`, `reverse`, `cut`, `downsample`, `upsample`, `resample`, `convolve`, `dwt`, `idwt`, `threshold`, `band_edit`, `band_energy`, `check`, `wav_out`, `listen`. Имена совпадают с карточками «Под капотом».
-- `a -> b -> c` соединяет узлы. Порт пишется, когда у блока их несколько: `chk.ref`, `chk.in`, полосы коэффициентов `dwt.d3`, `dwt.a`.
+- `a -> b -> c` соединяет узлы. Порт пишется, когда у блока несколько входов или выходов: `chk.ref`, `chk.in`, `ch.l` у `split`, полосы коэффициентов `dwt.d3`, `dwt.a`. `idwt()` без параметров берёт вейвлет и края у своих коэффициентов.
 - `probe узел.порт as "имя"` — щуп: копия значения на проводе.
 - Относительные пути считаются от каталога самого `.sig`.
 

@@ -16,7 +16,7 @@
 namespace signals::pipeline {
 
 struct ParamSpec {
-    enum class Kind { integer, real, text, choice, path, range, samples };
+    enum class Kind { integer, real, text, choice, path, range, samples, sigma, gains };
     std::string name;
     Kind kind = Kind::text;
     std::string fallback;
@@ -62,6 +62,10 @@ private:
     double base_, span_;
 };
 
+inline std::filesystem::path utf8_path(std::string_view text) {
+    return std::filesystem::path{std::u8string{reinterpret_cast<const char8_t*>(text.data()), text.size()}};
+}
+
 inline bool cancelled(const RunContext& ctx) { return ctx.progress && ctx.progress->cancelled(); }
 
 using RunFn = std::function<core::Result<std::vector<Value>>(const RunContext&, std::span<const Value>, const Params&)>;
@@ -83,6 +87,7 @@ long long param_int(const Params& p, std::string_view name);
 const std::string& param_text(const Params& p, std::string_view name);
 core::Result<std::size_t> param_samples(const Params& p, std::string_view name, double rate);
 std::pair<std::size_t, std::size_t> param_range(const Params& p, std::string_view name);
+core::Result<std::size_t> checked_length(std::size_t n, std::size_t factor);
 
 void register_basic_blocks(std::vector<BlockType>& out);
 void register_dsp_blocks(std::vector<BlockType>& out);

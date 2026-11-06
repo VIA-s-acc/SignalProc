@@ -151,3 +151,43 @@ TEST_CASE("huge factors and lengths are rejected before anything is allocated", 
     const std::vector<double> x(16, 1.0);
     CHECK_FALSE(core::interpolate(x, std::numeric_limits<std::size_t>::max() / 4, {}));
 }
+
+TEST_CASE("output lengths above the cap are refused before allocating", "[pipeline][review]") {
+    CHECK(checked_length(1000, 4));
+    CHECK(*checked_length(1000, 4) == 4000);
+    const auto big = checked_length(300'000, 1024);
+    REQUIRE_FALSE(big);
+    CHECK(big.error().code == core::Errc::invalid_argument);
+    CHECK_FALSE(checked_length(std::size_t{1} << 40, std::size_t{1} << 40));
+}
+
+TEST_CASE("sigma and gains are validated like numbers", "[pipeline][review]") {
+    const auto* thr = find_block_type("threshold");
+    REQUIRE(thr);
+    CHECK(resolve_params(*thr, {{"sigma", "mad_d1"}}));
+    CHECK(resolve_params(*thr, {{"sigma", "0.02"}}));
+    CHECK_FALSE(resolve_params(*thr, {{"sigma", "0,02"}}));
+    CHECK_FALSE(resolve_params(*thr, {{"sigma", "-1"}}));
+    CHECK_FALSE(resolve_params(*thr, {{"sigma", "0"}}));
+    const auto* edit = find_block_type("band_edit");
+    REQUIRE(edit);
+    CHECK(resolve_params(*edit, {{"gains_db", "d2=-6, a=3"}}));
+    CHECK_FALSE(resolve_params(*edit, {{"gains_db", "d2=x"}}));
+    CHECK_FALSE(resolve_params(*edit, {{"gains_db", "d2"}}));
+}
+
+TEST_CASE("idwt inherits the wavelet and edges of its coefficients and refuses others", "[pipeline][review]") {
+    const auto x = test_wav();
+    const auto c = run("dwt", {x}, {{"wavelet", "db8"}, {"levels", "4"}, {"ext", "periodization"}});
+    const auto y = run("idwt", {c[0]});
+    CHECK(core::max_abs_error(x.channels[0], audio(y[0]).channels[0]) < 1e-9);
+    const auto* idwt = find_block_type("idwt");
+    auto params = resolve_params(*idwt, {{"wavelet", "sym8"}});
+    REQUIRE(params);
+    const auto wrong = idwt->run(RunContext{}, c, *params);
+    REQUIRE_FALSE(wrong);
+    CHECK(wrong.error().message.find("db8") != std::string::npos);
+    params = resolve_params(*idwt, {{"ext", "symmetric"}});
+    REQUIRE(params);
+    CHECK_FALSE(idwt->run(RunContext{}, c, *params));
+}

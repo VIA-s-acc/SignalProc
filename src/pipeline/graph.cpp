@@ -99,6 +99,11 @@ private:
         const auto& outs = n.type->outputs;
         if (ref.port.empty()) {
             if (outs.empty()) fail(ref.line, ref.column, say("pipeline.graph.no_outputs", fmt::arg("node", n.id)));
+            if (outs.size() > 1) {
+                std::vector<std::string> names;
+                for (const auto& p : outs) names.push_back(p.name);
+                fail(ref.line, ref.column, say("pipeline.graph.need_output", fmt::arg("node", n.id), fmt::arg("ports", join(names)), fmt::arg("first", outs.front().name)));
+            }
             return {{i, 0, {}}, outs.front().type};
         }
         for (std::size_t k = 0; k < outs.size(); ++k)

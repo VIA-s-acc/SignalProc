@@ -46,6 +46,32 @@ core::Error bad(std::string_view key, const ParamSpec& p, std::string_view value
 
 bool in_bounds(const ParamSpec& p, double v) { return v >= p.min && v <= p.max; }
 
+bool band_name(std::string_view s) {
+    if (s == "a") return true;
+    if (s.size() < 2 || (s[0] != 'a' && s[0] != 'd')) return false;
+    return std::all_of(s.begin() + 1, s.end(), [](char c) { return c >= '0' && c <= '9'; });
+}
+
+bool gains_valid(std::string_view text) {
+    const auto trim = [](std::string_view s) {
+        while (!s.empty() && s.front() == ' ') s.remove_prefix(1);
+        while (!s.empty() && s.back() == ' ') s.remove_suffix(1);
+        return s;
+    };
+    for (std::size_t at = 0; at <= text.size();) {
+        auto end = text.find(',', at);
+        if (end == std::string_view::npos) end = text.size();
+        const auto item = trim(text.substr(at, end - at));
+        if (!item.empty() || end < text.size()) {
+            const auto eq = item.find('=');
+            double gain = 0;
+            if (eq == std::string_view::npos || !band_name(trim(item.substr(0, eq))) || !parse_real(trim(item.substr(eq + 1)), gain)) return false;
+        }
+        at = end + 1;
+    }
+    return true;
+}
+
 }  // namespace
 
 std::span<const BlockType> block_types() { return registry(); }
@@ -94,6 +120,12 @@ core::Result<Params> resolve_params(const BlockType& t, const Params& given) {
             if (!seconds && static_cast<double>(integer) > kMaxSamples) return std::unexpected{bad("pipeline.error.too_long", p, value)};
             break;
         }
+        case ParamSpec::Kind::sigma:
+            if (value != "mad_d1" && (!parse_real(value, real) || !(real > 0))) return std::unexpected{bad("pipeline.error.bad_sigma", p, value)};
+            break;
+        case ParamSpec::Kind::gains:
+            if (!gains_valid(value)) return std::unexpected{bad("pipeline.error.bad_gains", p, value)};
+            break;
         case ParamSpec::Kind::text:
         case ParamSpec::Kind::path: break;
         }
@@ -141,6 +173,13 @@ std::pair<std::size_t, std::size_t> param_range(const Params& p, std::string_vie
     if (dots == std::string::npos) return {static_cast<std::size_t>(a), static_cast<std::size_t>(a)};
     std::from_chars(s.data() + dots + 2, s.data() + s.size(), b);
     return {static_cast<std::size_t>(a), static_cast<std::size_t>(b)};
+}
+
+core::Result<std::size_t> checked_length(std::size_t n, std::size_t factor) {
+    const auto cap = static_cast<std::size_t>(kMaxSamples);
+    if (factor != 0 && n > cap / factor)
+        return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.output_too_long")), fmt::arg("n", n), fmt::arg("factor", factor)));
+    return n * factor;
 }
 
 }  // namespace signals::pipeline

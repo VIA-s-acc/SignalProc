@@ -174,11 +174,20 @@ node idwt = idwt(wavelet=db2, ext=symmetric)
 node chk  = check(kind=pr, tol=1e-12)
 node out  = wav_out(path="out.wav", bits=24, dither=tpdf)
 
-src -> ch -> dwt -> thr -> idwt -> out
+src -> ch
+ch.l -> dwt -> thr -> idwt -> out
 src -> chk.ref
 idwt -> chk.in
 probe dwt.d3 as "band_d3"
 )");
     CHECK(order_ids(g) == std::vector<std::string>{"src", "ch", "dwt", "thr", "idwt", "chk", "out"});
     CHECK(g.base_dir == ".");
+}
+
+TEST_CASE("graph: a block with several outputs needs a port name", "[pipeline][graph][review]") {
+    const auto e = error_of("node s = gen()\nnode ch = split()\nnode d = dwt()\ns -> ch -> d\n");
+    CHECK(e.line == 4);
+    CHECK_THAT(e.message, ContainsSubstring("ch.l"));
+    CHECK_THAT(e.message, ContainsSubstring("r"));
+    build("node s = gen()\nnode ch = split()\nnode d = dwt()\ns -> ch\nch.l -> d\n");
 }

@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <future>
 #include <map>
+#include <stdexcept>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -228,4 +229,42 @@ TEST_CASE("a sole consumer takes its input without changing results or probes", 
     const auto again = run_graph(g, all, {}, cancel);
     REQUIRE(again);
     CHECK(channel(*again, "out") == channel(*kept, "out"));
+}
+
+TEST_CASE("an exception inside a block fails the run with the node's name", "[pipeline][executor][review]") {
+    BlockType boom{"boom", {{"in", PortType::signal}}, {{"out", PortType::signal}}, {},
+                   [](const RunContext&, std::span<const Value>, const Params&) -> core::Result<std::vector<Value>> { throw std::runtime_error("kaboom"); }};
+    auto g = graph_of("node src = gen(duration=0.01)\nnode g = gain()\nnode h = gain()\nsrc -> g -> h\n");
+    g.nodes[1].type = &boom;
+    ResultCache cache{0};
+    core::CancelToken cancel;
+    std::mutex m;
+    std::map<std::string, NodeState> last;
+    const RunEvents events{[&](const NodeStatus& s) {
+        std::lock_guard lock{m};
+        last[s.id] = s.state;
+    }};
+    const auto r = run_graph(g, cache, events, cancel);
+    REQUIRE_FALSE(r);
+    CHECK(r.error().message.find("g") != std::string::npos);
+    CHECK(r.error().message.find("kaboom") != std::string::npos);
+    CHECK(last["g"] == NodeState::failed);
+    CHECK(last["h"] == NodeState::bypassed);
+}
+
+TEST_CASE("a block that owns its input gives the same result as with the cache", "[pipeline][executor][review]") {
+    const auto g = graph_of(R"(node src = gen(kind=white, duration=0.5)
+node dwt = dwt(wavelet=db4, levels=4)
+node thr = threshold(mode=hard)
+node rec = idwt()
+src -> dwt -> thr -> rec
+probe rec as "out"
+)");
+    core::CancelToken cancel;
+    ResultCache none{0}, all{std::size_t{1} << 30};
+    const auto lean = run_graph(g, none, {}, cancel);
+    const auto kept = run_graph(g, all, {}, cancel);
+    REQUIRE(lean);
+    REQUIRE(kept);
+    CHECK(channel(*lean, "out") == channel(*kept, "out"));
 }

@@ -129,7 +129,8 @@ node thr  = threshold(rule=bayes, mode=soft, levels=1..4, sigma=mad_d1)
 node idwt = idwt(wavelet=db2, ext=symmetric)
 node chk  = check(kind=pr, tol=1e-12)
 node out  = wav_out(path="out.wav", bits=24, dither=tpdf)
-src -> ch -> dwt -> thr -> idwt -> out
+src -> ch
+ch.l -> dwt -> thr -> idwt -> out
 src -> chk.ref
 idwt -> chk.in
 probe dwt.d3 as "band_d3"
@@ -146,4 +147,16 @@ probe dwt.d3 as "band_d3"
         else
             CHECK(r.out.find("▼") != std::string::npos);
     }
+}
+
+TEST_CASE("paths with spaces and Cyrillic work from the .sig to the output and probes", "[cli][pipeline][review]") {
+    const auto dir = fresh_dir("cli путь с пробелами");
+    std::filesystem::copy_file(std::filesystem::path{SIGNALS_SOURCE_DIR} / "resources" / "samples" / "test.wav", dir / "звук 1.wav");
+    const auto path = dir / "граф шум.sig";
+    std::ofstream{path} << "node src = wav(path=\"звук 1.wav\")\nnode g = gain(db=-6)\nnode out = wav_out(path=\"тихо.wav\")\nsrc -> g -> out\nprobe g as \"щуп\"\n";
+    const auto r = run({"signals", "run", path.string(), "--probe-dir", (dir / "щупы").string()});
+    INFO(r.err);
+    REQUIRE(r.code == 0);
+    CHECK(std::filesystem::exists(dir / "тихо.wav"));
+    CHECK(std::filesystem::exists(dir / "щупы" / "щуп.wav"));
 }

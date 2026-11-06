@@ -838,5 +838,12 @@
   "pipeline.cli.header": "pipeline “{name}”: {nodes} nodes",
   "pipeline.cli.probes": "probes:",
   "pipeline.cli.reports": "reports:",
-  "pipeline.cli.failed": "check failed"
+  "pipeline.cli.failed": "check failed",
+  "pipeline.error.bad_sigma": "{param} = {value}: expected mad_d1 or a positive number",
+  "pipeline.error.bad_gains": "{param} = {value}: expected a list like d2=-6, a=3",
+  "pipeline.error.output_too_long": "the result is longer than the 2²⁸-sample limit: {n} × {factor}",
+  "pipeline.error.idwt_wavelet": "the coefficients come from wavelet {coeffs}, but idwt is set to {wavelet} — drop wavelet or set {coeffs}",
+  "pipeline.error.idwt_ext": "the coefficients use edges {coeffs}, but idwt is set to {ext}",
+  "pipeline.graph.need_output": "node {node} has several outputs ({ports}) — name the port, for example {node}.{first}",
+  "pipeline.run.out_of_memory": "out of memory"
 }

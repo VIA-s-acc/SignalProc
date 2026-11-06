@@ -4,6 +4,8 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <exception>
+#include <new>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -63,7 +65,7 @@ std::uint64_t node_key(const Graph& g, std::size_t i, const std::vector<std::uin
         f.text(spec.name);
         f.text(value);
         if (spec.kind != ParamSpec::Kind::path) continue;
-        std::filesystem::path path{value};
+        auto path = utf8_path(value);
         if (path.is_relative()) path = g.base_dir / path;
         f.text(path.lexically_normal().string());
         std::error_code ec;
@@ -252,7 +254,14 @@ private:
                               }};
         const auto wall0 = std::chrono::steady_clock::now();
         const auto cpu0 = thread_cpu_seconds();
-        auto result = n.type->run(RunContext{g_.base_dir, &progress, std::move(owned)}, inputs, n.params);
+        core::Result<std::vector<Value>> result = std::vector<Value>{};
+        try {
+            result = n.type->run(RunContext{g_.base_dir, &progress, std::move(owned)}, inputs, n.params);
+        } catch (const std::bad_alloc&) {
+            result = core::make_error(core::Errc::invalid_argument, tr("pipeline.run.out_of_memory"));
+        } catch (const std::exception& e) {
+            result = core::make_error(core::Errc::invalid_argument, e.what());
+        }
         {
             std::lock_guard lock{mutex_};
             status_[i].cpu_seconds = thread_cpu_seconds() - cpu0;
