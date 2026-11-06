@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <memory>
+#include <numbers>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -194,4 +195,30 @@ TEST_CASE("the d = 0 experiment does not mark the bank's alias as broken", "[tui
     CHECK(frame.find("= 0 ✓ (−∞ дБ)") != std::string::npos);
     CHECK(frame.find("max |A| = −6") == std::string::npos);
     CHECK(frame.find("сейчас d = 0: max|A| = −6,0 дБ") != std::string::npos);
+}
+
+TEST_CASE("z and the wheel work on the explanation", "[tui][explain][zoom]") {
+    constexpr double pi = std::numbers::pi;
+    ExplainFixture f{11};
+    const auto b = f.screen->area("freq");
+    REQUIRE(b.x_max > b.x_min);
+    const int x = (b.x_min + b.x_max) / 2, y = (b.y_min + b.y_max) / 2;
+    CHECK(f.h.wheel(x, y, true));
+    f.h.frame();
+    auto a = f.screen->plot_axis("freq");
+    CHECK(a.lo > 0.05 * pi);
+    auto items = f.screen->context_menu(x, y);
+    REQUIRE(items.size() == 1);
+    items[0].action();
+    f.h.frame();
+    CHECK(f.screen->plot_axis("freq").lo == 0);
+
+    f.h.click(x, y);
+    CHECK(f.h.send(ftxui::Event::Character('z')));
+    auto frame = f.h.frame();
+    CHECK(frame.find("|H₀|") != std::string::npos);
+    CHECK(frame.find("Шаги") == std::string::npos);
+    CHECK(frame.find("инвариант") == std::string::npos);
+    CHECK(f.h.send(ftxui::Event::Escape));
+    CHECK(f.h.frame().find("инвариант") != std::string::npos);
 }

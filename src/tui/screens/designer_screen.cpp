@@ -1,6 +1,7 @@
 #include "tui/screens/designer_screen.hpp"
 
 #include <algorithm>
+#include <complex>
 #include <cmath>
 #include <numbers>
 #include <utility>
@@ -20,6 +21,7 @@ namespace signals::tui {
 namespace {
 
 constexpr int kLeft = 47;
+constexpr double kWheelStep = 1.25;
 
 std::string signed_text(double v) { return (v < 0 ? "−" : "+") + format_fixed(std::abs(v), 4); }
 
@@ -65,7 +67,8 @@ std::vector<Hint> DesignerScreen::hints() const {
     return {{tr("tui.signal.key.click"), tr("tui.designer.hint.click")}, {"←→", tr("tui.designer.hint.zeros")},
             {"n/N", tr("tui.designer.hint.next")},                        {"+/−", "p"},
             {"c", tr("tui.designer.hint.cascade")},                       {"x", tr("tui.designer.hint.swap")},
-            {"Enter", tr("tui.designer.hint.save")},                      {"Tab", tr("tui.explain.hint.tab")}};
+            {"Enter", tr("tui.designer.hint.save")},                      {"Tab", tr("tui.explain.hint.tab")},
+            {"z", tr("tui.signal.hint.zoom")},                            {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")}};
 }
 
 std::string DesignerScreen::context() const {
@@ -105,7 +108,7 @@ ftxui::Element DesignerScreen::roots_panel(const DesignerData* d, const Designer
             spec.markers.push_back({z, in_h0 ? "●" : "○", in_h0 ? th.trace[0] : f0_color, static_cast<int>(g)});
             if (grp.conjugate_pair) spec.markers.push_back({std::conj(z), in_h0 ? "●" : "○", in_h0 ? th.trace[0] : f0_color, static_cast<int>(g)});
         }
-        spec.extent = std::max(1.5, 1.1 * far);
+        spec.extent = std::max(1.5, 1.1 * far) / zplane_zoom_;
     }
     const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
     auto legend = vbox({text(std::string{ascii ? "* " : "● "} + tr("tui.designer.in_h0")) | fg(th.trace[0], ui_),
@@ -221,15 +224,16 @@ ftxui::Element DesignerScreen::result_panel(const DesignerResult* r, int width) 
 ftxui::Element DesignerScreen::magnitude_panel(const DesignerResult* r) {
     using namespace ftxui;
     const auto& th = ui_.theme;
+    auto& zoom = zoom_.axis("magnitude", {0, std::numbers::pi, AxisScale::pi});
     PlotSpec spec;
-    spec.x = {0, std::numbers::pi, AxisScale::pi};
+    spec.x = zoom.axis();
     spec.y = {-80, 0};
     if (r) {
         auto add = [&](const core::FrequencyResponse& resp, Rgb color, LineStyle style) {
             double peak = -1e300;
             for (double v : resp.magnitude_db) peak = std::max(peak, v);
             tui::Trace t;
-            t.x = resp.omega;
+            for (double w : resp.omega) t.x.push_back(zoom.plot_x(w));
             for (double v : resp.magnitude_db) t.y.push_back(std::max(-81.0, v - peak));
             t.color = color;
             t.style = style;
@@ -238,7 +242,9 @@ ftxui::Element DesignerScreen::magnitude_panel(const DesignerResult* r) {
         add(r->f0_response, tint(th.trace[0], th.fg, 0.5), LineStyle::dashed);
         add(r->h0_response, th.trace[0], LineStyle::solid);
     }
-    return frame_panel(magnitude, plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs), {{tr("tui.designer.same_view"), false}},
+    auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs);
+    return frame_panel(magnitude, zoom_.track("magnitude", std::move(spec), std::move(drawn)),
+                       {{tr("tui.designer.same_view"), false}},
                        tr("tui.designer.magnitude"));
 }
 
@@ -262,7 +268,7 @@ ftxui::Element DesignerScreen::cascade_panel(const DesignerResult* r, bool dual)
             lo = std::min(lo, c.phi[k]);
             hi = std::max(hi, c.phi[k]);
         }
-        spec.x = {0, std::max(1.0, c.support)};
+        spec.x = zoom_.axis(dual ? "phi_dual" : "phi", {0, std::max(1.0, c.support)}).axis();
         spec.y = {std::max(lo, -3.0), std::min(hi, 3.0)};
         t.color = dual ? tint(th.trace[0], th.fg, 0.5) : th.trace[0];
         spec.traces.push_back(std::move(t));
@@ -273,7 +279,8 @@ ftxui::Element DesignerScreen::cascade_panel(const DesignerResult* r, bool dual)
     const auto status = ok ? tr("tui.designer.converges") + " " + std::string{glyph(Glyph::check, ui_.caps.glyphs)}
                            : fmt::format(fmt::runtime(tr("tui.designer.diverges")), fmt::arg("mark", std::string{glyph(Glyph::cross, ui_.caps.glyphs)}),
                                          fmt::arg("ratio", last ? format_fixed(last->norm_ratio, 2) : std::string{"—"}));
-    auto body = vbox({plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex, text(status) | fg(ok ? th.ok : th.err, ui_)});
+    auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs);
+    auto body = vbox({zoom_.track(dual ? "phi_dual" : "phi", std::move(spec), std::move(drawn)) | flex, text(status) | fg(ok ? th.ok : th.err, ui_)});
     return frame_panel(id, body, std::move(chips), iterations_title(iterations, dual));
 }
 
@@ -282,6 +289,7 @@ ftxui::Element DesignerScreen::OnRender() {
     panel_boxes_.fill(kNoBox);
     clickables_.clear();
     roots_box_ = kNoBox;
+    zoom_.begin_frame();
     if (ui_.jobs) model_->sync(*ui_.jobs);
     const auto d = model_->data();
     const auto r = model_->result();
@@ -289,8 +297,8 @@ ftxui::Element DesignerScreen::OnRender() {
     layout_.resize(cols, rows);
     const int height = std::max(3, rows - 3);
     if (!ui_.jobs) return text("");
-    if (breakpoint_ <= Breakpoint::small) {
-        const auto p = static_cast<Panel>(layout_.small_index() % panel_count);
+    if (breakpoint_ <= Breakpoint::small || maximized_) {
+        const auto p = maximized_ ? *maximized_ : static_cast<Panel>(layout_.small_index() % panel_count);
         focus_ = p;
         switch (p) {
         case roots: return roots_panel(d.get(), r.get());
@@ -343,6 +351,13 @@ bool DesignerScreen::OnEvent(ftxui::Event e) {
     auto& jobs = *ui_.jobs;
     if (e.is_mouse()) {
         const auto& m = e.mouse();
+        if (m.button == ftxui::Mouse::WheelUp || m.button == ftxui::Mouse::WheelDown) {
+            if (roots_box_.Contain(m.x, m.y)) {
+                zplane_zoom_ = std::clamp(zplane_zoom_ * (m.button == ftxui::Mouse::WheelUp ? kWheelStep : 1 / kWheelStep), 1.0, 50.0);
+                return true;
+            }
+        }
+        if (zoom_.on_mouse(m)) return true;
         if (m.button != ftxui::Mouse::Left || m.motion != ftxui::Mouse::Pressed) return false;
         for (auto& c : clickables_)
             if (c.box.Contain(m.x, m.y)) {
@@ -359,9 +374,18 @@ bool DesignerScreen::OnEvent(ftxui::Event e) {
         for (int p = 0; p < panel_count; ++p)
             if (panel_boxes_[static_cast<std::size_t>(p)].Contain(m.x, m.y)) {
                 focus_ = static_cast<Panel>(p);
+                zoom_.press(m.x, m.y);
                 return true;
             }
         return false;
+    }
+    if (e == Event::Character('z')) {
+        maximized_ = maximized_ ? std::nullopt : std::optional<Panel>{focus_};
+        return true;
+    }
+    if (e == Event::Escape && maximized_) {
+        maximized_.reset();
+        return true;
     }
     if (e == Event::ArrowRight) return model_->zeros(1, jobs), true;
     if (e == Event::ArrowLeft) return model_->zeros(-1, jobs), true;
@@ -377,15 +401,29 @@ bool DesignerScreen::OnEvent(ftxui::Event e) {
     }
     if (e == Event::Return) return save(), true;
     if (e == Event::Tab) {
-        if (breakpoint_ <= Breakpoint::small) layout_.next_panel(panel_count);
+        if (breakpoint_ <= Breakpoint::small && !maximized_) layout_.next_panel(panel_count);
         else focus_ = static_cast<Panel>((focus_ + 1) % panel_count);
         return true;
     }
     return false;
 }
 
+Axis DesignerScreen::plot_axis(std::string_view id) const {
+    if (auto v = zoom_.view(id)) return *v;
+    if (id == "roots") return {-zplane_extent(model_->data().get()), zplane_extent(model_->data().get())};
+    return {};
+}
+
+double DesignerScreen::zplane_extent(const DesignerData* d) const {
+    double far = 1;
+    if (d)
+        for (const auto& g : d->f.groups) far = std::max(far, std::abs(std::complex<double>{static_cast<double>(g.root.re), static_cast<double>(g.root.im)}));
+    return std::max(1.5, 1.1 * far) / zplane_zoom_;
+}
+
 ftxui::Box DesignerScreen::area(std::string_view id) const {
     if (id == "roots") return roots_box_;
+    if (id == "magnitude" || id == "phi" || id == "phi_dual") return zoom_.box(id);
     for (const auto& c : clickables_)
         if (c.id == id) return c.box;
     return kNoBox;
@@ -410,6 +448,20 @@ std::vector<Command> DesignerScreen::commands() {
 }
 
 std::vector<MenuItem> DesignerScreen::context_menu(int x, int y) {
+    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
+    if (roots_box_.Contain(x, y) && zplane_zoom_ > 1) {
+        std::vector<MenuItem> items;
+        if (hits_)
+            for (const auto& h : *hits_)
+                if (h.x == x && h.y == y && h.id >= 0 && ui_.jobs) {
+                    const auto g = static_cast<std::size_t>(h.id);
+                    const bool in_h0 = g < model_->split().group_in_h0.size() && model_->split().group_in_h0[g];
+                    items.push_back({tr(in_h0 ? "tui.designer.menu.to_f0" : "tui.designer.menu.to_h0"), tr("tui.signal.key.click"),
+                                     [this, g] { model_->toggle_group(g, *ui_.jobs); }});
+                }
+        items.push_back({tr("tui.menu.reset_zoom"), "", [this] { zplane_zoom_ = 1; }});
+        return items;
+    }
     if (!hits_ || !ui_.jobs) return {};
     for (const auto& h : *hits_)
         if (h.x == x && h.y == y && h.id >= 0) {

@@ -75,6 +75,7 @@ private:
     PanelLayout layout_;
     Breakpoint breakpoint_ = Breakpoint::primary;
     Panel focus_ = view_panel;
+    std::optional<Panel> maximized_;
     View view_ = View::subbands;
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::deque<Clickable> clickables_;

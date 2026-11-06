@@ -114,3 +114,39 @@ TEST_CASE("matrix snapshots", "[tui][matrix][snapshot]") {
         signals::test::check_snapshot("matrix_" + std::to_string(w) + "x" + std::to_string(h), shell.frame());
     }
 }
+
+TEST_CASE("z shows the focused matrix panel on the whole screen", "[tui][matrix][zoom]") {
+    MatrixFixture f;
+    CHECK(f.h.send(ftxui::Event::Character('z')));
+    auto frame = f.h.frame();
+    CHECK(frame.find("A = [L; B]") != std::string::npos);
+    CHECK(frame.find("Что показать") == std::string::npos);
+    CHECK(f.h.send(ftxui::Event::Escape));
+    CHECK(f.h.frame().find("Что показать") != std::string::npos);
+}
+
+TEST_CASE("the wheel zooms into a block of the matrix and the menu resets it", "[tui][matrix][zoom]") {
+    MatrixFixture f;
+    f.model->set({.n = 128}, f.jobs);
+    f.h.frame();
+    auto a = f.screen->area("matrix");
+    REQUIRE(a.x_max > a.x_min);
+    const int x = (a.x_min + a.x_max) / 2, y = (a.y_min + a.y_max) / 2;
+    for (int i = 0; i < 6; ++i) CHECK(f.h.wheel(x, y, true));
+    CHECK(f.h.frame().find("участок") != std::string::npos);
+    const auto b = f.screen->block();
+    CHECK(b.cols < 128);
+    CHECK(b.rows < 128);
+    CHECK(b.c0 > 0);
+    CHECK(b.r0 > 0);
+    a = f.screen->area("matrix");
+    f.h.click(a.x_min, a.y_min);
+    CHECK(f.screen->row() == b.r0);
+    auto items = f.screen->context_menu(x, y);
+    REQUIRE_FALSE(items.empty());
+    CHECK(items.back().label == "Сбросить масштаб");
+    items.back().action();
+    f.h.frame();
+    CHECK(f.screen->block().cols == 128);
+    CHECK(f.h.frame().find("участок") == std::string::npos);
+}

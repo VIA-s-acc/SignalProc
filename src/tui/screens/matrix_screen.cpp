@@ -19,6 +19,7 @@ namespace {
 
 constexpr int kLeftWidth = 32;
 constexpr int kNumberWidth = 6;
+constexpr double kWheelStep = 1.25;
 constexpr auto kAnimationStep = std::chrono::milliseconds{500};
 constexpr std::array<core::Extension, 3> kModes{core::Extension::periodization, core::Extension::symmetric, core::Extension::zero};
 
@@ -41,7 +42,8 @@ std::string MatrixScreen::tab_label() const { return tr("tui.tab.matrix"); }
 std::vector<Hint> MatrixScreen::hints() const {
     return {{"↑↓", tr("tui.matrix.hint.row")},      {"Space", tr("tui.matrix.hint.animate")}, {"c", tr("tui.matrix.hint.numbers")},
             {"t", "AᵀA"},                           {"b", tr("tui.matrix.hint.edges")},       {"o", tr("tui.matrix.hint.order")},
-            {"+/−", "N"},                           {tr("tui.signal.key.click"), tr("tui.matrix.hint.cell")}};
+            {"+/−", "N"},                           {tr("tui.signal.key.click"), tr("tui.matrix.hint.cell")},
+            {"z", tr("tui.signal.hint.zoom")},      {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")}};
 }
 
 std::string MatrixScreen::context() const {
@@ -220,6 +222,9 @@ ftxui::Element MatrixScreen::main_panel(const MatrixData* d, int width, int heig
         return frame_panel(main, paragraph(d->error.value_or("—")) | fg(th.err, ui_), {}, tr("tui.matrix.title_empty"));
     const auto rows = static_cast<std::size_t>(d->m.rows()), cols = static_cast<std::size_t>(d->m.cols());
     row_ = std::min(row_, rows - 1);
+    update_block(rows, cols);
+    const auto [r0, nr, c0, nc] = block_;
+    const bool zoomed = nr < rows || nc < cols;
     std::string name = "A = [L; B]";
     switch (d->options.op) {
     case MatrixOp::analysis: name = d->options.order == RowOrder::blocks ? "A = [L; B]" : tr("tui.matrix.name.interleaved"); break;
@@ -229,17 +234,22 @@ ftxui::Element MatrixScreen::main_panel(const MatrixData* d, int width, int heig
     case MatrixOp::synthesis_product: name = "S·A"; break;
     }
     if (d->options.gram) name = "AᵀA";
-    const auto title = fmt::format(fmt::runtime(tr("tui.matrix.title")), fmt::arg("name", name), fmt::arg("rows", rows), fmt::arg("cols", cols),
-                                   fmt::arg("row", row_));
+    auto title = fmt::format(fmt::runtime(tr("tui.matrix.title")), fmt::arg("name", name), fmt::arg("rows", rows), fmt::arg("cols", cols),
+                             fmt::arg("row", row_));
+    if (zoomed)
+        title += fmt::format(fmt::runtime(tr("tui.matrix.zoomed")), fmt::arg("r0", r0), fmt::arg("r1", r0 + nr - 1), fmt::arg("c0", c0),
+                             fmt::arg("c1", c0 + nc - 1));
     const int info_width = 44;
-    const int map_width = std::max(8, std::min(static_cast<int>(2 * cols), width - info_width - 10));
-    const bool fits_numbers = static_cast<int>(cols) <= max_numbers_n(width - info_width);
+    const int room_w = std::max(8, width - info_width - 10), room_h = std::max(2, height - 4);
+    const int scale = zoomed ? std::max(1, std::min(room_w / static_cast<int>(2 * nc), 2 * room_h / static_cast<int>(nr))) : 1;
+    const int map_width = std::max(8, std::min(static_cast<int>(2 * nc) * scale, room_w));
+    const bool fits_numbers = static_cast<int>(nc) <= max_numbers_n(width - info_width);
     Element map;
     if (numbers_ && fits_numbers) {
         Elements lines;
-        for (std::size_t r = 0; r < rows && static_cast<int>(lines.size()) < height - 4; ++r) {
+        for (std::size_t r = r0; r < r0 + nr && static_cast<int>(lines.size()) < height - 4; ++r) {
             Elements cells{text(pad_right(r < d->row_names.size() ? d->row_names[r] : std::string{}, 5)) | fg(th.dim, ui_)};
-            for (std::size_t c = 0; c < cols; ++c) {
+            for (std::size_t c = c0; c < c0 + nc; ++c) {
                 const double v = d->m(static_cast<Eigen::Index>(r), static_cast<Eigen::Index>(c));
                 auto cell = text(pad_left(std::abs(v) < 1e-12 ? "·" : signed_fixed(v, 2), kNumberWidth)) |
                             fg(std::abs(v) < 1e-12 ? th.dim : v > 0 ? th.trace[0] : th.trace[1], ui_);
@@ -251,32 +261,37 @@ ftxui::Element MatrixScreen::main_panel(const MatrixData* d, int width, int heig
         map = vbox(std::move(lines)) | reflect(matrix_box_);
     } else {
         HeatmapSpec spec;
-        spec.rows = rows;
-        spec.cols = cols;
+        spec.rows = nr;
+        spec.cols = nc;
         spec.scale = HeatScale::diverging;
-        spec.highlight_row = row_;
-        spec.values.reserve(rows * cols);
-        for (std::size_t r = 0; r < rows; ++r)
-            for (std::size_t c = 0; c < cols; ++c) spec.values.push_back(d->m(static_cast<Eigen::Index>(r), static_cast<Eigen::Index>(c)));
-        const int map_height = std::max(2, std::min(static_cast<int>((rows + 1) / 2), height - 4));
+        if (row_ >= r0 && row_ < r0 + nr) spec.highlight_row = row_ - r0;
+        spec.values.reserve(nr * nc);
+        for (std::size_t r = r0; r < r0 + nr; ++r)
+            for (std::size_t c = c0; c < c0 + nc; ++c) spec.values.push_back(d->m(static_cast<Eigen::Index>(r), static_cast<Eigen::Index>(c)));
+        const int map_height = std::max(2, std::min(static_cast<int>((nr * static_cast<std::size_t>(scale) + 1) / 2), room_h));
         std::string header = "     ";
-        for (std::size_t c = 0; c < cols && static_cast<int>(header.size()) < map_width + 5; c += 8) {
-            const auto label = "x" + subscript_count(c);
-            header += pad_right(label, std::min(16, map_width));
+        const std::size_t label_step = std::max<std::size_t>(1, nc / std::max<std::size_t>(1, static_cast<std::size_t>(map_width / 8)));
+        for (std::size_t k = 0; k < nc && static_cast<int>(header.size()) < map_width + 5; k += std::max<std::size_t>(label_step, zoomed ? 1 : 8)) {
+            const auto label = "x" + subscript_count(c0 + k);
+            const int cell = std::max(1, map_width * static_cast<int>(std::max<std::size_t>(label_step, zoomed ? 1 : 8)) / static_cast<int>(nc));
+            header += pad_right(label, std::min(16, std::max(cell, 1)));
         }
         Elements labels(static_cast<std::size_t>(map_height), text(""));
         auto put_label = [&](std::size_t r) {
-            const auto line = static_cast<std::size_t>(r * static_cast<std::size_t>(map_height) / std::max<std::size_t>(1, rows));
+            if (r < r0 || r >= r0 + nr) return;
+            const auto line = static_cast<std::size_t>((r - r0) * static_cast<std::size_t>(map_height) / std::max<std::size_t>(1, nr));
             if (line < labels.size() && r < d->row_names.size()) labels[line] = text(d->row_names[r]) | fg(th.dim, ui_);
         };
-        put_label(0);
+        put_label(r0);
         if (d->detail_start > 0 && d->detail_start < rows) {
             put_label(d->detail_start - 1);
             put_label(d->detail_start);
         }
-        put_label(rows - 1);
-        const auto marker = static_cast<std::size_t>(row_ * static_cast<std::size_t>(map_height) / std::max<std::size_t>(1, rows));
-        if (marker < labels.size()) labels[marker] = text(std::string{ui_.caps.glyphs == GlyphMode::ascii ? ">" : "▸"}) | fg(th.accent, ui_);
+        put_label(r0 + nr - 1);
+        if (row_ >= r0 && row_ < r0 + nr) {
+            const auto marker = static_cast<std::size_t>((row_ - r0) * static_cast<std::size_t>(map_height) / std::max<std::size_t>(1, nr));
+            if (marker < labels.size()) labels[marker] = text(std::string{ui_.caps.glyphs == GlyphMode::ascii ? ">" : "▸"}) | fg(th.accent, ui_);
+        }
         map = vbox({text(header) | fg(th.dim, ui_),
                     hbox({vbox(std::move(labels)) | size(WIDTH, EQUAL, 5),
                           heatmap(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(WIDTH, EQUAL, map_width) |
@@ -336,8 +351,8 @@ ftxui::Element MatrixScreen::OnRender() {
     const auto [cols, rows] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
     layout_.resize(cols, rows);
     const int height = std::max(3, rows - 3);
-    if (breakpoint_ <= Breakpoint::small) {
-        const auto p = static_cast<Panel>(layout_.small_index() % panel_count);
+    if (breakpoint_ <= Breakpoint::small || maximized_) {
+        const auto p = maximized_ ? *maximized_ : static_cast<Panel>(layout_.small_index() % panel_count);
         focus_ = p;
         main_width_ = cols;
         switch (p) {
@@ -362,6 +377,27 @@ bool MatrixScreen::OnEvent(ftxui::Event e) {
     const auto d = model_->data();
     if (e.is_mouse()) {
         const auto& m = e.mouse();
+        using ftxui::Mouse;
+        if ((m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) && d && d->m.size() > 0 && matrix_box_.Contain(m.x, m.y)) {
+            const double f = m.button == Mouse::WheelUp ? kWheelStep : 1 / kWheelStep;
+            const auto [fr, fc] = fractions_at(m.x, m.y);
+            row_zoom_.zoom(f, fr);
+            col_zoom_.zoom(f, fc);
+            return true;
+        }
+        if (drag_ && m.motion != Mouse::Pressed) {
+            if (m.motion == Mouse::Released || m.button != Mouse::Left) {
+                drag_ = false;
+                return m.motion == Mouse::Released;
+            }
+            const auto [r0, c0] = fractions_at(drag_x_, drag_y_);
+            const auto [r1, c1] = fractions_at(m.x, m.y);
+            row_zoom_.pan(r0 - r1);
+            col_zoom_.pan(c0 - c1);
+            drag_x_ = m.x, drag_y_ = m.y;
+            return true;
+        }
+        drag_ = false;
         if (m.button != ftxui::Mouse::Left || m.motion != ftxui::Mouse::Pressed) return false;
         for (auto& c : clickables_)
             if (c.box.Contain(m.x, m.y)) {
@@ -374,15 +410,17 @@ bool MatrixScreen::OnEvent(ftxui::Event e) {
             const int w = matrix_box_.x_max - matrix_box_.x_min + 1, h = matrix_box_.y_max - matrix_box_.y_min + 1;
             std::size_t c = 0, r = 0;
             if (numbers_) {
-                c = static_cast<std::size_t>(std::max(0, (m.x - matrix_box_.x_min - 5) / kNumberWidth));
-                r = static_cast<std::size_t>(m.y - matrix_box_.y_min);
+                c = block_.c0 + static_cast<std::size_t>(std::max(0, (m.x - matrix_box_.x_min - 5) / kNumberWidth));
+                r = block_.r0 + static_cast<std::size_t>(m.y - matrix_box_.y_min);
             } else {
-                c = static_cast<std::size_t>(m.x - matrix_box_.x_min) * cols / static_cast<std::size_t>(w);
-                r = static_cast<std::size_t>(2 * (m.y - matrix_box_.y_min)) * rows / static_cast<std::size_t>(2 * h);
+                c = block_.c0 + static_cast<std::size_t>(m.x - matrix_box_.x_min) * block_.cols / static_cast<std::size_t>(w);
+                r = block_.r0 + static_cast<std::size_t>(2 * (m.y - matrix_box_.y_min)) * block_.rows / static_cast<std::size_t>(2 * h);
             }
             r = std::min(r, rows - 1);
             c = std::min(c, cols - 1);
             row_ = r;
+            drag_ = true;
+            drag_x_ = m.x, drag_y_ = m.y;
             notice_ = fmt::format("A[{}, {}] = {}", r, c, signed_fixed(d->m(static_cast<Eigen::Index>(r), static_cast<Eigen::Index>(c)), 4));
             return true;
         }
@@ -392,6 +430,14 @@ bool MatrixScreen::OnEvent(ftxui::Event e) {
                 return true;
             }
         return false;
+    }
+    if (e == Event::Character('z')) {
+        maximized_ = maximized_ ? std::nullopt : std::optional<Panel>{focus_};
+        return true;
+    }
+    if (e == Event::Escape && maximized_) {
+        maximized_.reset();
+        return true;
     }
     if (e == Event::ArrowDown) {
         if (d && row_ + 1 < static_cast<std::size_t>(d->m.rows())) ++row_;
@@ -473,6 +519,50 @@ std::vector<Command> MatrixScreen::commands() {
                            apply(k);
                        }});
     return out;
+}
+
+void MatrixScreen::update_block(std::size_t rows, std::size_t cols) {
+    auto range = [](AxisZoom& z, std::size_t n, std::size_t& start, std::size_t& count) {
+        z.set_full({0, static_cast<double>(n)});
+        const auto a = z.axis();
+        const std::size_t least = std::min<std::size_t>(n, 2);
+        std::size_t s = std::min(n - 1, static_cast<std::size_t>(std::max(0.0, std::floor(a.lo + 1e-9))));
+        std::size_t e = std::min(n, static_cast<std::size_t>(std::max(0.0, std::ceil(a.hi - 1e-9))));
+        if (e < s + least) {
+            e = std::min(n, s + least);
+            s = e - least;
+        }
+        start = s;
+        count = e - s;
+    };
+    range(row_zoom_, rows, block_.r0, block_.rows);
+    range(col_zoom_, cols, block_.c0, block_.cols);
+}
+
+std::pair<double, double> MatrixScreen::fractions_at(int x, int y) const {
+    const auto d = model_->data();
+    if (!d || d->m.size() == 0 || block_.rows == 0 || block_.cols == 0) return {0.5, 0.5};
+    const double rows = static_cast<double>(d->m.rows()), cols = static_cast<double>(d->m.cols());
+    const double w = matrix_box_.x_max - matrix_box_.x_min + 1, h = matrix_box_.y_max - matrix_box_.y_min + 1;
+    double fx = 0, fy = 0;
+    if (numbers_) {
+        fx = (x - matrix_box_.x_min - 5 + 0.5) / (kNumberWidth * static_cast<double>(block_.cols));
+        fy = (y - matrix_box_.y_min + 0.5) / static_cast<double>(block_.rows);
+    } else {
+        fx = (x - matrix_box_.x_min + 0.5) / std::max(1.0, w);
+        fy = (y - matrix_box_.y_min + 0.5) / std::max(1.0, h);
+    }
+    fx = std::clamp(fx, 0.0, 1.0), fy = std::clamp(fy, 0.0, 1.0);
+    return {(static_cast<double>(block_.r0) + fy * static_cast<double>(block_.rows)) / rows,
+            (static_cast<double>(block_.c0) + fx * static_cast<double>(block_.cols)) / cols};
+}
+
+std::vector<MenuItem> MatrixScreen::context_menu(int x, int y) {
+    if (!matrix_box_.Contain(x, y) || !(row_zoom_.zoomed() || col_zoom_.zoomed())) return {};
+    return {{tr("tui.menu.reset_zoom"), "", [this] {
+                 row_zoom_.reset();
+                 col_zoom_.reset();
+             }}};
 }
 
 std::shared_ptr<TabScreen> make_matrix_screen(UiContext& ui, std::shared_ptr<MatrixModel> model) {

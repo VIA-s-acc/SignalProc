@@ -40,7 +40,8 @@ std::string DecompositionScreen::tab_label() const { return tr("tui.tab.decompos
 std::vector<Hint> DecompositionScreen::hints() const {
     return {{"↑↓", tr("tui.decomposition.hint.band")},      {"Enter", tr("tui.decomposition.hint.toggle")}, {"Space", tr("tui.decomposition.hint.listen")},
             {"a/b/x", tr("tui.decomposition.hint.ab")},     {tr("tui.signal.key.wheel"), tr("tui.decomposition.hint.zoom")},
-            {"v", tr("tui.decomposition.hint.view")},       {"u", tr("tui.decomposition.hint.undo")},       {"Tab", tr("tui.explain.hint.tab")}};
+            {"v", tr("tui.decomposition.hint.view")},       {"u", tr("tui.decomposition.hint.undo")},       {"Tab", tr("tui.explain.hint.tab")},
+            {"z", tr("tui.signal.hint.zoom")}};
 }
 
 std::string DecompositionScreen::context() const {
@@ -491,11 +492,11 @@ ftxui::Element DecompositionScreen::OnRender() {
                        : view_ == View::mra    ? fmt::format(fmt::runtime(tr("tui.decomposition.title.mra")), fmt::arg("a", band_label(d->bands.size() - 1)))
                                                : tr("tui.decomposition.title.tiles");
     const std::vector<Chip> view_chips{{tr(view_ == View::tiles ? "tui.decomposition.chip.tiles" : "tui.decomposition.chip.scale"), false}};
-    const bool small = breakpoint_ <= Breakpoint::small;
+    const bool small = breakpoint_ <= Breakpoint::small || maximized_;
     const int main_width = small ? cols : cols - kRightWidth - 1;
     auto main = frame_panel(view_panel, view_body(*d, r.get(), main_width), view_chips, title);
     if (small) {
-        const auto p = static_cast<Panel>(layout_.small_index() % panel_count);
+        const auto p = maximized_ ? *maximized_ : static_cast<Panel>(layout_.small_index() % panel_count);
         focus_ = p;
         switch (p) {
         case view_panel: return vbox({toolbar(), main | flex});
@@ -565,7 +566,12 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
     if (e == Event::Escape) {
         if (playhead()) ui_.player->stop();
         else if (model_->job()) model_->cancel(jobs);
+        else if (maximized_) maximized_.reset();
         else return false;
+        return true;
+    }
+    if (e == Event::Character('z')) {
+        maximized_ = maximized_ ? std::nullopt : std::optional<Panel>{focus_};
         return true;
     }
     if (e == Event::Character('r') && !model_->job()) return model_->recompute(jobs), true;
@@ -593,7 +599,7 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
     if (e == Event::Character('x')) return play(ClipKind::difference), true;
     if (e == Event::Character('d')) return play(ClipKind::band), true;
     if (e == Event::Tab) {
-        if (breakpoint_ <= Breakpoint::small) layout_.next_panel(panel_count);
+        if (breakpoint_ <= Breakpoint::small && !maximized_) layout_.next_panel(panel_count);
         else focus_ = static_cast<Panel>((focus_ + 1) % panel_count);
         return true;
     }
