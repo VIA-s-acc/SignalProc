@@ -32,7 +32,14 @@ TEST_CASE("the linter reports missing pieces of a broken card", "[theory][cards]
     CHECK(issues.size() >= 6);
 }
 
-TEST_CASE("cards pass the linter", "[theory][cards][!mayfail]") {
+TEST_CASE("braces in implementation code are not placeholders", "[theory][cards]") {
+    auto c = parse_card("+++\nid = \"dwt\"\ntitle = \"x\"\ntheory = [\"dwt-mallat\"]\nsource = \"src/core/dwt.hpp\"\nfunction = \"dwt_level\"\n"
+                        "test = \"tests/core/test_dwt.cpp\"\nviews = [\"decomposition\"]\n+++\n## Реализация\n\n```cpp\nPrReport report{{a}, {b}};\n```\n");
+    REQUIRE(c);
+    for (const auto& i : lint_card(*c, SIGNALS_SOURCE_DIR)) CHECK(i.message.find("placeholder") == std::string::npos);
+}
+
+TEST_CASE("cards pass the linter", "[theory][cards]") {
     auto issues = lint_cards(SIGNALS_SOURCE_DIR);
     for (const auto& i : issues) UNSCOPED_INFO(i.card << ": " << i.message);
     CHECK(issues.empty());

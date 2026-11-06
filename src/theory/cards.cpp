@@ -53,6 +53,20 @@ bool contains_lines(const std::vector<std::string>& haystack, const std::vector<
     return std::search(haystack.begin(), haystack.end(), needle.begin(), needle.end()) != haystack.end();
 }
 
+std::string without_code(std::string_view body) {
+    std::string out;
+    bool fence = false;
+    std::istringstream in{std::string{body}};
+    for (std::string line; std::getline(in, line);) {
+        if (trim(line).starts_with("```")) {
+            fence = !fence;
+            continue;
+        }
+        if (!fence) out += line + "\n";
+    }
+    return out;
+}
+
 std::string read_file(const std::filesystem::path& p) {
     std::ifstream in{p, std::ios::binary};
     std::stringstream ss;
@@ -148,7 +162,7 @@ std::vector<CardIssue> lint_card(const Card& card, const std::filesystem::path& 
     }
     for (const auto& s : card.sections) {
         if (block)
-            for (const auto& p : placeholders(s.body))
+            for (const auto& p : placeholders(without_code(s.body)))
                 if (std::find(block->values.begin(), block->values.end(), p) == block->values.end())
                     issue("placeholder {{" + p + "}} is not a value of block " + std::string{block->id});
         for (const auto& r : unresolved_refs(s.body)) issue("unresolved reference " + r + " in \"" + s.heading + "\"");

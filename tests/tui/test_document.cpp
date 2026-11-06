@@ -118,3 +118,27 @@ TEST_CASE("wide display formulas are clipped with an ellipsis and scroll sideway
     document(s, *ui, &out);
     CHECK(theory::display_width(out.lines[0]) <= 30);
 }
+
+TEST_CASE("every card renders without unparsed formulas", "[tui][document]") {
+    auto ui = signals::test::make_ui(150, 44);
+    REQUIRE(theory::cards().size() == 29);
+    theory::LiveValues values;
+    for (const auto& card : theory::cards())
+        for (const auto& s : card.sections)
+            for (const auto& p : theory::placeholders(s.body)) values.set(p, "12 345");
+    for (const auto& card : theory::cards())
+        for (const auto* v : {static_cast<const theory::LiveValues*>(nullptr), static_cast<const theory::LiveValues*>(&values)})
+            for (auto glyphs : {theory::MathGlyphs::unicode, theory::MathGlyphs::ascii}) {
+                DocumentSpec s{theory::parse_markdown(card_text(card)), 100};
+                s.values = v;
+                s.glyphs = glyphs;
+                s.section_rule = "─";
+                DocumentLayout out;
+                document(s, *ui, &out);
+                for (const auto& l : out.lines) {
+                    INFO(card.id << ": " << l);
+                    CHECK(l.find("формула не разобрана") == std::string::npos);
+                    CHECK(theory::display_width(l) <= 100);
+                }
+            }
+}
