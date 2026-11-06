@@ -298,6 +298,12 @@ private:
         out.push_back({"color.16", tr("tui.cmd.color_16"), [this] { ui_.caps.color = ColorDepth::ansi16; }});
         out.push_back({"color.none", tr("tui.cmd.color_none"), [this] { ui_.caps.color = ColorDepth::none; }});
         out.push_back({"terminal.check", tr("tui.cmd.check"), [this] { check_.open(); }});
+        out.push_back({"language.en", tr("tui.cmd.language_en"), [this] {
+                           if (ui_.switch_language) ui_.switch_language(Language::en);
+                       }});
+        out.push_back({"language.ru", tr("tui.cmd.language_ru"), [this] {
+                           if (ui_.switch_language) ui_.switch_language(Language::ru);
+                       }});
         out.push_back({"resources", tr("tui.cmd.resources"), [this] { resources_open_ = true; }});
         out.push_back({"jump", tr("tui.cmd.jump"), [this] { start_jump(); }});
         out.push_back({"help", tr("tui.cmd.help"), [this] { help_open_ = true; help_filter_.clear(); }});

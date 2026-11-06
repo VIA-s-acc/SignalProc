@@ -144,3 +144,36 @@ TEST_CASE("m opens the waveform menu at cursor a without the mouse", "[tui][shel
     CHECK(shell.send(ftxui::Event::Character('m')));
     CHECK(shell.frame().find(signals::tr("tui.menu.whole_signal")) != std::string::npos);
 }
+
+TEST_CASE("every tab renders in English without Russian text", "[tui][shell][app][i18n]") {
+    const signals::LanguageScope en{signals::Language::en};
+    JobRunner jobs{[] {}, 0ms, true};
+    signals::test::ManualSink* raw = nullptr;
+    auto player = signals::test::manual_player(raw);
+    auto ui = signals::test::make_ui(150, 44);
+    ui->jobs = &jobs;
+    ui->player = &player;
+    auto models = make_app_models();
+    models.signal->open(signals::test::sample("test.wav"), jobs);
+    Harness shell{make_shell(*ui, make_app_screens(*ui, models), [] {}), 150, 44};
+    const auto cyrillic = [](const std::string& s) {
+        for (unsigned char c : s)
+            if (c == 0xD0 || c == 0xD1) return true;
+        return false;
+    };
+    const std::pair<char, int> tabs[]{{'1', 1}, {'2', 1}, {'3', 1}, {'4', 2}, {'5', 1}, {'6', 1}, {'7', 1}, {'8', 1}, {'9', 3}};
+    for (const auto& [key, subtabs] : tabs) {
+        shell.send(ftxui::Event::Character(key));
+        for (int s = 0; s < subtabs; ++s) {
+            shell.frame();
+            const auto frame = shell.frame();
+            INFO("tab " << key << " sub " << s << "\n" << frame);
+            CHECK_FALSE(cyrillic(frame));
+            shell.send(ftxui::Event::Character(']'));
+        }
+    }
+    shell.send(ftxui::Event::Character('?'));
+    const auto help = shell.frame();
+    INFO(help);
+    CHECK_FALSE(cyrillic(help));
+}

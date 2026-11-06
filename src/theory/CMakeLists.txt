@@ -1,6 +1,8 @@
 include(${PROJECT_SOURCE_DIR}/cmake/EmbedText.cmake)
 signals_embed_text(${PROJECT_SOURCE_DIR}/docs/02-theory.md ${CMAKE_CURRENT_BINARY_DIR}/theory_book.cpp kSignalsTheoryBook)
 signals_embed_dir(${PROJECT_SOURCE_DIR}/resources/theory/blocks "*.md" ${CMAKE_CURRENT_BINARY_DIR}/theory_cards.cpp kSignalsTheoryCards)
+signals_embed_text(${PROJECT_SOURCE_DIR}/docs/02-theory.en.md ${CMAKE_CURRENT_BINARY_DIR}/theory_book_en.cpp kSignalsTheoryBookEn)
+signals_embed_dir(${PROJECT_SOURCE_DIR}/resources/theory/en/blocks "*.md" ${CMAKE_CURRENT_BINARY_DIR}/theory_cards_en.cpp kSignalsTheoryCardsEn)
 
 add_library(signals_theory STATIC
   sections.cpp
@@ -13,6 +15,8 @@ add_library(signals_theory STATIC
   text.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theory_book.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theory_cards.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/theory_book_en.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/theory_cards_en.cpp
 )
 target_include_directories(signals_theory PUBLIC ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(signals_theory PUBLIC signals_core PRIVATE signals_i18n tomlplusplus::tomlplusplus fmt::fmt)

@@ -1,20 +1,23 @@
 #include "commands/cli.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 #include <exception>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include <CLI/CLI.hpp>
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
 #include "commands/command.hpp"
-#include "i18n/i18n.hpp"
 #include "commands/suites.hpp"
 #include "core/design/families.hpp"
 #include "core/design/split.hpp"
 #include "core/version.hpp"
 #include "core/wavelet/regularity.hpp"
+#include "i18n/i18n.hpp"
 
 namespace signals::cli {
 namespace {
@@ -155,6 +158,8 @@ namespace {
 int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out, std::ostream& err,
                       std::optional<TuiRequest>* tui_request) {
     CLI::App app{tr("cli.description"), "signals"};
+    std::string lang_option;
+    app.add_option("--lang", lang_option, tr("cli.lang"));
     bool show_version = false;
     app.add_flag("--version", show_version, tr("cli.version.description"));
     bool check_json = false;
@@ -204,7 +209,7 @@ int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out,
     if (design->parsed()) return run_design(design_p, design_json, out, err);
     if (tui->parsed()) {
         if (!tui_request) return report_error(err, {core::Errc::invalid_argument, tr("tui.unavailable")});
-        *tui_request = TuiRequest{tui_file.empty() ? std::nullopt : std::optional<std::filesystem::path>{tui_file}, tui_theme};
+        *tui_request = TuiRequest{tui_file.empty() ? std::nullopt : std::optional<std::filesystem::path>{tui_file}, tui_theme, std::nullopt};
         return 0;
     }
     for (const auto& command : commands)
@@ -217,8 +222,29 @@ int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out,
 
 int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err,
             std::optional<TuiRequest>* tui) {
+    std::vector<std::string_view> rest;
+    std::optional<std::string_view> lang_text;
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (i > 0 && args[i] == "--lang" && i + 1 < args.size()) lang_text = args[++i];
+        else if (i > 0 && args[i].starts_with("--lang=")) lang_text = args[i].substr(7);
+        else rest.push_back(args[i]);
+    }
+    std::optional<Language> chosen;
+    if (lang_text) {
+        chosen = parse_language(*lang_text);
+        if (!chosen) {
+            err << fmt::format(fmt::runtime(tr("error.line")), fmt::arg("message", fmt::format(fmt::runtime(tr("cli.bad_lang")), fmt::arg("value", *lang_text))))
+                << '\n';
+            return 2;
+        }
+    } else if (const char* env = std::getenv("SIGNALS_LANG")) {
+        chosen = parse_language(env);
+    }
+    const LanguageScope scope{chosen.value_or(language())};
     try {
-        return run_cli_unguarded(args, out, err, tui);
+        const int code = run_cli_unguarded(rest, out, err, tui);
+        if (tui && *tui && chosen) (*tui)->language = chosen;
+        return code;
     } catch (const std::exception& e) {
         const auto message = fmt::format(fmt::runtime(tr("error.unexpected")), fmt::arg("details", e.what()));
         err << fmt::format(fmt::runtime(tr("error.line")), fmt::arg("message", message)) << '\n';

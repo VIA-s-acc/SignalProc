@@ -303,7 +303,7 @@ ftxui::Element DecompositionScreen::time_axis(int width) const {
     const auto ticks = nice_ticks(begin_, end_, std::max(2, width / 14));
     int next_free = 0;
     for (std::size_t i = 0; i < ticks.size(); ++i) {
-        const auto label = ticks[i].label + (i + 1 == ticks.size() ? " с" : "");
+        const auto label = ticks[i].label + (i + 1 == ticks.size() ? " " + tr("unit.s") : "");
         const auto cps = split_codepoints(label);
         int at = static_cast<int>(std::lround((ticks[i].value - begin_) / std::max(1e-12, end_ - begin_) * (width - 1)));
         at = std::clamp(at - static_cast<int>(cps.size()) / 2, 0, std::max(0, width - static_cast<int>(cps.size())));
@@ -353,7 +353,7 @@ ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const 
         spec.ceil = 0;
         Elements labels;
         for (std::size_t i = first; i < first + spec.rows; ++i) {
-            labels.push_back(text(band_label(i) + " " + hz_text(d.bands[i].lo_hz) + "–" + hz_text(d.bands[i].hi_hz) + " Гц") |
+            labels.push_back(text(band_label(i) + " " + hz_text(d.bands[i].lo_hz) + "–" + hz_text(d.bands[i].hi_hz) + " " + tr("unit.hz")) |
                              fg(i == selected_ ? th.accent : th.fg, ui_));
             labels.push_back(text(""));
         }
@@ -401,7 +401,7 @@ ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const 
                 const auto checkbox = clickable("check_" + std::to_string(i), text((on ? on_box : off_box) + " ") | fg(on ? th.fg : th.dim, ui_),
                                                 [this, i] { model_->toggle(i, *ui_.jobs); });
                 const auto top = hbox({checkbox, text(name) | bold | fg(i == selected_ ? th.accent : colour(i), ui_),
-                                       text(" " + hz_text(d.bands[i].lo_hz) + "–" + hz_text(d.bands[i].hi_hz) + " Гц") | fg(th.dim, ui_)});
+                                       text(" " + hz_text(d.bands[i].lo_hz) + "–" + hz_text(d.bands[i].hi_hz) + " " + tr("unit.hz")) | fg(th.dim, ui_)});
                 const auto bottom = text("   " + (mra ? amplitude + " · " : std::string{}) + pct(d.bands[i].energy_pct) + " · " + group(d.bands[i].length)) |
                                     fg(th.dim, ui_);
                 rows.push_back(hbox({vbox({top, bottom}) | size(WIDTH, EQUAL, kLabelWidth) | reflect(label_boxes_[i]),
@@ -435,7 +435,7 @@ ftxui::Element DecompositionScreen::energy_panel(const DecompositionData& d, int
         cells.push_back(text(bar(b.energy_pct / 100, bar_width, ui_.caps.glyphs)) | fg(th.trace[0], ui_));
         cells.push_back(text(pad_left(pct(b.energy_pct), kPct)) | fg(th.fg, ui_));
         if (show_db)
-            cells.push_back(text(pad_left(b.energy_pct > 0 ? format_fixed(10 * std::log10(b.energy_pct / 100), 1) + " дБ" : "—", kDb)) | fg(th.dim, ui_));
+            cells.push_back(text(pad_left(b.energy_pct > 0 ? format_fixed(10 * std::log10(b.energy_pct / 100), 1) + " " + tr("unit.db") : "—", kDb)) | fg(th.dim, ui_));
         rows.push_back(hbox(std::move(cells)));
     }
     if (first + shown < d.bands.size()) rows.push_back(more_row(false, d.bands.size() - first - shown));
@@ -501,7 +501,7 @@ ftxui::Element DecompositionScreen::denoise_panel(const DecompositionData& d, co
         hbox({label("tui.decomposition.method"), clickable("rule", text((bayes ? std::string{"BayesShrink"} : std::string{"VisuShrink"}) + " ▾") | fg(th.fg, ui_),
                                                            [this, bayes] { draft_.rule = bayes ? core::ShrinkRule::visu : core::ShrinkRule::bayes; })}),
         hbox({label("tui.decomposition.rule"), hbox(std::move(modes))}),
-        hbox({label("tui.decomposition.sigma"), text(format_number(d.sigma) + " ") | fg(th.fg, ui_), text("MAD(d₁)/0,6745") | fg(th.dim, ui_)}),
+        hbox({label("tui.decomposition.sigma"), text(format_number(d.sigma) + " ") | fg(th.fg, ui_), text("MAD(d₁)/" + format_fixed(0.6745, 4)) | fg(th.dim, ui_)}),
         hbox({label("tui.decomposition.levels"), text("d₁ … d" + subscript_count(std::min(draft_.last_level, J)) + " ") | fg(th.fg, ui_),
               clickable("levels_down", text("◂") | fg(th.accent, ui_), [this] { draft_.last_level = std::max<std::size_t>(1, draft_.last_level - 1); }),
               clickable("levels_up", text(" ▸") | fg(th.accent, ui_), [this, J] { draft_.last_level = std::min(J, draft_.last_level + 1); })}),
@@ -517,7 +517,7 @@ ftxui::Element DecompositionScreen::denoise_panel(const DecompositionData& d, co
               }),
               text(" " + tr("tui.decomposition.coefficients")) | fg(th.dim, ui_)}),
         hbox({label("tui.decomposition.edit"), text(tr("tui.decomposition.gain") + " " + band_label(sel) + " ") | fg(th.fg, ui_),
-              text("[" + std::string{gain >= 0 ? "+" : "−"} + format_number(std::abs(gain)) + " дБ] ") | fg(th.fg, ui_),
+              text("[" + std::string{gain >= 0 ? "+" : "−"} + format_number(std::abs(gain)) + " " + tr("unit.db") + "] ") | fg(th.fg, ui_),
               clickable("gain_down", text("◂") | fg(th.accent, ui_), [this, sel] {
                   if (sel < draft_.gains_db.size()) draft_.gains_db[sel] -= 1;
               }),
@@ -552,7 +552,7 @@ ftxui::Element DecompositionScreen::listen_panel(const DecompositionData& d) {
                         button("play_d", fmt::format(fmt::runtime(tr("tui.decomposition.play_band")), fmt::arg("band", band_label(selected_))),
                                ClipKind::band, "decomposition.band")}),
                   hbox({text(bar(d.duration() > 0 ? pos / d.duration() : 0, 22, ui_.caps.glyphs)) | fg(th.accent, ui_),
-                        text(" " + format_fixed(pos, 2) + " с") | fg(th.dim, ui_)}),
+                        text(" " + format_fixed(pos, 2) + " " + tr("unit.s")) | fg(th.dim, ui_)}),
                   text(tr("tui.decomposition.shared_cursor")) | fg(th.dim, ui_)};
     if (!notice_.empty()) rows.push_back(text(notice_) | fg(th.warn, ui_));
     if (auto e = model_->error()) rows.push_back(text(*e) | fg(th.err, ui_));

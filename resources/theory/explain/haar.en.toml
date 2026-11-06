@@ -1,0 +1,112 @@
+# Explanation script: 12 steps on x = [4, 6, 10, 12, 8, 6, 5, 5] (docs/02-theory.md, {#haar-explain-script}).
+# text_haar is the canvas wording (docs/design/Bank.dc.html) and is used for the orthonormal Haar bank;
+# text is the same idea for any bank. {{name}} placeholders are filled by fill() in explain_model.cpp.
+
+[[step]]
+title = "signal"
+highlight = ["x"]
+rows = ["x"]
+invariant = "energy"
+view = ""
+text_haar = ["x — {{n}} samples. Task: split the signal", "into averages and differences, then put it", "back together without loss.", "", "invariant: ‖x‖² = {{x.energy}}"]
+text = ["x — {{n}} samples. Task: split the signal", "into low and high frequencies and rebuild", "it without loss.", "", "invariant: ‖x‖² = {{x.energy}}"]
+
+[[step]]
+title = "filters h₀, h₁"
+highlight = ["H0", "H1"]
+rows = ["x"]
+invariant = "power_complementary"
+view = "filters"
+text_haar = ["h₀ = [1, 1]/√2 — pair average (lowpass),", "h₁ = [1, −1]/√2 — difference (highpass).", "f₀ = [1, 1]/√2,  f₁ = [−1, 1]/√2.", "", "invariant: |H₀|² + |H₁|² = 2"]
+text = ["h₀ = {{h0}} — lowpass,", "h₁ = {{h1}} — highpass,", "f₀ = {{f0}},", "f₁ = {{f1}}.", "invariant: |H₀|² + |H₁|² = {{pc_gain}}"]
+
+[[step]]
+title = "convolutions y₀, y₁"
+highlight = ["H0", "H1", "y0", "y1"]
+rows = ["x", "y0", "y1"]
+invariant = "conv_length"
+view = ""
+text_haar = ["Full convolutions of length {{conv_len}}:", "y₀[m] = (x[m] + x[m−1])/√2", "y₁[m] = (x[m] − x[m−1])/√2", "", "invariant: length N + L − 1 = {{conv_len}}"]
+text = ["Full convolutions of length {{conv_len}}:", "y₀ = h₀ ∗ x,  y₁ = h₁ ∗ x.", "", "", "invariant: length N + L − 1 = {{conv_len}}"]
+
+[[step]]
+title = "downsampling ↓2"
+mark_kept = true
+highlight = ["D0", "D1", "a", "d"]
+rows = ["x", "y0", "y1", "a", "d"]
+invariant = "coefficient_count"
+view = ""
+text_haar = ["↓2 keeps every second sample —", "{{parity}} indices {{kept}} ({{phase}}).", "The spectrum stretches twofold and a mirror", "copy X(−z) appears: aliasing is present in", "EVERY branch; it cancels out at step 8.", "invariant: {{n}} inputs → {{a_count}} + {{d_count}} coefficients"]
+text = ["↓2 keeps every second sample —", "{{parity}} indices {{kept}} ({{phase}}).", "The spectrum stretches twofold and a mirror", "copy X(−z) appears: aliasing is present in", "every branch; it cancels out at step 8.", "invariant: {{n}} inputs → {{a_count}} + {{d_count}} coefficients"]
+
+[[step]]
+title = "coefficients and energy"
+highlight = ["a", "d"]
+rows = ["x", "y0", "y1", "a", "d"]
+invariant = "parseval"
+view = "decomposition"
+text_haar = ["a[k] = (x[2k] + x[2k+1])/√2 — average,", "d[k] = (x[2k+1] − x[2k])/√2 — difference.", "Almost all energy is in a: a smooth signal.", "", "invariant: {{x.energy}} = {{a.energy}} + {{d.energy}} (Parseval)"]
+text = ["a — ↓2 lowpass output, d — highpass output.", "Share of energy in a: {{a.share}}.", "", "", "invariant: {{x.energy}} = {{a.energy}} + {{d.energy}} (Parseval)"]
+
+[[step]]
+title = "upsampling ↑2"
+highlight = ["U0", "U1", "u0", "u1"]
+rows = ["x", "y0", "y1", "a", "d", "u0", "u1"]
+invariant = "upsampled_length"
+view = ""
+text_haar = ["↑2 inserts zeros between the samples.", "In frequency: spectrum compression and a", "copy (imaging); synthesis filters remove it.", "", "invariant: u — again {{u_len}} samples"]
+text = ["↑2 inserts zeros between the samples.", "In frequency: spectrum compression and a", "copy (imaging); synthesis filters remove it.", "", "invariant: u — again {{u_len}} samples"]
+
+[[step]]
+title = "synthesis f₀, f₁"
+highlight = ["F0", "F1"]
+rows = ["x", "y0", "y1", "a", "d", "u0", "u1", "w0", "w1"]
+invariant = "synthesis_split"
+view = ""
+text_haar = ["w₀ = f₀ ∗ u₀ — piecewise-constant average,", "w₁ = f₁ ∗ u₁ — details ±d/√2.", "", "", "invariant: w₁ = x − w₀"]
+text = ["w₀ = f₀ ∗ u₀ — lowpass part,", "w₁ = f₁ ∗ u₁ — details.", "", "", "invariant: w₁ = x − w₀"]
+
+[[step]]
+title = "sum = x"
+highlight = ["S", "xh"]
+rows = ["x", "y0", "y1", "a", "d", "u0", "u1", "w0", "w1", "xh"]
+invariant = "reconstruction"
+view = ""
+text_haar = ["x̂ = w₀ + w₁ = x — exact, {{shift}}:", "analysis with odd phase ≡ filters zHᵢ(z).", "The aliasing of the two branches cancelled.", "", "invariant: x̂ − x = {{error}}"]
+text = ["x̂ = w₀ + w₁ = x — exact, {{shift}}.", "The aliasing of the two branches cancelled:", "F₀H₀(−z) + F₁H₁(−z) = 0.", "", "invariant: x̂ − x = {{error}}"]
+
+[[step]]
+title = "matrix form"
+highlight = ["H0", "H1", "D0", "D1"]
+rows = ["x", "y0", "y1", "a", "d"]
+invariant = "orthogonal_matrix"
+view = "matrix"
+text_haar = ["The same as a matrix: [a; d] = A₁ · x.", "Rows L are shifts of h₀ by 2, rows B are", "shifts of h₁. Synthesis is the transpose.", "", "invariant: {{matrix_identity}}"]
+text = ["The same as a matrix: [a; d] = A₁ · x.", "Rows L are shifts of h₀ by 2, rows B are", "shifts of h₁. Synthesis S recovers x.", "", "invariant: {{matrix_identity}}"]
+
+[[step]]
+title = "multilevel tree"
+highlight = ["a"]
+rows = ["x", "y0", "y1", "a", "d", "tree"]
+invariant = "tree_energy"
+view = "decomposition"
+text_haar = ["We repeat the step on a: a₂ = {{a2}},", "d₂ = {{d2}}; then a₃ = {{a3}},", "d₃ = {{d3}}. This is the Mallat pyramid.", "", "invariant: {{tree.energy}}"]
+text = ["We repeat the step on a: a₂ = {{a2}},", "d₂ = {{d2}}; then a₃ = {{a3}},", "d₃ = {{d3}}. This is the Mallat pyramid.", "", "invariant: {{tree.energy}}"]
+
+[[step]]
+title = "frequency view"
+highlight = ["H0", "H1", "F0", "F1"]
+rows = ["x", "y0", "y1", "a", "d"]
+invariant = "alias_cancelled"
+view = "filters"
+text_haar = ["|H₀| = √2·cos(ω/2), |H₁| = √2·sin(ω/2).", "The −3 dB cutoff is exactly at π/2, but the", "rolloff is slow: the bands overlap heavily.", "", "invariant: T = z⁻¹, A = 0"]
+text = ["|H₀| and |H₁| are in the plot on the right.", "−3 dB cutoff at {{cutoff}},", "highpass leakage at π/4: {{leak}}.", "", "invariant: T = z^−ℓ (ℓ = {{delay}}), A = 0"]
+
+[[step]]
+title = "experiment: d = 0"
+highlight = ["d", "S", "xh"]
+rows = ["x", "y0", "y1", "a", "d", "u0", "u1", "xh"]
+invariant = "zero_detail_error"
+view = "decomposition"
+text_haar = ["Zeroing d: x̂ = w₀, error = w₁.", "Aliasing is no longer cancelled:", "|A(ω)| = ½|sin ω|, maximum {{alias_db}} dB", "at π/2 — this is how artifacts appear", "when editing bands of a decimated DWT.", "remedy: SWT or packets (§11)"]
+text = ["Zeroing d: x̂ = w₀, error = w₁.", "Aliasing is no longer cancelled:", "max |A(ω)| = {{alias_db}} dB —", "this is how artifacts appear", "when editing bands of a decimated DWT.", "remedy: SWT or packets (§11)"]

@@ -22,6 +22,7 @@
 #include "tui/shell/ticker.hpp"
 #include "tui/term/caps.hpp"
 #include "tui/theme/theme.hpp"
+#include "i18n/i18n.hpp"
 
 namespace signals::tui {
 
@@ -74,6 +75,7 @@ struct UiContext {
     std::function<void(std::string line)> warn;
     std::function<void(std::filesystem::path)> open_in_editor;
     std::function<void(std::string)> copy_text;
+    std::function<void(Language)> switch_language;
     std::filesystem::path repo_root;
     std::function<void(TheoryPage)> open_theory;
 };

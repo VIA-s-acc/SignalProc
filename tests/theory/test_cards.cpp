@@ -5,6 +5,7 @@
 #include <sstream>
 #include <string>
 
+#include "i18n/i18n.hpp"
 #include "theory/cards.hpp"
 
 using namespace signals::theory;
@@ -64,4 +65,18 @@ TEST_CASE("card files on disk pass the linter", "[theory][cards-disk]") {
         }
     }
     CHECK(files > 0);
+}
+
+TEST_CASE("English cards match the Russian ones and pass the linter", "[theory][cards][i18n]") {
+    const auto count = cards().size();
+    const signals::LanguageScope en{signals::Language::en};
+    CHECK(cards().size() == count);
+    const auto* c = find_card("dwt");
+    REQUIRE(c);
+    CHECK(c->sections.size() == 7);
+    CHECK(c->sections[0].heading == "Purpose");
+    CHECK(c->function == "dwt_level");
+    auto issues = lint_cards(SIGNALS_SOURCE_DIR);
+    for (const auto& i : issues) UNSCOPED_INFO(i.card << ": " << i.message);
+    CHECK(issues.empty());
 }

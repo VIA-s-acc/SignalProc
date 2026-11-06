@@ -64,8 +64,8 @@ void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
                                   const auto need = estimated_load_bytes(*probe);
                                   if (need > memory_budget_) {
                                       const auto text = fmt::format(fmt::runtime(tr("tui.signal.too_large")),
-                                                                    fmt::arg("need", format_si(static_cast<double>(need), "Б")),
-                                                                    fmt::arg("budget", format_si(static_cast<double>(memory_budget_), "Б")));
+                                                                    fmt::arg("need", format_si(static_cast<double>(need), tr("unit.byte"))),
+                                                                    fmt::arg("budget", format_si(static_cast<double>(memory_budget_), tr("unit.byte"))));
                                       ctx.fail(text);
                                       add_log(text, LogLine::error);
                                       return;
