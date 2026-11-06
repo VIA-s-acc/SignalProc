@@ -5,6 +5,9 @@
 #include <chrono>
 #include <functional>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <sstream>
 #include <memory>
 #include <string>
 #include <thread>
@@ -13,6 +16,7 @@
 #include <ftxui/component/event.hpp>
 
 #include "audio/manual_sink.hpp"
+#include "commands/cli.hpp"
 #include "core/design/families.hpp"
 #include "core/process/shrink.hpp"
 #include "core/wavedec.hpp"
@@ -20,6 +24,7 @@
 #include "io/wav.hpp"
 #include "pipeline/sig.hpp"
 #include "support/paths.hpp"
+#include "theory/live.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/pipeline_model.hpp"
 #include "tui/screens/pipeline_screen.hpp"
@@ -318,4 +323,59 @@ TEST_CASE("Esc during a run interrupts it", "[tui][pipeline_screen]") {
     h.send(ftxui::Event::Escape);
     for (int i = 0; i < 400 && model->run_view().running; ++i) std::this_thread::sleep_for(5ms);
     CHECK(h.frame().find(tr("tui.pipeline.cancelled")) != std::string::npos);
+}
+
+TEST_CASE("F1 on a node opens the card of its block", "[tui][pipeline_screen][theory]") {
+    PipelineFixture f;
+    CHECK_FALSE(f.screen->theory_link());
+    f.model->selection = {Selection::Kind::node, "thr", {}};
+    auto link = f.screen->theory_link();
+    REQUIRE(link);
+    CHECK(link->kind == TheoryLink::Kind::card);
+    CHECK(link->id == "threshold");
+    f.model->selection = {Selection::Kind::node, "src", {}};
+    CHECK(f.screen->theory_link()->id == "wav_in");
+    theory::LiveValues values;
+    f.model->selection = {Selection::Kind::node, "dwt", {}};
+    f.screen->publish(values);
+    REQUIRE(values.find("block.wavelet"));
+    CHECK(values.find("block.wavelet")->text == "sym8");
+}
+
+TEST_CASE("a pipeline built in the editor writes what the CLI writes", "[tui][pipeline_screen][acceptance]") {
+    const auto dir = signals::test::temp_path("pipeline-acceptance");
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    PipelineFixture f{150, 44, false};
+    auto& m = *f.model;
+    m.add_node("wav");
+    REQUIRE(m.set_param("wav", "path", (std::filesystem::path{SIGNALS_SOURCE_DIR} / "resources" / "samples" / "test.wav").string()));
+    m.add_node("dwt");
+    REQUIRE(m.set_param("dwt", "wavelet", "sym8"));
+    m.add_node("threshold");
+    m.add_node("idwt");
+    m.add_node("wav_out");
+    REQUIRE(m.set_param("wav_out", "path", (dir / "tui.wav").string()));
+    REQUIRE(m.set_param("wav_out", "dither", "none"));
+    REQUIRE(m.connect(port("wav"), port("dwt")));
+    REQUIRE(m.connect(port("dwt"), port("threshold")));
+    REQUIRE(m.connect(port("threshold"), port("idwt")));
+    REQUIRE(m.connect(port("idwt"), port("wav_out")));
+    f.h.send(ftxui::Event::Character('r'));
+    REQUIRE_FALSE(m.run_view().error);
+    REQUIRE(m.save(dir / "built.sig"));
+    std::ostringstream out, err;
+    const auto sig = (dir / "built.sig").string(), cli = (dir / "cli.wav").string();
+    const std::vector<std::string_view> args{"signals", "run", sig, "-o", cli};
+    REQUIRE(cli::run_cli(args, out, err) == 0);
+    const auto bytes = [](const std::filesystem::path& p) {
+        std::ifstream in{p, std::ios::binary};
+        return std::string{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+    };
+    CHECK(bytes(dir / "tui.wav") == bytes(cli));
+    std::ostringstream out2, err2;
+    const auto example = (std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples" / "denoise.sig").string(), cli2 = (dir / "example.wav").string();
+    const std::vector<std::string_view> args2{"signals", "run", example, "-o", cli2};
+    REQUIRE(cli::run_cli(args2, out2, err2) == 0);
+    CHECK(bytes(dir / "tui.wav") == bytes(cli2));
 }

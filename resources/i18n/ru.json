@@ -923,5 +923,9 @@
   "tui.pipeline.probe": "Щуп",
   "tui.pipeline.probe_hint": "p — щуп на выбранном проводе, r — запуск",
   "tui.pipeline.channels": "кан.",
-  "tui.pipeline.nothing_to_play": "нечего слушать: запустите граф и поставьте щуп"
+  "tui.pipeline.nothing_to_play": "нечего слушать: запустите граф и поставьте щуп",
+  "tui.pipeline.cmd.example": "Конвейер: открыть пример denoise.sig",
+  "tui.pipeline.cmd.run": "Конвейер: запустить",
+  "tui.pipeline.cmd.save": "Конвейер: сохранить",
+  "tui.pipeline.cmd.open": "Конвейер: открыть .sig"
 }

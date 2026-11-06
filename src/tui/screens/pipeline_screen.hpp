@@ -1,6 +1,8 @@
 #pragma once
 
 #include <array>
+#include <filesystem>
+#include <functional>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -24,12 +26,16 @@ namespace signals::tui {
 
 class PipelineScreen final : public TabScreen {
 public:
-    PipelineScreen(UiContext& ui, std::shared_ptr<PipelineModel> model);
+    PipelineScreen(UiContext& ui, std::shared_ptr<PipelineModel> model, std::function<std::optional<std::filesystem::path>()> current_file = {});
 
     std::string tab_label() const override;
     std::vector<Hint> hints() const override;
     void set_breakpoint(Breakpoint b) override { breakpoint_ = b; }
     bool capturing_text() const override { return adding_; }
+    std::optional<TheoryLink> theory_link() const override;
+    void publish(theory::LiveValues& v) const override;
+    std::vector<Command> commands() override;
+    std::string context() const override;
 
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event e) override;
@@ -82,6 +88,8 @@ private:
         int last_x = 0, last_y = 0;
     } drag_;
     std::string notice_;
+    std::function<std::optional<std::filesystem::path>()> current_file_;
+    bool seeded_ = false;
     struct ProbeData {
         std::uint64_t run = 0;
         std::string name;
@@ -98,6 +106,7 @@ private:
     std::size_t pick_ = 0, param_ = 0;
 };
 
-std::shared_ptr<TabScreen> make_pipeline_screen(UiContext& ui, std::shared_ptr<PipelineModel> model);
+std::shared_ptr<TabScreen> make_pipeline_screen(UiContext& ui, std::shared_ptr<PipelineModel> model,
+                                                std::function<std::optional<std::filesystem::path>()> current_file = {});
 
 }  // namespace signals::tui

@@ -1,5 +1,7 @@
 #include "tui/app_screens.hpp"
 
+#include "tui/screens/pipeline_screen.hpp"
+
 #include <optional>
 #include <utility>
 
@@ -27,6 +29,7 @@ AppModels make_app_models() {
     m.decomposition = std::make_shared<DecompositionModel>(m.signal);
     m.matrix = std::make_shared<MatrixModel>();
     m.theory = std::make_shared<TheoryNavigator>();
+    m.pipeline = std::make_shared<PipelineModel>();
     return m;
 }
 
@@ -40,6 +43,10 @@ std::vector<std::shared_ptr<TabScreen>> make_app_screens(UiContext& ui, AppModel
                                                                                            tr("tui.placeholder.diagram.text"), "M6", &ui)}});
     screens[4] = make_decomposition_screen(ui, models.decomposition);
     screens[5] = make_matrix_screen(ui, models.matrix);
+    screens[7] = make_pipeline_screen(ui, models.pipeline, [signal = models.signal]() -> std::optional<std::filesystem::path> {
+        const auto d = signal->data();
+        return d ? std::optional{d->path} : std::nullopt;
+    });
     ui.open_theory = [nav = models.theory, &ui](TheoryPage page) {
         const bool card = page.link.kind == TheoryLink::Kind::card;
         nav->open(std::move(page));

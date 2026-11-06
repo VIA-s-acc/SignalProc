@@ -923,5 +923,9 @@
   "tui.pipeline.probe": "Probe",
   "tui.pipeline.probe_hint": "p — probe on the selected wire, r — run",
   "tui.pipeline.channels": "ch.",
-  "tui.pipeline.nothing_to_play": "nothing to play: run the graph and add a probe"
+  "tui.pipeline.nothing_to_play": "nothing to play: run the graph and add a probe",
+  "tui.pipeline.cmd.example": "Pipeline: open the denoise.sig example",
+  "tui.pipeline.cmd.run": "Pipeline: run",
+  "tui.pipeline.cmd.save": "Pipeline: save",
+  "tui.pipeline.cmd.open": "Pipeline: open .sig"
 }

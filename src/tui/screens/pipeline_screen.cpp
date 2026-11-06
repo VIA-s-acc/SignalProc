@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <sstream>
 #include <thread>
 
@@ -29,7 +30,47 @@ pipeline::PortRef short_ref(const std::string& node, const std::string& port, st
 
 }  // namespace
 
-PipelineScreen::PipelineScreen(UiContext& ui, std::shared_ptr<PipelineModel> model) : ui_{ui}, model_{std::move(model)} { panel_boxes_.fill(kNoBox); }
+PipelineScreen::PipelineScreen(UiContext& ui, std::shared_ptr<PipelineModel> model, std::function<std::optional<std::filesystem::path>()> current_file)
+    : ui_{ui}, model_{std::move(model)}, current_file_{std::move(current_file)} {
+    panel_boxes_.fill(kNoBox);
+}
+
+std::optional<TheoryLink> PipelineScreen::theory_link() const {
+    const auto* n = selected_node();
+    if (!n) return std::nullopt;
+    static const std::map<std::string, std::string, std::less<>> cards{{"wav", "wav_in"}, {"gen", "generator"}, {"check", "error"}, {"resample", "upsample"}};
+    const auto it = cards.find(n->type->id);
+    return TheoryLink{TheoryLink::Kind::card, it == cards.end() ? n->type->id : it->second, block_name(n->type->id)};
+}
+
+void PipelineScreen::publish(theory::LiveValues& v) const {
+    const auto* n = selected_node();
+    if (!n) return;
+    v.source = n->id;
+    for (const auto& [key, value] : n->params) v.set("block." + key, value);
+    const auto run = model_->run_view();
+    if (const auto it = run.nodes.find(n->id); it != run.nodes.end()) {
+        v.set("block.wall", format_si(it->second.status.wall_seconds, tr("unit.s")));
+        v.set("block.bytes", format_si(static_cast<double>(it->second.status.bytes), tr("unit.byte")));
+    }
+}
+
+std::string PipelineScreen::context() const {
+    return model_->path() ? model_->path()->filename().string() : tr("tui.pipeline.untitled");
+}
+
+std::vector<Command> PipelineScreen::commands() {
+    std::vector<Command> out;
+    out.push_back({"pipeline.example", tr("tui.pipeline.cmd.example"), [this] {
+                       report(model_->load(std::filesystem::path{ui_.repo_root} / "examples" / "denoise.sig"));
+                   }});
+    out.push_back({"pipeline.run", tr("tui.pipeline.cmd.run"), [this] {
+                       if (ui_.jobs) model_->run(*ui_.jobs);
+                   }});
+    out.push_back({"pipeline.save", tr("tui.pipeline.cmd.save"), [this] { OnEvent(ftxui::Event::CtrlS); }});
+    out.push_back({"pipeline.open", tr("tui.pipeline.cmd.open"), [this] { OnEvent(ftxui::Event::Character('o')); }});
+    return out;
+}
 
 std::string PipelineScreen::tab_label() const { return tr("tui.tab.pipeline"); }
 
@@ -471,6 +512,12 @@ ftxui::Element PipelineScreen::OnRender() {
     panel_boxes_.fill(kNoBox);
     graph_box_ = kNoBox;
     picture_ = {};
+    if (!seeded_ && current_file_ && model_->doc().nodes.empty() && !model_->path())
+        if (const auto file = current_file_()) {
+            seeded_ = true;
+            const auto id = model_->add_node("wav");
+            if (!id.empty()) (void)model_->set_param(id, "path", std::filesystem::absolute(*file).string());
+        }
     const auto [cols, rows] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
     layout_.resize(cols, rows);
     const int content = std::max(8, rows - 3);
@@ -703,8 +750,9 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
     return false;
 }
 
-std::shared_ptr<TabScreen> make_pipeline_screen(UiContext& ui, std::shared_ptr<PipelineModel> model) {
-    return std::make_shared<PipelineScreen>(ui, std::move(model));
+std::shared_ptr<TabScreen> make_pipeline_screen(UiContext& ui, std::shared_ptr<PipelineModel> model,
+                                                std::function<std::optional<std::filesystem::path>()> current_file) {
+    return std::make_shared<PipelineScreen>(ui, std::move(model), std::move(current_file));
 }
 
 }  // namespace signals::tui
