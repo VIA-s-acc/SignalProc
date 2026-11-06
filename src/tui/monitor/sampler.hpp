@@ -21,6 +21,7 @@ struct ProcessSample {
 };
 
 core::Result<ProcessSample> sample_process();
+std::uint64_t physical_memory_bytes();
 
 struct ResourceSnapshot {
     double cpu_one_core_pct = 0;

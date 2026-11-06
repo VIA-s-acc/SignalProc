@@ -277,3 +277,26 @@ TEST_CASE("a cancelled load reads as interrupted without raw placeholders", "[tu
     CHECK(t.find("{") == std::string::npos);
     CHECK(t.find("✓ Чтение WAV") == std::string::npos);
 }
+
+TEST_CASE("a file too large for memory is refused with a journal entry", "[tui][signal]") {
+    JobRunner jobs{[] {}, 0ms, true};
+    SignalModel m{{}, std::size_t{1} << 20};
+    m.open(signals::test::sample("test.wav"), jobs);
+    CHECK_FALSE(m.data());
+    REQUIRE_FALSE(m.log().empty());
+    CHECK(m.log().back().level == LogLine::error);
+    CHECK(m.log().back().text.find("слишком большой") != std::string::npos);
+    CHECK(jobs.snapshot().back().error);
+}
+
+TEST_CASE("an empty selection has no level, not full scale", "[tui][signal]") {
+    JobRunner jobs{[] {}, 0ms, true};
+    auto m = loaded(jobs);
+    m->select(2.0, 2.0);
+    m->compute_selection(jobs);
+    const auto s = m->selection_stats();
+    REQUIRE(s.size() == 2);
+    CHECK(std::isnan(s[0].peak_dbfs));
+    CHECK(std::isnan(s[0].rms_dbfs));
+    CHECK(std::isnan(s[0].dc));
+}

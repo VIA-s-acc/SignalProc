@@ -48,7 +48,7 @@ struct SelectionStats {
 
 class SignalModel {
 public:
-    explicit SignalModel(std::function<std::string()> clock = {});
+    explicit SignalModel(std::function<std::string()> clock = {}, std::size_t memory_budget = 0);
 
     void open(const std::filesystem::path& path, JobRunner& jobs);
     std::shared_ptr<const SignalData> data() const;
@@ -78,6 +78,7 @@ private:
     double clamp_time(double t) const;
 
     std::function<std::string()> clock_;
+    std::size_t memory_budget_;
     mutable std::mutex mutex_;
     std::shared_ptr<const SignalData> data_;
     std::vector<LogLine> log_;

@@ -1,6 +1,7 @@
 #include <libproc.h>
 #include <mach/mach.h>
 #include <sys/resource.h>
+#include <sys/sysctl.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -40,6 +41,12 @@ core::Result<ProcessSample> sample_process() {
         vm_deallocate(mach_task_self(), reinterpret_cast<vm_address_t>(loads), load_count * sizeof(integer_t));
     }
     return s;
+}
+
+std::uint64_t physical_memory_bytes() {
+    std::uint64_t bytes = 0;
+    std::size_t size = sizeof bytes;
+    return sysctlbyname("hw.memsize", &bytes, &size, nullptr, 0) == 0 ? bytes : 0;
 }
 
 }  // namespace signals::tui

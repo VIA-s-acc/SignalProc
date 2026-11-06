@@ -220,6 +220,18 @@ std::string_view to_string(SampleFormat format) {
 
 core::Result<WavFile> read_wav(const std::filesystem::path& path) { return read_wav(path, nullptr); }
 
+core::Result<WavInfo> probe_wav(const std::filesystem::path& path) {
+    drwav wav;
+    if (!drwav_init_file(&wav, path.string().c_str(), nullptr))
+        return make_error(Errc::io_error, "cannot open or parse WAV file: " + path.string());
+    DrWavGuard guard{wav};
+    const auto format = sample_format(wav);
+    if (!format)
+        return make_error(Errc::invalid_argument, "unsupported WAV format: tag " + std::to_string(wav.translatedFormatTag) +
+                                                      ", " + std::to_string(wav.bitsPerSample) + " bits");
+    return WavInfo{*format, wav.channels, wav.sampleRate, wav.totalPCMFrameCount, wav.fmt.formatTag == DR_WAVE_FORMAT_EXTENSIBLE};
+}
+
 core::Result<WavFile> read_wav(const std::filesystem::path& path, core::ProgressSink* progress) {
     drwav wav;
     if (!drwav_init_file(&wav, path.string().c_str(), nullptr))

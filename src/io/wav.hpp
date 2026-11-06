@@ -28,6 +28,7 @@ struct WavFile {
     core::AudioBuffer audio;
 };
 
+core::Result<WavInfo> probe_wav(const std::filesystem::path& path);
 core::Result<WavFile> read_wav(const std::filesystem::path& path);
 core::Result<WavFile> read_wav(const std::filesystem::path& path, core::ProgressSink* progress);
 

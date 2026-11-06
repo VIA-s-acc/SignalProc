@@ -4,6 +4,7 @@
 #include <cmath>
 #include <complex>
 #include <limits>
+#include <new>
 #include <numbers>
 
 #include <fmt/format.h>
@@ -260,16 +261,25 @@ void ComparisonSet::request(JobRunner& jobs, std::size_t points) {
                 return;
             }
             ctx.begin(i);
-            auto a = analyze(todo[i], points);
-            if (!a) {
-                const auto text = error_text(a.error());
+            try {
+                auto a = analyze(todo[i], points);
+                if (!a) {
+                    const auto text = error_text(a.error());
+                    store(todo[i], nullptr, text);
+                    ctx.finish(0, text);
+                    continue;
+                }
+                const auto bytes = a->h.coeffs.size() * sizeof(double) + a->response.omega.size() * 7 * sizeof(double);
+                store(todo[i], std::make_shared<const FilterAnalysis>(std::move(*a)), std::nullopt);
+                ctx.finish(bytes);
+            } catch (const std::bad_alloc&) {
+                store(todo[i], nullptr, tr("tui.jobs.out_of_memory"));
+                ctx.finish(0, tr("tui.jobs.out_of_memory"));
+            } catch (const std::exception& e) {
+                const auto text = fmt::format(fmt::runtime(tr("tui.jobs.internal_error")), fmt::arg("what", e.what()));
                 store(todo[i], nullptr, text);
                 ctx.finish(0, text);
-                continue;
             }
-            const auto bytes = a->h.coeffs.size() * sizeof(double) + a->response.omega.size() * 7 * sizeof(double);
-            store(todo[i], std::make_shared<const FilterAnalysis>(std::move(*a)), std::nullopt);
-            ctx.finish(bytes);
         }
     });
 }
@@ -286,6 +296,13 @@ void ComparisonSet::request_view(JobRunner& jobs, double lo, double hi, std::siz
         view_pending_ = true;
     }
     jobs.submit(tr("tui.filters.view_job"), {tr("tui.filters.view_stage")}, [this, todo, lo, hi, points](JobContext& ctx) {
+        struct ClearPending {
+            ComparisonSet& set;
+            ~ClearPending() {
+                std::lock_guard lock{set.mutex_};
+                set.view_pending_ = false;
+            }
+        } clear{*this};
         ctx.begin(0);
         for (std::size_t i = 0; i < todo.size() && !ctx.cancelled(); ++i) {
             auto r = std::make_shared<const core::FrequencyResponse>(range_response(todo[i].second->h, lo, hi, points, &todo[i].second->response));
@@ -293,10 +310,6 @@ void ComparisonSet::request_view(JobRunner& jobs, double lo, double hi, std::siz
             for (auto& e : entries_)
                 if (e.ref == todo[i].first) e.view = r, e.view_lo = lo, e.view_hi = hi;
             ctx.report(static_cast<double>(i + 1) / static_cast<double>(todo.size()));
-        }
-        {
-            std::lock_guard lock{mutex_};
-            view_pending_ = false;
         }
         ctx.finish();
     });

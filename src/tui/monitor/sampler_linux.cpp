@@ -54,4 +54,9 @@ core::Result<ProcessSample> sample_process() {
     return s;
 }
 
+std::uint64_t physical_memory_bytes() {
+    const long pages = sysconf(_SC_PHYS_PAGES), page = sysconf(_SC_PAGESIZE);
+    return pages > 0 && page > 0 ? static_cast<std::uint64_t>(pages) * static_cast<std::uint64_t>(page) : 0;
+}
+
 }  // namespace signals::tui

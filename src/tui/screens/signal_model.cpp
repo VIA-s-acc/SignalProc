@@ -5,6 +5,7 @@
 #include <cmath>
 #include <ctime>
 #include <limits>
+#include <new>
 
 #include <fmt/format.h>
 
@@ -13,6 +14,7 @@
 #include "core/spectral.hpp"
 #include "core/wavedec.hpp"
 #include "i18n/i18n.hpp"
+#include "tui/monitor/sampler.hpp"
 #include "tui/shell/errors.hpp"
 #include "tui/widgets/format.hpp"
 
@@ -33,11 +35,17 @@ std::string wall_clock() {
     return buf;
 }
 
+std::size_t estimated_load_bytes(const io::WavInfo& info) {
+    const auto per_frame = static_cast<std::size_t>(info.channels) * (sizeof(double) + sizeof(float) + 1) + 2 * sizeof(double);
+    return static_cast<std::size_t>(info.frames) * per_frame;
+}
+
 double to_db(double amplitude) { return amplitude > 0 ? 20 * std::log10(amplitude) : -std::numeric_limits<double>::infinity(); }
 
 }  // namespace
 
-SignalModel::SignalModel(std::function<std::string()> clock) : clock_{clock ? std::move(clock) : wall_clock} {}
+SignalModel::SignalModel(std::function<std::string()> clock, std::size_t memory_budget)
+    : clock_{clock ? std::move(clock) : wall_clock}, memory_budget_{memory_budget ? memory_budget : static_cast<std::size_t>(physical_memory_bytes() / 2)} {}
 
 void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
     if (const auto previous = job()) jobs.cancel(*previous);
@@ -46,7 +54,19 @@ void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
                           {tr("tui.signal.stage.read"), tr("tui.signal.stage.stats"), tr("tui.signal.stage.pyramid"),
                            tr("tui.signal.stage.welch"), tr("tui.signal.stage.dwt")},
                           [this, path, name](JobContext& ctx) {
+                              try {
                               ctx.begin(0);
+                              if (const auto probe = io::probe_wav(path); probe && memory_budget_ > 0) {
+                                  const auto need = estimated_load_bytes(*probe);
+                                  if (need > memory_budget_) {
+                                      const auto text = fmt::format(fmt::runtime(tr("tui.signal.too_large")),
+                                                                    fmt::arg("need", format_si(static_cast<double>(need), "Б")),
+                                                                    fmt::arg("budget", format_si(static_cast<double>(memory_budget_), "Б")));
+                                      ctx.fail(text);
+                                      add_log(text, LogLine::error);
+                                      return;
+                                  }
+                              }
                               auto file = io::read_wav(path, &ctx);
                               if (!file) {
                                   if (file.error().code == core::Errc::cancelled) return;
@@ -124,6 +144,15 @@ void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
                                                       fmt::arg("count", format_number(static_cast<double>(d->full_scale_samples)))),
                                           LogLine::warn);
                               publish(std::move(d));
+                              } catch (const std::bad_alloc&) {
+                                  const auto text = tr("tui.jobs.out_of_memory");
+                                  ctx.fail(text);
+                                  add_log(text, LogLine::error);
+                              } catch (const std::exception& e) {
+                                  const auto text = fmt::format(fmt::runtime(tr("tui.jobs.internal_error")), fmt::arg("what", e.what()));
+                                  ctx.fail(text);
+                                  add_log(text, LogLine::error);
+                              }
                           });
     std::lock_guard lock{mutex_};
     job_ = id;
@@ -254,6 +283,7 @@ void SignalModel::compute_selection(JobRunner& jobs) {
         for (const auto& ch : d->samples) {
             SelectionStats s;
             s.duration = t1 - t0;
+            s.rms_dbfs = s.peak_dbfs = s.dc = s.crest_db = std::numeric_limits<double>::quiet_NaN();
             if (b > a) {
                 std::vector<double> part(ch.begin() + static_cast<std::ptrdiff_t>(a), ch.begin() + static_cast<std::ptrdiff_t>(b));
                 double peak = 0;

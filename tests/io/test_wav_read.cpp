@@ -77,3 +77,13 @@ TEST_CASE("wav reading reports progress and can be cancelled", "[wav]") {
     } stop;
     CHECK(read_wav(sample("test.wav"), &stop).error().code == Errc::cancelled);
 }
+
+TEST_CASE("probing a wav reads only its header", "[wav]") {
+    const auto info = signals::io::probe_wav(signals::test::sample("test.wav"));
+    REQUIRE(info);
+    CHECK(info->frames == 450'686);
+    CHECK(info->channels == 2);
+    CHECK(info->sample_rate == 44'100);
+    CHECK(info->format == signals::io::SampleFormat::pcm_s16);
+    CHECK_FALSE(signals::io::probe_wav(signals::test::fixture("not_a_wav.wav")));
+}

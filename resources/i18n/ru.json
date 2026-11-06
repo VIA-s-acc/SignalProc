@@ -318,5 +318,8 @@
   "tui.filters.measures": "Автоизмерения",
   "tui.filters.mouse_hint.wheel": "колесо — масштаб ω",
   "tui.filters.mouse_hint.drag": "тяни — сдвиг, клик — курсор",
-  "tui.jobs.cancelled": "задача прервана"
+  "tui.jobs.cancelled": "задача прервана",
+  "tui.signal.too_large": "Ошибка: файл слишком большой для памяти — нужно около {need}, можно {budget}",
+  "tui.jobs.out_of_memory": "Ошибка: не хватило памяти",
+  "tui.jobs.internal_error": "Ошибка: внутренняя ошибка — {what}"
 }
