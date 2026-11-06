@@ -16,6 +16,7 @@ namespace signals::tui {
 namespace {
 
 constexpr std::size_t kUndoLimit = 100;
+constexpr std::string_view kInputProbe = "@input";
 
 core::Error sig_failure(const std::filesystem::path& file, const pipeline::SigError& e) {
     std::string where = file.string();
@@ -216,7 +217,13 @@ void PipelineModel::run(JobRunner& jobs) {
         return;
     }
     if (run_->job) cancel(jobs);
-    auto graph = std::make_shared<const pipeline::Graph>(*graph_);
+    auto copy = *graph_;
+    for (std::size_t i = 0; i < copy.nodes.size(); ++i)
+        if (copy.nodes[i].type->inputs.empty() && !copy.nodes[i].type->outputs.empty() && copy.nodes[i].type->outputs.front().type == pipeline::PortType::signal) {
+            copy.probes.push_back({std::string{kInputProbe}, {copy.nodes[i].id, {}, 0, 0}, {i, 0, {}}});
+            break;
+        }
+    auto graph = std::make_shared<const pipeline::Graph>(std::move(copy));
     auto token = std::make_shared<core::CancelToken>();
     {
         std::lock_guard lock{run_->mutex};
@@ -228,6 +235,7 @@ void PipelineModel::run(JobRunner& jobs) {
         v.nodes.clear();
         v.probes.clear();
         v.reports.clear();
+        v.input.reset();
         for (const auto& n : graph->nodes) v.nodes[n.id].status.id = n.id;
         run_->cancel = token;
     }
@@ -262,6 +270,10 @@ void PipelineModel::run(JobRunner& jobs) {
         }
         for (const auto& s : result->nodes) v.nodes[s.id].status = s;
         v.probes = std::move(result->probes);
+        if (const auto it = v.probes.find(kInputProbe); it != v.probes.end()) {
+            v.input = std::move(it->second);
+            v.probes.erase(it);
+        }
         v.reports = std::move(result->reports);
         if (v.seconds > 0.05) {
             std::string slowest;

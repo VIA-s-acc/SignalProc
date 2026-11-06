@@ -4,21 +4,24 @@
 #include <cmath>
 #include <limits>
 #include <sstream>
+#include <thread>
 
 #include <fmt/format.h>
 
+#include "core/spectral.hpp"
 #include "i18n/i18n.hpp"
 #include "pipeline/block.hpp"
 #include "pipeline/sig.hpp"
 #include "tui/shell/palette.hpp"
 #include "tui/widgets/format.hpp"
+#include "tui/widgets/plot.hpp"
 #include "tui/widgets/screen_util.hpp"
 #include "tui/widgets/text_util.hpp"
 
 namespace signals::tui {
 namespace {
 
-constexpr int kRightWidth = 44, kTextHeight = 10, kRunHeight = 14;
+constexpr int kRightWidth = 44, kBottomHeight = 12, kTextWidth = 46, kRunHeight = 16;
 
 std::filesystem::path utf8_file(const std::string& text) { return pipeline::utf8_path(text); }
 
@@ -36,7 +39,8 @@ std::vector<Hint> PipelineScreen::hints() const {
             {"Enter", tr("tui.pipeline.hint.params")},     {"←→↑↓", tr("tui.pipeline.hint.walk")},  {"e", tr("tui.pipeline.hint.wires")},
             {"M", tr("tui.pipeline.hint.bypass")},         {"p", tr("tui.pipeline.hint.probe")},     {"Del", tr("tui.pipeline.hint.delete")},
             {"Ctrl+Z/Y", tr("tui.pipeline.hint.undo")},    {"Ctrl+S", tr("tui.pipeline.hint.save")}, {"o", tr("tui.pipeline.hint.open")},
-            {"L", tr("tui.pipeline.hint.layout")},         {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")}};
+            {"r", tr("tui.pipeline.hint.run")},           {"A/B", tr("tui.pipeline.hint.ab")},      {"Space", tr("tui.pipeline.hint.listen")},
+            {"v", tr("tui.pipeline.hint.view")},          {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")}};
 }
 
 const pipeline::GraphNode* PipelineScreen::selected_node() const {
@@ -270,17 +274,181 @@ ftxui::Element PipelineScreen::run_panel() {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto run = model_->run_view();
+    const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
     Elements rows;
-    if (run.number == 0) rows.push_back(paragraph(tr("tui.pipeline.run_hint")) | fg(th.dim, ui_));
-    else {
+    if (run.number == 0) {
+        rows.push_back(paragraph(tr("tui.pipeline.run_hint")) | fg(th.dim, ui_));
+    } else {
+        double done = 0;
+        for (const auto& [id, n] : run.nodes) done += n.status.fraction;
+        done /= static_cast<double>(std::max<std::size_t>(1, run.nodes.size()));
         auto title = fmt::format(fmt::runtime(tr("tui.pipeline.run_number")), fmt::arg("n", run.number));
-        if (run.running) title += " · " + tr("tui.pipeline.running");
+        if (run.running) title += " · " + format_fixed(100 * done, 0) + " % · " + fmt::format(fmt::runtime(tr("tui.pipeline.threads")), fmt::arg("n", std::thread::hardware_concurrency()));
         else if (run.cancelled) title += " · " + tr("tui.pipeline.cancelled");
         else if (run.error) title += " · " + tr("tui.pipeline.failed");
         else title += " · " + format_si(run.seconds, tr("unit.s"));
         rows.push_back(text(title) | fg(run.error ? th.err : th.fg, ui_));
+        if (const auto* g = model_->graph())
+            for (const auto i : g->order) {
+                const auto it = run.nodes.find(g->nodes[i].id);
+                if (it == run.nodes.end()) continue;
+                const auto& st = it->second.status;
+                std::string mark = std::string{glyph(Glyph::bullet_off, ui_.caps.glyphs)};
+                auto color = th.dim;
+                switch (st.state) {
+                case pipeline::NodeState::running: mark = std::string{glyph(Glyph::bullet_on, ui_.caps.glyphs)}, color = th.accent; break;
+                case pipeline::NodeState::done: mark = std::string{glyph(Glyph::check, ui_.caps.glyphs)}, color = th.ok; break;
+                case pipeline::NodeState::cached: mark = "=", color = th.ok; break;
+                case pipeline::NodeState::failed: mark = std::string{glyph(Glyph::cross, ui_.caps.glyphs)}, color = th.err; break;
+                case pipeline::NodeState::bypassed: mark = ascii ? "-" : "–"; break;
+                default: break;
+                }
+                const auto time = st.state == pipeline::NodeState::running ? eighths_bar(st.fraction, 8)
+                                  : st.state == pipeline::NodeState::waiting ? std::string{"—"}
+                                                                            : format_si(st.wall_seconds, tr("unit.s"));
+                rows.push_back(hbox({text(mark + " ") | fg(color, ui_), text(pad_right(st.id, 10)) | fg(th.fg, ui_), text(pad_left(time, 10)) | fg(th.dim, ui_),
+                                     text(pad_left(st.bytes ? format_si(static_cast<double>(st.bytes), tr("unit.byte")) : std::string{"—"}, 10)) | fg(th.dim, ui_),
+                                     text(it->second.bottleneck ? " !" : "") | fg(th.warn, ui_)}));
+            }
     }
+    std::vector<std::string> parts{"$ signals run " + (model_->path() ? model_->path()->filename().string() : tr("tui.pipeline.untitled"))};
+    for (const auto& set : run.sets) parts.push_back("--set " + set);
+    rows.push_back(filler());
+    std::string line;
+    for (const auto& part : parts) {
+        if (!line.empty() && display_width(line) + 1 + display_width(part) > kRightWidth - 4) {
+            rows.push_back(text(line + " \\") | fg(th.dim, ui_));
+            line = "  ";
+        }
+        line += (line.empty() || line == "  " ? "" : " ") + part;
+    }
+    rows.push_back(text(line) | fg(th.dim, ui_));
+    rows.push_back(hbox({key_label(" r ", ui_), text(" " + tr("tui.pipeline.hint.run") + "  ") | fg(th.dim, ui_), key_label(" Esc ", ui_),
+                         text(" " + tr("tui.pipeline.hint.cancel")) | fg(th.dim, ui_)}));
     return frame_panel(kRun, vbox(std::move(rows)), {}, tr("tui.pipeline.run"));
+}
+
+void PipelineScreen::refresh_probe(const RunView& run) {
+    std::vector<std::string> names;
+    for (const auto& [name, value] : run.probes) names.push_back(name);
+    if (names.empty()) {
+        probe_ = {};
+        return;
+    }
+    probe_index_ = std::min(probe_index_, names.size() - 1);
+    const auto& name = names[probe_index_];
+    if (probe_.run == run.number && probe_.name == name && (!spectrum_ || !probe_.db.empty() || !probe_.samples)) return;
+    if (probe_.run != run.number || probe_.name != name) {
+        probe_ = {};
+        probe_.run = run.number;
+        probe_.name = name;
+        const auto* audio = std::get_if<core::AudioBuffer>(&run.probes.at(name));
+        if (!audio || audio->channels.empty()) return;
+        auto samples = std::make_shared<std::vector<std::vector<float>>>();
+        for (const auto& c : audio->channels) samples->emplace_back(c.begin(), c.end());
+        probe_.samples = samples;
+        probe_.pyramid = std::make_unique<MinMaxPyramid>(std::span<const float>{samples->front()});
+        probe_.rate = audio->sample_rate;
+        probe_.frames = audio->frames();
+    }
+    if (spectrum_ && probe_.db.empty() && probe_.samples) {
+        const auto* audio = std::get_if<core::AudioBuffer>(&run.probes.at(name));
+        std::size_t segment = 4096;
+        while (segment > 16 && segment > audio->frames()) segment /= 2;
+        if (auto psd = core::welch_psd(audio->channels.front(), audio->sample_rate, segment, segment / 2)) {
+            probe_.freqs = core::welch_frequencies(audio->sample_rate, segment);
+            for (const double v : *psd) probe_.db.push_back(10 * std::log10(std::max(v, 1e-30)));
+        }
+    }
+}
+
+std::optional<double> PipelineScreen::playhead() const {
+    if (!ui_.player || ui_.player->state() != audio::PlayState::playing || !ui_.player->tag().starts_with("pipeline")) return std::nullopt;
+    const auto run = model_->run_view();
+    const auto* input = run.input ? std::get_if<core::AudioBuffer>(&*run.input) : nullptr;
+    const double rate = last_input_ && input ? input->sample_rate : probe_.rate;
+    return rate > 0 ? std::optional{static_cast<double>(ui_.player->position()) / rate} : std::nullopt;
+}
+
+void PipelineScreen::play(bool input) {
+    if (!ui_.player) return;
+    const auto run = model_->run_view();
+    refresh_probe(run);
+    const core::AudioBuffer* source = nullptr;
+    if (input && run.input) source = std::get_if<core::AudioBuffer>(&*run.input);
+    if (!input && !probe_.name.empty()) source = std::get_if<core::AudioBuffer>(&run.probes.at(probe_.name));
+    if (!source || source->channels.empty()) {
+        notice_ = tr("tui.pipeline.nothing_to_play");
+        return;
+    }
+    auto samples = std::make_shared<std::vector<std::vector<float>>>();
+    for (const auto& c : source->channels) samples->emplace_back(c.begin(), c.end());
+    audio::Clip clip;
+    for (const auto& c : *samples) clip.channels.emplace_back(c);
+    clip.rate = static_cast<std::uint32_t>(std::max(1.0, std::round(source->sample_rate)));
+    clip.owner = samples;
+    clip.tag = input ? "pipeline.input" : "pipeline.probe";
+    last_input_ = input;
+    if (ui_.player->state() == audio::PlayState::playing && ui_.player->tag().starts_with("pipeline")) {
+        ui_.player->replace(std::move(clip));
+        return;
+    }
+    if (auto r = ui_.player->play(std::move(clip), 0); !r) notice_ = fmt::format(fmt::runtime(tr("tui.signal.audio_unavailable")), fmt::arg("reason", r.error().message));
+}
+
+ftxui::Element PipelineScreen::probe_panel(int height) {
+    using namespace ftxui;
+    const auto& th = ui_.theme;
+    const auto run = model_->run_view();
+    refresh_probe(run);
+    Elements head;
+    std::size_t k = 0;
+    for (const auto& [name, value] : run.probes) {
+        const bool on = k++ == probe_index_;
+        head.push_back(text((on ? "[" : " ") + name + (on ? "]" : " ")) | fg(on ? th.accent : th.fg, ui_));
+    }
+    head.push_back(filler());
+    head.push_back(text(spectrum_ ? " " + tr("tui.pipeline.view.time") + " [" + tr("tui.pipeline.view.spectrum") + "]" : "[" + tr("tui.pipeline.view.time") + "] " + tr("tui.pipeline.view.spectrum") + " ") |
+                   fg(th.dim, ui_));
+    Elements rows;
+    if (run.probes.empty()) {
+        rows.push_back(paragraph(tr("tui.pipeline.probe_hint")) | fg(th.dim, ui_));
+        return frame_panel(kProbe, vbox(std::move(rows)), {}, tr("tui.pipeline.probe"));
+    }
+    rows.push_back(hbox(std::move(head)));
+    const int plot_rows = std::max(2, height - 3);
+    const auto& value = run.probes.at(probe_.name.empty() ? run.probes.begin()->first : probe_.name);
+    if (probe_.samples && !spectrum_) {
+        PlotSpec spec;
+        spec.x = {0, static_cast<double>(probe_.frames) / std::max(1.0, probe_.rate)};
+        const auto all = probe_.pyramid->query(0, probe_.pyramid->size(), 1);
+        const double m = all.empty() ? 1.0 : std::max({1e-12, std::abs(static_cast<double>(all[0].lo)), std::abs(static_cast<double>(all[0].hi))});
+        spec.y = {-m, m};
+        spec.playhead = playhead();
+        const auto* pyramid = probe_.pyramid.get();
+        spec.envelopes.push_back(Envelope{{}, th.trace[0], [pyramid](int cols) { return pyramid->query(0, pyramid->size(), static_cast<std::size_t>(cols)); }});
+        rows.push_back(plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, plot_rows));
+    } else if (probe_.samples && !probe_.db.empty()) {
+        PlotSpec spec;
+        spec.x = {std::max(1.0, probe_.freqs.size() > 1 ? probe_.freqs[1] : 1.0), probe_.rate / 2, AxisScale::log10};
+        const double top = *std::max_element(probe_.db.begin(), probe_.db.end());
+        spec.y = {top - 100, top + 3};
+        spec.traces.push_back({probe_.db, probe_.freqs, th.trace[0]});
+        rows.push_back(plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, plot_rows));
+    } else {
+        rows.push_back(filler());
+    }
+    std::string info = std::string{pipeline::to_string(pipeline::type_of(value))};
+    if (probe_.samples)
+        info += " · " + std::to_string(probe_.samples->size()) + " " + tr("tui.pipeline.channels") + " · " + group(probe_.frames) + " · " + format_si(probe_.rate, tr("unit.hz"));
+    if (const auto* g = model_->graph()) {
+        const auto p = std::find_if(g->probes.begin(), g->probes.end(), [&](const auto& pr) { return pr.name == probe_.name; });
+        if (p != g->probes.end())
+            if (const auto it = run.nodes.find(g->nodes[p->source.node].id); it != run.nodes.end() && it->second.status.state == pipeline::NodeState::cached)
+                info += " · " + tr("tui.pipeline.cached") + " #" + std::to_string(run.number);
+    }
+    rows.push_back(text(info) | fg(th.dim, ui_));
+    return frame_panel(kProbe, vbox(std::move(rows)), {}, tr("tui.pipeline.probe") + " · " + probe_.name);
 }
 
 ftxui::Element PipelineScreen::text_panel(int height) {
@@ -313,12 +481,14 @@ ftxui::Element PipelineScreen::OnRender() {
         case kGraph: return vbox({toolbar(), graph_panel(cols - 4, content - 3) | flex});
         case kInspector: return vbox({toolbar(), (adding_ ? add_panel() : inspector_panel()) | flex});
         case kRun: return vbox({toolbar(), run_panel() | flex});
+        case kProbe: return vbox({toolbar(), probe_panel(content - 3) | flex});
         case kText: return vbox({toolbar(), text_panel(content - 3) | flex});
         case panel_count: break;
         }
     }
-    const int graph_w = cols - kRightWidth - 1 - 4, graph_h = content - 1 - kTextHeight - 2;
-    auto left = vbox({graph_panel(graph_w, graph_h) | flex, text_panel(kTextHeight - 2) | size(HEIGHT, EQUAL, kTextHeight)});
+    const int graph_w = cols - kRightWidth - 1 - 4, graph_h = content - 1 - kBottomHeight - 2;
+    auto bottom = hbox({probe_panel(kBottomHeight - 2) | flex, text(" "), text_panel(kBottomHeight - 2) | size(WIDTH, EQUAL, kTextWidth)});
+    auto left = vbox({graph_panel(graph_w, graph_h) | flex, bottom | size(HEIGHT, EQUAL, kBottomHeight)});
     auto right = vbox({(adding_ ? add_panel() : inspector_panel()) | flex, run_panel() | size(HEIGHT, EQUAL, kRunHeight)});
     return vbox({toolbar(), hbox({left | flex, text(" "), right | size(WIDTH, EQUAL, kRightWidth)}) | flex});
 }
@@ -443,6 +613,27 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
         adding_ = true;
         query_.clear();
         pick_ = 0;
+        return true;
+    }
+    if (e == Event::Character('r')) {
+        if (ui_.jobs) model_->run(*ui_.jobs);
+        return true;
+    }
+    if (e == Event::Escape && model_->run_view().running) {
+        if (ui_.jobs) model_->cancel(*ui_.jobs);
+        return true;
+    }
+    if (e == Event::Character('v')) return spectrum_ = !spectrum_, true;
+    if (e == Event::Character('A')) return play(true), true;
+    if (e == Event::Character('B')) return play(false), true;
+    if (e == Event::Character(' ')) {
+        if (ui_.player && ui_.player->state() == audio::PlayState::playing && ui_.player->tag().starts_with("pipeline")) ui_.player->stop();
+        else play(last_input_);
+        return true;
+    }
+    if (focus_ == kProbe && (e == Event::ArrowDown || e == Event::ArrowUp)) {
+        const auto n = model_->run_view().probes.size();
+        if (n > 0) probe_index_ = e == Event::ArrowDown ? (probe_index_ + 1) % n : (probe_index_ + n - 1) % n;
         return true;
     }
     if (e == Event::CtrlZ) return model_->undo(), true;

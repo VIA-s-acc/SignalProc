@@ -911,5 +911,17 @@
   "tui.pipeline.add_into_wire": "Enter — в выбранный провод",
   "tui.pipeline.add_free": "Enter — отдельным узлом",
   "tui.pipeline.save_as": "сохранить .sig как",
-  "tui.pipeline.open_prompt": "открыть .sig"
+  "tui.pipeline.open_prompt": "открыть .sig",
+  "tui.pipeline.threads": "потоков {n}",
+  "tui.pipeline.hint.run": "запуск",
+  "tui.pipeline.hint.cancel": "прервать",
+  "tui.pipeline.hint.ab": "A вход, B щуп",
+  "tui.pipeline.hint.listen": "слушать",
+  "tui.pipeline.hint.view": "время или спектр",
+  "tui.pipeline.view.time": "время",
+  "tui.pipeline.view.spectrum": "спектр",
+  "tui.pipeline.probe": "Щуп",
+  "tui.pipeline.probe_hint": "p — щуп на выбранном проводе, r — запуск",
+  "tui.pipeline.channels": "кан.",
+  "tui.pipeline.nothing_to_play": "нечего слушать: запустите граф и поставьте щуп"
 }

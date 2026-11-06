@@ -7,11 +7,17 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <ftxui/component/event.hpp>
 
+#include "audio/manual_sink.hpp"
+#include "core/design/families.hpp"
+#include "core/process/shrink.hpp"
+#include "core/wavedec.hpp"
 #include "i18n/i18n.hpp"
+#include "io/wav.hpp"
 #include "pipeline/sig.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
@@ -19,12 +25,14 @@
 #include "tui/screens/pipeline_screen.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/ui_fixture.hpp"
+#include "tui/widgets/screen_util.hpp"
 
 using namespace signals;
 using namespace signals::tui;
 using signals::test::Harness;
 using Catch::Matchers::ContainsSubstring;
 using namespace std::chrono_literals;
+using signals::tr;
 
 namespace {
 
@@ -243,4 +251,71 @@ TEST_CASE("Ctrl+S on a new document asks for a path and writes the file", "[tui]
     f.h.send(ftxui::Event::CtrlS);
     REQUIRE(std::filesystem::exists(path));
     CHECK_FALSE(f.model->dirty());
+}
+
+namespace {
+
+void writable(PipelineFixture& f, const std::string& name) {
+    const auto dir = signals::test::temp_path(name);
+    std::filesystem::create_directories(dir);
+    REQUIRE(f.model->set_param("out", "path", (dir / "out.wav").string()));
+}
+
+}  // namespace
+
+TEST_CASE("the probe panel shows the probe and the cache on a rerun", "[tui][pipeline_screen]") {
+    PipelineFixture f;
+    writable(f, "pipeline-probe");
+    f.h.send(ftxui::Event::Character('r'));
+    const auto x = io::read_wav(signals::test::sample("test.wav"));
+    REQUIRE(x);
+    const auto bank = core::wavelet("sym8");
+    const auto c = core::wavedec<double>(x->audio.channels[0], *bank, core::default_levels(x->audio.frames(), bank->length()), {});
+    REQUIRE(c);
+    auto frame = f.h.frame();
+    CHECK(frame.find(group(c->bands.back().size())) != std::string::npos);
+    f.h.send(ftxui::Event::Character('r'));
+    frame = f.h.frame();
+    CHECK(frame.find(tr("tui.pipeline.cached")) != std::string::npos);
+    f.h.send(ftxui::Event::Character('v'));
+    CHECK(f.h.frame().find(tr("tui.pipeline.view.spectrum")) != std::string::npos);
+}
+
+TEST_CASE("B plays the probe, A the graph input, both from one position", "[tui][pipeline_screen][audio]") {
+    PipelineFixture f;
+    signals::test::ManualSink* raw = nullptr;
+    auto player = signals::test::manual_player(raw);
+    f.ui->player = &player;
+    writable(f, "pipeline-ab");
+    f.h.send(ftxui::Event::Character('r'));
+    f.h.send(ftxui::Event::Character('B'));
+    CHECK(player.tag() == "pipeline.probe");
+    f.h.send(ftxui::Event::Character('A'));
+    CHECK(player.tag() == "pipeline.input");
+    f.h.send(ftxui::Event::Character(' '));
+    CHECK(player.state() != audio::PlayState::playing);
+}
+
+TEST_CASE("the run panel prints the matching CLI command", "[tui][pipeline_screen]") {
+    PipelineFixture f;
+    REQUIRE(f.model->set_param("thr", "mode", "hard"));
+    CHECK(f.h.frame().find("--set thr.mode=hard") != std::string::npos);
+}
+
+TEST_CASE("Esc during a run interrupts it", "[tui][pipeline_screen]") {
+    JobRunner jobs{[] {}, 0ms};
+    auto ui = signals::test::make_ui(150, 44);
+    ui->jobs = &jobs;
+    auto model = std::make_shared<PipelineModel>();
+    model->add_node("gen");
+    REQUIRE(model->set_param("gen", "duration", "600"));
+    model->add_node("dwt");
+    REQUIRE(model->connect(port("gen"), port("dwt")));
+    auto screen = std::make_shared<PipelineScreen>(*ui, model);
+    Harness h{screen, 150, 41};
+    h.send(ftxui::Event::Character('r'));
+    std::this_thread::sleep_for(100ms);
+    h.send(ftxui::Event::Escape);
+    for (int i = 0; i < 400 && model->run_view().running; ++i) std::this_thread::sleep_for(5ms);
+    CHECK(h.frame().find(tr("tui.pipeline.cancelled")) != std::string::npos);
 }

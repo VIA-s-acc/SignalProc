@@ -42,6 +42,7 @@ struct RunView {
     std::vector<pipeline::NodeReport> reports;
     std::vector<std::string> sets;
     double seconds = 0;
+    std::optional<pipeline::Value> input;
 };
 
 class PipelineModel {

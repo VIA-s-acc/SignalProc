@@ -911,5 +911,17 @@
   "tui.pipeline.add_into_wire": "Enter — into the selected wire",
   "tui.pipeline.add_free": "Enter — as a free node",
   "tui.pipeline.save_as": "save .sig as",
-  "tui.pipeline.open_prompt": "open .sig"
+  "tui.pipeline.open_prompt": "open .sig",
+  "tui.pipeline.threads": "{n} threads",
+  "tui.pipeline.hint.run": "run",
+  "tui.pipeline.hint.cancel": "interrupt",
+  "tui.pipeline.hint.ab": "A input, B probe",
+  "tui.pipeline.hint.listen": "listen",
+  "tui.pipeline.hint.view": "time or spectrum",
+  "tui.pipeline.view.time": "time",
+  "tui.pipeline.view.spectrum": "spectrum",
+  "tui.pipeline.probe": "Probe",
+  "tui.pipeline.probe_hint": "p — probe on the selected wire, r — run",
+  "tui.pipeline.channels": "ch.",
+  "tui.pipeline.nothing_to_play": "nothing to play: run the graph and add a probe"
 }

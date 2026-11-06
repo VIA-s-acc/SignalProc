@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -12,6 +13,7 @@
 #include <ftxui/component/mouse.hpp>
 #include <ftxui/screen/box.hpp>
 
+#include "tui/data/pyramid.hpp"
 #include "tui/screens/pipeline_canvas.hpp"
 #include "tui/screens/pipeline_model.hpp"
 #include "tui/shell/layout.hpp"
@@ -37,7 +39,7 @@ public:
     std::pair<int, int> view_offset() const { return {ox_, oy_}; }
 
 private:
-    enum Panel { kGraph, kInspector, kRun, kText, panel_count };
+    enum Panel { kGraph, kProbe, kInspector, kRun, kText, panel_count };
 
     ftxui::Element frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title);
     ftxui::Element toolbar() const;
@@ -50,6 +52,10 @@ private:
     void report(const core::Result<void>& r);
     const pipeline::GraphNode* selected_node() const;
     ftxui::Element run_panel();
+    ftxui::Element probe_panel(int height);
+    void refresh_probe(const RunView& run);
+    void play(bool input);
+    std::optional<double> playhead() const;
     ftxui::Element text_panel(int height);
     void follow_selection();
     void clamp_view();
@@ -76,6 +82,17 @@ private:
         int last_x = 0, last_y = 0;
     } drag_;
     std::string notice_;
+    struct ProbeData {
+        std::uint64_t run = 0;
+        std::string name;
+        std::shared_ptr<std::vector<std::vector<float>>> samples;
+        std::unique_ptr<MinMaxPyramid> pyramid;
+        std::vector<double> freqs, db;
+        double rate = 0;
+        std::size_t frames = 0;
+    } probe_;
+    std::size_t probe_index_ = 0;
+    bool spectrum_ = false, last_input_ = false;
     bool adding_ = false;
     std::string query_;
     std::size_t pick_ = 0, param_ = 0;
