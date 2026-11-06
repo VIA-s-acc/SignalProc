@@ -46,14 +46,14 @@ std::shared_ptr<TabScreen> make_placeholder(std::string label, std::string title
 std::vector<std::shared_ptr<TabScreen>> placeholder_screens(UiContext& ui) {
     return {
         make_placeholder(tr("tui.tab.signal"), tr("tui.placeholder.signal.title"), tr("tui.placeholder.signal.text"), "M3", &ui),
-        make_placeholder(tr("tui.tab.spectrum"), tr("tui.placeholder.spectrum.title"), tr("tui.placeholder.spectrum.text"), "M4", &ui),
+        make_placeholder(tr("tui.tab.spectrum"), tr("tui.placeholder.spectrum.title"), tr("tui.placeholder.spectrum.text"), "M6", &ui),
         make_placeholder(tr("tui.tab.filters"), tr("tui.placeholder.filters.title"), tr("tui.placeholder.filters.text"), "M3", &ui),
         make_subtabs(tr("tui.tab.bank"),
                      {{tr("tui.sub.designer"), make_placeholder(tr("tui.sub.designer"), tr("tui.placeholder.designer.title"), tr("tui.placeholder.designer.text"), "M4a", &ui)},
                       {tr("tui.sub.diagram"), make_placeholder(tr("tui.sub.diagram"), tr("tui.placeholder.diagram.title"), tr("tui.placeholder.diagram.text"), "M6", &ui)}}),
         make_placeholder(tr("tui.tab.decomposition"), tr("tui.placeholder.decomposition.title"), tr("tui.placeholder.decomposition.text"), "M4", &ui),
         make_placeholder(tr("tui.tab.matrix"), tr("tui.placeholder.matrix.title"), tr("tui.placeholder.matrix.text"), "M4", &ui),
-        make_placeholder(tr("tui.tab.processing"), tr("tui.placeholder.processing.title"), tr("tui.placeholder.processing.text"), "M5", &ui),
+        make_placeholder(tr("tui.tab.processing"), tr("tui.placeholder.processing.title"), tr("tui.placeholder.processing.text"), "M6", &ui),
         make_placeholder(tr("tui.tab.pipeline"), tr("tui.placeholder.pipeline.title"), tr("tui.placeholder.pipeline.text"), "M5", &ui),
         make_subtabs(tr("tui.tab.theory"),
                      {{tr("tui.sub.explain"), make_placeholder(tr("tui.sub.explain"), tr("tui.placeholder.explain.title"), tr("tui.placeholder.explain.text"), "M4a", &ui)},
