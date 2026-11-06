@@ -628,7 +628,7 @@
   "tui.decomposition.hint.toggle": "☑/☐",
   "tui.decomposition.hint.listen": "слушать Σ☑",
   "tui.decomposition.hint.ab": "A, B, разность",
-  "tui.decomposition.hint.zoom": "масштаб t",
+  "tui.decomposition.hint.zoom": "масштаб t, над подписями — листать",
   "tui.decomposition.hint.view": "сменить вид",
   "tui.decomposition.hint.undo": "отменить",
   "tui.decomposition.mono": "моно (L+R)/2",

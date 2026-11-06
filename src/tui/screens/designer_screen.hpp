@@ -54,7 +54,7 @@ private:
 
     ftxui::Element frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title);
     ftxui::Element roots_panel(const DesignerData* d, const DesignerResult* r);
-    ftxui::Element splits_panel(const DesignerData* d);
+    ftxui::Element splits_panel(const DesignerData* d, int max_rows);
     ftxui::Element result_panel(const DesignerResult* r, int width);
     ftxui::Element magnitude_panel(const DesignerResult* r);
     ftxui::Element cascade_panel(const DesignerResult* r, bool dual);
@@ -74,7 +74,8 @@ private:
     ftxui::Box roots_box_{};
     std::string notice_;
     std::optional<Panel> maximized_;
-    std::size_t group_cursor_ = 0, preset_index_ = 0;
+    std::size_t group_cursor_ = 0, preset_index_ = 0, groups_first_ = 0;
+    bool follow_group_ = true;
     PlotZoom zoom_;
     double zplane_zoom_ = 1;
 };
