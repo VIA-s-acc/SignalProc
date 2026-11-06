@@ -37,6 +37,11 @@ std::string join(const std::vector<std::string>& items) {
     return out;
 }
 
+bool bypassable(const BlockType& t) {
+    if (t.inputs.empty()) return false;
+    return std::all_of(t.outputs.begin(), t.outputs.end(), [&](const PortSpec& o) { return o.type == t.inputs.front().type; });
+}
+
 struct Wire {
     std::size_t from = 0, to = 0;
     int line = 0;
@@ -79,10 +84,12 @@ private:
             }
             auto params = resolve_params(*type, decl.params);
             if (!params) fail(decl.line, 0, decl.id + ": " + params.error().message);
+            if (decl.bypass && !bypassable(*type))
+                fail(decl.line, 0, say("pipeline.graph.bypass_types", fmt::arg("node", decl.id), fmt::arg("block", type->id)));
             index_.emplace(decl.id, graph_.nodes.size());
             ids_.push_back(decl.id);
             graph_.nodes.push_back({decl.id, type, std::move(*params), std::vector<std::optional<PortRef>>(type->inputs.size()),
-                                    std::vector<std::optional<Source>>(type->inputs.size()), decl.line});
+                                    std::vector<std::optional<Source>>(type->inputs.size()), decl.line, decl.bypass});
         }
     }
 

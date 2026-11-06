@@ -191,3 +191,11 @@ TEST_CASE("graph: a block with several outputs needs a port name", "[pipeline][g
     CHECK_THAT(e.message, ContainsSubstring("r"));
     build("node s = gen()\nnode ch = split()\nnode d = dwt()\ns -> ch\nch.l -> d\n");
 }
+
+TEST_CASE("graph: only a block whose input and output types match can be bypassed", "[pipeline][graph]") {
+    const auto e = error_of("node s = gen()\nnode d = dwt() bypass\ns -> d\n");
+    CHECK(e.line == 2);
+    CHECK_THAT(e.message, ContainsSubstring("dwt"));
+    const auto g = build("node s = gen()\nnode g = gain(db=-6) bypass\ns -> g\n");
+    CHECK(node(g, "g").bypass);
+}

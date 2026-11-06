@@ -177,3 +177,18 @@ TEST_CASE("the shipped example is canonical and every node resolves its paramete
         CHECK(resolve_params(*type, n.params));
     }
 }
+
+TEST_CASE("bypass is read after the parentheses and written back", "[pipeline][sig]") {
+    const auto doc = parse_sig("node t = threshold(mode=hard) bypass\nnode g = gain bypass\n");
+    REQUIRE(doc);
+    REQUIRE(doc->nodes.size() == 2);
+    CHECK(doc->nodes[0].bypass);
+    CHECK(doc->nodes[1].bypass);
+    const auto text = write_sig(*doc);
+    CHECK(text.find("threshold(mode=hard) bypass") != std::string::npos);
+    CHECK(text.find("gain() bypass") != std::string::npos);
+    const auto again = parse_sig(text);
+    REQUIRE(again);
+    CHECK(write_sig(*again) == text);
+    CHECK_FALSE(parse_sig("node t = threshold() bypas\n"));
+}

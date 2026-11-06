@@ -25,6 +25,7 @@ struct GraphNode {
     std::vector<std::optional<PortRef>> inputs;
     std::vector<std::optional<Source>> sources;
     int line = 0;
+    bool bypass = false;
 };
 
 struct Probe {
