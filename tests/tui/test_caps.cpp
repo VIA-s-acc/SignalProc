@@ -56,6 +56,11 @@ TEST_CASE("terminal preferences round trip and override detection", "[tui][caps]
     CHECK(applied.color == ColorDepth::palette256);
     CHECK(applied.glyphs == GlyphMode::ascii);
     CHECK(apply({ColorDepth::truecolor, GlyphMode::unicode, ""}, {}).color == ColorDepth::truecolor);
+    CHECK_FALSE(back->language);
+    REQUIRE(save_prefs(p, {ColorDepth::palette256, GlyphMode::ascii, true, signals::Language::en}));
+    back = load_prefs(p);
+    REQUIRE(back);
+    CHECK(back->language == signals::Language::en);
 }
 
 TEST_CASE("a broken preferences file is an io error with its path", "[tui][caps]") {

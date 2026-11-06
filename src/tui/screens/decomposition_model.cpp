@@ -242,7 +242,7 @@ void DecompositionModel::compute(JobRunner& jobs) {
             ctx.begin(3);
             if ((J + 1) * n * sizeof(float) > budget) {
                 rec->mra_skipped = fmt::format(fmt::runtime(tr("tui.decomposition.mra_skipped")),
-                                               fmt::arg("need", format_si(static_cast<double>((J + 1) * n * sizeof(float)), "Б")));
+                                               fmt::arg("need", format_si(static_cast<double>((J + 1) * n * sizeof(float)), tr("unit.byte"))));
                 ctx.finish(0, *rec->mra_skipped);
             } else {
                 for (std::size_t i = 0; i <= J && !ctx.cancelled(); ++i) {
@@ -339,7 +339,7 @@ void DecompositionModel::reconstruct(JobRunner& jobs) {
                                     ctx.begin(1);
                                     if ((J + 1) * n * sizeof(float) > budget) {
                                         rec->mra_skipped = fmt::format(fmt::runtime(tr("tui.decomposition.mra_skipped")),
-                                                                       fmt::arg("need", format_si(static_cast<double>((J + 1) * n * sizeof(float)), "Б")));
+                                                                       fmt::arg("need", format_si(static_cast<double>((J + 1) * n * sizeof(float)), tr("unit.byte"))));
                                         ctx.finish(0, *rec->mra_skipped);
                                     } else {
                                         for (std::size_t i = 0; i <= J && !ctx.cancelled(); ++i) {

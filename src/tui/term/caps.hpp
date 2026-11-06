@@ -8,6 +8,7 @@
 
 #include "core/error.hpp"
 #include "tui/theme/theme.hpp"
+#include "i18n/i18n.hpp"
 
 namespace signals::tui {
 
@@ -30,6 +31,7 @@ struct TerminalPrefs {
     std::optional<ColorDepth> color;
     std::optional<GlyphMode> glyphs;
     bool checked = false;
+    std::optional<Language> language;
 };
 
 std::filesystem::path prefs_path(const EnvLookup& env);

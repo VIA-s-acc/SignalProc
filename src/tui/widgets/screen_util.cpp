@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "i18n/i18n.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/text_util.hpp"
@@ -13,20 +14,20 @@ std::string group(std::uint64_t n) {
     const auto digits = std::to_string(n);
     std::string out;
     for (std::size_t i = 0; i < digits.size(); ++i) {
-        if (i > 0 && (digits.size() - i) % 3 == 0) out += ' ';
+        if (i > 0 && (digits.size() - i) % 3 == 0) out += language() == Language::en ? ',' : ' ';
         out += digits[i];
     }
     return out;
 }
 
 std::string hz_text(double f) {
-    if (f >= 1000) return format_fixed(f / 1000, f >= 10000 ? 1 : 2) + "к";
+    if (f >= 1000) return format_fixed(f / 1000, f >= 10000 ? 1 : 2) + tr("unit.prefix.kilo");
     return format_fixed(std::round(f), 0);
 }
 
 std::string time_text(double t, double span) {
     const int decimals = span < 0.01 ? 5 : span < 0.1 ? 4 : span < 1 ? 3 : 2;
-    return format_fixed(t, decimals) + " с";
+    return format_fixed(t, decimals) + " " + tr("unit.s");
 }
 
 std::string band_name(std::size_t k, std::size_t levels, GlyphMode g) {

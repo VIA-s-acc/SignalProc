@@ -20,9 +20,13 @@
 
 namespace signals::tui {
 
-int run(std::optional<std::filesystem::path> file, std::string_view theme) {
+int run(std::optional<std::filesystem::path> file, std::string_view theme, std::optional<Language> language) {
     const auto env = process_env();
     const auto prefs = load_prefs(prefs_path(env));
+    if (!language)
+        if (auto code = env("SIGNALS_LANG")) language = parse_language(*code);
+    if (!language && prefs) language = prefs->language;
+    set_language(language.value_or(Language::ru));
     auto app = ftxui::App::Fullscreen();
     UiContext ui;
     ui.theme = builtin_theme(theme);
@@ -60,10 +64,24 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme) {
     ui.first_run_check = !prefs || !prefs->checked;
     ui.warn = [signal = models.signal](std::string line) { signal->add_log(std::move(line), LogLine::warn); };
     ui.open_file = [signal = models.signal, &jobs](const std::filesystem::path& path) { signal->open(path, jobs); };
-    auto screens = make_app_screens(ui, models);
+    bool relaunch = false;
+    ui.switch_language = [&](Language next) {
+        auto saved = load_prefs(ui.prefs_file).value_or(TerminalPrefs{});
+        saved.language = next;
+        (void)save_prefs(ui.prefs_file, saved);
+        set_language(next);
+        relaunch = true;
+        app.Exit();
+    };
     if (file) models.signal->open(*file, jobs);
-    auto shell = make_shell(ui, std::move(screens), [&app] { app.Exit(); });
-    app.Loop(shell);
+    int tab = 0;
+    do {
+        relaunch = false;
+        auto shell = make_shell(ui, make_app_screens(ui, models), [&app] { app.Exit(); });
+        if (tab > 0 && ui.navigate) ui.navigate("tab:" + std::to_string(tab + 1), {});
+        app.Loop(shell);
+        tab = active_tab(shell);
+    } while (relaunch);
     return 0;
 }
 

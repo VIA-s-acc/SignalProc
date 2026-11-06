@@ -96,6 +96,7 @@ core::Result<TerminalPrefs> load_prefs(const std::filesystem::path& path) {
     prefs.checked = table["checked"].value_or(false);
     if (auto c = table["color"].value<std::string>()) prefs.color = parse_depth(*c);
     if (auto g = table["glyphs"].value<std::string>()) prefs.glyphs = parse_glyphs(*g);
+    if (auto l = table["language"].value<std::string>()) prefs.language = parse_language(*l);
     return prefs;
 }
 
@@ -106,6 +107,7 @@ core::Result<void> save_prefs(const std::filesystem::path& path, const TerminalP
     table.insert("checked", prefs.checked);
     if (prefs.color) table.insert("color", std::string{to_string(*prefs.color)});
     if (prefs.glyphs) table.insert("glyphs", std::string{to_string(*prefs.glyphs)});
+    if (prefs.language) table.insert("language", std::string{language_code(*prefs.language)});
     std::ofstream out{path};
     out << table << '\n';
     if (!out) return make_error(Errc::io_error, "cannot write " + path.string());

@@ -38,6 +38,6 @@ int main(int argc, char** argv) {
     std::vector<std::string_view> args(argv, argv + argc);
     std::optional<signals::cli::TuiRequest> request;
     const int code = signals::cli::run_cli(args, std::cout, std::cerr, &request);
-    if (request) return signals::tui::run(request->file, request->theme);
+    if (request) return signals::tui::run(request->file, request->theme, request->language);
     return code;
 }

@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "core/design/families.hpp"
+#include "i18n/i18n.hpp"
 #include "tui/screens/explain_model.hpp"
 
 using namespace signals::tui;
@@ -130,6 +131,22 @@ TEST_CASE("the haar script has twelve canvas steps and every placeholder resolve
     CHECK(*fill("инвариант: {{x.energy}} = {{a.energy}} + {{d.energy}}", *w) == "инвариант: 446 = 440 + 6");
     CHECK(*fill("{{kept}} · {{tree.energy}}", *w) == "1, 3, 5, 7 · 392 + 8 + 40 + 6 = 446");
     CHECK_FALSE(fill("{{nonsense}}", *w));
+}
+
+TEST_CASE("the English haar script has the same twelve steps", "[tui][explain][i18n]") {
+    const signals::LanguageScope en{signals::Language::en};
+    const auto& s = haar_script();
+    REQUIRE(s.size() == 12);
+    CHECK(s[0].title == "signal");
+    CHECK(s[3].title == "downsampling ↓2");
+    auto w = walkthrough(kX, {});
+    REQUIRE(w);
+    for (const auto& step : s)
+        for (const auto* lines : {&step.text, &step.text_haar})
+            for (const auto& line : *lines) {
+                INFO(step.title << ": " << line);
+                CHECK(fill(line, *w));
+            }
 }
 
 TEST_CASE("a script with a broken step is an error", "[tui][explain]") {

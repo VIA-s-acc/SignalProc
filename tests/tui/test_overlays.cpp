@@ -3,10 +3,12 @@
 #include <atomic>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include "i18n/i18n.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
 #include "tui/shell/palette.hpp"
@@ -202,4 +204,25 @@ TEST_CASE("typed and dropped paths are expanded", "[tui][palette]") {
     CHECK(expand_path("/x/a\\ b\\(1\\).wav ", home) == std::filesystem::path{"/x/a b(1).wav"});
     CHECK(expand_path("~", home) == std::filesystem::path{"/u"});
     CHECK(expand_path("a.wav", home) == std::filesystem::path{"a.wav"});
+}
+
+TEST_CASE("the palette switches the interface language", "[tui][palette][i18n]") {
+    auto ui = signals::test::make_ui(150, 44);
+    std::optional<signals::Language> chosen;
+    ui->switch_language = [&](signals::Language l) { chosen = l; };
+    Rig r{ui};
+    r.h.send(ftxui::Event::Character(':'));
+    type(r.h, {"e", "n", "g", "l"});
+    r.h.send(ftxui::Event::Return);
+    CHECK(chosen == signals::Language::en);
+}
+
+TEST_CASE("in English the palette shows and finds English commands", "[tui][palette][i18n]") {
+    const signals::LanguageScope en{signals::Language::en};
+    Rig r{signals::test::make_ui(150, 44)};
+    r.h.send(ftxui::Event::Character(':'));
+    CHECK(r.h.frame().find("Theme: light") != std::string::npos);
+    type(r.h, {"l", "i", "g", "h", "t"});
+    r.h.send(ftxui::Event::Return);
+    CHECK(r.ui->theme.name == "light");
 }
