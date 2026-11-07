@@ -291,11 +291,12 @@ ftxui::Element MatrixScreen::main_panel(const MatrixData* d, int width, int heig
         lo = std::max(lo, hi - 17);
         for (auto& y : t.y) y = std::max(y, lo);
         PlotSpec spec;
-        spec.x = {-0.5, static_cast<double>(d->singular.size()) - 0.5};
+        spec.x = sigma_zoom_.axis("sigma", {-0.5, static_cast<double>(d->singular.size()) - 0.5}).axis();
         spec.y = {lo - 0.2, hi + 0.2};
         spec.traces.push_back(std::move(t));
+        auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
         const auto title = fmt::format(fmt::runtime(tr("tui.matrix.spectrum_title")), fmt::arg("name", base_name), fmt::arg("count", d->singular.size()));
-        return frame_panel(main, vbox({text("log₁₀ σᵢ") | fg(th.dim, ui_), plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex}), {}, title);
+        return frame_panel(main, vbox({text("log₁₀ σᵢ") | fg(th.dim, ui_), sigma_zoom_.track("sigma", std::move(spec), std::move(drawn)) | flex}), {}, title);
     }
     auto title = fmt::format(fmt::runtime(tr("tui.matrix.title")), fmt::arg("name", name), fmt::arg("rows", rows), fmt::arg("cols", cols),
                              fmt::arg("row", row_));
@@ -402,6 +403,7 @@ ftxui::Element MatrixScreen::OnRender() {
     panel_boxes_.fill(kNoBox);
     clickables_.clear();
     matrix_box_ = kNoBox;
+    sigma_zoom_.begin_frame();
     if (!ui_.jobs) return text("");
     if (!model_->data() && !model_->job()) apply(model_->options());
     if (animate_) {
@@ -453,6 +455,8 @@ bool MatrixScreen::OnEvent(ftxui::Event e) {
     if (e.is_mouse()) {
         const auto& m = e.mouse();
         using ftxui::Mouse;
+        if (spectrum_ && sigma_zoom_.on_mouse(m)) return true;
+        if (spectrum_ && m.button == Mouse::Left && m.motion == Mouse::Pressed) sigma_zoom_.press(m.x, m.y);
         if ((m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) && d && d->m.size() > 0 && matrix_box_.Contain(m.x, m.y)) {
             const double f = m.button == Mouse::WheelUp ? kWheelStep : 1 / kWheelStep;
             const auto [fr, fc] = fractions_at(m.x, m.y);
@@ -535,6 +539,7 @@ bool MatrixScreen::OnEvent(ftxui::Event e) {
         show_cell();
         return true;
     }
+    if (spectrum_ && sigma_zoom_.on_key(e, "sigma")) return true;
     if (e == Event::Character('+') || e == Event::Character('=') || e == Event::Character('-')) {
         const double f = e == Event::Character('-') ? 1 / kWheelStep : kWheelStep;
         row_zoom_.zoom(f, rows ? (static_cast<double>(row_) + 0.5) / static_cast<double>(rows) : 0.5);
@@ -616,6 +621,7 @@ void MatrixScreen::open_with(const NavArgs& args) {
 }
 
 ftxui::Box MatrixScreen::area(std::string_view id) const {
+    if (id == "sigma_plot") return sigma_zoom_.box("sigma");
     if (id == "matrix") return matrix_box_;
     for (const auto& c : clickables_)
         if (c.id == id) return c.box;
@@ -676,6 +682,8 @@ std::pair<double, double> MatrixScreen::fractions_at(int x, int y) const {
 }
 
 std::vector<MenuItem> MatrixScreen::context_menu(int x, int y) {
+    if (spectrum_)
+        if (auto reset = sigma_zoom_.reset_item(x, y)) return {*reset};
     if (!matrix_box_.Contain(x, y) || !(row_zoom_.zoomed() || col_zoom_.zoomed())) return {};
     return {{tr("tui.menu.reset_zoom"), "", [this] {
                  row_zoom_.reset();
