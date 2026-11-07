@@ -112,7 +112,9 @@ std::optional<FilterRef> classical_step(const FilterRef& ref, int order_step, do
     const bool fir = s->method != ClassicalSpec::Method::iir;
     s->order = std::clamp(s->order + order_step * (fir ? 2 : 1), fir ? 5 : 1, fir ? 255 : 20);
     if (fir && s->order % 2 == 0) ++s->order;
-    for (auto& e : s->edges) e = std::clamp(e * edge_factor, 0.01, 0.98);
+    const auto [low, high] = std::minmax_element(s->edges.begin(), s->edges.end());
+    const double factor = std::clamp(edge_factor, 0.01 / *low, 0.98 / *high);
+    for (auto& e : s->edges) e *= factor;
     return classical_ref(*s);
 }
 
@@ -168,7 +170,6 @@ LibraryNode build_library(std::string_view equivalent_wavelet, std::size_t level
         const auto ref = classical_ref(spec);
         classic.children.push_back({ref.label(), {}, ref});
     }
-    root.children.push_back(std::move(wavelets));
     root.children.push_back(std::move(classic));
     root.children.push_back(std::move(equivalent));
     root.children.push_back(std::move(chain));
@@ -289,6 +290,19 @@ core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points) {
     return a;
 }
 
+namespace {
+
+void align_unwrapped(core::FrequencyResponse& r, const core::FrequencyResponse& full) {
+    constexpr double pi = std::numbers::pi;
+    if (full.omega.empty() || r.omega.empty()) return;
+    const auto step = full.omega.size() > 1 ? full.omega[1] - full.omega[0] : pi;
+    const auto i = std::min(full.omega.size() - 1, static_cast<std::size_t>(std::max(0.0, std::round(r.omega.front() / step))));
+    const double shift = 2 * pi * std::round((full.phase_unwrapped[i] - r.phase_unwrapped.front()) / (2 * pi));
+    for (auto& p : r.phase_unwrapped) p += shift;
+}
+
+}  // namespace
+
 core::FrequencyResponse range_response(const core::Laurent& h, double lo, double hi, std::size_t points, const core::FrequencyResponse* full) {
     constexpr double pi = std::numbers::pi;
     core::FrequencyResponse r;
@@ -321,12 +335,7 @@ core::FrequencyResponse range_response(const core::Laurent& h, double lo, double
         d -= 2 * pi * std::round(d / (2 * pi));
         r.phase_unwrapped[k] = r.phase_unwrapped[k - 1] + d;
     }
-    if (full && !full->omega.empty() && points > 0) {
-        const auto step = full->omega.size() > 1 ? full->omega[1] - full->omega[0] : pi;
-        const auto i = std::min(full->omega.size() - 1, static_cast<std::size_t>(std::max(0.0, std::round(r.omega.front() / step))));
-        const double shift = 2 * pi * std::round((full->phase_unwrapped[i] - r.phase_unwrapped.front()) / (2 * pi));
-        for (auto& p : r.phase_unwrapped) p += shift;
-    }
+    if (full && points > 0) align_unwrapped(r, *full);
     const double peak = full && !full->magnitude.empty() ? *std::max_element(full->magnitude.begin(), full->magnitude.end())
                                                          : (points ? *std::max_element(r.magnitude.begin(), r.magnitude.end()) : 0.0);
     for (std::size_t k = 0; k < points; ++k)
@@ -482,7 +491,9 @@ void ComparisonSet::request_view(JobRunner& jobs, double lo, double hi, std::siz
                 std::vector<double> omega(points);
                 for (std::size_t k = 0; k < points; ++k)
                     omega[k] = std::numbers::pi * (points > 1 ? lo + (hi - lo) * static_cast<double>(k) / static_cast<double>(points - 1) : lo);
-                r = std::make_shared<const core::FrequencyResponse>(core::zpk_frequency_response(*todo[i].second->zpk, omega));
+                auto view = core::zpk_frequency_response(*todo[i].second->zpk, omega);
+                align_unwrapped(view, todo[i].second->response);
+                r = std::make_shared<const core::FrequencyResponse>(std::move(view));
             } else {
                 r = std::make_shared<const core::FrequencyResponse>(range_response(todo[i].second->h, lo, hi, points, &todo[i].second->response));
             }

@@ -155,6 +155,10 @@ Result<std::vector<double>> remez(const RemezSpec& spec) {
             f += delf;
         } while (f <= fup);
         rz.grid.back() = fup;
+        if (spec.type == RemezType::differentiator) {
+            rz.d.back() = desired * fup;
+            rz.w.back() = desired >= 0.0001 ? weight[band] / fup : weight[band];
+        }
     }
     if ((positive ? 0 : 1) == numtaps % 2 && rz.grid.back() > 0.5 - delf) {
         rz.grid.pop_back();

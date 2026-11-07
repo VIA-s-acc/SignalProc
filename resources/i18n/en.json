@@ -465,7 +465,7 @@
   "tui.filters.col.vm": "VM",
   "tui.filters.col.orth": "orth.",
   "tui.filters.col.linear": "lin.φ",
-  "tui.filters.chip.bands": "PB = [0, π/4] · SB = [3π/4, π] · transition −1…−20 dB",
+  "tui.filters.chip.bands": "PB / SB follow each filter's band · transition −1…−20 dB",
   "tui.filters.measures": "Auto measurements",
   "tui.filters.mouse_hint.wheel": "wheel — zoom ω",
   "tui.filters.mouse_hint.drag": "drag — pan, click — cursor",

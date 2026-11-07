@@ -465,7 +465,7 @@
   "tui.filters.col.vm": "ВМ",
   "tui.filters.col.orth": "орт.",
   "tui.filters.col.linear": "ЛФЧХ",
-  "tui.filters.chip.bands": "ПП = [0, π/4] · ПЗ = [3π/4, π] · переход −1…−20 дБ",
+  "tui.filters.chip.bands": "ПП / ПЗ — по полосе фильтра · переход −1…−20 дБ",
   "tui.filters.measures": "Автоизмерения",
   "tui.filters.mouse_hint.wheel": "колесо — масштаб ω",
   "tui.filters.mouse_hint.drag": "тяни — сдвиг, клик — курсор",

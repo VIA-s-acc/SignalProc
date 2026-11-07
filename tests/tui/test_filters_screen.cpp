@@ -305,3 +305,26 @@ TEST_CASE("a classical IIR filter shows its poles and o, f retune it", "[tui][fi
     REQUIRE(e.analysis->zp);
     CHECK(e.analysis->zp->poles.size() == 5);
 }
+
+TEST_CASE("a classical IIR filter draws its poles and shows its own properties", "[tui][filters][classic]") {
+    using signals::core::BandType;
+    using signals::core::IirFamily;
+    Fixture f;
+    signals::test::Harness h{f.screen, 150, 44};
+    REQUIRE(f.set->add(classical_ref(ClassicalSpec{})));
+    f.set->set_focus(0);
+    h.frame();
+    auto frame = h.frame();
+    std::size_t crosses = 0;
+    for (auto at = frame.find("×"); at != std::string::npos; at = frame.find("×", at + 1)) ++crosses;
+    UNSCOPED_INFO("crosses " << crosses);
+    CHECK(crosses >= 5);
+    CHECK(frame.find("биортогональный") == std::string::npos);
+    CHECK(frame.find("ортогональный") == std::string::npos);
+    f.set->remove(0);
+    REQUIRE(f.set->add(classical_ref(ClassicalSpec{ClassicalSpec::Method::iir, IirFamily::butterworth, BandType::lowpass, 20, {0.01}})));
+    f.set->set_focus(0);
+    h.frame();
+    frame = h.frame();
+    CHECK(frame.find("|H(0)| = 1") != std::string::npos);
+}

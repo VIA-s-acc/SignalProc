@@ -684,13 +684,19 @@ ftxui::Element FiltersScreen::zeros_panel(int rows) {
     const auto& zp = *e->analysis->zp;
     const auto color = color_of(set_->focus());
     Elements list;
-    const auto roots = group_roots(zp.zeros);
+    const auto zero_roots = group_roots(zp.zeros);
+    const auto pole_roots = group_roots(zp.poles);
+    std::vector<std::pair<bool, Root>> roots;
+    for (const auto& r : zero_roots) roots.emplace_back(false, r);
+    for (const auto& r : pole_roots) roots.emplace_back(true, r);
     const int lines = std::max(1, rows - 2);
     const int room = std::max(1, lines - (zp.poles_at_origin > 0 ? 1 : 0));
     const bool clipped = static_cast<int>(roots.size()) > room;
     const auto shown = clipped ? static_cast<std::size_t>(room - 1) : roots.size();
-    for (std::size_t i = 0; i < shown; ++i)
-        list.push_back(hbox({text(ui_.caps.glyphs == GlyphMode::ascii ? "o " : "○ ") | fg(color, ui_), text(root_text(roots[i])) | fg(th.fg, ui_)}));
+    for (std::size_t i = 0; i < shown; ++i) {
+        const auto mark = roots[i].first ? std::string{ui_.caps.glyphs == GlyphMode::ascii ? "x " : "× "} : std::string{ui_.caps.glyphs == GlyphMode::ascii ? "o " : "○ "};
+        list.push_back(hbox({text(mark) | fg(color, ui_), text(root_text(roots[i].second)) | fg(th.fg, ui_)}));
+    }
     if (clipped)
         list.push_back(text(fmt::format(fmt::runtime(tr("tui.filters.more_roots")), fmt::arg("count", roots.size() - shown))) | fg(th.dim, ui_));
     if (zp.poles_at_origin > 0)
@@ -698,7 +704,7 @@ ftxui::Element FiltersScreen::zeros_panel(int rows) {
                                                                    fg(th.fg, ui_)}));
     const int plane = layout_.maximized() ? std::clamp(2 * lines, 8, 2 * lines) : std::clamp(2 * lines, 8, 16);
     return frame_panel(zeros,
-                       hbox({zplane(ZPlaneSpec{zp.zeros, zp.poles_at_origin}, th, ui_.caps.color, ui_.caps.glyphs) | size(WIDTH, EQUAL, plane),
+                       hbox({zplane(ZPlaneSpec{zp.zeros, zp.poles_at_origin, zp.poles}, th, ui_.caps.color, ui_.caps.glyphs) | size(WIDTH, EQUAL, plane),
                              text(" "), vbox(std::move(list))}),
                        {}, tr("tui.filters.zeros"));
 }
@@ -720,28 +726,37 @@ ftxui::Element FiltersScreen::properties_panel() {
     } else {
         rows.push_back(text(fmt::format(fmt::runtime(tr("tui.filters.prop.fir")), fmt::arg("taps", a.h.coeffs.size()))) | fg(th.fg, ui_));
     }
+    const bool classical = a.ref.kind == FilterRef::Kind::classical;
     Elements orth;
-    if (a.orth_error) {
+    if (!classical && a.orth_error) {
         orth.push_back(text(tr("tui.filters.prop.orthogonal")) | fg(th.fg, ui_));
         orth.push_back(mark(*a.orth_error < kCheckTol));
-    } else {
+    } else if (!classical) {
         orth.push_back(text(tr("tui.filters.prop.biorthogonal")) | fg(th.fg, ui_));
     }
-    orth.push_back(text("   " + tr("tui.filters.prop.linear_phase")) | fg(th.fg, ui_));
+    orth.push_back(text((classical ? "" : "   ") + tr("tui.filters.prop.linear_phase")) | fg(th.fg, ui_));
     orth.push_back(mark(a.linear_phase));
     rows.push_back(hbox(std::move(orth)));
-    rows.push_back(text(tr("tui.filters.prop.zeros") + " " + (a.zeros_at_minus_one ? std::to_string(*a.zeros_at_minus_one) : std::string{"—"})) |
-                   fg(th.fg, ui_));
-    rows.push_back(text(tr("tui.filters.prop.sobolev") + " " + (a.sobolev ? format_fixed(*a.sobolev, 3) : std::string{"—"})) | fg(th.fg, ui_));
+    if (!classical) {
+        rows.push_back(text(tr("tui.filters.prop.zeros") + " " + (a.zeros_at_minus_one ? std::to_string(*a.zeros_at_minus_one) : std::string{"—"})) |
+                       fg(th.fg, ui_));
+        rows.push_back(text(tr("tui.filters.prop.sobolev") + " " + (a.sobolev ? format_fixed(*a.sobolev, 3) : std::string{"—"})) | fg(th.fg, ui_));
+    }
     if (a.pr_error)
         rows.push_back(hbox({text(tr("tui.filters.prop.pr") + " " + (*a.pr_error < kRoundOff ? std::string{"< 10⁻¹⁵"} : format_number(*a.pr_error, 2))) | fg(th.fg, ui_), mark(*a.pr_error < kCheckTol)}));
-    double sum = 0, alternating = 0;
-    for (std::size_t k = 0; k < a.h.coeffs.size(); ++k) {
-        sum += a.h.coeffs[k];
-        alternating += ((a.h.offset + static_cast<std::ptrdiff_t>(k)) % 2 == 0 ? 1.0 : -1.0) * a.h.coeffs[k];
-    }
     const auto tiny = [](double v) { return std::abs(v) < 1e-12 ? std::string{"0"} : format_number(v, 4); };
-    rows.push_back(text("Σh = " + tiny(sum) + "   |H(π)| = " + tiny(std::abs(alternating))) | fg(th.fg, ui_));
+    if (a.zpk) {
+        const std::vector<double> ends{0.0, kPi};
+        const auto g = core::zpk_response(*a.zpk, ends);
+        rows.push_back(text("|H(0)| = " + tiny(std::abs(g[0])) + "   |H(π)| = " + tiny(std::abs(g[1]))) | fg(th.fg, ui_));
+    } else {
+        double sum = 0, alternating = 0;
+        for (std::size_t k = 0; k < a.h.coeffs.size(); ++k) {
+            sum += a.h.coeffs[k];
+            alternating += ((a.h.offset + static_cast<std::ptrdiff_t>(k)) % 2 == 0 ? 1.0 : -1.0) * a.h.coeffs[k];
+        }
+        rows.push_back(text("Σh = " + tiny(sum) + "   |H(π)| = " + tiny(std::abs(alternating))) | fg(th.fg, ui_));
+    }
     return frame_panel(properties, vbox(std::move(rows)), {}, tr("tui.filters.properties") + " · " + e->ref.label());
 }
 
