@@ -360,8 +360,7 @@ void DecompositionModel::reconstruct(JobRunner& jobs) {
                                         for (std::size_t level = std::max<std::size_t>(1, processing.first_level); level <= last; ++level) {
                                             auto& band = bands[J + 1 - level];
                                             const double sigma = d->sigma * core::swt_noise_scale(level, d->options.transform == Transform::modwt);
-                                            const double lambda = *processing.rule == core::ShrinkRule::bayes ? core::bayes_threshold(band, sigma)
-                                                                                                             : core::universal_threshold(sigma, n);
+                                            const double lambda = core::rule_threshold(*processing.rule, band, sigma, n);
                                             rec->lambdas.push_back(lambda);
                                             if (sigma > 0) band = core::threshold(band, lambda, processing.mode);
                                         }

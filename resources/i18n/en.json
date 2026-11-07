@@ -783,6 +783,8 @@
   "tui.decomposition.levels": "levels",
   "tui.decomposition.lambda_bayes": "λⱼ = σ² / σₓ,ⱼ",
   "tui.decomposition.lambda_visu": "λ = σ·√(2 ln N)",
+  "tui.decomposition.lambda_sure": "λⱼ minimises the SURE risk per band",
+  "tui.decomposition.lambda_minimax": "λ = σ·(0.3936 + 0.1829·log₂N)",
   "tui.decomposition.compress": "compress",
   "tui.decomposition.keep": "keep",
   "tui.decomposition.coefficients": "coeffs",

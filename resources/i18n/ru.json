@@ -737,6 +737,8 @@
   "tui.decomposition.levels": "уровни",
   "tui.decomposition.lambda_bayes": "λⱼ = σ² / σₓ,ⱼ",
   "tui.decomposition.lambda_visu": "λ = σ·√(2 ln N)",
+  "tui.decomposition.lambda_sure": "λⱼ — минимум риска SURE по полосе",
+  "tui.decomposition.lambda_minimax": "λ = σ·(0,3936 + 0,1829·log₂N)",
   "tui.decomposition.compress": "сжатие",
   "tui.decomposition.keep": "оставить",
   "tui.decomposition.coefficients": "коэфф.",

@@ -124,7 +124,7 @@ public:
         sub_->add_option("-o,--output", output_, tr("cli.output"))->required();
         sub_->add_option("--wavelet", options_.wavelet, tr("cli.wavelet"));
         sub_->add_option("--levels", levels_, tr("cli.denoise.levels"))->check(CLI::Range(1, 64));
-        sub_->add_option("--rule", rule_, tr("cli.denoise.rule"))->check(CLI::IsMember({"bayes", "visu"}));
+        sub_->add_option("--rule", rule_, tr("cli.denoise.rule"))->check(CLI::IsMember({"bayes", "visu", "sure", "minimax"}));
         sub_->add_option("--mode", mode_, tr("cli.denoise.mode"))->check(CLI::IsMember({"soft", "hard", "garrote"}));
         sub_->add_option("--ext", ext_, tr("cli.ext"))->check(CLI::IsMember(kExtensions));
         sub_->add_option("--format", format_, tr("cli.format"))->check(CLI::IsMember({"s16", "s24", "s32", "f32"}));
@@ -139,7 +139,7 @@ public:
         if (!file) return report_error(err, file.error());
         options_.levels = levels_;
         options_.mode = *core::parse_extension(ext_);
-        options_.rule = rule_ == "visu" ? core::ShrinkRule::visu : core::ShrinkRule::bayes;
+        options_.rule = core::parse_shrink_rule(rule_).value_or(core::ShrinkRule::bayes);
         options_.threshold = *core::parse_threshold_mode(mode_);
         const auto bank = core::wavelet(options_.wavelet);
         if (!bank) return report_error(err, bank.error());

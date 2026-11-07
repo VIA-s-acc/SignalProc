@@ -252,7 +252,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"threshold",
                    kCoeffsIn,
                    kCoeffsOut,
-                   {{"rule", Kind::choice, "bayes", {"bayes", "visu"}},
+                   {{"rule", Kind::choice, "bayes", {"bayes", "visu", "sure", "minimax"}},
                     {"mode", Kind::choice, "soft", {"soft", "hard", "garrote"}},
                     {"levels", Kind::range, "1..64"},
                     {"sigma", Kind::sigma, "mad_d1"}},
@@ -260,7 +260,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        Coeffs c = take<Coeffs>(ctx, in, 0);
                        const auto [first, last] = param_range(p, "levels");
                        const auto mode = *core::parse_threshold_mode(param_text(p, "mode"));
-                       const bool bayes = param_text(p, "rule") == "bayes";
+                       const auto rule = core::parse_shrink_rule(param_text(p, "rule")).value_or(core::ShrinkRule::bayes);
                        for (std::size_t ch = 0; ch < c.channels.size(); ++ch) {
                            auto& bands = c.channels[ch].bands;
                            const auto J = bands.size() - 1;
@@ -273,7 +273,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                                const auto level = J + 1 - b;
                                if (level < first || level > last) continue;
                                const double level_sigma = sigma * core::swt_noise_scale(level, c.transform == "swt" && c.norm);
-                               const double t = bayes ? core::bayes_threshold(bands[b], level_sigma) : core::universal_threshold(level_sigma, n);
+                               const double t = core::rule_threshold(rule, bands[b], level_sigma, n);
                                bands[b] = core::threshold(bands[b], t, mode);
                            }
                        }

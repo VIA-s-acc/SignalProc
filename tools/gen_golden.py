@@ -342,7 +342,41 @@ def threshold_json():
               "y": floats(pywt.threshold(x, value, mode, substitute))}
              for mode in ["soft", "hard", "garrote", "greater", "less"] for value in [0.5, 1.5] for substitute in [0, -1]]
     cases.append({"mode": "firm", "low": 1.0, "high": 2.0, "x": floats(x), "y": floats(pywt.threshold_firm(x, 1, 2))})
-    return {"cases": cases}
+    return {"cases": cases, "sure": sure_cases(), "minimax": [{"n": n, "lambda": minimaxi(n)} for n in [1, 16, 32, 33, 1000, 8192]]}
+
+
+def rigrsure(x):
+    n = x.size
+    sx2 = np.sort(np.abs(x)) ** 2
+    risks = (n - 2 * np.arange(1, n + 1) + (np.cumsum(sx2) + np.arange(n - 1, -1, -1) * sx2)) / n
+    return float(np.sqrt(sx2[np.argmin(risks)]))
+
+
+def heursure(x):
+    n = x.size
+    universal = float(np.sqrt(2 * np.log(n)))
+    eta = (np.linalg.norm(x) ** 2 - n) / n
+    crit = np.log2(n) ** 1.5 / np.sqrt(n)
+    return universal if eta < crit else min(rigrsure(x), universal)
+
+
+def minimaxi(n):
+    return 0.0 if n <= 32 else float(0.3936 + 0.1829 * np.log2(n))
+
+
+def sure_cases():
+    rng = np.random.default_rng(3)
+    k = np.arange(512)
+    spikes = np.zeros(512)
+    spikes[[17, 99, 300, 301, 450]] = [2.0, -1.5, 0.8, 0.9, -3.0]
+    bands = {"dense": 0.1 * rng.normal(0, 1, 512) + 0.3 * np.sin(0.05 * k),
+             "noise": 0.05 * rng.normal(0, 1, 512),
+             "sparse": spikes + 0.01 * rng.normal(0, 1, 512),
+             "short": 0.2 * rng.normal(0, 1, 20) + np.linspace(-1, 1, 20),
+             "signal": np.sin(0.2 * k) + 0.02 * rng.normal(0, 1, 512)}
+    sigmas = {"dense": 0.1, "noise": 0.05, "sparse": 0.01, "short": 0.2, "signal": 0.02}
+    return [{"name": name, "sigma": sigmas[name], "x": floats(x), "sure": sigmas[name] * heursure(x / sigmas[name]),
+             "rigrsure": sigmas[name] * rigrsure(x / sigmas[name])} for name, x in bands.items()]
 
 
 def denoise_signals(sample_wav):
@@ -404,6 +438,67 @@ def tables_inc():
     return "\n".join(lines) + "\n"
 
 
+def processing_json(sample_wav):
+    """Inputs and numbers of the canvas «Обработка» (docs/design/gen_screens.py), with the noisy fragment stored."""
+    _, data = scipy.io.wavfile.read(sample_wav)
+    left = data[:, 0].astype(float) / 32768
+    n, levels, wave = 8192, 5, "sym8"
+    clean = left[100_000:100_000 + n]
+    sigma_noise = np.sqrt(np.mean(clean ** 2) / 10)
+    noisy = clean + np.random.default_rng(7).normal(0, sigma_noise, n)
+    coeffs = pywt.wavedec(noisy, wave, level=levels, mode="symmetric")
+    d1 = coeffs[-1]
+    sigma = float(np.median(np.abs(d1[d1 != 0])) / 0.6744897501960817)
+    bayes = [float(sigma ** 2 / np.sqrt(max(np.mean(c ** 2) - sigma ** 2, np.finfo(float).eps))) for c in coeffs[1:]]
+    visu = float(sigma * np.sqrt(2 * np.log(n)))
+
+    def snr(ref, est):
+        return float(10 * np.log10(np.sum(ref ** 2) / np.sum((ref - est) ** 2)))
+
+    combos = {}
+    for rule in ["bayes", "visu"]:
+        for mode in ["soft", "hard"]:
+            for scale in [0.5, 1.0, 2.0]:
+                new, kept = [coeffs[0]], coeffs[0].size
+                for k, c in enumerate(coeffs[1:]):
+                    lam = scale * (bayes[k] if rule == "bayes" else visu)
+                    new.append(pywt.threshold(c, lam, mode))
+                    kept += int(np.count_nonzero(np.abs(c) >= lam))
+                y = pywt.waverec(new, wave, mode="symmetric")[:n]
+                combos[f"{rule}/{mode}/{scale}"] = {"snr_out": snr(clean, y), "kept": kept,
+                                                     "err_db": float(10 * np.log10(np.sum((noisy - y) ** 2) / np.sum(noisy ** 2)))}
+    flat = np.concatenate(coeffs)
+    order = np.argsort(-np.abs(flat), kind="stable")
+    curve = []
+    for k in [1, 10, 100, 1000, int(flat.size)]:
+        keep = np.zeros_like(flat)
+        keep[order[:k]] = flat[order[:k]]
+        parts, at = [], 0
+        for c in coeffs:
+            parts.append(keep[at:at + c.size])
+            at += c.size
+        y = pywt.waverec(parts, wave, mode="symmetric")[:n]
+        curve.append([k, float(10 * np.log10(np.sum((noisy - y) ** 2) / np.sum(noisy ** 2)))])
+    np_, period = 1024, 2 ** levels
+    bins = [4, 16, 64, 200, 400, 511]
+    transfer = {}
+    for key, gains in [("flat", [1, 1, 1, 1, 1, 1]), ("bass", [2, 2, 1.4, 1, 1, 1]), ("notch_d3", [1, 1, 1, 0, 1, 1])]:
+        t_db, a_db = [], []
+        for m in bins:
+            k = np.arange(np_)
+            ys = []
+            for part in (np.cos(2 * np.pi * m * k / np_), np.sin(2 * np.pi * m * k / np_)):
+                c = pywt.wavedec(part, wave, level=levels, mode="periodization")
+                ys.append(pywt.waverec([g * b for g, b in zip(gains, c)], wave, mode="periodization"))
+            spectrum = np.fft.fft(ys[0] + 1j * ys[1]) / np_
+            others = [(m + j * np_ // period) % np_ for j in range(1, period)]
+            t_db.append(float(20 * np.log10(abs(spectrum[m]) + 1e-12)))
+            a_db.append(float(10 * np.log10(np.sum(np.abs(spectrum[others]) ** 2) + 1e-24)))
+        transfer[key] = {"gains": gains, "t_db": t_db, "a_db": a_db}
+    return {"n": n, "levels": levels, "wavelet": wave, "clean": floats(clean), "noisy": floats(noisy), "sigma": sigma,
+            "bayes": bayes, "visu": visu, "snr_in": snr(clean, noisy), "combos": combos, "curve": curve,
+            "bins": bins, "np": np_, "transfer": transfer}
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path)
@@ -421,7 +516,8 @@ def main():
                                ("freqz.json", freqz_json), ("threshold.json", threshold_json),
                                ("denoise.json", lambda: denoise_json(sample_wav)),
                                ("spectral.json", spectral_json), ("swt.json", swt_json),
-                               ("packets.json", packets_json), ("cwt.json", cwt_json)]:
+                               ("packets.json", packets_json), ("cwt.json", cwt_json),
+                               ("processing.json", lambda: processing_json(sample_wav))]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)
