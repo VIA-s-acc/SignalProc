@@ -6,6 +6,8 @@
 #include <regex>
 #include <set>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -93,4 +95,44 @@ TEST_CASE("language names parse in both spellings", "[i18n]") {
     CHECK(signals::parse_language("русский") == Language::ru);
     CHECK_FALSE(signals::parse_language("de"));
     CHECK(signals::language_code(Language::en) == "en");
+}
+
+TEST_CASE("m7b: tr_count picks the Russian form by the last two digits", "[i18n]") {
+    const signals::LanguageScope scope{signals::Language::ru};
+    const std::vector<std::pair<long long, std::string>> cases{{0, "0 полюсов"},  {1, "1 полюс"},     {2, "2 полюса"},     {4, "4 полюса"},
+                                                               {5, "5 полюсов"},  {11, "11 полюсов"}, {12, "12 полюсов"}, {14, "14 полюсов"},
+                                                               {21, "21 полюс"},  {22, "22 полюса"},  {25, "25 полюсов"}, {101, "101 полюс"},
+                                                               {111, "111 полюсов"}};
+    for (const auto& [n, text] : cases) {
+        INFO(n);
+        CHECK(signals::tr_count("unit.pole", n) == text);
+    }
+    CHECK(signals::tr_count("unit.sample", 1234567, "1 234 567") == "1 234 567 отсчётов");
+}
+
+TEST_CASE("m7b: tr_count in English uses one and many", "[i18n]") {
+    const signals::LanguageScope scope{signals::Language::en};
+    CHECK(signals::tr_count("unit.pole", 1) == "1 pole");
+    CHECK(signals::tr_count("unit.pole", 2) == "2 poles");
+    CHECK(signals::tr_count("unit.pole", 21) == "21 poles");
+}
+
+TEST_CASE("m7b: every tr_count key has all three forms", "[i18n]") {
+    const std::filesystem::path root{SIGNALS_SOURCE_DIR};
+    const auto ru = load_dictionary("ru.json");
+    const std::regex literal{R"re(tr_count\("([^"]+)")re"};
+    std::size_t keys = 0;
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(root / "src")) {
+        if (entry.path().extension() != ".cpp") continue;
+        std::ifstream in{entry.path()};
+        const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+        for (std::sregex_iterator it{text.begin(), text.end(), literal}, end; it != end; ++it) {
+            for (const char* form : {".one", ".few", ".many"}) {
+                INFO(entry.path().filename().string() << ": " << (*it)[1].str() << form);
+                CHECK(ru.contains((*it)[1].str() + form));
+            }
+            ++keys;
+        }
+    }
+    CHECK(keys >= 10);
 }

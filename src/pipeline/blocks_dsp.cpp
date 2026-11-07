@@ -276,7 +276,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                            const auto levels = param_int(p, "levels") > 0 ? static_cast<std::size_t>(param_int(p, "levels")) : core::default_levels(ch.size(), bank->length());
                            if (ch.empty()) return core::make_error(core::Errc::invalid_argument, "swt: empty signal");
                            if (levels >= 63 || (std::size_t{1} << levels) > ch.size())
-                               return core::make_error(core::Errc::level_out_of_range, fmt::format(fmt::runtime(tr("pipeline.error.swt_levels")), fmt::arg("levels", levels), fmt::arg("n", ch.size())));
+                               return core::make_error(core::Errc::level_out_of_range, fmt::format(fmt::runtime(tr("pipeline.error.swt_levels")), fmt::arg("levels", tr_count("unit.level", levels)), fmt::arg("n", tr_count("unit.sample", static_cast<long long>(ch.size())))));
                            const std::size_t block = std::size_t{1} << levels;
                            const auto size = (ch.size() + block - 1) / block * block;
                            if (auto ok = checked_length(size, levels + 1); !ok) return std::unexpected{ok.error()};

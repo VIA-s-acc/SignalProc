@@ -773,7 +773,7 @@ ftxui::Element FiltersScreen::properties_panel() {
     auto mark = [&](bool ok) { return text(" " + std::string{glyph(ok ? Glyph::check : Glyph::cross, g)}) | fg(ok ? th.ok : th.err, ui_); };
     Elements rows;
     if (a.zpk) {
-        rows.push_back(hbox({text(fmt::format(fmt::runtime(tr("tui.filters.prop.iir")), fmt::arg("poles", a.zpk->p.size()), fmt::arg("sections", (a.zpk->p.size() + 1) / 2))) |
+        rows.push_back(hbox({text(fmt::format(fmt::runtime(tr("tui.filters.prop.iir")), fmt::arg("poles", tr_count("unit.pole", static_cast<long long>(a.zpk->p.size()))), fmt::arg("sections", tr_count("unit.biquad", static_cast<long long>((a.zpk->p.size() + 1) / 2))))) |
                                  fg(th.fg, ui_),
                              text(" · " + tr(a.stable.value_or(false) ? "tui.filters.stable" : "tui.filters.unstable")) | fg(th.fg, ui_), mark(a.stable.value_or(false))}));
     } else {

@@ -177,7 +177,7 @@ ftxui::Element ResampleScreen::after_panel() {
         for (double k = 1; k * v.fs < v.fs_out / 2 + 1; ++k) spec.x_marks.push_back(k * v.fs);
     if (v.tone_out) spec.cursor_a = *v.tone_out;
     std::vector<Chip> chips;
-    if (!v.copies_db.empty()) chips.push_back({fmt::format(fmt::runtime(tr("tui.resample.copies")), fmt::arg("count", v.copies_db.size())), false});
+    if (!v.copies_db.empty()) chips.push_back({fmt::format(fmt::runtime(tr("tui.resample.copies")), fmt::arg("count", tr_count("unit.copy", static_cast<long long>(v.copies_db.size())))), false});
     return panel(tr("tui.resample.after") + " · fs′ = " + hz(v.fs_out), chips, plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex, false, ui_);
 }
 
@@ -208,7 +208,7 @@ ftxui::Element ResampleScreen::readouts() {
                            fg(th.fg, ui_));
     }
     if (options_.filter == AntiAlias::on && v.taps > 1)
-        rows.push_back(text(fmt::format(fmt::runtime(tr("tui.resample.filter_line")), fmt::arg("taps", v.taps), fmt::arg("db", format_fixed(v.aa_attenuation_db, 1)))) | fg(th.fg, ui_));
+        rows.push_back(text(fmt::format(fmt::runtime(tr("tui.resample.filter_line")), fmt::arg("taps", tr_count("unit.tap", static_cast<long long>(v.taps))), fmt::arg("db", format_fixed(v.aa_attenuation_db, 1)))) | fg(th.fg, ui_));
     else
         rows.push_back(text(tr("tui.resample.filter_off_line")) | fg(th.warn, ui_));
     rows.push_back(text(v.up > 1 && v.down == 1 ? "Y(ω) = X(Lω) — L − 1 " + tr("tui.resample.images") : "Y(ω) = (1/M) Σₖ X((ω − 2πk)/M)") | fg(th.dim, ui_));

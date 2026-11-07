@@ -263,7 +263,7 @@ void SpectrumModel::compute(JobRunner& jobs) {
         done_ = gen;
         if (!r) {
             if (r.error().code != core::Errc::cancelled)
-                error_ = fmt::format(fmt::runtime(tr("tui.spectrum.too_short")), fmt::arg("n", opts.n), fmt::arg("frames", x.size()));
+                error_ = fmt::format(fmt::runtime(tr("tui.spectrum.too_short")), fmt::arg("n", opts.n), fmt::arg("frames", tr_count("unit.sample", static_cast<long long>(x.size()))));
             return;
         }
         data_ = std::move(d);

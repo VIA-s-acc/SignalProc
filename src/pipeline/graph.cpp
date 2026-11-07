@@ -237,7 +237,7 @@ private:
         const bool ok = s.band[0] == 'a' ? level == *j : level >= 1 && level <= *j;
         if (!ok)
             fail(ref.line, ref.column,
-                 say("pipeline.graph.bad_band", fmt::arg("node", ref.node), fmt::arg("band", s.band), fmt::arg("levels", *j), fmt::arg("last", "d" + std::to_string(*j))));
+                 say("pipeline.graph.bad_band", fmt::arg("node", ref.node), fmt::arg("band", s.band), fmt::arg("levels", tr_count("unit.level", *j)), fmt::arg("last", "d" + std::to_string(*j))));
     }
 
     void check_bands() const {

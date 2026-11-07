@@ -44,8 +44,7 @@ bool converges(double sobolev) { return std::isfinite(sobolev) && sobolev > 1e-6
 
 std::string iterations_title(int n, bool dual) {
     if (dual) return tr("tui.designer.phi_dual");
-    const bool few = n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14);
-    return fmt::format(fmt::runtime(tr(few ? "tui.designer.phi_few" : "tui.designer.phi_many")), fmt::arg("n", n));
+    return fmt::format(fmt::runtime(tr("tui.designer.phi_many")), fmt::arg("n", tr_count("unit.iteration", n)));
 }
 
 }  // namespace
@@ -157,7 +156,7 @@ ftxui::Element DesignerScreen::splits_panel(const DesignerData* d, int max_rows)
     if (!d) return frame_panel(splits, text(tr("tui.designer.computing")) | fg(th.dim, ui_), {}, tr("tui.designer.splits"));
     const auto& s = model_->split();
     auto& jobs = *ui_.jobs;
-    Elements rows{text(fmt::format(fmt::runtime(tr("tui.designer.count")), fmt::arg("n", d->rows.size()), fmt::arg("w", d->wavelet_rows))) |
+    Elements rows{text(fmt::format(fmt::runtime(tr("tui.designer.count")), fmt::arg("n", tr_count("unit.variant", static_cast<long long>(d->rows.size()))), fmt::arg("w", d->wavelet_rows))) |
                       fg(th.dim, ui_),
                   text(tr("tui.designer.header")) | fg(th.dim, ui_)};
     const std::string full = ascii ? "*" : "●", hollow = ascii ? "o" : "○";

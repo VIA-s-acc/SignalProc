@@ -295,7 +295,7 @@ TEST_CASE("a classical IIR filter shows its poles and o, f retune it", "[tui][fi
     h.frame();
     auto frame = h.frame();
     CHECK(frame.find("Баттерворт ФНЧ 4") != std::string::npos);
-    CHECK(frame.find("БИХ: 4 полюсов") != std::string::npos);
+    CHECK(frame.find("БИХ: 4 полюса, 2 биквада") != std::string::npos);
     h.send(ftxui::Event::Character('o'));
     h.frame();
     CHECK(f.set->entries()[0].ref.label() == "Баттерворт ФНЧ 5 · 0,25π");

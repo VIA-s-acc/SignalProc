@@ -55,7 +55,7 @@ TEST_CASE("the resampling view folds a tone and reports where it lands", "[tui][
     frame = h.frame();
     CHECK(f.screen->options().filter == AntiAlias::bypass);
     CHECK(frame.find("складывается на 5") != std::string::npos);
-    CHECK(frame.find("4 копий") != std::string::npos);
+    CHECK(frame.find("4 копии") != std::string::npos);
     h.send(ftxui::Event::Character('m'));
     frame = h.frame();
     CHECK(f.screen->options().mode == ResampleMode::up);

@@ -140,7 +140,7 @@ int run_design(int p, bool json, std::ostream& out, std::ostream& err) {
         out << nlohmann::json{{"p", p}, {"splits", splits}, {"wavelets", wavelets}, {"skipped", skipped}}.dump(2) << '\n';
         return 0;
     }
-    out << fmt::format(fmt::runtime(tr("design.header")), fmt::arg("p", p), fmt::arg("count", rows.size()), fmt::arg("wavelets", wavelets)) << '\n';
+    out << fmt::format(fmt::runtime(tr("design.header")), fmt::arg("p", p), fmt::arg("count", tr_count("unit.split", static_cast<long long>(rows.size()))), fmt::arg("wavelets", wavelets)) << '\n';
     for (const auto& r : rows) out << r << '\n';
     if (skipped > 0) out << fmt::format(fmt::runtime(tr("design.skipped")), fmt::arg("count", skipped)) << '\n';
     return 0;

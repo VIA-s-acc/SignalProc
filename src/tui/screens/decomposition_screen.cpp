@@ -796,7 +796,7 @@ ftxui::Element DecompositionScreen::summary_panel(const DecompositionData& d, co
             included += (included.empty() ? "" : ", ") + part;
             i = j + 1;
         }
-    if (off == 0) included = fmt::format(fmt::runtime(tr("tui.decomposition.all_bands")), fmt::arg("n", d.bands.size()));
+    if (off == 0) included = fmt::format(fmt::runtime(tr("tui.decomposition.all_bands")), fmt::arg("n", tr_count("unit.band", static_cast<long long>(d.bands.size()))));
     const bool pr_ok = d.pr_error < 1e-9;
     const auto pr_text = d.pr_error < 1e-14 ? std::string{"< 10⁻¹⁴"} : format_number(d.pr_error, 2);
     Elements rows{hbox({label("tui.decomposition.in_synthesis"), paragraph(included) | fg(th.fg, ui_) | flex}),
@@ -875,7 +875,7 @@ ftxui::Element DecompositionScreen::OnRender() {
     }
     auto chip_text = tr(chip_key);
     if (scalogram && scalogram->decimation > 1)
-        chip_text += " · " + fmt::format(fmt::runtime(tr("tui.decomposition.chip.decimated")), fmt::arg("m", scalogram->decimation));
+        chip_text += " · " + fmt::format(fmt::runtime(tr("tui.decomposition.chip.decimated")), fmt::arg("m", tr_count("unit.times", static_cast<long long>(scalogram->decimation))));
     const std::vector<Chip> view_chips{{chip_text, false}};
     const bool small = breakpoint_ <= Breakpoint::small || maximized_;
     const int main_width = small ? cols : cols - kRightWidth - 1;
