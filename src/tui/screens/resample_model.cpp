@@ -44,6 +44,12 @@ double at_frequency(const std::vector<double>& f, const std::vector<double>& p, 
 
 }  // namespace
 
+FilterPanel filter_panel(const ResampleView& v) {
+    if (v.down > v.up) return FilterPanel::before;
+    if (v.up > 1) return FilterPanel::after;
+    return FilterPanel::none;
+}
+
 double folded_frequency(double f, double fs_out) {
     f = std::abs(f);
     if (!(fs_out > 0)) return f;
@@ -126,7 +132,8 @@ core::Result<ResampleView> compute_resample(const ResampleOptions& o, std::span<
     if (o.mode == ResampleMode::down && o.filter == AntiAlias::bypass && v.down > 1) {
         for (std::size_t k = 0; k < v.down; ++k) {
             std::vector<double> copy;
-            for (const double f : v.f_out) copy.push_back(db(at_frequency(v.f_in, in->second, folded_frequency(f + static_cast<double>(k) * v.fs_out, fs)), ref));
+            for (const double f : v.f_out)
+                copy.push_back(db(at_frequency(v.f_in, in->second, folded_frequency(f + static_cast<double>(k) * v.fs_out, fs)) / static_cast<double>(v.down), ref));
             v.copies_db.push_back(std::move(copy));
         }
     }
