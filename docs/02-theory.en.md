@@ -234,7 +234,21 @@ Analysis $H_k(z)=\sum_pE_{k,p}(z^M)z^{-p}$ gives the $M\times M$ polyphase matri
 
 ### 3.8. Time stretching without pitch change is a different operation [v2] {#multirate-time-stretch}
 
-Resampling changes both the duration and the pitch (like playback at a different speed). The tempo can be changed without changing the pitch only through analysis–modification–synthesis: the **phase vocoder** (STFT with different analysis and synthesis hops and recomputed phases; the "phasiness" artifact is cured by phase locking — Laroche–Dolson 1999) or **WSOLA** (in the time domain: overlap-add of segments chosen by waveform similarity — Verhelst–Roelands 1993). This is not a multirate filter-bank operation and is not part of the core.
+Resampling changes both the duration and the pitch (like playback at a different speed). The tempo can be changed without changing the pitch only through analysis–modification–synthesis: the **phase vocoder** (STFT with different analysis and synthesis hops and recomputed phases; the "phasiness" artifact is cured by phase locking — Laroche–Dolson 1999) or **WSOLA** (in the time domain: overlap-add of segments chosen by waveform similarity — Verhelst–Roelands 1993). This is not a multirate filter-bank operation: every frame is synthesised anew.
+
+The vocoder takes output frame $j$ from the input point $t_j = j\,r$ ($r$ is how many times faster), interpolates the magnitudes of the neighbouring frames and accumulates their phase difference, and synthesises with the same hop $R$ — the duration divides by $r$ while the period inside a frame stays:
+
+$$\varphi(j,k) = \varphi(j-1,k) + \arg X(i_{j-1}+1,k) - \arg X(i_{j-1},k), \qquad i_j = \lfloor t_j \rfloor$$
+
+A pitch shift by $n$ semitones is a stretch with $r = 2^{-n/12}$ followed by resampling by $r$: the duration returns and every frequency is multiplied by $2^{n/12}$. In the program these are the blocks `time_stretch`, `pitch_shift` and `speed` and the view «Spectrum ▸ Tone and time».
+
+### 3.9. Fundamental frequency: YIN [v2] {#pitch-yin}
+
+The pitch of a periodic sound is set by its period $T_0 = 1/f_0$. Autocorrelation looks for it as the maximum of $r(\tau)$ but easily errs by an octave: the peak at $2T_0$ is no lower. YIN (de Cheveigné–Kawahara 2002) takes the difference function of a frame of length $W$ and normalises it by its mean over smaller lags:
+
+$$d(\tau) = \sum_{j=0}^{W-1} \big(x[j] - x[j+\tau]\big)^2, \qquad d'(\tau) = \frac{\tau\, d(\tau)}{\sum_{s=1}^{\tau} d(s)}, \quad d'(0) = 1$$
+
+The period is the first $\tau$ where $d'(\tau)$ drops below the threshold $\theta$ (usually 0.1–0.15), moved to the nearest minimum and refined by a parabola through three points; $f_0 = f_s/\hat\tau$. If $d'$ never drops below the threshold the frame is unvoiced. Lags are limited to $[f_s/f_{\max},\ f_s/f_{\min}]$, and the frame must hold the window $W$ and $\tau_{\max}$.
 
 ---
 

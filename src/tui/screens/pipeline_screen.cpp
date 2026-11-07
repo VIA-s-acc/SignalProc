@@ -62,7 +62,7 @@ std::optional<TheoryLink> PipelineScreen::theory_link() const {
         {"preemphasis", "fir_design"}, {"deemphasis", "iir_design"}, {"add", "filter_bank"}, {"multiply", "gain"},   {"invert", "gain"},
         {"pad", "delay"},          {"concat", "cut"},            {"trim_silence", "cut"},   {"merge", "split"},       {"swap", "split"},
         {"duplicate", "split"},    {"pan", "mixdown"},           {"add_noise", "snr"},      {"dc_offset", "remove_dc"}, {"stats", "band_energy"},
-        {"loudness", "band_energy"}};
+        {"loudness", "band_energy"}, {"pitch_shift", "time_stretch"}, {"speed", "time_stretch"}};
     if (n->type->id == "swt" || n->type->id == "iswt") return TheoryLink{TheoryLink::Kind::section, "swt-modwt", block_name(n->type->id)};
     const auto it = cards.find(n->type->id);
     return TheoryLink{TheoryLink::Kind::card, it == cards.end() ? n->type->id : it->second, block_name(n->type->id)};
