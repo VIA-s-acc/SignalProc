@@ -185,25 +185,25 @@ ftxui::Element MatrixScreen::checks_panel(const MatrixData* d) {
         const bool ok = v && *v <= tol;
         return text(" " + std::string{glyph(ok ? Glyph::check : Glyph::cross, ui_.caps.glyphs)}) | fg(ok ? th.ok : th.err, ui_);
     };
-    if (d->orth_error) rows.push_back(hbox({text("‖AᵀA − I‖max = " + check_value(d->orth_error)), mark(d->orth_error, 1e-12)}));
+    if (d->orth_error) rows.push_back(hbox({paragraph("‖AᵀA − I‖max = " + check_value(d->orth_error)) | flex, mark(d->orth_error, 1e-12)}));
     if (d->transpose_error) {
-        if (*d->transpose_error < 1e-12) rows.push_back(text("S = Aᵀ " + tr("tui.matrix.orthogonal_bank")) | fg(th.fg, ui_));
-        else rows.push_back(text("‖S − Aᵀ‖ = " + check_value(d->transpose_error)) | fg(th.fg, ui_));
+        if (*d->transpose_error < 1e-12) rows.push_back(paragraph("S = Aᵀ " + tr("tui.matrix.orthogonal_bank")) | fg(th.fg, ui_));
+        else rows.push_back(paragraph("‖S − Aᵀ‖ = " + check_value(d->transpose_error)) | fg(th.fg, ui_));
     }
-    if (d->left_inverse_error) rows.push_back(hbox({text("‖S·A·x − x‖ = " + check_value(d->left_inverse_error)), mark(d->left_inverse_error, 1e-12)}));
-    if (d->dct_error) rows.push_back(hbox({text(fmt::format(fmt::runtime(tr("tui.matrix.dct_check")), fmt::arg("value", check_value(d->dct_error)))), mark(d->dct_error, 1e-12)}));
+    if (d->left_inverse_error) rows.push_back(hbox({paragraph("‖S·A·x − x‖ = " + check_value(d->left_inverse_error)) | flex, mark(d->left_inverse_error, 1e-12)}));
+    if (d->dct_error) rows.push_back(hbox({paragraph(fmt::format(fmt::runtime(tr("tui.matrix.dct_check")), fmt::arg("value", check_value(d->dct_error)))) | flex, mark(d->dct_error, 1e-12)}));
     if (d->levinson_error)
-        rows.push_back(hbox({text(fmt::format(fmt::runtime(tr("tui.matrix.levinson_check")), fmt::arg("value", check_value(d->levinson_error)))), mark(d->levinson_error, 1e-10)}));
+        rows.push_back(hbox({paragraph(fmt::format(fmt::runtime(tr("tui.matrix.levinson_check")), fmt::arg("value", check_value(d->levinson_error)))) | flex, mark(d->levinson_error, 1e-10)}));
     if (!d->singular.empty())
-        rows.push_back(text(fmt::format(fmt::runtime(tr("tui.matrix.singular")), fmt::arg("hi", format_number(d->singular.front())),
+        rows.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.matrix.singular")), fmt::arg("hi", format_number(d->singular.front())),
                                         fmt::arg("lo", format_number(d->singular.back())), fmt::arg("cond", format_number(d->cond)))) |
                        fg(th.fg, ui_));
     rows.push_back(separator() | fg(th.dim, ui_));
     if (!d->square && (d->options.op == MatrixOp::analysis || d->options.op == MatrixOp::multilevel)) {
-        rows.push_back(text(fmt::format(fmt::runtime(tr("tui.matrix.nonsquare_head")), fmt::arg("mode", core::to_string(d->options.mode)),
+        rows.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.matrix.nonsquare_head")), fmt::arg("mode", core::to_string(d->options.mode)),
                                         fmt::arg("wavelet", d->options.wavelet))) |
                        fg(th.dim, ui_));
-        for (const char* key : {"tui.matrix.nonsquare1", "tui.matrix.nonsquare2", "tui.matrix.nonsquare3"}) rows.push_back(text(tr(key)) | fg(th.warn, ui_));
+        for (const char* key : {"tui.matrix.nonsquare1", "tui.matrix.nonsquare2", "tui.matrix.nonsquare3"}) rows.push_back(paragraph(tr(key)) | fg(th.warn, ui_));
     }
     return frame_panel(checks, vbox(std::move(rows)), {}, tr("tui.matrix.checks"));
 }
@@ -250,7 +250,7 @@ ftxui::Element MatrixScreen::row_info(const MatrixData& d) {
     out.push_back(text("x[n] = round(8·sin(2πn/16) + n/2)") | fg(th.dim, ui_));
     out.push_back(text(tr("tui.matrix.note1")) | fg(th.dim, ui_));
     out.push_back(text(tr("tui.matrix.note2")) | fg(th.dim, ui_));
-    if (!notice_.empty()) out.push_back(text(notice_) | fg(th.accent, ui_));
+    if (!notice_.empty()) out.push_back(paragraph(notice_) | fg(th.accent, ui_));
     return vbox(std::move(out));
 }
 
@@ -395,6 +395,7 @@ ftxui::Element MatrixScreen::origin_panel(const MatrixData* d, int width) {
     }
     auto body = stacked ? vbox({vbox(std::move(left)), text(""), vbox(std::move(right))})
                         : hbox({vbox(std::move(left)), text("   "), vbox(std::move(right)) | flex});
+    body = body | focusPositionRelative(0.f, static_cast<float>(origin_scroll_)) | vscroll_indicator | yframe | flex;
     return frame_panel(origin, body, {{tr("tui.matrix.origin_chip"), false}}, tr("tui.matrix.origin"));
 }
 
@@ -456,6 +457,10 @@ bool MatrixScreen::OnEvent(ftxui::Event e) {
         const auto& m = e.mouse();
         using ftxui::Mouse;
         if (spectrum_ && sigma_zoom_.on_mouse(m)) return true;
+        if ((m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) && panel_boxes_[origin].Contain(m.x, m.y)) {
+            origin_scroll_ = std::clamp(origin_scroll_ + (m.button == Mouse::WheelDown ? 0.1 : -0.1), 0.0, 1.0);
+            return true;
+        }
         if (spectrum_ && m.button == Mouse::Left && m.motion == Mouse::Pressed) sigma_zoom_.press(m.x, m.y);
         if ((m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) && d && d->m.size() > 0 && matrix_box_.Contain(m.x, m.y)) {
             const double f = m.button == Mouse::WheelUp ? kWheelStep : 1 / kWheelStep;
@@ -510,6 +515,10 @@ bool MatrixScreen::OnEvent(ftxui::Event e) {
                 return true;
             }
         return false;
+    }
+    if (focus_ == origin && (e == Event::PageDown || e == Event::PageUp || e == Event::Home || e == Event::End)) {
+        origin_scroll_ = e == Event::Home ? 0.0 : e == Event::End ? 1.0 : std::clamp(origin_scroll_ + (e == Event::PageDown ? 0.25 : -0.25), 0.0, 1.0);
+        return true;
     }
     if (e == Event::Character('z')) {
         maximized_ = maximized_ ? std::nullopt : std::optional<Panel>{focus_};
@@ -623,6 +632,8 @@ void MatrixScreen::open_with(const NavArgs& args) {
 ftxui::Box MatrixScreen::area(std::string_view id) const {
     if (id == "sigma_plot") return sigma_zoom_.box("sigma");
     if (id == "matrix") return matrix_box_;
+    if (id == "origin_panel") return panel_boxes_[origin];
+    if (id == "checks_panel") return panel_boxes_[checks];
     for (const auto& c : clickables_)
         if (c.id == id) return c.box;
     return kNoBox;

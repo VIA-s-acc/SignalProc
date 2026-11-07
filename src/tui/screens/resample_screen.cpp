@@ -141,7 +141,7 @@ ftxui::Element ResampleScreen::controls() {
     second.push_back(chip(tr("tui.resample.source.sweep"), o.source == ResampleSource::sweep, set([](ResampleOptions& p) { p.source = ResampleSource::sweep; })));
     second.push_back(chip(tr("tui.resample.source.file"), o.source == ResampleSource::file, set([](ResampleOptions& p) { p.source = ResampleSource::file; })));
     Elements body{hbox(std::move(first)) | xflex, hbox(std::move(second)) | xflex};
-    if (!notice_.empty()) body.push_back(text(notice_) | fg(th.warn, ui_));
+    if (!notice_.empty()) body.push_back(paragraph(notice_) | fg(th.warn, ui_));
     std::string title = tr("tui.resample.title");
     if (view_) title += fmt::format(" · {} → {}", hz(view_->fs), hz(view_->fs_out));
     return frame(controls_panel, title, {}, vbox(std::move(body)));

@@ -319,7 +319,7 @@ ftxui::Element ProcessingScreen::listen_body() {
                                         fmt::arg("to", format_fixed(from + span, 2)))) |
                        fg(th.dim, ui_));
     }
-    if (!notice_.empty()) rows.push_back(text(notice_) | fg(th.warn, ui_));
+    if (!notice_.empty()) rows.push_back(paragraph(notice_) | fg(th.warn, ui_));
     return vbox(std::move(rows));
 }
 

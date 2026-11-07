@@ -254,3 +254,14 @@ TEST_CASE("the singular spectrum zooms with the wheel and resets with 0", "[tui]
     f.h.frame();
     CHECK(f.screen->plot_view("sigma")->hi - f.screen->plot_view("sigma")->lo == full->hi - full->lo);
 }
+
+TEST_CASE("the origin panel scrolls with the wheel when its text does not fit", "[tui][matrix][scroll]") {
+    MatrixFixture f{120, 40};
+    auto frame = f.h.frame();
+    const auto box = f.screen->area("origin_panel");
+    REQUIRE(box.x_max > box.x_min);
+    CHECK(frame.find("Левинсон — O(N²)") == std::string::npos);
+    for (int k = 0; k < 20; ++k) f.h.wheel((box.x_min + box.x_max) / 2, (box.y_min + box.y_max) / 2, false);
+    frame = f.h.frame();
+    CHECK(frame.find("Левинсон — O(N²)") != std::string::npos);
+}

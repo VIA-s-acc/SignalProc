@@ -18,6 +18,7 @@
 #include "tui/shell/palette.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/widgets/screen_util.hpp"
+#include "tui/widgets/text_util.hpp"
 
 namespace signals::tui {
 namespace {
@@ -331,12 +332,12 @@ ftxui::Element TheoryScreen::card_panel(const TheoryPage* p, int width, int heig
     auto title = (s.number.empty() ? std::string{} : s.number + " ") + card->title + "  {#" + s.id + "}";
     if (!s.tier.empty()) title += "  [" + s.tier + "]";
     const int inner = std::max(10, width - 4);
-    visible_rows_ = std::max(1, height - 2 - (notice_.empty() ? 0 : 1));
+    visible_rows_ = std::max(1, height - 2 - (notice_.empty() ? 0 : static_cast<int>(wrap_words(notice_, inner).size())));
     card_blocks_ = theory::parse_markdown(card_markdown(*card, p->values && !p->values->empty()));
     clamp_scroll();
     DocumentSpec spec{card_blocks_, inner, scroll_, hscroll_, glyphs_, focused_link_, p->values.get(), "─", visible_rows_};
     Elements body{document(spec, ui_, &doc_) | reflect(doc_box_) | flex};
-    if (!notice_.empty()) body.push_back(text(notice_) | fg(th.warn, ui_));
+    if (!notice_.empty()) body.push_back(paragraph(notice_) | fg(th.warn, ui_));
     clamp_scroll();
     return panel(title, {{tr("tui.theory.chip.links"), false}}, vbox(std::move(body)), !searching_ && !contents_keys(), ui_);
 }

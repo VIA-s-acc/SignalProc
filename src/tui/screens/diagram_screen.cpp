@@ -214,7 +214,7 @@ ftxui::Element DiagramScreen::diagram_panel(int width) {
             body.push_back(hbox({std::move(status), text(" · ") | fg(th.dim, ui_), std::move(mults)}));
         }
     }
-    if (!notice_.empty()) body.push_back(text(notice_) | fg(th.warn, ui_));
+    if (!notice_.empty()) body.push_back(paragraph(notice_) | fg(th.warn, ui_));
     std::vector<Item> banks;
     for (std::size_t i = 0; i < kBanks.size(); ++i)
         banks.push_back({i == 0 ? tr("tui.diagram.designer") : std::string{kBanks[i]}, [this, i] { bank_ = i; }, bank_ == i});
@@ -331,7 +331,7 @@ ftxui::Element DiagramScreen::OnRender() {
     auto top = diagram_panel(cols);
     const bool compact = cols < (polyphase_ ? 104 : 90);
     const int top_rows = (polyphase_ ? 5 : 7) + (result_ && length() <= kNumbersOverWires && !compact ? 2 : 0) + (result_ ? (compact ? 2 : 1) : 0) +
-                         (notice_.empty() ? 0 : 1) + 4;
+                         (notice_.empty() ? 0 : static_cast<int>(wrap_words(notice_, std::max(8, cols - 4)).size())) + 4;
     auto bottom = probe_panel(cols, std::max(4, rows - 3 - top_rows));
     return vbox({std::move(top), std::move(bottom) | flex});
 }

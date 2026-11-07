@@ -256,7 +256,7 @@ ftxui::Element DesignerScreen::result_panel(const DesignerResult* r, int) {
     Elements rows{hbox({text("h₀ ") | fg(th.trace[0], ui_), paragraph(coefficients(h0)) | fg(th.fg, ui_) | flex}),
                   hbox({text("f₀ ") | fg(tint(th.trace[0], th.fg, 0.5), ui_), paragraph(coefficients(f0)) | fg(th.fg, ui_) | flex}),
                   text(tr("tui.designer.convention")) | fg(th.dim, ui_), line(checks, ui_), text(note) | fg(th.dim, ui_)};
-    if (!notice_.empty()) rows.push_back(text(notice_) | fg(th.accent, ui_));
+    if (!notice_.empty()) rows.push_back(paragraph(notice_) | fg(th.accent, ui_));
     const auto chip = fmt::format(fmt::runtime(tr("tui.designer.lengths")), fmt::arg("delay", r->delay ? std::to_string(*r->delay) : "—"),
                                   fmt::arg("h", h0.coeffs.size()), fmt::arg("f", f0.coeffs.size()));
     return frame_panel(result, vbox(std::move(rows)), {{chip, false}}, tr("tui.designer.result") + " · " + r->title);

@@ -91,6 +91,7 @@ private:
     std::optional<Panel> maximized_;
     AxisZoom row_zoom_, col_zoom_;
     PlotZoom sigma_zoom_;
+    double origin_scroll_ = 0;
     Block block_;
     bool drag_ = false;
     int drag_x_ = 0, drag_y_ = 0;

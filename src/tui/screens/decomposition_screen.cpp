@@ -774,7 +774,7 @@ ftxui::Element DecompositionScreen::listen_panel(const DecompositionData& d) {
                   hbox({text(bar(d.duration() > 0 ? pos / d.duration() : 0, 22, ui_.caps.glyphs)) | fg(th.accent, ui_),
                         text(" " + format_fixed(pos, 2) + " " + tr("unit.s")) | fg(th.dim, ui_)}),
                   text(tr("tui.decomposition.shared_cursor")) | fg(th.dim, ui_)};
-    if (!notice_.empty()) rows.push_back(text(notice_) | fg(th.warn, ui_));
+    if (!notice_.empty()) rows.push_back(paragraph(notice_) | fg(th.warn, ui_));
     if (auto e = model_->error()) rows.push_back(text(*e) | fg(th.err, ui_));
     else if (model_->cancelled()) rows.push_back(text(tr("tui.decomposition.cancelled")) | fg(th.warn, ui_));
     return frame_panel(listen, vbox(std::move(rows)), {}, tr("tui.decomposition.listen"));
