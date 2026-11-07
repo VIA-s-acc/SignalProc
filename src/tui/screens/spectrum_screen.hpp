@@ -71,6 +71,7 @@ private:
     double time_at(int x) const;
     double freq_at(int y) const;
     double nyquist() const;
+    bool log_view() const;
     void set_n(std::size_t n);
 
     UiContext& ui_;

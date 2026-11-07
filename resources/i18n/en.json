@@ -174,6 +174,7 @@
   "tui.spectrum.theory": "Theory",
   "tui.spectrum.theory_chip": "F1",
   "tui.spectrum.theory_text": "Leakage: a finite window smears a tone over neighbouring bins. Hann's main lobe is 4 bins wide, its side lobes stay below −31 dB. Δt·Δf ≥ 1/4π: a long window sees the tone, a short one the hit in time. Zero padding makes the grid denser but does not raise the resolution.",
+  "tui.spectrum.cancelled": "Cancelled — press r to compute again",
   "tui.spectrum.job": "Spectrogram, N = {n}",
   "tui.spectrum.stage.stft": "STFT frames",
   "tui.spectrum.too_short": "The window N = {n} is longer than the signal ({frames} samples): lower N with W",

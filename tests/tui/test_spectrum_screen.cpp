@@ -3,10 +3,13 @@
 #include <chrono>
 #include <memory>
 #include <sstream>
+#include <cmath>
+#include <numbers>
 #include <string>
 
 #include <ftxui/component/event.hpp>
 
+#include "io/wav.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/spectrum_screen.hpp"
@@ -144,4 +147,37 @@ TEST_CASE("the spectrum fits a small terminal", "[tui][spectrum]") {
     const auto [x, y] = f.point(0.5, 0.5);
     f.h.click(x, y);
     CHECK(f.screen->cursor());
+}
+
+TEST_CASE("a very low sample rate falls back to the linear axis", "[tui][spectrum][review]") {
+    signals::core::AudioBuffer low;
+    low.sample_rate = 50;
+    low.channels.emplace_back(5000);
+    for (std::size_t k = 0; k < 5000; ++k) low.channels[0][k] = 0.5 * std::sin(2 * std::numbers::pi * 5 * static_cast<double>(k) / 50);
+    const auto path = signals::test::temp_path("spectrum-50hz.wav");
+    REQUIRE(signals::io::write_wav(path, low, {}));
+    SpectrumFixture f;
+    f.signal->open(path, f.jobs);
+    auto o = f.model->options();
+    o.n = 256;
+    f.model->set_options(o, f.jobs);
+    f.h.frame();
+    REQUIRE(f.model->spectrogram());
+    const auto [x, y] = f.point(0.5, 0.0);
+    f.h.click(x, y);
+    REQUIRE(f.screen->cursor());
+    CHECK(f.screen->cursor()->second <= 25.0);
+    CHECK(f.screen->cursor()->second > 15.0);
+}
+
+TEST_CASE("Esc after a selection restores the whole file", "[tui][spectrum][review]") {
+    SpectrumFixture f;
+    const auto [x0, y0] = f.point(0.3, 0.5);
+    const auto [x1, y1] = f.point(0.5, 0.5);
+    f.h.drag(x0, y0, x1, y1, true);
+    REQUIRE(f.model->selection());
+    CHECK(f.model->selection()->t0 > 0);
+    f.h.send(ftxui::Event::Escape);
+    REQUIRE(f.model->selection());
+    CHECK(f.model->selection()->t0 == 0);
 }
