@@ -228,3 +228,18 @@ TEST_CASE("in English the palette shows and finds English commands", "[tui][pale
     r.h.send(ftxui::Event::Return);
     CHECK(r.ui->theme.name == "light");
 }
+
+TEST_CASE("text prompts keep a space between the prompt and the typed value", "[tui][palette]") {
+    auto ui = signals::test::make_ui(150, 44);
+    for (const auto& [prompt, shown] : {std::pair{std::string{"сохранить .sig как"}, std::string{"сохранить .sig как: out.sig"}},
+                                        std::pair{std::string{"gain.db"}, std::string{"gain.db: out.sig"}},
+                                        std::pair{std::string{"Имя банка: "}, std::string{"Имя банка: out.sig"}}}) {
+        INFO(prompt);
+        Palette p;
+        p.ask_text(prompt, "", [](std::string) {});
+        p.on_event(ftxui::Event::Character("out.sig"));
+        const auto frame = signals::test::render_text(p.render(*ui), 80, 6);
+        CHECK(frame.find(shown) != std::string::npos);
+        CHECK(frame.find("Enter — открыть") == std::string::npos);
+    }
+}

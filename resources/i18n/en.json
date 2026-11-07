@@ -248,7 +248,7 @@
   "tui.hint.resources": "resources",
   "tui.palette.title": "Commands",
   "tui.palette.keys": "↑↓ select · Enter run · Esc close",
-  "tui.palette.path_hint": "Enter — open · Esc — cancel",
+  "tui.palette.path_hint": "Enter — done · Esc — cancel",
   "tui.cmd.tab": "Tab: ",
   "tui.cmd.open": "Open WAV file…",
   "tui.cmd.open_prompt": "WAV file path: ",

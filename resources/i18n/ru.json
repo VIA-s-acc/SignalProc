@@ -248,7 +248,7 @@
   "tui.hint.resources": "ресурсы",
   "tui.palette.title": "Команды",
   "tui.palette.keys": "↑↓ выбрать · Enter выполнить · Esc закрыть",
-  "tui.palette.path_hint": "Enter — открыть · Esc — отмена",
+  "tui.palette.path_hint": "Enter — готово · Esc — отмена",
   "tui.cmd.tab": "Вкладка: ",
   "tui.cmd.open": "Открыть WAV…",
   "tui.cmd.open_prompt": "путь к WAV: ",

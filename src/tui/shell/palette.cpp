@@ -82,6 +82,7 @@ void Palette::ask_path(std::string prompt, std::function<void(std::string)> done
 void Palette::ask_text(std::string prompt, std::string initial, std::function<void(std::string)> done) {
     query_ = std::move(initial);
     prompt_ = std::move(prompt);
+    if (!prompt_.empty() && !prompt_.ends_with(' ')) prompt_ += prompt_.ends_with(':') ? " " : ": ";
     path_done_ = std::move(done);
     open_ = true;
 }
