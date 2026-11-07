@@ -39,6 +39,7 @@ std::optional<TheoryLink> PipelineScreen::theory_link() const {
     const auto* n = selected_node();
     if (!n) return std::nullopt;
     static const std::map<std::string, std::string, std::less<>> cards{{"wav", "wav_in"}, {"gen", "generator"}, {"check", "error"}, {"resample", "upsample"}};
+    if (n->type->id == "swt" || n->type->id == "iswt") return TheoryLink{TheoryLink::Kind::section, "swt-modwt", block_name(n->type->id)};
     const auto it = cards.find(n->type->id);
     return TheoryLink{TheoryLink::Kind::card, it == cards.end() ? n->type->id : it->second, block_name(n->type->id)};
 }

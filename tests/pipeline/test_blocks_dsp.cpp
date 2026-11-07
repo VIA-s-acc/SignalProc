@@ -191,3 +191,21 @@ TEST_CASE("idwt inherits the wavelet and edges of its coefficients and refuses o
     REQUIRE(params);
     CHECK_FALSE(idwt->run(RunContext{}, c, *params));
 }
+
+TEST_CASE("swt then iswt reconstructs any length and refuses idwt", "[pipeline][swt]") {
+    const auto x = test_wav();
+    for (const char* norm : {"no", "yes"}) {
+        const auto c = run("swt", {x}, {{"wavelet", "db2"}, {"levels", "3"}, {"norm", norm}});
+        const auto& coeffs = std::get<Coeffs>(c[0]);
+        CHECK(coeffs.transform == "swt");
+        CHECK(coeffs.levels() == 3);
+        const auto d1 = band_port(coeffs, "d1");
+        REQUIRE(d1);
+        CHECK(std::get<core::AudioBuffer>(*d1).sample_rate == x.sample_rate);
+        const auto y = run("iswt", {c[0]});
+        CHECK(audio(y[0]).channels[0].size() == x.channels[0].size());
+        CHECK(core::max_abs_error(x.channels[0], audio(y[0]).channels[0]) < 1e-10);
+        const auto* idwt = find_block_type("idwt");
+        CHECK_FALSE(idwt->run(RunContext{}, c, *resolve_params(*idwt, {})));
+    }
+}

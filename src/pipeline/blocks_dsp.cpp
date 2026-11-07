@@ -13,6 +13,7 @@
 #include "core/multirate.hpp"
 #include "core/process/shrink.hpp"
 #include "core/process/threshold.hpp"
+#include "core/swt.hpp"
 #include "core/wavedec.hpp"
 #include "i18n/i18n.hpp"
 #include "io/wav.hpp"
@@ -167,6 +168,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    {{"wavelet", Kind::text, "auto"}, {"ext", Kind::choice, "auto", kExtensionsOrAuto}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                        const auto& c = in_coeffs(in);
+                       if (c.transform != "dwt") return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", "iswt")));
                        const auto& wavelet = param_text(p, "wavelet");
                        const auto& ext = param_text(p, "ext");
                        if (wavelet != "auto" && wavelet != c.wavelet)
@@ -184,6 +186,59 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        for (std::size_t i = 0; i < c.channels.size(); ++i) {
                            ScaledProgress part{ctx.progress, share * static_cast<double>(i), share};
                            auto y = core::waverec<double>(c.channels[i], *bank, {*mode, false}, &part);
+                           if (!y) return std::unexpected{y.error()};
+                           if (i < c.lengths.size()) y->resize(c.lengths[i]);
+                           result.channels.push_back(std::move(*y));
+                       }
+                       return std::vector<Value>{std::move(result)};
+                   }});
+    out.push_back({"swt",
+                   kSignalIn,
+                   kCoeffsOut,
+                   {{"wavelet", Kind::text, "db2"}, {"levels", Kind::integer, "0", {}, 0, 32}, {"norm", Kind::choice, "no", {"no", "yes"}}},
+                   [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
+                       auto bank = bank_of(param_text(p, "wavelet"));
+                       if (!bank) return std::unexpected{bank.error()};
+                       const auto& a = in_audio(in);
+                       Coeffs c;
+                       c.wavelet = param_text(p, "wavelet");
+                       c.mode = core::Extension::periodization;
+                       c.rate = a.sample_rate;
+                       c.transform = "swt";
+                       c.norm = param_text(p, "norm") == "yes";
+                       const double share = 1.0 / static_cast<double>(std::max<std::size_t>(1, a.channels.size()));
+                       for (const auto& ch : a.channels) {
+                           const auto levels = param_int(p, "levels") > 0 ? static_cast<std::size_t>(param_int(p, "levels")) : core::default_levels(ch.size(), bank->length());
+                           const std::size_t block = std::size_t{1} << levels;
+                           std::vector<double> padded(ch);
+                           if (ch.empty()) return core::make_error(core::Errc::invalid_argument, "swt: empty signal");
+                           while (padded.size() % block != 0) padded.push_back(ch[padded.size() % ch.size()]);
+                           ScaledProgress part{ctx.progress, share * static_cast<double>(c.channels.size()), share};
+                           auto r = core::swt<double>(padded, *bank, levels, {c.norm, false}, &part);
+                           if (!r) return std::unexpected{r.error()};
+                           c.channels.push_back(std::move(*r));
+                           c.lengths.push_back(ch.size());
+                       }
+                       return std::vector<Value>{std::move(c)};
+                   }});
+    out.push_back({"iswt",
+                   kCoeffsIn,
+                   kSignalOut,
+                   {{"wavelet", Kind::text, "auto"}},
+                   [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
+                       const auto& c = in_coeffs(in);
+                       if (c.transform != "swt") return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", "idwt")));
+                       const auto& wavelet = param_text(p, "wavelet");
+                       if (wavelet != "auto" && wavelet != c.wavelet)
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.idwt_wavelet")), fmt::arg("coeffs", c.wavelet), fmt::arg("wavelet", wavelet)));
+                       auto bank = bank_of(c.wavelet);
+                       if (!bank) return std::unexpected{bank.error()};
+                       core::AudioBuffer result;
+                       result.sample_rate = c.rate;
+                       const double share = 1.0 / static_cast<double>(std::max<std::size_t>(1, c.channels.size()));
+                       for (std::size_t i = 0; i < c.channels.size(); ++i) {
+                           ScaledProgress part{ctx.progress, share * static_cast<double>(i), share};
+                           auto y = core::iswt<double>(c.channels[i], *bank, {c.norm, false}, &part);
                            if (!y) return std::unexpected{y.error()};
                            if (i < c.lengths.size()) y->resize(c.lengths[i]);
                            result.channels.push_back(std::move(*y));
