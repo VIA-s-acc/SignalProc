@@ -161,7 +161,8 @@ ftxui::Element ResampleScreen::after_panel() {
     if (v.up > 1)
         for (double k = 1; k * v.fs < v.fs_out / 2 + 1; ++k) spec.x_marks.push_back(k * v.fs);
     if (v.tone_out) spec.cursor_a = *v.tone_out;
-    const auto chips = v.copies_db.empty() ? std::vector<Chip>{} : std::vector<Chip>{{fmt::format(fmt::runtime(tr("tui.resample.copies")), fmt::arg("count", v.copies_db.size())), false}};
+    std::vector<Chip> chips;
+    if (!v.copies_db.empty()) chips.push_back({fmt::format(fmt::runtime(tr("tui.resample.copies")), fmt::arg("count", v.copies_db.size())), false});
     return panel(tr("tui.resample.after") + " · fs′ = " + hz(v.fs_out), chips, plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex, false, ui_);
 }
 
