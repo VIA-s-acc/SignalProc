@@ -69,6 +69,13 @@ private:
     ProbeView view_ = ProbeView::time;
     std::string probe_ = "a", hover_, bank_name_, notice_, key_;
     std::shared_ptr<const DiagramResult> result_;
+    std::shared_ptr<const DesignerResult> source_bank_;
+    std::shared_ptr<const SignalData> source_data_, peak_data_;
+    std::size_t peak_start_ = 0, peak_length_ = 0;
+    std::shared_ptr<const DiagramResult> spectrum_of_;
+    std::string spectrum_wire_;
+    bool spectrum_polyphase_ = false;
+    std::vector<double> spectrum_db_;
     DiagramHits hits_;
     std::deque<Clickable> clickables_;
 };

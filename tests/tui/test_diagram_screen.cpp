@@ -119,7 +119,7 @@ TEST_CASE("the input can be a fragment of the open file", "[tui][diagram]") {
     h.send(ftxui::Event::Character('i'));
     CHECK(h.frame().find("файл не открыт") != std::string::npos);
     f.signal->open(signals::test::sample("test.wav"), f.jobs);
-    h.send(ftxui::Event::Character(']'));
+    h.send(ftxui::Event::Character('+'));
     const auto frame = h.frame();
     CHECK(f.screen->length() == 32);
     CHECK(frame.find("файл не открыт") == std::string::npos);
@@ -160,4 +160,19 @@ TEST_CASE("diagram screen snapshots", "[tui][diagram][snapshot]") {
         shell.send(ftxui::Event::Character('P'));
         signals::test::check_snapshot("diagram_polyphase_" + std::to_string(w) + "x" + std::to_string(hgt), shell.frame());
     }
+}
+
+TEST_CASE("the diagram follows every designer change and leaves [ ] to the sub-tabs", "[tui][diagram]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    h.frame();
+    click(h, *f.screen, "y0");
+    for (const int p : {4, 2, 4, 6, 3, 5, 2, 6}) {
+        f.designer->set_p(p, f.jobs);
+        h.frame();
+        CHECK(h.frame().find("Щуп · y₀ · " + std::to_string(16 + 2 * p - 1) + " отсч.") != std::string::npos);
+    }
+    for (const auto& hint : f.screen->hints()) CHECK(hint.key.find('[') == std::string::npos);
+    h.send(ftxui::Event::Character('+'));
+    CHECK(f.screen->length() == 32);
 }
