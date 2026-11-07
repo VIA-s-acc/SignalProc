@@ -74,18 +74,28 @@ public:
                 cell.foreground_color = to_color(theme_.dim, depth_);
             }
         int outside = 0;
+        const bool ascii = glyphs_ == GlyphMode::ascii;
+        const auto arrow = [&](double re, double im) -> std::string {
+            const double dx = re < re_lo ? re_lo - re : re > re_hi ? re - re_hi : 0, dy = im < im_lo ? im_lo - im : im > im_hi ? im - im_hi : 0;
+            if (dx >= dy) return re > re_hi ? (ascii ? ">" : "→") : (ascii ? "<" : "←");
+            return im > im_hi ? (ascii ? "^" : "↑") : (ascii ? "v" : "↓");
+        };
+        const auto cell = [&](double re, double im) {
+            const int x = box_.x_min + std::clamp(static_cast<int>(std::lround(cxd + scale * std::clamp(re, re_lo, re_hi))) / 2, 0, W - 1);
+            const int y = box_.y_min + std::clamp(static_cast<int>(std::lround(cyd - scale * std::clamp(im, im_lo, im_hi))) / 4, 0, H - 1);
+            return std::pair{x, y};
+        };
+        const auto out_of_view = [&](double re, double im) { return re < re_lo || re > re_hi || im < im_lo || im > im_hi; };
         auto place = [&](const Marker& m, const char* uni, const char* asc, Rgb colour) {
-            double re = m.z.real(), im = m.z.imag();
-            if (re < re_lo || re > re_hi || im < im_lo || im > im_hi) {
+            const double re = m.z.real(), im = m.z.imag();
+            const auto [x, y] = cell(re, im);
+            if (out_of_view(re, im)) {
                 outside += m.count;
-                re = std::clamp(re, re_lo, re_hi);
-                im = std::clamp(im, im_lo, im_hi);
+                put(screen, x, y, arrow(re, im), theme_.dim);
+                return;
             }
-            const int x = box_.x_min + std::clamp(static_cast<int>(std::lround(cxd + scale * re)) / 2, 0, W - 1);
-            const int y = box_.y_min + std::clamp(static_cast<int>(std::lround(cyd - scale * im)) / 4, 0, H - 1);
-            put(screen, x, y, glyphs_ == GlyphMode::ascii ? asc : uni, colour);
-            if (m.count > 1)
-                put(screen, x + 1, y, glyphs_ == GlyphMode::ascii ? std::to_string(m.count) : superscript_count(m.count), colour);
+            put(screen, x, y, ascii ? asc : uni, colour);
+            if (m.count > 1) put(screen, x + 1, y, ascii ? std::to_string(m.count) : superscript_count(m.count), colour);
         };
         for (const auto& m : group(spec_.zeros)) place(m, "○", "o", theme_.trace[0]);
         auto poles = spec_.poles;
@@ -93,12 +103,14 @@ public:
         for (const auto& m : group(poles)) place(m, "×", "x", theme_.trace[1]);
         if (spec_.hits) spec_.hits->clear();
         for (const auto& m : spec_.markers) {
-            double re = m.z.real(), im = m.z.imag();
-            re = std::clamp(re, re_lo, re_hi);
-            im = std::clamp(im, im_lo, im_hi);
-            const int x = box_.x_min + std::clamp(static_cast<int>(std::lround(cxd + scale * re)) / 2, 0, W - 1);
-            const int y = box_.y_min + std::clamp(static_cast<int>(std::lround(cyd - scale * im)) / 4, 0, H - 1);
-            put(screen, x, y, glyphs_ == GlyphMode::ascii ? (m.glyph == "●" ? "*" : m.glyph == "◉" ? "@" : "o") : m.glyph, m.color);
+            const double re = m.z.real(), im = m.z.imag();
+            const auto [x, y] = cell(re, im);
+            if (out_of_view(re, im)) {
+                ++outside;
+                put(screen, x, y, arrow(re, im), theme_.dim);
+                continue;
+            }
+            put(screen, x, y, ascii ? (m.glyph == "●" ? "*" : m.glyph == "◉" ? "@" : "o") : m.glyph, m.color);
             if (spec_.hits && m.id >= 0) spec_.hits->push_back({m.id, x, y});
             if (m.id < 0 && spec_.minus_one_label) {
                 const auto label = split_codepoints(*spec_.minus_one_label);
