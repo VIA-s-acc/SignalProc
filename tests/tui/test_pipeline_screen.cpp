@@ -549,14 +549,16 @@ TEST_CASE("the add-block list scrolls with the wheel and adds the clicked block"
     m.motion = ftxui::Mouse::Pressed;
     m.x = (list.x_min + list.x_max) / 2;
     m.y = (list.y_min + list.y_max) / 2;
-    for (int k = 0; k < 30; ++k) f.h.send(ftxui::Event::Mouse("", m));
+    const auto last = std::string{signals::pipeline::block_types().back().id};
+    CHECK(f.h.frame().find(" " + last + " ") == std::string::npos);
+    for (int k = 0; k < 100; ++k) f.h.send(ftxui::Event::Mouse("", m));
     const auto frame = f.h.frame();
-    CHECK(frame.find("export_report") != std::string::npos);
-    const auto row = f.screen->area("add:wav_out");
+    CHECK(frame.find("▲") != std::string::npos);
+    const auto row = f.screen->area("add:" + last);
     REQUIRE(row.x_max >= row.x_min);
     f.h.click(row.x_min + 1, row.y_min);
     REQUIRE_FALSE(f.model->doc().nodes.empty());
-    CHECK(f.model->doc().nodes.back().type == "wav_out");
+    CHECK(f.model->doc().nodes.back().type == last);
 }
 
 TEST_CASE("C lists the free inputs a selected output can feed and connects the chosen one", "[tui][pipeline_screen]") {
