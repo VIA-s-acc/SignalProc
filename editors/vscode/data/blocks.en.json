@@ -4241,6 +4241,905 @@
   "title": "Least-squares FIR"
  },
  {
+  "about": "Splits the signal into its polyphase components x[2n] and x[2n+1] at half the rate",
+  "id": "polyphase",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "even",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "odd",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Polyphase split"
+ },
+ {
+  "about": "Interleaves even and odd back into one signal at twice the rate",
+  "id": "ipolyphase",
+  "inputs": [
+   {
+    "name": "even",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "odd",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Polyphase merge"
+ },
+ {
+  "about": "Wavelet packet decomposition: also splits the details, keeps the chosen basis",
+  "id": "wpt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Wavelet for every split; an orthogonal one keeps the energy and suits the best basis",
+    "choices": [],
+    "default": "db2",
+    "name": "wavelet",
+    "values": {}
+   },
+   {
+    "about": "Depth J of the full tree; the signal needs at least 2^J samples",
+    "choices": [],
+    "default": "3",
+    "max": 16.0,
+    "min": 1.0,
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "Which leaves of the tree to output, in frequency order",
+    "choices": [
+     "best",
+     "full",
+     "dwt"
+    ],
+    "default": "best",
+    "name": "basis",
+    "values": {
+     "best": "Coifman–Wickerhauser best basis by Shannon entropy, one for all channels",
+     "dwt": "aJ and dJ…d1: the same tiling as an ordinary DWT",
+     "full": "all 2^J nodes of the deepest level: equal bands"
+    }
+   },
+   {
+    "about": "Signal extension at the edges, as in pywt",
+    "choices": [
+     "symmetric",
+     "periodization",
+     "zero",
+     "constant",
+     "smooth",
+     "periodic",
+     "reflect",
+     "antisymmetric",
+     "antireflect"
+    ],
+    "default": "symmetric",
+    "name": "ext",
+    "values": {
+     "antireflect": "point reflection about the edge sample: x[−n] = 2x0 − x[n]",
+     "antisymmetric": "mirror with a sign flip: … −x1 −x0 | x0 x1 …",
+     "constant": "repeats the edge sample",
+     "periodic": "periodic repetition, bands get longer",
+     "periodization": "circular, non-expansive: ⌈N/2⌉ coefficients per level",
+     "reflect": "mirror without repeating the edge: … x2 x1 | x0 x1 x2 …",
+     "smooth": "linear extrapolation from the two edge samples",
+     "symmetric": "mirror repeating the edge: … x1 x0 | x0 x1 …",
+     "zero": "zeros beyond the edges"
+    }
+   }
+  ],
+  "title": "Wavelet packets"
+ },
+ {
+  "about": "Rebuilds the signal from wpt bands using the basis they carry",
+  "id": "iwpt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Inverse wavelet packets"
+ },
+ {
+  "about": "Keeps the K largest detail coefficients by magnitude and zeros the rest",
+  "id": "keep_largest",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "How amount sets K: a share of the coefficients or their number",
+    "choices": [
+     "percent",
+     "count"
+    ],
+    "default": "percent",
+    "name": "mode",
+    "values": {
+     "count": "K is amount itself, rounded to a whole number",
+     "percent": "K is amount percent of the coefficients in the pool"
+    }
+   },
+   {
+    "about": "Percentage or count of coefficients kept in each channel",
+    "choices": [],
+    "default": "10",
+    "max": 1000000000.0,
+    "min": 0.0,
+    "name": "amount",
+    "values": {}
+   },
+   {
+    "about": "Whether the approximation is kept whole and left out of the selection",
+    "choices": [
+     "yes",
+     "no"
+    ],
+    "default": "yes",
+    "name": "keep_approx",
+    "values": {
+     "no": "approximation competes with the details for the K places",
+     "yes": "approximation kept whole, K is chosen among the details"
+    }
+   }
+  ],
+  "title": "Keep the largest"
+ },
+ {
+  "about": "Uniform mid-tread quantization of the details: c → Δ·round(c/Δ)",
+  "id": "coeff_quantize",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "How the step Δ is set",
+    "choices": [
+     "bits",
+     "step"
+    ],
+    "default": "bits",
+    "name": "mode",
+    "values": {
+     "bits": "per band: Δ = max|c| / (2^(bits−1) − 1)",
+     "step": "one step Δ = step for every detail band"
+    }
+   },
+   {
+    "about": "Bits per coefficient, sign included: fewer bits mean a coarser step",
+    "choices": [],
+    "default": "8",
+    "max": 32.0,
+    "min": 2.0,
+    "name": "bits",
+    "values": {}
+   },
+   {
+    "about": "Quantizer step Δ in coefficient units; values below Δ/2 become zero",
+    "choices": [],
+    "default": "0.01",
+    "max": 1000000.0,
+    "min": 1e-12,
+    "name": "step",
+    "values": {}
+   }
+  ],
+  "title": "Quantize coefficients"
+ },
+ {
+  "about": "Shifts the signal in time by whole samples; the length stays the same",
+  "id": "shift",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Shift in samples: positive delays the signal, negative advances it",
+    "choices": [],
+    "default": "0",
+    "max": 268435456.0,
+    "min": -268435456.0,
+    "name": "samples",
+    "values": {}
+   },
+   {
+    "about": "What fills the vacated samples",
+    "choices": [
+     "zero",
+     "circular"
+    ],
+    "default": "zero",
+    "name": "mode",
+    "values": {
+     "circular": "circular shift: samples leaving one end come back at the other",
+     "zero": "zeros enter, samples pushed past the edge are lost"
+    }
+   }
+  ],
+  "title": "Shift"
+ },
+ {
+  "about": "Second-order section from the RBJ Audio EQ Cookbook",
+  "id": "biquad",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Filter type; the cookbook formula for b and a",
+    "choices": [
+     "lowpass",
+     "highpass",
+     "bandpass",
+     "notch",
+     "peaking",
+     "lowshelf",
+     "highshelf",
+     "allpass"
+    ],
+    "default": "lowpass",
+    "name": "type",
+    "values": {
+     "allpass": "all-pass: flat magnitude, the phase turns by 360° around f0",
+     "bandpass": "band-pass with 0 dB at f0; q sets the width",
+     "highpass": "high-pass: −3 dB at f0 for q = 0.7071",
+     "highshelf": "high shelf: gain_db above f0",
+     "lowpass": "low-pass: −3 dB at f0 for q = 0.7071",
+     "lowshelf": "low shelf: gain_db below f0",
+     "notch": "notch: zero gain at f0, q sets the width",
+     "peaking": "peaking EQ: gain_db at f0, 0 dB far from it"
+    }
+   },
+   {
+    "about": "Centre or corner frequency, Hz; must lie between 0 and Nyquist",
+    "choices": [],
+    "default": "1000",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "f0",
+    "values": {}
+   },
+   {
+    "about": "Quality factor: higher is narrower and more resonant",
+    "choices": [],
+    "default": "0.7071",
+    "max": 1000.0,
+    "min": 0.01,
+    "name": "q",
+    "values": {}
+   },
+   {
+    "about": "Gain at f0 or on the shelf, dB; for peaking, lowshelf and highshelf only",
+    "choices": [],
+    "default": "0",
+    "max": 60.0,
+    "min": -60.0,
+    "name": "gain_db",
+    "values": {}
+   }
+  ],
+  "title": "Biquad (RBJ)"
+ },
+ {
+  "about": "Feed-forward compressor: lowers the level above threshold by ratio",
+  "id": "compressor",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "How the level is measured; channels are linked by one gain",
+    "choices": [
+     "peak",
+     "rms"
+    ],
+    "default": "peak",
+    "name": "detector",
+    "values": {
+     "peak": "instantaneous peak |x| over all channels",
+     "rms": "mean square over all channels, averaged over rms_ms"
+    }
+   },
+   {
+    "about": "Threshold, dBFS: the level above which compression starts",
+    "choices": [],
+    "default": "-20",
+    "max": 0.0,
+    "min": -120.0,
+    "name": "threshold_db",
+    "values": {}
+   },
+   {
+    "about": "Compression ratio: 4 means 4 dB over threshold become 1 dB",
+    "choices": [],
+    "default": "4",
+    "max": 100.0,
+    "min": 1.0,
+    "name": "ratio",
+    "values": {}
+   },
+   {
+    "about": "Knee width, dB: 0 is a hard knee, more makes the onset gradual",
+    "choices": [],
+    "default": "0",
+    "max": 48.0,
+    "min": 0.0,
+    "name": "knee_db",
+    "values": {}
+   },
+   {
+    "about": "Attack time constant, ms: how fast the gain drops when the level rises",
+    "choices": [],
+    "default": "10",
+    "max": 1000.0,
+    "min": 0.0,
+    "name": "attack_ms",
+    "values": {}
+   },
+   {
+    "about": "Release time constant, ms: how fast the gain recovers when the level falls",
+    "choices": [],
+    "default": "100",
+    "max": 5000.0,
+    "min": 0.0,
+    "name": "release_ms",
+    "values": {}
+   },
+   {
+    "about": "Makeup gain, dB, added after compression",
+    "choices": [],
+    "default": "0",
+    "max": 60.0,
+    "min": -60.0,
+    "name": "makeup_db",
+    "values": {}
+   },
+   {
+    "about": "Averaging time of the RMS detector, ms; rms only",
+    "choices": [],
+    "default": "10",
+    "max": 1000.0,
+    "min": 0.01,
+    "name": "rms_ms",
+    "values": {}
+   }
+  ],
+  "title": "Compressor"
+ },
+ {
+  "about": "Peak limiter: a compressor with an infinite ratio and a hard knee",
+  "id": "limiter",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Ceiling, dBFS: with attack 0 no sample ends above it",
+    "choices": [],
+    "default": "-1",
+    "max": 0.0,
+    "min": -120.0,
+    "name": "threshold_db",
+    "values": {}
+   },
+   {
+    "about": "Attack time constant, ms: above 0 short peaks slip past the ceiling",
+    "choices": [],
+    "default": "0",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "attack_ms",
+    "values": {}
+   },
+   {
+    "about": "Release time constant, ms: how fast the gain recovers after a peak",
+    "choices": [],
+    "default": "50",
+    "max": 5000.0,
+    "min": 0.0,
+    "name": "release_ms",
+    "values": {}
+   }
+  ],
+  "title": "Limiter"
+ },
+ {
+  "about": "Noise gate: attenuates the signal while its peak stays below the threshold",
+  "id": "gate",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Threshold, dBFS: below it the gate closes",
+    "choices": [],
+    "default": "-50",
+    "max": 0.0,
+    "min": -200.0,
+    "name": "threshold_db",
+    "values": {}
+   },
+   {
+    "about": "Attenuation of the closed gate, dB: 80 is nearly silence",
+    "choices": [],
+    "default": "80",
+    "max": 200.0,
+    "min": 0.0,
+    "name": "range_db",
+    "values": {}
+   },
+   {
+    "about": "Opening time constant, ms: how fast the gate opens on a loud sound",
+    "choices": [],
+    "default": "1",
+    "max": 1000.0,
+    "min": 0.0,
+    "name": "attack_ms",
+    "values": {}
+   },
+   {
+    "about": "Closing time constant, ms: how fast the gate closes after it",
+    "choices": [],
+    "default": "100",
+    "max": 5000.0,
+    "min": 0.0,
+    "name": "release_ms",
+    "values": {}
+   }
+  ],
+  "title": "Noise gate"
+ },
+ {
+  "about": "Echo with feedback: repeats every delay_ms, each feedback times quieter",
+  "id": "echo",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Time between repeats, ms",
+    "choices": [],
+    "default": "250",
+    "max": 10000.0,
+    "min": 0.0,
+    "name": "delay_ms",
+    "values": {}
+   },
+   {
+    "about": "Share of each repeat fed back: 0 gives one echo, near 1 a long tail",
+    "choices": [],
+    "default": "0.4",
+    "max": 0.999,
+    "min": -0.999,
+    "name": "feedback",
+    "values": {}
+   },
+   {
+    "about": "Wet share: 0 is the dry signal only, 1 the echoes only",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "mix",
+    "values": {}
+   }
+  ],
+  "title": "Echo"
+ },
+ {
+  "about": "Comb filter: the signal plus gain times itself delayed by delay samples",
+  "id": "comb",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Which signal is delayed",
+    "choices": [
+     "feedback",
+     "feedforward"
+    ],
+    "default": "feedback",
+    "name": "kind",
+    "values": {
+     "feedback": "y[n] = x[n] + g·y[n−D]: resonant peaks, an IIR filter",
+     "feedforward": "y[n] = x[n] + g·x[n−D]: evenly spaced notches, an FIR filter"
+    }
+   },
+   {
+    "about": "Delay D in samples, or seconds with an s suffix (0.01s); at least one sample",
+    "choices": [],
+    "default": "100",
+    "name": "delay",
+    "values": {}
+   },
+   {
+    "about": "Gain g of the delayed path; feedback needs |g| < 1",
+    "choices": [],
+    "default": "0.7",
+    "max": 1.0,
+    "min": -1.0,
+    "name": "gain",
+    "values": {}
+   }
+  ],
+  "title": "Comb filter"
+ },
+ {
+  "about": "Mixes signals a and b with their gains, or crossfades from a to b",
+  "id": "mix",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Gain of input a, dB",
+    "choices": [],
+    "default": "0",
+    "max": 24.0,
+    "min": -120.0,
+    "name": "gain_a_db",
+    "values": {}
+   },
+   {
+    "about": "Gain of input b, dB",
+    "choices": [],
+    "default": "0",
+    "max": 24.0,
+    "min": -120.0,
+    "name": "gain_b_db",
+    "values": {}
+   },
+   {
+    "about": "How the inputs are combined; the shorter one is zero-padded",
+    "choices": [
+     "sum",
+     "crossfade"
+    ],
+    "default": "sum",
+    "name": "mode",
+    "values": {
+     "crossfade": "a until at, a linear fade over crossfade_ms, then b",
+     "sum": "sum of both inputs at every sample"
+    }
+   },
+   {
+    "about": "Start of the crossfade, s; crossfade only",
+    "choices": [],
+    "default": "0",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "at",
+    "values": {}
+   },
+   {
+    "about": "Crossfade length, ms; 0 switches at once; crossfade only",
+    "choices": [],
+    "default": "10",
+    "max": 60000.0,
+    "min": 0.0,
+    "name": "crossfade_ms",
+    "values": {}
+   }
+  ],
+  "title": "Mixer"
+ },
+ {
+  "about": "Linear prediction by the autocorrelation method and Levinson–Durbin",
+  "id": "lpc",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "residual",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Predictor order p: how many past samples predict the next one",
+    "choices": [],
+    "default": "12",
+    "max": 64.0,
+    "min": 1.0,
+    "name": "order",
+    "values": {}
+   }
+  ],
+  "title": "Linear prediction (LPC)"
+ },
+ {
+  "about": "All-pole synthesis 1/A(z): rebuilds the signal from residual and report",
+  "id": "lpc_synth",
+  "inputs": [
+   {
+    "name": "residual",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "LPC synthesis"
+ },
+ {
+  "about": "Report: the strongest peaks of the Welch spectrum, Hz and dB",
+  "id": "spectrum_peaks",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "How many of the strongest peaks to report",
+    "choices": [],
+    "default": "5",
+    "max": 64.0,
+    "min": 1.0,
+    "name": "count",
+    "values": {}
+   },
+   {
+    "about": "Welch segment, samples, overlap 50 %: longer resolves closer peaks",
+    "choices": [],
+    "default": "4096",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "segment",
+    "values": {}
+   },
+   {
+    "about": "Minimum prominence, dB: how far a peak must rise above its surroundings",
+    "choices": [],
+    "default": "6",
+    "max": 200.0,
+    "min": 0.0,
+    "name": "prominence_db",
+    "values": {}
+   }
+  ],
+  "title": "Spectrum peaks"
+ },
+ {
+  "about": "Report: share of the power in each octave or third-octave band",
+  "id": "band_power",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Band width; centres are the IEC 61260 base-10 series around 1 kHz",
+    "choices": [
+     "octave",
+     "third"
+    ],
+    "default": "octave",
+    "name": "bands",
+    "values": {
+     "octave": "octave bands from 31.5 Hz to 16 kHz",
+     "third": "third-octave bands from 25 Hz to 20 kHz"
+    }
+   },
+   {
+    "about": "Welch segment, samples, overlap 50 %: longer resolves the low bands better",
+    "choices": [],
+    "default": "4096",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "segment",
+    "values": {}
+   }
+  ],
+  "title": "Octave band power"
+ },
+ {
   "about": "Fundamental frequency per frame by YIN; reports the median and the voiced share",
   "id": "pitch",
   "inputs": [

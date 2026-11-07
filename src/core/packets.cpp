@@ -123,18 +123,23 @@ double packet_cost(std::span<const double> c, PacketCost cost, double norm2) {
     return total;
 }
 
-std::vector<PacketNode> best_basis(const PacketTree& tree, PacketCost cost) {
-    const auto levels = tree.levels();
-    double norm2 = 0;
-    for (const double v : tree.at({0, 0})) norm2 += v * v;
+std::vector<PacketNode> best_basis(const PacketTree& tree, PacketCost cost) { return best_basis(std::span{&tree, 1}, cost); }
+
+std::vector<PacketNode> best_basis(std::span<const PacketTree> trees, PacketCost cost) {
+    if (trees.empty()) return {{0, 0}};
+    const auto levels = trees.front().levels();
+    std::vector<double> norm2(trees.size(), 0.0);
+    for (std::size_t t = 0; t < trees.size(); ++t)
+        for (const double v : trees[t].at({0, 0})) norm2[t] += v * v;
     std::vector<std::vector<double>> best(levels + 1);
     std::vector<std::vector<bool>> split(levels + 1);
     for (std::size_t j = levels + 1; j-- > 0;) {
-        const auto count = tree.nodes[j].size();
+        const auto count = trees.front().nodes[j].size();
         best[j].resize(count);
         split[j].assign(count, false);
         for (std::size_t n = 0; n < count; ++n) {
-            const double own = packet_cost(tree.nodes[j][n], cost, norm2);
+            double own = 0;
+            for (std::size_t t = 0; t < trees.size(); ++t) own += packet_cost(trees[t].nodes[j][n], cost, norm2[t]);
             best[j][n] = own;
             if (j == levels) continue;
             const double children = best[j + 1][2 * n] + best[j + 1][2 * n + 1];

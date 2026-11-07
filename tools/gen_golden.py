@@ -671,6 +671,280 @@ def blocks_json():
             "cumsum": floats(np.cumsum(x)), "diff": floats(np.diff(x, prepend=0.0)), "softclip": floats(np.tanh(2.0 * x)),
             "mra_dwt": [floats(v[:n]) for v in mra_dwt], "mra_swt": [floats(v) for v in mra_swt], "stats": stats}
 
+def packet_cost(c, norm2):
+    total = 0.0
+    for v in c:
+        if v != 0 and norm2 > 0:
+            q = v * v / norm2
+            total -= q * math.log(q)
+    return total
+
+
+def freq_key(level, index, deepest):
+    k, s = index, 1
+    while s < 64:
+        k ^= k >> s
+        s <<= 1
+    return k << (deepest - level)
+
+
+def packet_reference(channels, name, mode, levels, basis):
+    """Packet leaves of pywt.WaveletPacket in frequency order; the best basis is Coifman-Wickerhauser on the Shannon cost summed over channels."""
+    trees = []
+    for x in channels:
+        wp = pywt.WaveletPacket(np.asarray(x), name, mode=mode, maxlevel=levels)
+        nodes = {(0, 0): list(map(float, x))}
+        for j in range(1, levels + 1):
+            for node in wp.get_level(j, "natural"):
+                nodes[(j, int(node.path.replace("a", "0").replace("d", "1"), 2))] = floats(node.data)
+        trees.append(nodes)
+    if basis == "full":
+        leaves = [(levels, k) for k in range(2 ** levels)]
+    elif basis == "dwt":
+        leaves = [(levels, 0)] + [(j, 1) for j in range(levels, 0, -1)]
+    else:
+        norms = [sum(v * v for v in t[(0, 0)]) for t in trees]
+        best, split = {}, {}
+        for j in range(levels, -1, -1):
+            for k in range(2 ** j):
+                own = 0.0
+                for t, norm2 in zip(trees, norms):
+                    own += packet_cost(t[(j, k)], norm2)
+                best[(j, k)], split[(j, k)] = own, False
+                if j < levels and best[(j + 1, 2 * k)] + best[(j + 1, 2 * k + 1)] < own:
+                    best[(j, k)], split[(j, k)] = best[(j + 1, 2 * k)] + best[(j + 1, 2 * k + 1)], True
+        leaves, stack = [], [(0, 0)]
+        while stack:
+            j, k = stack.pop()
+            if split[(j, k)]:
+                stack += [(j + 1, 2 * k + 1), (j + 1, 2 * k)]
+            else:
+                leaves.append((j, k))
+    deepest = max(j for j, _ in leaves)
+    leaves.sort(key=lambda n: freq_key(n[0], n[1], deepest))
+    paths = ["".join("d" if (k >> (j - 1 - i)) & 1 else "a" for i in range(j)) for j, k in leaves]
+    return {"wavelet": name, "mode": mode, "levels": levels, "basis": basis, "paths": paths,
+            "bands": [[t[n] for n in leaves] for t in trees]}
+
+
+def levinson_durbin(r, order):
+    a, err, ks = np.zeros(order + 1), r[0], []
+    a[0] = 1.0
+    for m in range(1, order + 1):
+        acc = r[m] + sum(a[j] * r[m - j] for j in range(1, m))
+        k = -acc / err
+        prev = a.copy()
+        for j in range(1, m):
+            a[j] = prev[j] + k * prev[m - j]
+        a[m] = k
+        err *= 1 - k * k
+        ks.append(k)
+    return ks
+
+
+def smoothing(ms, fs):
+    samples = ms / 1000 * fs
+    return math.exp(-1 / samples) if samples > 0 else 0.0
+
+
+def level_db(channels, detector, rms_coef=0.0):
+    frames = np.zeros((len(channels), max(len(c) for c in channels)))
+    for i, c in enumerate(channels):
+        frames[i, :len(c)] = c
+    if detector == "peak":
+        return [20 * math.log10(max(v, 1e-10)) for v in np.max(np.abs(frames), axis=0)]
+    out, power = [], 0.0
+    for n in range(frames.shape[1]):
+        square = 0.0
+        for c in frames[:, n]:
+            square += c * c
+        power = rms_coef * power + (1 - rms_coef) * (square / len(channels))
+        out.append(10 * math.log10(max(power, 1e-20)))
+    return out
+
+
+def dynamics(channels, level, target_of, attack, release, opening_uses_attack=False, makeup=0.0):
+    state, gains = 0.0, []
+    for v in level:
+        target = target_of(v)
+        rising = target > state if opening_uses_attack else target < state
+        coef = attack if rising else release
+        state = coef * state + (1 - coef) * target
+        gains.append(state + makeup)
+    g = np.array(gains)
+    return [floats(np.asarray(c) * 10.0 ** (g[:len(c)] / 20)) for c in channels]
+
+
+def compressor_curve(threshold, slope, knee):
+    def target(x):
+        over = x - threshold
+        if knee > 0 and 2 * abs(over) <= knee:
+            return x + (slope - 1) * (over + knee / 2) * (over + knee / 2) / (2 * knee) - x
+        if over > 0:
+            return threshold + over * slope - x
+        return 0.0
+    return target
+
+
+def welch_db(x, fs, segment):
+    n = min(len(x), segment)
+    _, p = scipy.signal.welch(x, fs, window="hann", nperseg=n, noverlap=n // 2)
+    return n, p, 10 * np.log10(np.maximum(p, 1e-20))
+
+
+OCTAVES = ["31.5", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"]
+THIRDS = ["25", "31.5", "40", "50", "63", "80", "100", "125", "160", "200", "250", "315", "400", "500", "630", "800", "1k",
+          "1.25k", "1.6k", "2k", "2.5k", "3.15k", "4k", "5k", "6.3k", "8k", "10k", "12.5k", "16k", "20k"]
+
+
+def band_power_reference(x, fs, bands, segment):
+    names, step, first = (THIRDS, 1.0, -16.0) if bands == "third" else (OCTAVES, 3.0, -5.0)
+    edges = [1000 * 10.0 ** ((step * (first + i) - step / 2) / 10) for i in range(len(names) + 1)]
+    count = 0
+    while count < len(names) and edges[count] < fs / 2:
+        count += 1
+    n, p, _ = welch_db(x, fs, segment)
+    power, total = [0.0] * (len(names) + 2), 0.0
+    for k, v in enumerate(p):
+        slot = int(np.searchsorted(edges, k * (fs / n), side="right"))
+        power[slot] += v
+        total += v
+    fields = {"below_22hz": power[0] / total}
+    for i in range(count):
+        fields[names[i] + "hz"] = power[i + 1] / total
+    fields["above_22khz"] = power[-1] / total
+    return {"bands": bands, "segment": segment, "fields": fields}
+
+
+def blocks2_json():
+    """Second batch of pipeline blocks (M8c): numpy/scipy/pywt references on one shared input."""
+    fs, n = 8000.0, 200
+    t = np.arange(n) / fs
+    x = np.sin(2 * np.pi * 440 * t) + 0.5 * np.sin(2 * np.pi * 1800 * t) + 0.3 * np.random.default_rng(23).standard_normal(n)
+    x2 = 0.8 * np.cos(2 * np.pi * 300 * t) + 0.4 * np.random.default_rng(29).standard_normal(n)
+    # The dwt block keeps the detail sign of the project's banks, which for db2 is the opposite of pywt's.
+    dwt = [floats(b) if i == 0 else floats(-b) for i, b in enumerate(pywt.wavedec(x, "db2", level=3, mode="symmetric"))]
+
+    keep = []
+    for mode, amount, keep_approx in [("percent", 10.0, True), ("count", 25.0, False), ("percent", 37.5, True)]:
+        bands = [np.array(b) for b in dwt]
+        first = 1 if keep_approx else 0
+        pool = np.concatenate(bands[first:])
+        k = min(len(pool), int(math.floor((amount / 100 * len(pool) if mode == "percent" else amount) + 0.5)))
+        mask = np.zeros(len(pool), dtype=bool)
+        mask[np.argsort(-np.abs(pool), kind="stable")[:k]] = True
+        at = 0
+        for b in range(first, len(bands)):
+            bands[b] = np.where(mask[at:at + len(bands[b])], bands[b], 0.0)
+            at += len(bands[b])
+        keep.append({"mode": mode, "amount": amount, "keep_approx": keep_approx, "bands": [floats(b) for b in bands]})
+
+    quantize = []
+    for mode, bits, step in [("bits", 4, 0.0), ("bits", 9, 0.0), ("step", 0, 0.05)]:
+        bands = [np.array(b) for b in dwt]
+        for b in range(1, len(bands)):
+            d = np.max(np.abs(bands[b])) / (2.0 ** (bits - 1) - 1) if mode == "bits" else step
+            bands[b] = np.sign(bands[b]) * np.floor(np.abs(bands[b]) / d + 0.5) * d
+        quantize.append({"mode": mode, "bits": bits, "step": step, "bands": [floats(b) for b in bands]})
+
+    packets = [packet_reference([x], "db2", "symmetric", 3, "best"), packet_reference([x], "sym4", "periodization", 3, "full"),
+               packet_reference([x], "haar", "periodization", 2, "dwt"), packet_reference([x], "coif1", "zero", 4, "best"),
+               packet_reference([x, x2], "db2", "periodization", 4, "best")]
+
+    import scipy.linalg
+    lpc = []
+    for order in [4, 12]:
+        r = np.array([float(np.dot(x[k:], x[:n - k])) for k in range(order + 1)])
+        a = scipy.linalg.solve_toeplitz(r[:order], -r[1:order + 1])
+        err = r[0] + float(np.dot(a, r[1:order + 1]))
+        lpc.append({"order": order, "a": floats(a), "k": floats(levinson_durbin(r, order)), "gain_db": float(10 * np.log10(r[0] / err)),
+                    "residual": floats(scipy.signal.lfilter(np.r_[1.0, a], 1.0, x))})
+
+    shift = []
+    for samples, mode in [(5, "zero"), (-7, "zero"), (13, "circular"), (-203, "circular")]:
+        if mode == "circular":
+            y = np.roll(x, samples)
+        else:
+            y = np.zeros(n)
+            if samples >= 0:
+                y[samples:] = x[:n - samples]
+            else:
+                y[:n + samples] = x[-samples:]
+        shift.append({"samples": samples, "mode": mode, "y": floats(y)})
+
+    biquad = []
+    for ftype, f0, q, gain_db in [("lowpass", 1000.0, 0.7071, 0.0), ("highpass", 600.0, 2.0, 0.0), ("bandpass", 1800.0, 4.0, 0.0),
+                                  ("notch", 440.0, 10.0, 0.0), ("peaking", 1200.0, 1.5, 9.0), ("lowshelf", 300.0, 0.7071, -6.0),
+                                  ("highshelf", 2500.0, 0.9, 4.5), ("allpass", 900.0, 0.5, 0.0)]:
+        A = 10 ** (gain_db / 40)
+        w0 = 2 * math.pi * f0 / fs
+        cw, alpha = math.cos(w0), math.sin(w0) / (2 * q)
+        sq = 2 * math.sqrt(A) * alpha
+        a = [1 + alpha, -2 * cw, 1 - alpha]
+        b = {"lowpass": [(1 - cw) / 2, 1 - cw, (1 - cw) / 2], "highpass": [(1 + cw) / 2, -(1 + cw), (1 + cw) / 2],
+             "bandpass": [alpha, 0.0, -alpha], "notch": [1.0, -2 * cw, 1.0], "allpass": [1 - alpha, -2 * cw, 1 + alpha],
+             "peaking": [1 + alpha * A, -2 * cw, 1 - alpha * A],
+             "lowshelf": [A * ((A + 1) - (A - 1) * cw + sq), 2 * A * ((A - 1) - (A + 1) * cw), A * ((A + 1) - (A - 1) * cw - sq)],
+             "highshelf": [A * ((A + 1) + (A - 1) * cw + sq), -2 * A * ((A - 1) + (A + 1) * cw), A * ((A + 1) + (A - 1) * cw - sq)]}[ftype]
+        if ftype == "peaking":
+            a = [1 + alpha / A, -2 * cw, 1 - alpha / A]
+        elif ftype == "lowshelf":
+            a = [(A + 1) + (A - 1) * cw + sq, -2 * ((A - 1) + (A + 1) * cw), (A + 1) + (A - 1) * cw - sq]
+        elif ftype == "highshelf":
+            a = [(A + 1) - (A - 1) * cw + sq, 2 * ((A - 1) - (A + 1) * cw), (A + 1) - (A - 1) * cw - sq]
+        biquad.append({"type": ftype, "f0": f0, "q": q, "gain_db": gain_db, "y": floats(scipy.signal.lfilter(b, a, x))})
+
+    loud = [x * 2.5, x2[:150]]
+    dyn = []
+    for detector, threshold, ratio, knee, attack, release, makeup, rms_ms in [("peak", -12.0, 4.0, 0.0, 2.0, 30.0, 0.0, 10.0),
+                                                                            ("rms", -18.0, 3.0, 6.0, 0.5, 10.0, 4.0, 1.5)]:
+        level = level_db(loud, detector, smoothing(rms_ms, fs))
+        dyn.append({"block": "compressor", "params": {"detector": detector, "threshold_db": threshold, "ratio": ratio, "knee_db": knee,
+                                                      "attack_ms": attack, "release_ms": release, "makeup_db": makeup, "rms_ms": rms_ms},
+                    "y": dynamics(loud, level, compressor_curve(threshold, 1 / ratio, knee), smoothing(attack, fs), smoothing(release, fs), makeup=makeup)})
+    for attack, release in [(0.0, 20.0), (1.0, 5.0)]:
+        level = level_db(loud, "peak")
+        dyn.append({"block": "limiter", "params": {"threshold_db": -6.0, "attack_ms": attack, "release_ms": release},
+                    "y": dynamics(loud, level, compressor_curve(-6.0, 0.0, 0.0), smoothing(attack, fs), smoothing(release, fs))})
+    level = level_db(loud, "peak")
+    dyn.append({"block": "gate", "params": {"threshold_db": -6.0, "range_db": 40.0, "attack_ms": 0.5, "release_ms": 3.0},
+                "y": dynamics(loud, level, lambda v: -40.0 if v < -6.0 else 0.0, smoothing(0.5, fs), smoothing(3.0, fs), opening_uses_attack=True)})
+
+    delay = int(math.floor(2.0 / 1000 * fs + 0.5))
+    wet = scipy.signal.lfilter([0.0] * delay + [1.0], [1.0] + [0.0] * (delay - 1) + [-0.5], x)
+    echo = {"delay_ms": 2.0, "feedback": 0.5, "mix": 0.4, "y": floats((1 - 0.4) * x + 0.4 * wet)}
+    comb = [{"kind": "feedforward", "delay": 9, "gain": -0.8, "y": floats(scipy.signal.lfilter([1.0] + [0.0] * 8 + [-0.8], [1.0], x))},
+            {"kind": "feedback", "delay": 23, "gain": 0.6, "y": floats(scipy.signal.lfilter([1.0], [1.0] + [0.0] * 22 + [-0.6], x))}]
+
+    b = x2[:120]
+    ga, gb = 10 ** (-3 / 20), 10 ** (2 / 20)
+    u = ga * x
+    v = np.zeros(n)
+    v[:len(b)] = gb * b
+    start, length = math.floor(0.004 * fs + 0.5), math.floor(5.0 / 1000 * fs + 0.5)
+    w = np.clip((np.arange(n) - start) / length, 0, 1)
+    mix = {"gain_a_db": -3.0, "gain_b_db": 2.0, "at": 0.004, "crossfade_ms": 5.0, "sum": floats(u + v), "crossfade": floats((1 - w) * u + w * v)}
+
+    peaks = []
+    for count, segment, prominence in [(3, 4096, 6.0), (5, 64, 3.0)]:
+        m, _, db = welch_db(x, fs, segment)
+        idx, _ = scipy.signal.find_peaks(db, prominence=prominence)
+        order = np.argsort(-db[idx], kind="stable")[:count]
+        peaks.append({"count": count, "segment": segment, "prominence_db": prominence,
+                      "hz": [float(idx[i] * (fs / m)) for i in order], "db": [float(db[idx[i]]) for i in order]})
+
+    rate = 44100.0
+    tl = np.arange(8192) / rate
+    tones = (np.sin(2 * np.pi * 100 * tl) + 0.5 * np.sin(2 * np.pi * 1000 * tl) + 0.25 * np.sin(2 * np.pi * 5000 * tl)
+             + 0.05 * np.random.default_rng(37).standard_normal(len(tl)))
+    bands = [band_power_reference(tones, rate, "octave", 4096), band_power_reference(tones, rate, "third", 4096),
+             band_power_reference(x, fs, "octave", 64)]
+
+    return {"fs": fs, "x": floats(x), "x2": floats(x2), "keep_largest": keep, "coeff_quantize": quantize, "wpt": packets, "lpc": lpc,
+            "shift": shift, "biquad": biquad, "dynamics": dyn, "echo": echo, "comb": comb, "mix": mix, "spectrum_peaks": peaks,
+            "tones_rate": rate, "tones": floats(tones), "band_power": bands}
+
+
 def adaptive_filter(x, d, taps, mu, rule, eps=1e-8):
     w = np.zeros(taps)
     y = np.zeros(len(x))
@@ -1075,8 +1349,7 @@ def main():
                                ("packets.json", packets_json), ("cwt.json", cwt_json),
                                ("processing.json", lambda: processing_json(sample_wav)),
                                ("iir.json", iir_json), ("fir.json", fir_json), ("ops.json", ops_json), ("analysis.json", analysis_json),
-                               ("blocks.json", blocks_json), ("adaptive.json", adaptive_json), ("restoration.json", restoration_json), ("toeplitz.json", toeplitz_json),
-                               ("blocks_fx.json", blocks_fx_json), ("blocks_analysis.json", blocks_analysis_json)]:
+                               ("blocks.json", blocks_json), ("adaptive.json", adaptive_json), ("restoration.json", restoration_json), ("toeplitz.json", toeplitz_json), ("blocks_fx.json", blocks_fx_json), ("blocks_analysis.json", blocks_analysis_json), ("blocks2.json", blocks2_json)]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)

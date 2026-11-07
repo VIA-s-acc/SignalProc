@@ -28,6 +28,9 @@ const std::vector<BlockType>& registry() {
         register_fx_blocks(out);
         register_util_blocks(out);
         register_design_blocks(out);
+        register_coeff_blocks(out);
+        register_effect_blocks(out);
+        register_spectral_blocks(out);
         register_analysis_blocks(out);
         return out;
     }();

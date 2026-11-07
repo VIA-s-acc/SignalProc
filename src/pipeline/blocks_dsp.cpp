@@ -459,7 +459,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                            const auto weights = c.transform == "swt" ? core::swt_energy_weights(J, c.norm) : std::vector<double>{};
                            const auto fractions = core::band_energy_fractions(c.channels[ch], weights);
                            for (std::size_t b = 0; b < fractions.size(); ++b)
-                               r.fields.emplace_back("c" + std::to_string(ch) + "." + (b == 0 ? "a" + std::to_string(J) : "d" + std::to_string(J + 1 - b)), fractions[b]);
+                               r.fields.emplace_back("c" + std::to_string(ch) + "." + band_label(c, b), fractions[b]);
                        }
                        return std::vector<Value>{std::move(r)};
                    }});

@@ -4241,6 +4241,905 @@
   "title": "КИХ-фильтр по методу наименьших квадратов"
  },
  {
+  "about": "Делит сигнал на полифазные компоненты x[2n] и x[2n+1] с вдвое меньшей частотой",
+  "id": "polyphase",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "even",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "odd",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Полифазное разложение"
+ },
+ {
+  "about": "Чередует even и odd обратно в один сигнал с вдвое большей частотой",
+  "id": "ipolyphase",
+  "inputs": [
+   {
+    "name": "even",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "odd",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Полифазная сборка"
+ },
+ {
+  "about": "Разложение на пакеты вейвлетов: делятся и детали, на выходе выбранный базис",
+  "id": "wpt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Вейвлет каждого деления; ортогональный сохраняет энергию и подходит для лучшего базиса",
+    "choices": [],
+    "default": "db2",
+    "name": "wavelet",
+    "values": {}
+   },
+   {
+    "about": "Глубина J полного дерева; в сигнале должно быть не меньше 2^J отсчётов",
+    "choices": [],
+    "default": "3",
+    "max": 16.0,
+    "min": 1.0,
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "Какие листья дерева выдать, в частотном порядке",
+    "choices": [
+     "best",
+     "full",
+     "dwt"
+    ],
+    "default": "best",
+    "name": "basis",
+    "values": {
+     "best": "лучший базис Коифмана–Уикерхаузера по энтропии Шеннона, общий для всех каналов",
+     "dwt": "aJ и dJ…d1: то же разбиение, что у обычного DWT",
+     "full": "все 2^J узлов нижнего уровня: равные полосы"
+    }
+   },
+   {
+    "about": "Продолжение сигнала за краями, как в pywt",
+    "choices": [
+     "symmetric",
+     "periodization",
+     "zero",
+     "constant",
+     "smooth",
+     "periodic",
+     "reflect",
+     "antisymmetric",
+     "antireflect"
+    ],
+    "default": "symmetric",
+    "name": "ext",
+    "values": {
+     "antireflect": "отражение относительно крайнего отсчёта: x[−n] = 2x0 − x[n]",
+     "antisymmetric": "зеркало со сменой знака: … −x1 −x0 | x0 x1 …",
+     "constant": "повтор крайнего отсчёта",
+     "periodic": "периодический повтор сигнала, полосы удлиняются",
+     "periodization": "круговое без расширения: ⌈N/2⌉ коэффициентов на уровень",
+     "reflect": "зеркало без повтора края: … x2 x1 | x0 x1 x2 …",
+     "smooth": "линейное продолжение по двум крайним отсчётам",
+     "symmetric": "зеркало с повтором края: … x1 x0 | x0 x1 …",
+     "zero": "нули за краями сигнала"
+    }
+   }
+  ],
+  "title": "Пакеты вейвлетов"
+ },
+ {
+  "about": "Восстанавливает сигнал из полос wpt по базису, который они несут",
+  "id": "iwpt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Обратные пакеты вейвлетов"
+ },
+ {
+  "about": "Оставляет K крупнейших по модулю коэффициентов деталей, остальные обнуляет",
+  "id": "keep_largest",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Как amount задаёт K: долей коэффициентов или их числом",
+    "choices": [
+     "percent",
+     "count"
+    ],
+    "default": "percent",
+    "name": "mode",
+    "values": {
+     "count": "K — само amount, округлённое до целого",
+     "percent": "K — amount процентов от коэффициентов, участвующих в отборе"
+    }
+   },
+   {
+    "about": "Процент или число коэффициентов, остающихся в каждом канале",
+    "choices": [],
+    "default": "10",
+    "max": 1000000000.0,
+    "min": 0.0,
+    "name": "amount",
+    "values": {}
+   },
+   {
+    "about": "Оставлять ли аппроксимацию целиком, не включая её в отбор",
+    "choices": [
+     "yes",
+     "no"
+    ],
+    "default": "yes",
+    "name": "keep_approx",
+    "values": {
+     "no": "аппроксимация соревнуется с деталями за K мест",
+     "yes": "аппроксимация остаётся целиком, K выбирается среди деталей"
+    }
+   }
+  ],
+  "title": "Крупнейшие коэффициенты"
+ },
+ {
+  "about": "Равномерное квантование деталей с нулевым уровнем: c → Δ·round(c/Δ)",
+  "id": "coeff_quantize",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Как задаётся шаг Δ",
+    "choices": [
+     "bits",
+     "step"
+    ],
+    "default": "bits",
+    "name": "mode",
+    "values": {
+     "bits": "в каждой полосе Δ = max|c| / (2^(bits−1) − 1)",
+     "step": "один шаг Δ = step для всех полос деталей"
+    }
+   },
+   {
+    "about": "Бит на коэффициент вместе со знаком: меньше бит — грубее шаг",
+    "choices": [],
+    "default": "8",
+    "max": 32.0,
+    "min": 2.0,
+    "name": "bits",
+    "values": {}
+   },
+   {
+    "about": "Шаг квантования Δ в единицах коэффициентов; значения меньше Δ/2 обнуляются",
+    "choices": [],
+    "default": "0.01",
+    "max": 1000000.0,
+    "min": 1e-12,
+    "name": "step",
+    "values": {}
+   }
+  ],
+  "title": "Квантование коэффициентов"
+ },
+ {
+  "about": "Сдвигает сигнал во времени на целое число отсчётов; длина не меняется",
+  "id": "shift",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Сдвиг в отсчётах: положительный задерживает сигнал, отрицательный опережает",
+    "choices": [],
+    "default": "0",
+    "max": 268435456.0,
+    "min": -268435456.0,
+    "name": "samples",
+    "values": {}
+   },
+   {
+    "about": "Чем заполняются освободившиеся отсчёты",
+    "choices": [
+     "zero",
+     "circular"
+    ],
+    "default": "zero",
+    "name": "mode",
+    "values": {
+     "circular": "круговой сдвиг: ушедшие с одного конца отсчёты возвращаются с другого",
+     "zero": "входят нули, вытолкнутые за край отсчёты теряются"
+    }
+   }
+  ],
+  "title": "Сдвиг"
+ },
+ {
+  "about": "Звено второго порядка по формулам RBJ Audio EQ Cookbook",
+  "id": "biquad",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Тип фильтра: формула для b и a из сборника",
+    "choices": [
+     "lowpass",
+     "highpass",
+     "bandpass",
+     "notch",
+     "peaking",
+     "lowshelf",
+     "highshelf",
+     "allpass"
+    ],
+    "default": "lowpass",
+    "name": "type",
+    "values": {
+     "allpass": "фазовый: АЧХ ровная, фаза поворачивается на 360° вокруг f0",
+     "bandpass": "полосовой с 0 дБ на f0; q задаёт ширину",
+     "highpass": "ФВЧ: −3 дБ на f0 при q = 0,7071",
+     "highshelf": "ВЧ-полка: gain_db выше f0",
+     "lowpass": "ФНЧ: −3 дБ на f0 при q = 0,7071",
+     "lowshelf": "НЧ-полка: gain_db ниже f0",
+     "notch": "режекторный: нулевое усиление на f0, q задаёт ширину",
+     "peaking": "пиковый эквалайзер: gain_db на f0, 0 дБ вдали от неё"
+    }
+   },
+   {
+    "about": "Центральная или граничная частота, Гц; строго между 0 и частотой Найквиста",
+    "choices": [],
+    "default": "1000",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "f0",
+    "values": {}
+   },
+   {
+    "about": "Добротность: больше — уже полоса и сильнее резонанс",
+    "choices": [],
+    "default": "0.7071",
+    "max": 1000.0,
+    "min": 0.01,
+    "name": "q",
+    "values": {}
+   },
+   {
+    "about": "Усиление на f0 или на полке, дБ; только для peaking, lowshelf и highshelf",
+    "choices": [],
+    "default": "0",
+    "max": 60.0,
+    "min": -60.0,
+    "name": "gain_db",
+    "values": {}
+   }
+  ],
+  "title": "Биквадратный фильтр (RBJ)"
+ },
+ {
+  "about": "Компрессор с прямой связью: уровень выше порога уменьшается в ratio раз",
+  "id": "compressor",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Как измеряется уровень; каналы связаны одним усилением",
+    "choices": [
+     "peak",
+     "rms"
+    ],
+    "default": "peak",
+    "name": "detector",
+    "values": {
+     "peak": "мгновенный пик |x| по всем каналам",
+     "rms": "средний квадрат по всем каналам, усреднённый за rms_ms"
+    }
+   },
+   {
+    "about": "Порог, дБ полной шкалы: уровень, выше которого начинается сжатие",
+    "choices": [],
+    "default": "-20",
+    "max": 0.0,
+    "min": -120.0,
+    "name": "threshold_db",
+    "values": {}
+   },
+   {
+    "about": "Степень сжатия: при 4 превышение порога на 4 дБ становится 1 дБ",
+    "choices": [],
+    "default": "4",
+    "max": 100.0,
+    "min": 1.0,
+    "name": "ratio",
+    "values": {}
+   },
+   {
+    "about": "Ширина колена, дБ: 0 — жёсткое колено, больше — плавное начало сжатия",
+    "choices": [],
+    "default": "0",
+    "max": 48.0,
+    "min": 0.0,
+    "name": "knee_db",
+    "values": {}
+   },
+   {
+    "about": "Постоянная атаки, мс: как быстро падает усиление при росте уровня",
+    "choices": [],
+    "default": "10",
+    "max": 1000.0,
+    "min": 0.0,
+    "name": "attack_ms",
+    "values": {}
+   },
+   {
+    "about": "Постоянная восстановления, мс: как быстро усиление возвращается при спаде уровня",
+    "choices": [],
+    "default": "100",
+    "max": 5000.0,
+    "min": 0.0,
+    "name": "release_ms",
+    "values": {}
+   },
+   {
+    "about": "Компенсирующее усиление после сжатия, дБ",
+    "choices": [],
+    "default": "0",
+    "max": 60.0,
+    "min": -60.0,
+    "name": "makeup_db",
+    "values": {}
+   },
+   {
+    "about": "Время усреднения RMS-детектора, мс; только для rms",
+    "choices": [],
+    "default": "10",
+    "max": 1000.0,
+    "min": 0.01,
+    "name": "rms_ms",
+    "values": {}
+   }
+  ],
+  "title": "Компрессор"
+ },
+ {
+  "about": "Пиковый лимитер: компрессор с бесконечной степенью сжатия и жёстким коленом",
+  "id": "limiter",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Потолок, дБ полной шкалы: при attack 0 ни один отсчёт его не превысит",
+    "choices": [],
+    "default": "-1",
+    "max": 0.0,
+    "min": -120.0,
+    "name": "threshold_db",
+    "values": {}
+   },
+   {
+    "about": "Постоянная атаки, мс: больше 0 — короткие пики проскакивают выше потолка",
+    "choices": [],
+    "default": "0",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "attack_ms",
+    "values": {}
+   },
+   {
+    "about": "Постоянная восстановления, мс: как быстро усиление возвращается после пика",
+    "choices": [],
+    "default": "50",
+    "max": 5000.0,
+    "min": 0.0,
+    "name": "release_ms",
+    "values": {}
+   }
+  ],
+  "title": "Лимитер"
+ },
+ {
+  "about": "Шумовой гейт: ослабляет сигнал, пока его пик ниже порога",
+  "id": "gate",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Порог, дБ полной шкалы: ниже него гейт закрывается",
+    "choices": [],
+    "default": "-50",
+    "max": 0.0,
+    "min": -200.0,
+    "name": "threshold_db",
+    "values": {}
+   },
+   {
+    "about": "Ослабление закрытого гейта, дБ: 80 — почти тишина",
+    "choices": [],
+    "default": "80",
+    "max": 200.0,
+    "min": 0.0,
+    "name": "range_db",
+    "values": {}
+   },
+   {
+    "about": "Постоянная открытия, мс: как быстро гейт открывается на громком звуке",
+    "choices": [],
+    "default": "1",
+    "max": 1000.0,
+    "min": 0.0,
+    "name": "attack_ms",
+    "values": {}
+   },
+   {
+    "about": "Постоянная закрытия, мс: как быстро гейт закрывается после него",
+    "choices": [],
+    "default": "100",
+    "max": 5000.0,
+    "min": 0.0,
+    "name": "release_ms",
+    "values": {}
+   }
+  ],
+  "title": "Шумовой гейт"
+ },
+ {
+  "about": "Эхо с обратной связью: повтор через delay_ms, каждый тише в feedback раз",
+  "id": "echo",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Время между повторами, мс",
+    "choices": [],
+    "default": "250",
+    "max": 10000.0,
+    "min": 0.0,
+    "name": "delay_ms",
+    "values": {}
+   },
+   {
+    "about": "Доля повтора, возвращаемая в задержку: 0 — одно эхо, ближе к 1 — длинный хвост",
+    "choices": [],
+    "default": "0.4",
+    "max": 0.999,
+    "min": -0.999,
+    "name": "feedback",
+    "values": {}
+   },
+   {
+    "about": "Доля обработанного: 0 — только исходный сигнал, 1 — только повторы",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "mix",
+    "values": {}
+   }
+  ],
+  "title": "Эхо"
+ },
+ {
+  "about": "Гребенчатый фильтр: сигнал плюс gain, умноженный на него же с задержкой delay",
+  "id": "comb",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Что задерживается",
+    "choices": [
+     "feedback",
+     "feedforward"
+    ],
+    "default": "feedback",
+    "name": "kind",
+    "values": {
+     "feedback": "y[n] = x[n] + g·y[n−D]: резонансные пики, БИХ-фильтр",
+     "feedforward": "y[n] = x[n] + g·x[n−D]: равноотстоящие провалы, КИХ-фильтр"
+    }
+   },
+   {
+    "about": "Задержка D в отсч. или в секундах с суффиксом s (0.01s); не меньше одного отсчёта",
+    "choices": [],
+    "default": "100",
+    "name": "delay",
+    "values": {}
+   },
+   {
+    "about": "Усиление g задержанной ветви; для feedback нужно |g| < 1",
+    "choices": [],
+    "default": "0.7",
+    "max": 1.0,
+    "min": -1.0,
+    "name": "gain",
+    "values": {}
+   }
+  ],
+  "title": "Гребенчатый фильтр"
+ },
+ {
+  "about": "Смешивает сигналы a и b с их усилениями или плавно переходит от a к b",
+  "id": "mix",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Усиление входа a, дБ",
+    "choices": [],
+    "default": "0",
+    "max": 24.0,
+    "min": -120.0,
+    "name": "gain_a_db",
+    "values": {}
+   },
+   {
+    "about": "Усиление входа b, дБ",
+    "choices": [],
+    "default": "0",
+    "max": 24.0,
+    "min": -120.0,
+    "name": "gain_b_db",
+    "values": {}
+   },
+   {
+    "about": "Как объединяются входы; короткий дополняется нулями",
+    "choices": [
+     "sum",
+     "crossfade"
+    ],
+    "default": "sum",
+    "name": "mode",
+    "values": {
+     "crossfade": "a до момента at, линейный переход за crossfade_ms, затем b",
+     "sum": "сумма обоих входов в каждом отсчёте"
+    }
+   },
+   {
+    "about": "Начало перехода, с; только для crossfade",
+    "choices": [],
+    "default": "0",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "at",
+    "values": {}
+   },
+   {
+    "about": "Длина перехода, мс; 0 — мгновенное переключение; только для crossfade",
+    "choices": [],
+    "default": "10",
+    "max": 60000.0,
+    "min": 0.0,
+    "name": "crossfade_ms",
+    "values": {}
+   }
+  ],
+  "title": "Микшер"
+ },
+ {
+  "about": "Линейное предсказание: автокорреляционный метод и алгоритм Левинсона–Дурбина",
+  "id": "lpc",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "residual",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Порядок предсказателя p: сколько прошлых отсчётов предсказывают следующий",
+    "choices": [],
+    "default": "12",
+    "max": 64.0,
+    "min": 1.0,
+    "name": "order",
+    "values": {}
+   }
+  ],
+  "title": "Линейное предсказание (LPC)"
+ },
+ {
+  "about": "Синтез полюсным фильтром 1/A(z): восстанавливает сигнал из остатка и отчёта",
+  "id": "lpc_synth",
+  "inputs": [
+   {
+    "name": "residual",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Синтез по LPC"
+ },
+ {
+  "about": "Отчёт: сильнейшие пики спектра Уэлча, Гц и дБ",
+  "id": "spectrum_peaks",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Сколько сильнейших пиков вывести",
+    "choices": [],
+    "default": "5",
+    "max": 64.0,
+    "min": 1.0,
+    "name": "count",
+    "values": {}
+   },
+   {
+    "about": "Сегмент Уэлча, отсч., перекрытие 50 %: длиннее — различаются более близкие пики",
+    "choices": [],
+    "default": "4096",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "segment",
+    "values": {}
+   },
+   {
+    "about": "Наименьшая выраженность, дБ: насколько пик должен подниматься над окрестностью",
+    "choices": [],
+    "default": "6",
+    "max": 200.0,
+    "min": 0.0,
+    "name": "prominence_db",
+    "values": {}
+   }
+  ],
+  "title": "Пики спектра"
+ },
+ {
+  "about": "Отчёт: доля мощности в каждой октавной или третьоктавной полосе",
+  "id": "band_power",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Ширина полос; центры — десятичный ряд IEC 61260 вокруг 1 кГц",
+    "choices": [
+     "octave",
+     "third"
+    ],
+    "default": "octave",
+    "name": "bands",
+    "values": {
+     "octave": "октавные полосы от 31,5 Гц до 16 кГц",
+     "third": "третьоктавные полосы от 25 Гц до 20 кГц"
+    }
+   },
+   {
+    "about": "Сегмент Уэлча, отсч., перекрытие 50 %: длиннее — точнее нижние полосы",
+    "choices": [],
+    "default": "4096",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "segment",
+    "values": {}
+   }
+  ],
+  "title": "Мощность по октавам"
+ },
+ {
   "about": "Основная частота по кадрам методом YIN; отчёт с медианой и долей кадров с тоном",
   "id": "pitch",
   "inputs": [

@@ -28,21 +28,6 @@ double fade_gain(std::size_t i, std::size_t length, bool cosine) {
     return cosine ? 0.5 - 0.5 * std::cos(std::numbers::pi * t) : t;
 }
 
-Out pairwise(std::string_view block, const core::AudioBuffer& a, const core::AudioBuffer& b, auto&& combine) {
-    if (auto e = same_rate(block, a, b)) return std::unexpected{*e};
-    core::AudioBuffer out;
-    out.sample_rate = a.sample_rate;
-    for (std::size_t ch = 0; ch < std::max(a.channels.size(), b.channels.size()); ++ch) {
-        static const Samples none;
-        const auto* x = channel_or_last(a, ch);
-        const auto* y = channel_or_last(b, ch);
-        auto r = combine(x ? *x : none, y ? *y : none);
-        if (!r) return std::unexpected{r.error()};
-        out.channels.push_back(std::move(*r));
-    }
-    return one(std::move(out));
-}
-
 }  // namespace
 
 void register_level_blocks(std::vector<BlockType>& out) {

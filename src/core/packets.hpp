@@ -36,6 +36,7 @@ Result<std::vector<double>> wp_reconstruct(const PacketTree& tree, std::span<con
 enum class PacketCost { shannon, log_energy };
 double packet_cost(std::span<const double> c, PacketCost cost, double norm2);
 std::vector<PacketNode> best_basis(const PacketTree& tree, PacketCost cost);
+std::vector<PacketNode> best_basis(std::span<const PacketTree> trees, PacketCost cost);
 std::vector<PacketNode> dwt_basis(std::size_t levels);
 std::vector<PacketNode> level_basis(std::size_t level);
 void sort_by_frequency(std::vector<PacketNode>& basis);

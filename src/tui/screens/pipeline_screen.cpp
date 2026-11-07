@@ -711,7 +711,9 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
             for (const auto& [role, h] : {std::pair{"h0", &bank->h0}, std::pair{"h1", &bank->h1}, std::pair{"f0", &bank->f0}, std::pair{"f1", &bank->f1}})
                 lines.push_back(hbox({text(pad_right(role, 4)) | fg(th.dim, ui_), text(tr_count("unit.tap", static_cast<long long>(h->coeffs.size()), group(h->coeffs.size()))) | fg(th.fg, ui_)}));
         } else if (const auto* coeffs = std::get_if<pipeline::Coeffs>(&value); coeffs && !coeffs->channels.empty()) {
-            lines.push_back(text(coeffs->transform + " · " + coeffs->wavelet + " · J = " + std::to_string(coeffs->levels())) | bold | fg(th.fg, ui_));
+            std::size_t depth = coeffs->basis.empty() ? coeffs->levels() : 0;
+            for (const auto& n : coeffs->basis) depth = std::max(depth, n.level);
+            lines.push_back(text(coeffs->transform + " · " + coeffs->wavelet + " · J = " + std::to_string(depth)) | bold | fg(th.fg, ui_));
             const auto& bands = coeffs->channels.front().bands;
             double total = 0;
             for (const auto& b : bands)
@@ -719,7 +721,7 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
             for (std::size_t k = 0; k < bands.size(); ++k) {
                 double e = 0;
                 for (double v : bands[k]) e += v * v;
-                const auto name = k == 0 ? "a" + std::to_string(coeffs->levels()) : "d" + std::to_string(coeffs->levels() + 1 - k);
+                const auto name = pipeline::band_label(*coeffs, k);
                 lines.push_back(hbox({text(pad_right(name, 5)) | fg(th.trace[0], ui_), text(pad_left(group(bands[k].size()), 9)) | fg(th.dim, ui_),
                                       text(pad_left(format_fixed(total > 0 ? 100 * e / total : 0, 2) + " %", 10)) | fg(th.fg, ui_)}));
             }
