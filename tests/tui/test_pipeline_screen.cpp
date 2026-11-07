@@ -940,3 +940,28 @@ TEST_CASE("a hidden inspector does not explain the graph cells under its old row
     const auto again = f.screen->explain_at(x, y);
     CHECK((!again || *again != param_text));
 }
+
+TEST_CASE("the probe footer fits its panel or ends with an ellipsis", "[tui][pipeline_screen][fit]") {
+    for (auto [w, h] : {std::pair{150, 44}, std::pair{120, 40}, std::pair{200, 50}}) {
+        PipelineFixture f{w, h, false};
+        std::vector<Command> items;
+        f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+        f.ui->ask_text = [](std::string, std::string, std::function<void(std::string)>) {};
+        f.h.send(ftxui::Event::Character('O'));
+        std::find_if(items.begin(), items.end(), [](const Command& c) { return c.id == "haar_bank"; })->run();
+        f.model->run(f.jobs);
+        for (int k = 0; k < 2000 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+        std::istringstream lines{f.h.frame()};
+        bool seen = false;
+        for (std::string line; std::getline(lines, line);) {
+            const auto start = line.find("signal · ");
+            if (start == std::string::npos) continue;
+            seen = true;
+            const auto end = line.find("│", start);
+            const auto footer = line.substr(start, end == std::string::npos ? std::string::npos : end - start);
+            INFO(w << "x" << h << ": " << footer);
+            CHECK((footer.find(signals::tr("tui.pipeline.probe_keys")) != std::string::npos || footer.find("…") != std::string::npos));
+        }
+        CHECK(seen);
+    }
+}
