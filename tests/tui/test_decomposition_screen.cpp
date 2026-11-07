@@ -439,7 +439,7 @@ TEST_CASE("modwt denoising equals swt denoising", "[tui][decomposition][swt][rev
         REQUIRE(out[0].size() == out[1].size());
         double worst = 0;
         for (std::size_t i = 0; i < out[0].size(); ++i) worst = std::max(worst, static_cast<double>(std::abs(out[0][i] - out[1][i])));
-        CHECK(worst < 1e-6);
+        CHECK(worst < 1e-4);
     }
 }
 

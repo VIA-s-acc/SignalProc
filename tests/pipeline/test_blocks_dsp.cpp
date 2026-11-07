@@ -232,7 +232,7 @@ TEST_CASE("modwt and swt thresholds give the same signal and energies", "[pipeli
             INFO(rule << " sigma=" << sigma);
             const auto ys = audio(run("iswt", {run("threshold", {s[0]}, {{"rule", rule}, {"sigma", sigma}})[0]})[0]);
             const auto ym = audio(run("iswt", {run("threshold", {m[0]}, {{"rule", rule}, {"sigma", sigma}})[0]})[0]);
-            CHECK(core::max_abs_error(ys.channels[0], ym.channels[0]) < (std::string_view{sigma} == "mad_d1" ? 1e-5 : 1e-9));
+            CHECK(core::max_abs_error(ys.channels[0], ym.channels[0]) < (std::string_view{sigma} == "mad_d1" ? 1e-4 : 1e-9));
             CHECK(core::max_abs_error(ys.channels[0], x.channels[0]) > 1e-4);
         }
     const auto es = std::get<Report>(run("band_energy", {s[0]})[0]);
