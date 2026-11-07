@@ -1268,5 +1268,7 @@
   "unit.sample_short.many": "{n} отсч.",
   "unit.node.one": "{n} узел",
   "unit.node.few": "{n} узла",
-  "unit.node.many": "{n} узлов"
+  "unit.node.many": "{n} узлов",
+  "pipeline.error.rates": "{block}: у входов разная частота дискретизации — {a} и {b} Гц; приведите их к одной блоком resample",
+  "pipeline.block.lms": "Адаптивный фильтр LMS/NLMS"
 }

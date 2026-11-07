@@ -45,3 +45,4 @@
 | `check` | Проверка | `ref`: signal; `in`: signal | `report`: report | `kind` = pr (pr, error, snr); `tol` = 1e-12 |
 | `wav_out` | Запись | `in`: signal | `report`: report | `path` = out.wav; `bits` = 24 (16, 24, 32, f32); `dither` = tpdf (none, tpdf); `seed` = 24301 |
 | `listen` | Прослушивание | `in`: signal | — | — |
+| `lms` | Адаптивный фильтр LMS/NLMS | `x`: signal; `d`: signal | `e`: signal; `y`: signal | `taps` = 32 (1…4096); `mu` = 0.1 (1e-06…2); `rule` = nlms (nlms, lms) |

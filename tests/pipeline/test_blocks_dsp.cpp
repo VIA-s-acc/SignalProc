@@ -470,3 +470,23 @@ TEST_CASE("m7b review: swt and lift53 level errors name each unit once", "[pipel
         }
     }
 }
+
+TEST_CASE("m8a: the lms block cancels a correlated interference", "[pipeline][adaptive]") {
+    const auto g = signals::test::load_golden("adaptive.json");
+    const auto& s = g["scenarios"][1];
+    core::AudioBuffer x, d;
+    x.sample_rate = d.sample_rate = 8000;
+    x.channels.push_back(s["x"].get<std::vector<double>>());
+    d.channels.push_back(s["d"].get<std::vector<double>>());
+    const auto& nlms = s["runs"][1];
+    const auto out = run("lms", {x, d}, {{"taps", "6"}, {"mu", "0.5"}, {"rule", "nlms"}});
+    REQUIRE(out.size() == 2);
+    CHECK(core::max_abs_error(audio(out[0]).channels[0], nlms["e"].get<std::vector<double>>()) < 1e-10);
+    CHECK(core::max_abs_error(audio(out[1]).channels[0], nlms["y"].get<std::vector<double>>()) < 1e-10);
+    CHECK(audio(out[0]).sample_rate == 8000);
+    core::AudioBuffer other = x;
+    other.sample_rate = 16000;
+    const auto* block = find_block_type("lms");
+    const std::vector<Value> mismatched{other, d};
+    CHECK_FALSE(block->run(RunContext{}, mismatched, *resolve_params(*block, {})));
+}

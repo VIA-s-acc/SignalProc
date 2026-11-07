@@ -2,6 +2,7 @@ include(Catch)
 
 add_executable(signals_tests
   test_toolchain.cpp
+  core/test_adaptive.cpp
   core/test_laurent.cpp
   core/test_conv.cpp
   core/test_extension.cpp

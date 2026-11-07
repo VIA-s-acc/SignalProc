@@ -91,5 +91,6 @@ core::Result<std::size_t> checked_length(std::size_t n, std::size_t factor);
 
 void register_basic_blocks(std::vector<BlockType>& out);
 void register_dsp_blocks(std::vector<BlockType>& out);
+void register_restore_blocks(std::vector<BlockType>& out);
 
 }  // namespace signals::pipeline
