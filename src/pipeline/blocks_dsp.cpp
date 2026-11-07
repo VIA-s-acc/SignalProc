@@ -92,6 +92,50 @@ std::string json_string(std::string_view s) {
     return out + "\"";
 }
 
+std::string csv_field(const std::string& s) {
+    if (s.find_first_of(",\"\r\n") == std::string::npos) return s;
+    std::string out = "\"";
+    for (const char c : s) out += c == '"' ? std::string{"\"\""} : std::string{c};
+    return out + "\"";
+}
+
+class StreamFile {
+public:
+    explicit StreamFile(std::filesystem::path path) : path_{std::move(path)}, temp_{io::create_temp_beside(path_)} {}
+    StreamFile(const StreamFile&) = delete;
+    StreamFile& operator=(const StreamFile&) = delete;
+    ~StreamFile() {
+        if (temp_) io::discard(*temp_);
+    }
+
+    bool open() const { return temp_.has_value(); }
+    void write(std::string_view s) {
+        if (!temp_ || !good_) return;
+        good_ = std::fwrite(s.data(), 1, s.size(), temp_->file) == s.size();
+        bytes_ += s.size();
+    }
+    core::Result<std::size_t> commit() {
+        if (!temp_) return failed();
+        const bool flushed = good_ && std::fflush(temp_->file) == 0;
+        const bool closed = std::fclose(temp_->file) == 0;
+        temp_->file = nullptr;
+        if (!flushed || !closed) return failed();
+        std::error_code ec;
+        std::filesystem::rename(temp_->path, path_, ec);
+        if (ec) return failed();
+        temp_.reset();
+        return bytes_;
+    }
+
+private:
+    core::Result<std::size_t> failed() const { return core::make_error(core::Errc::io_error, "cannot write file: " + path_.string()); }
+
+    std::filesystem::path path_;
+    std::optional<io::TempFile> temp_;
+    bool good_ = true;
+    std::size_t bytes_ = 0;
+};
+
 std::filesystem::path output_path(const RunContext& ctx, const Params& p) {
     auto path = utf8_path(param_text(p, "path"));
     return path.is_relative() ? ctx.base_dir / path : path;
@@ -513,36 +557,50 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    kReportOut,
                    {{"path", Kind::path, "out.csv"}, {"format", Kind::choice, "csv", {"csv", "json"}}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
+                       constexpr std::size_t kChunk = std::size_t{1} << 16;
                        const auto path = output_path(ctx, p);
                        const auto& a = in_audio(in);
+                       StreamFile file{path};
+                       if (!file.open()) return core::make_error(core::Errc::io_error, "cannot write file: " + path.string());
                        std::string text;
-                       if (param_text(p, "format") == "csv") {
+                       auto flush = [&]() -> bool {
+                           file.write(text);
+                           text.clear();
+                           return !cancelled(ctx);
+                       };
+                       const bool csv = param_text(p, "format") == "csv";
+                       std::size_t rows = 0;
+                       for (const auto& ch : a.channels) rows = std::max(rows, ch.size());
+                       if (csv) {
                            text = "n";
-                           std::size_t rows = 0;
-                           for (std::size_t c = 0; c < a.channels.size(); ++c) {
-                               text += ",ch" + std::to_string(c);
-                               rows = std::max(rows, a.channels[c].size());
-                           }
+                           for (std::size_t c = 0; c < a.channels.size(); ++c) text += ",ch" + std::to_string(c);
                            text += "\n";
                            for (std::size_t k = 0; k < rows; ++k) {
                                text += std::to_string(k);
                                for (const auto& ch : a.channels) text += "," + (k < ch.size() ? fmt::format("{:.17g}", ch[k]) : std::string{});
                                text += "\n";
+                               if (text.size() >= kChunk && !flush()) return core::make_error(core::Errc::cancelled, "export: cancelled");
                            }
                        } else {
                            text = "{\"rate\":" + number(a.sample_rate) + ",\"channels\":[";
                            for (std::size_t c = 0; c < a.channels.size(); ++c) {
                                text += c ? ",[" : "[";
-                               for (std::size_t k = 0; k < a.channels[c].size(); ++k) text += (k ? "," : "") + number(a.channels[c][k]);
+                               for (std::size_t k = 0; k < a.channels[c].size(); ++k) {
+                                   text += (k ? "," : "") + number(a.channels[c][k]);
+                                   if (text.size() >= kChunk && !flush()) return core::make_error(core::Errc::cancelled, "export: cancelled");
+                               }
                                text += "]";
                            }
                            text += "]}\n";
                        }
-                       if (auto w = io::write_file_atomic(path, text); !w) return std::unexpected{w.error()};
+                       if (!flush()) return core::make_error(core::Errc::cancelled, "export: cancelled");
+                       const auto bytes = file.commit();
+                       if (!bytes) return std::unexpected{bytes.error()};
                        Report r;
-                       r.fields = {{"path", path.string()}, {"bytes", static_cast<double>(text.size())}};
+                       r.fields = {{"path", path.string()}, {"bytes", static_cast<double>(*bytes)}};
                        return std::vector<Value>{std::move(r)};
-                   }});
+                   },
+                   true});
     out.push_back({"export_report",
                    {{"in", PortType::report}},
                    kReportOut,
@@ -554,7 +612,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        auto value = [](const std::variant<double, std::string>& v, bool json) {
                            if (const auto* d = std::get_if<double>(&v)) return number(*d);
                            const auto& s = std::get<std::string>(v);
-                           return json || s.find_first_of(",\"\n") != std::string::npos ? json_string(s) : s;
+                           return json ? json_string(s) : csv_field(s);
                        };
                        if (param_text(p, "format") == "csv") {
                            text = "field,value\n";
@@ -569,7 +627,8 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        Report r;
                        r.fields = {{"path", path.string()}, {"bytes", static_cast<double>(text.size())}};
                        return std::vector<Value>{std::move(r)};
-                   }});
+                   },
+                   true});
     out.push_back({"check",
                    {{"ref", PortType::signal}, {"in", PortType::signal}},
                    kReportOut,

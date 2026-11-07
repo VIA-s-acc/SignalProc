@@ -147,3 +147,24 @@ TEST_CASE("onsets find synthetic clicks within two hops", "[analysis]") {
     for (std::size_t i = 0; i < clicks.size(); ++i) CHECK(std::abs(found[i] - clicks[i]) <= 2 * 256 / fs);
     CHECK(onsets(std::vector<double>(32000, 0.0), fs, 1024, 256).empty());
 }
+
+TEST_CASE("thd refuses tones it cannot measure", "[analysis]") {
+    auto tone = [](double f, double fs, std::size_t n, double second) {
+        std::vector<double> x(n);
+        for (std::size_t k = 0; k < n; ++k) {
+            const double t = static_cast<double>(k) / fs;
+            x[k] = std::sin(2 * std::numbers::pi * f * t) + second * std::sin(4 * std::numbers::pi * f * t);
+        }
+        return x;
+    };
+    CHECK_FALSE(thd(tone(50, 48000, 4096, 0.01), 48000, 5));
+    CHECK_FALSE(thd(tone(1000, 48000, 64, 0.01), 48000, 5));
+    CHECK_FALSE(thd(tone(15000, 44100, 44100, 0), 44100, 5));
+    CHECK_FALSE(thd(tone(21000, 48000, 48000, 0.01), 48000, 5));
+    const auto ok = thd(tone(1000, 48000, 4096, 0.01), 48000, 5);
+    REQUIRE(ok);
+    CHECK(std::abs(ok->thd / 0.01 - 1) < 0.02);
+    const auto low = thd(tone(140, 48000, 4096, 0.01), 48000, 2);
+    REQUIRE(low);
+    CHECK(std::abs(low->thd / 0.01 - 1) < 0.05);
+}
