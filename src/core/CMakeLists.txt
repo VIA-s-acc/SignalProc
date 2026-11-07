@@ -9,6 +9,7 @@ add_library(signals_core STATIC
   spectral.cpp
   adaptive.cpp
   analysis.cpp
+  restoration.cpp
   signal_ops.cpp
   multirate.cpp
   freq.cpp
