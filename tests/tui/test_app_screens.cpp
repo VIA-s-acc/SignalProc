@@ -177,3 +177,19 @@ TEST_CASE("every tab renders in English without Russian text", "[tui][shell][app
     INFO(help);
     CHECK_FALSE(cyrillic(help));
 }
+
+TEST_CASE("tab 8 is the pipeline editor", "[tui][shell][app]") {
+    JobRunner jobs{[] {}, 0ms, true};
+    signals::test::ManualSink* raw = nullptr;
+    auto player = signals::test::manual_player(raw);
+    auto ui = signals::test::make_ui(150, 44);
+    ui->jobs = &jobs;
+    ui->player = &player;
+    auto models = make_app_models();
+    Harness shell{make_shell(*ui, make_app_screens(*ui, models), [] {}), 150, 44};
+    shell.send(ftxui::Event::Character('8'));
+    const auto frame = shell.frame();
+    CHECK(frame.find(signals::tr("tui.pipeline.graph")) != std::string::npos);
+    CHECK(frame.find(signals::tr("tui.placeholder.pipeline.text")) == std::string::npos);
+}
+

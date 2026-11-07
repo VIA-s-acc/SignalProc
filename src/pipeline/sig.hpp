@@ -15,6 +15,7 @@ struct NodeDecl {
     std::string id, type;
     Params params;
     int line = 0;
+    bool bypass = false;
 };
 
 struct PortRef {

@@ -7,6 +7,7 @@
 #include "tui/screens/designer_model.hpp"
 #include "tui/screens/filters_model.hpp"
 #include "tui/screens/matrix_model.hpp"
+#include "tui/screens/pipeline_model.hpp"
 #include "tui/screens/theory_navigator.hpp"
 #include "tui/screens/signal_model.hpp"
 #include "tui/shell/screen.hpp"
@@ -20,6 +21,7 @@ struct AppModels {
     std::shared_ptr<DecompositionModel> decomposition;
     std::shared_ptr<MatrixModel> matrix;
     std::shared_ptr<TheoryNavigator> theory;
+    std::shared_ptr<PipelineModel> pipeline;
 };
 
 AppModels make_app_models();

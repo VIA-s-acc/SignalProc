@@ -268,3 +268,18 @@ probe rec as "out"
     REQUIRE(kept);
     CHECK(channel(*lean, "out") == channel(*kept, "out"));
 }
+
+TEST_CASE("a bypassed block passes its input through", "[pipeline][executor]") {
+    const auto bypassed = graph_of("node src = gen(duration=0.05)\nnode g = gain(db=-6) bypass\nsrc -> g\nprobe g as \"out\"\nprobe src as \"in\"\n");
+    ResultCache cache{std::size_t{1} << 30};
+    core::CancelToken cancel;
+    const auto r = run_graph(bypassed, cache, {}, cancel);
+    REQUIRE(r);
+    CHECK(channel(*r, "out") == channel(*r, "in"));
+    CHECK(r->nodes[1].state == NodeState::bypassed);
+    const auto plain = graph_of("node src = gen(duration=0.05)\nnode g = gain(db=-6)\nsrc -> g\nprobe g as \"out\"\nprobe src as \"in\"\n");
+    const auto p = run_graph(plain, cache, {}, cancel);
+    REQUIRE(p);
+    CHECK(p->nodes[1].state == NodeState::done);
+    CHECK(channel(*p, "out") != channel(*p, "in"));
+}

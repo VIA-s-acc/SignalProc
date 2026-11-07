@@ -82,7 +82,7 @@ struct Item {
     std::string label;
     int width = 1;
     int center = 0;
-    std::vector<std::size_t> below, above;
+    std::vector<std::size_t> below;
 };
 
 int text_width(const std::string& s) { return static_cast<int>(codepoints(s).size()); }
@@ -91,44 +91,47 @@ std::string port_text(const PortRef& r) { return r.port.empty() ? r.node : r.nod
 
 }  // namespace
 
-std::vector<std::string> draw_graph(const Graph& g, bool ascii, int max_width) {
+GraphLayout layout_graph(const Graph& g) {
+    GraphLayout out;
     const auto n = g.nodes.size();
-    if (n == 0) return {};
+    if (n == 0) return out;
     std::vector<int> layer(n, 0);
     for (const auto i : g.order)
         for (const auto& s : g.nodes[i].sources)
             if (s) layer[i] = std::max(layer[i], layer[s->node] + 1);
     const int depth = *std::max_element(layer.begin(), layer.end()) + 1;
 
-    std::vector<Item> items;
-    std::vector<std::vector<std::size_t>> rows(static_cast<std::size_t>(depth));
-    std::vector<std::size_t> item_of(n);
-    for (std::size_t i = 0; i < n; ++i) {
-        item_of[i] = items.size();
-        items.push_back({static_cast<int>(i), {}, 1, 0, {}, {}});
-        rows[static_cast<std::size_t>(layer[i])].push_back(item_of[i]);
-    }
+    auto& items = out.items;
+    std::vector<std::vector<std::size_t>> above;
+    out.layers.assign(static_cast<std::size_t>(depth), {});
+    out.item_of_node.resize(n);
+    const auto add = [&](int node, int l) {
+        items.push_back({node, l, 0, {}});
+        above.emplace_back();
+        out.layers[static_cast<std::size_t>(l)].push_back(items.size() - 1);
+        return items.size() - 1;
+    };
+    for (std::size_t i = 0; i < n; ++i) out.item_of_node[i] = add(static_cast<int>(i), layer[i]);
     const auto connect = [&](std::size_t a, std::size_t b) {
-        items[a].below.push_back(b);
-        items[b].above.push_back(a);
+        items[a].next.push_back(b);
+        above[b].push_back(a);
     };
     for (std::size_t v = 0; v < n; ++v) {
         std::set<std::size_t> from;
         for (const auto& s : g.nodes[v].sources)
             if (s) from.insert(s->node);
         for (const auto u : from) {
-            auto prev = item_of[u];
+            auto prev = out.item_of_node[u];
             for (int l = layer[u] + 1; l < layer[v]; ++l) {
-                const auto dummy = items.size();
-                items.push_back({});
-                rows[static_cast<std::size_t>(l)].push_back(dummy);
+                const auto dummy = add(-1, l);
                 connect(prev, dummy);
                 prev = dummy;
             }
-            connect(prev, item_of[v]);
+            connect(prev, out.item_of_node[v]);
         }
     }
 
+    auto& rows = out.layers;
     for (int pass = 0; pass < 4; ++pass) {
         const bool downward = pass % 2 == 0;
         for (int step = 1; step < depth; ++step) {
@@ -139,7 +142,7 @@ std::vector<std::string> draw_graph(const Graph& g, bool ascii, int max_width) {
             std::map<std::size_t, double> key;
             for (std::size_t k = 0; k < rows[l].size(); ++k) {
                 const auto id = rows[l][k];
-                const auto& links = downward ? items[id].above : items[id].below;
+                const auto& links = downward ? above[id] : items[id].next;
                 double sum = 0;
                 for (const auto other : links) sum += position[other];
                 key[id] = links.empty() ? static_cast<double>(k) : sum / static_cast<double>(links.size());
@@ -147,6 +150,34 @@ std::vector<std::string> draw_graph(const Graph& g, bool ascii, int max_width) {
             std::stable_sort(rows[l].begin(), rows[l].end(), [&](std::size_t a, std::size_t b) { return key[a] < key[b]; });
         }
     }
+    for (const auto& row : rows)
+        for (std::size_t k = 0; k < row.size(); ++k) items[row[k]].order = static_cast<int>(k);
+    return out;
+}
+
+int crossings(const GraphLayout& l) {
+    int total = 0;
+    for (const auto& row : l.layers) {
+        std::vector<std::pair<int, int>> edges;
+        for (const auto id : row)
+            for (const auto next : l.items[id].next) edges.emplace_back(l.items[id].order, l.items[next].order);
+        for (std::size_t a = 0; a < edges.size(); ++a)
+            for (std::size_t b = a + 1; b < edges.size(); ++b)
+                if ((edges[a].first < edges[b].first && edges[a].second > edges[b].second) ||
+                    (edges[a].first > edges[b].first && edges[a].second < edges[b].second))
+                    ++total;
+    }
+    return total;
+}
+
+std::vector<std::string> draw_graph(const Graph& g, bool ascii, int max_width) {
+    const auto n = g.nodes.size();
+    if (n == 0) return {};
+    const auto layout = layout_graph(g);
+    const int depth = static_cast<int>(layout.layers.size());
+    std::vector<Item> items;
+    for (const auto& it : layout.items) items.push_back({it.node, {}, 1, 0, it.next});
+    const auto& rows = layout.layers;
 
     constexpr int kGap = 3;
     int width = 0;

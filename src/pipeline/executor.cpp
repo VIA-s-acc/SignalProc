@@ -59,6 +59,7 @@ std::uint64_t node_key(const Graph& g, std::size_t i, const std::vector<std::uin
     const auto& n = g.nodes[i];
     Fnv f;
     f.text(n.type->id);
+    f.number(n.bypass ? 1 : 0);
     for (const auto& spec : n.type->params) {
         const auto it = n.params.find(spec.name);
         const std::string value = it == n.params.end() ? spec.fallback : it->second;
@@ -243,6 +244,17 @@ private:
                 copies.push_back(std::move(*band));
             }
             inputs = copies;
+        }
+        if (n.bypass) {
+            auto passed = std::make_shared<std::vector<Value>>(n.type->outputs.size(), inputs.empty() ? Value{} : inputs.front());
+            {
+                std::lock_guard lock{mutex_};
+                status_[i].bytes = outputs_bytes(*passed);
+                status_[i].fraction = 1;
+            }
+            outputs_[i] = passed;
+            fresh_[i] = std::move(passed);
+            return set(i, NodeState::bypassed);
         }
         set(i, NodeState::running);
         NodeProgress progress{cancel_, stop_, [this, i](double f) {

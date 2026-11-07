@@ -37,6 +37,11 @@ std::string join(const std::vector<std::string>& items) {
     return out;
 }
 
+bool bypassable(const BlockType& t) {
+    if (t.inputs.empty()) return false;
+    return std::all_of(t.outputs.begin(), t.outputs.end(), [&](const PortSpec& o) { return o.type == t.inputs.front().type; });
+}
+
 struct Wire {
     std::size_t from = 0, to = 0;
     int line = 0;
@@ -44,12 +49,14 @@ struct Wire {
 
 class Builder {
 public:
-    Builder(const PipelineDoc& doc, std::filesystem::path base_dir) : doc_{doc} { graph_.base_dir = std::move(base_dir); }
+    Builder(const PipelineDoc& doc, std::filesystem::path base_dir, BuildOptions options) : doc_{doc}, options_{options} {
+        graph_.base_dir = std::move(base_dir);
+    }
 
     Graph run() {
         add_nodes();
         add_wires();
-        check_inputs();
+        if (!options_.partial) check_inputs();
         sort();
         check_bands();
         add_probes();
@@ -79,10 +86,12 @@ private:
             }
             auto params = resolve_params(*type, decl.params);
             if (!params) fail(decl.line, 0, decl.id + ": " + params.error().message);
+            if (decl.bypass && !bypassable(*type))
+                fail(decl.line, 0, say("pipeline.graph.bypass_types", fmt::arg("node", decl.id), fmt::arg("block", type->id)));
             index_.emplace(decl.id, graph_.nodes.size());
             ids_.push_back(decl.id);
             graph_.nodes.push_back({decl.id, type, std::move(*params), std::vector<std::optional<PortRef>>(type->inputs.size()),
-                                    std::vector<std::optional<Source>>(type->inputs.size()), decl.line});
+                                    std::vector<std::optional<Source>>(type->inputs.size()), decl.line, decl.bypass});
         }
     }
 
@@ -251,6 +260,7 @@ private:
     }
 
     const PipelineDoc& doc_;
+    BuildOptions options_;
     Graph graph_;
     std::map<std::string, std::size_t, std::less<>> index_;
     std::vector<std::string> ids_;
@@ -259,9 +269,9 @@ private:
 
 }  // namespace
 
-std::expected<Graph, SigError> build_graph(const PipelineDoc& doc, std::filesystem::path base_dir) {
+std::expected<Graph, SigError> build_graph(const PipelineDoc& doc, std::filesystem::path base_dir, BuildOptions options) {
     try {
-        return Builder{doc, std::move(base_dir)}.run();
+        return Builder{doc, std::move(base_dir), options}.run();
     } catch (const Failure& f) {
         return std::unexpected{f.error};
     }

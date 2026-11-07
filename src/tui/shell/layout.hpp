@@ -33,6 +33,7 @@ public:
 
     void next_panel(std::size_t count, bool back = false);
     std::size_t small_index() const { return small_index_; }
+    void show_panel(std::size_t index) { small_index_ = index; }
 
 private:
     void apply_defaults();

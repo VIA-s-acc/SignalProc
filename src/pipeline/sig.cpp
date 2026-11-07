@@ -57,6 +57,12 @@ public:
                 node.type = ident();
                 skip(false);
                 if (peek() == '(') node.params = params();
+                skip(false);
+                if (ident_start(peek())) {
+                    const int bl = line_, bc = column_;
+                    if (ident() != "bypass") fail(bl, bc, fmt::format(fmt::runtime(tr("pipeline.sig.expected_symbol")), fmt::arg("symbol", "bypass")));
+                    node.bypass = true;
+                }
                 end_of_line();
                 doc.nodes.push_back(std::move(node));
             } else if (word == "probe") {
@@ -270,7 +276,7 @@ std::string node_line(const NodeDecl& n, std::size_t id_width) {
         const auto& value = n.params.find(key)->second;
         args += (args.empty() ? "" : ", ") + key + "=" + (path || !bare_safe(value) ? quoted(value) : value);
     }
-    return "node " + n.id + std::string(id_width - n.id.size(), ' ') + " = " + n.type + "(" + args + ")";
+    return "node " + n.id + std::string(id_width - n.id.size(), ' ') + " = " + n.type + "(" + args + ")" + (n.bypass ? " bypass" : "");
 }
 
 std::size_t distance(std::string_view a, std::string_view b) {

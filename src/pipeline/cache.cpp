@@ -38,6 +38,7 @@ void ResultCache::put(std::uint64_t key, Outputs values) {
         index_.erase(recent_.back().key);
         recent_.pop_back();
     }
+    tracked_.reset(bytes_);
 }
 
 std::size_t ResultCache::bytes() const {

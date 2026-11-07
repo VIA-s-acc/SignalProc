@@ -75,6 +75,9 @@ add_executable(signals_tests
   pipeline/test_sig.cpp
   pipeline/test_graph.cpp
   pipeline/test_executor.cpp
+  pipeline/test_layout.cpp
+  tui/test_pipeline_model.cpp
+  tui/test_pipeline_screen.cpp
   cli/test_cli_pipeline.cpp
   theory/test_latex.cpp
   theory/test_math_layout.cpp
