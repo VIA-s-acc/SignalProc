@@ -18,6 +18,8 @@ struct SwtOptions {
 };
 
 std::size_t swt_max_level(std::size_t n);
+std::vector<double> swt_energy_weights(std::size_t levels, bool norm);
+double swt_noise_scale(std::size_t level, bool norm);
 
 namespace detail {
 

@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
@@ -65,4 +66,30 @@ TEST_CASE("swt refuses a length that is not a multiple of 2^J", "[swt]") {
     REQUIRE_FALSE(r);
     CHECK(r.error().code == Errc::level_out_of_range);
     CHECK(swt<double>(x, golden_bank("db2"), 2, {}));
+}
+
+TEST_CASE("swt band weights give the modwt energies and noise levels", "[swt][review]") {
+    const auto x = signal_of_length(256);
+    const auto b = golden_bank("db4");
+    const auto plain = swt<double>(x, b, 5, {false, true});
+    const auto norm = swt<double>(x, b, 5, {true, true});
+    REQUIRE(plain);
+    REQUIRE(norm);
+    const auto w = swt_energy_weights(5, false);
+    REQUIRE(w.size() == 6);
+    double ex = 0;
+    for (const double v : x) ex += v * v;
+    double total = 0;
+    for (std::size_t k = 0; k < w.size(); ++k) {
+        double e = 0, en = 0;
+        for (const double v : plain->bands[k]) e += v * v;
+        for (const double v : norm->bands[k]) en += v * v;
+        CHECK(std::abs(e * w[k] - en) <= 1e-12 * ex);
+        total += e * w[k];
+    }
+    CHECK(std::abs(total - ex) <= 1e-12 * ex);
+    for (const double v : swt_energy_weights(5, true)) CHECK(v == 1.0);
+    CHECK(swt_noise_scale(1, true) == 1.0);
+    CHECK(swt_noise_scale(3, true) == Catch::Approx(0.5));
+    CHECK(swt_noise_scale(4, false) == 1.0);
 }

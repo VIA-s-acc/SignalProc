@@ -575,3 +575,72 @@ TEST_CASE("the scalogram fits a small terminal and zooms in time", "[tui][decomp
     CHECK(e1 - b1 < e0 - b0);
 }
 
+TEST_CASE("swt energy shares and parseval match modwt", "[tui][decomposition][swt][review]") {
+    DecompositionFixture f;
+    f.h.send(ftxui::Event::Character('t'));
+    f.h.frame();
+    const auto swt = f.model->data();
+    REQUIRE(swt);
+    REQUIRE(swt->options.transform == Transform::swt);
+    f.h.send(ftxui::Event::Character('t'));
+    f.h.frame();
+    const auto modwt = f.model->data();
+    REQUIRE(modwt);
+    REQUIRE(modwt->options.transform == Transform::modwt);
+    REQUIRE(swt->bands.size() == modwt->bands.size());
+    for (std::size_t i = 0; i < swt->bands.size(); ++i) CHECK(swt->bands[i].energy_pct == Catch::Approx(modwt->bands[i].energy_pct).margin(1e-9));
+    CHECK(swt->parseval_error < 1e-12);
+    CHECK(modwt->parseval_error < 1e-12);
+}
+
+TEST_CASE("modwt denoising equals swt denoising", "[tui][decomposition][swt][review]") {
+    for (const auto rule : {signals::core::ShrinkRule::bayes, signals::core::ShrinkRule::visu}) {
+        DecompositionFixture f;
+        Processing p;
+        p.rule = rule;
+        p.first_level = 1;
+        p.last_level = 4;
+        std::vector<std::vector<float>> out;
+        for (const auto t : {Transform::swt, Transform::modwt}) {
+            auto o = f.model->options();
+            o.transform = t;
+            f.model->set_options(o, f.jobs);
+            f.h.frame();
+            f.model->apply(p, f.jobs);
+            f.h.frame();
+            const auto r = f.model->recon();
+            REQUIRE(r);
+            REQUIRE(r->processing.rule == rule);
+            out.push_back(r->xhat);
+        }
+        REQUIRE(out[0].size() == out[1].size());
+        double worst = 0;
+        for (std::size_t i = 0; i < out[0].size(); ++i) worst = std::max(worst, static_cast<double>(std::abs(out[0][i] - out[1][i])));
+        CHECK(worst < 1e-4);
+    }
+}
+
+TEST_CASE("swt refuses a decomposition that does not fit the memory budget", "[tui][decomposition][swt][review]") {
+    DecompositionFixture f;
+    const auto n = f.model->data()->x.size();
+    auto model = std::make_shared<DecompositionModel>(f.signal, 7 * n * 16);
+    model->sync(f.jobs);
+    REQUIRE(model->data());
+    CHECK_FALSE(model->error());
+    auto o = model->options();
+    o.transform = Transform::swt;
+    model->set_options(o, f.jobs);
+    REQUIRE(model->error());
+    CHECK(model->error()->find("SWT") != std::string::npos);
+}
+
+TEST_CASE("clicking the active transform chip keeps the band choices", "[tui][decomposition][swt][review]") {
+    DecompositionFixture f;
+    f.model->toggle(1, f.jobs);
+    f.h.frame();
+    const auto before = f.model->enabled();
+    REQUIRE_FALSE(before[1]);
+    f.click("chip_dwt");
+    f.h.frame();
+    CHECK(f.model->enabled() == before);
+}

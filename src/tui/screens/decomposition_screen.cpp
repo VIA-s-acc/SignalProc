@@ -646,7 +646,7 @@ ftxui::Element DecompositionScreen::energy_panel(const DecompositionData& d, int
         rows.push_back(hbox(std::move(cells)));
     }
     if (first + shown < d.bands.size()) rows.push_back(more_row(false, d.bands.size() - first - shown));
-    const bool exact = d.orthogonal && d.options.mode == core::Extension::periodization && d.parseval_error < 1e-12;
+    const bool exact = d.orthogonal && (d.options.mode == core::Extension::periodization || d.options.transform != Transform::dwt) && d.parseval_error < 1e-12;
     const auto parseval = exact ? tr("tui.decomposition.parseval_exact") + " " + std::string{glyph(Glyph::check, ui_.caps.glyphs)}
                                 : fmt::format(fmt::runtime(tr("tui.decomposition.parseval_approx")), fmt::arg("error", format_number(d.parseval_error, 2)));
     rows.push_back(text(ellipsize(parseval, width, ui_.caps.glyphs == GlyphMode::ascii)) | fg(exact ? th.ok : th.dim, ui_));
@@ -933,6 +933,7 @@ void DecompositionScreen::set_transform(Transform t, JobRunner& jobs) {
         return;
     }
     auto k = model_->options();
+    if (k.transform == t) return;
     k.transform = t;
     model_->set_options(k, jobs);
 }

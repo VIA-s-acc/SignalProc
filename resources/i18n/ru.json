@@ -642,6 +642,7 @@
   "tui.decomposition.packets_memory": "Пакеты не помещаются в память: нужно {need}, доступно {budget}. Уменьшите J",
   "tui.decomposition.job_packets": "Пакеты вейвлетов",
   "tui.decomposition.stage.packets": "дерево пакетов",
+  "tui.decomposition.swt_memory": "SWT не помещается в память: нужно {need}, доступно {budget}. Уменьшите J или выберите DWT",
   "tui.decomposition.hint.band": "полоса",
   "tui.decomposition.hint.toggle": "☑/☐",
   "tui.decomposition.hint.listen": "слушать Σ☑",
