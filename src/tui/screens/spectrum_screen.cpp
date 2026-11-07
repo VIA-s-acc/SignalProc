@@ -346,7 +346,7 @@ ftxui::Element SpectrumScreen::spectrum_body(const SelectionSpectrum& sel, int w
     const auto& th = ui_.theme;
     PlotSpec spec;
     const double nyq = nyquist();
-    spec.x = log_view() ? Axis{20, nyq, AxisScale::log10} : Axis{0, nyq, AxisScale::linear};
+    spec.x = zoom_.axis("selection", log_view() ? Axis{20, nyq, AxisScale::log10} : Axis{0, nyq, AxisScale::linear}).axis();
     spec.y = {-100, 0};
     Trace t;
     t.color = th.trace[0];
@@ -354,7 +354,9 @@ ftxui::Element SpectrumScreen::spectrum_body(const SelectionSpectrum& sel, int w
     std::vector<double> best(dots, -INFINITY), at(dots, 0.0);
     for (std::size_t i = 0; i < sel.f.size(); ++i) {
         if (log_view() && sel.f[i] < 20) continue;
-        const auto c = std::min(dots - 1, static_cast<std::size_t>(std::max(0.0, axis_fraction(spec.x, sel.f[i])) * static_cast<double>(dots)));
+        const double u = axis_fraction(spec.x, sel.f[i]);
+        if (u < 0 || u > 1) continue;
+        const auto c = std::min(dots - 1, static_cast<std::size_t>(u * static_cast<double>(dots)));
         if (sel.db[i] > best[c]) best[c] = sel.db[i], at[c] = sel.f[i];
     }
     for (std::size_t c = 0; c < dots; ++c)
@@ -369,7 +371,8 @@ ftxui::Element SpectrumScreen::spectrum_body(const SelectionSpectrum& sel, int w
         for (const auto& p : sel.peaks) spec.x_marks.push_back(sel.f[p.index]);
     if (fold_ > 0) spec.x_marks.push_back(nyq / static_cast<double>(fold_));
     if (cursor_) spec.cursor_a = cursor_->second;
-    return plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, std::max(3, height)) | size(WIDTH, EQUAL, std::max(10, width - 4));
+    auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, std::max(3, height)) | size(WIDTH, EQUAL, std::max(10, width - 4));
+    return zoom_.track("selection", std::move(spec), std::move(drawn));
 }
 
 ftxui::Element SpectrumScreen::cursor_panel_body(const SpectrogramData* s, const SelectionSpectrum* sel) {
@@ -473,6 +476,7 @@ ftxui::Element SpectrumScreen::OnRender() {
     using namespace ftxui;
     panel_boxes_.fill(kNoBox);
     clickables_.clear();
+    zoom_.begin_frame();
     if (!ui_.jobs) return text("");
     model_->sync(*ui_.jobs);
     const auto s = model_->spectrogram();
@@ -543,6 +547,7 @@ bool SpectrumScreen::OnEvent(ftxui::Event e) {
     if (e.is_mouse()) {
         const auto& m = e.mouse();
         const bool inside = valid(plot_box_) && plot_box_.Contain(m.x, m.y);
+        if (!inside && !drag_.active && zoom_.on_mouse(m)) return true;
         if ((m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) && inside) {
             zoom(m.button == Mouse::WheelUp ? kWheelStep : 1 / kWheelStep, time_at(m.x));
             return true;
@@ -556,6 +561,7 @@ bool SpectrumScreen::OnEvent(ftxui::Event e) {
                 }
             for (int p = 0; p < panel_count; ++p)
                 if (panel_boxes_[static_cast<std::size_t>(p)].Contain(m.x, m.y)) focus_ = static_cast<Panel>(p);
+            if (!inside && zoom_.press(m.x, m.y)) return true;
             if (inside) {
                 drag_ = {true, false, m.control, m.x, m.y};
                 cursor_ = std::pair{time_at(m.x), freq_at(m.y)};
@@ -614,6 +620,7 @@ bool SpectrumScreen::OnEvent(ftxui::Event e) {
     if (e == Event::Character('h')) return harmonics_ = !harmonics_, true;
     if (e == Event::Character('l')) return log_ = !log_, true;
     if (e == Event::Character('m')) return fold_ = fold_ == 0 ? 2 : fold_ == 2 ? 4 : 0, true;
+    if (focus_ == spectrum_panel && zoom_.on_key(e, "selection")) return true;
     if (e == Event::Character('+') || e == Event::Character('=') || e == Event::Character('-')) {
         const double anchor = cursor_ && cursor_->first >= begin_ && cursor_->first <= end_ ? cursor_->first : (begin_ + end_) / 2;
         zoom(e == Event::Character('-') ? 1 / kWheelStep : kWheelStep, anchor);
@@ -642,6 +649,7 @@ bool SpectrumScreen::OnEvent(ftxui::Event e) {
 
 ftxui::Box SpectrumScreen::area(std::string_view id) const {
     if (id == "spectrogram") return plot_box_;
+    if (id == "selection_plot") return zoom_.box("selection");
     if (id == "spectrum_panel") return panel_boxes_[spectrum_panel];
     if (id == "cursor_panel") return panel_boxes_[cursor_panel];
     if (id == "measure_panel") return panel_boxes_[measure_panel];
