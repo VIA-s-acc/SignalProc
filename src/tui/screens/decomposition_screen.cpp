@@ -96,6 +96,7 @@ std::vector<Hint> DecompositionScreen::hints() const {
 
 std::optional<TheoryLink> DecompositionScreen::theory_link() const {
     if (view_ == View::packets && focus_ != denoise) return TheoryLink{TheoryLink::Kind::section, "wavelet-packets"};
+    if (view_ == View::scalogram && focus_ != denoise) return TheoryLink{TheoryLink::Kind::section, "cwt"};
     return TheoryLink{TheoryLink::Kind::card, focus_ == denoise ? "threshold" : "dwt"};
 }
 
@@ -297,7 +298,6 @@ ftxui::Element DecompositionScreen::toolbar(bool two_rows) {
         if (on) e = e | bold;
         return clickable(std::move(id), e, std::move(action));
     };
-    auto later = [this] { notice_ = tr("tui.decomposition.later"); };
     const bool packets_view = view_ == View::packets;
     const auto o = model_->options();
     auto& jobs = *ui_.jobs;
@@ -306,7 +306,7 @@ ftxui::Element DecompositionScreen::toolbar(bool two_rows) {
                    chip("view_mra", "MRA", view_ == View::mra, false, [this] { view_ = View::mra; }),
                    chip("view_tiles", tr("tui.decomposition.view.tiles"), view_ == View::tiles, false, [this] { view_ = View::tiles; }),
                    chip("chip_packets", tr("tui.decomposition.view.packets"), view_ == View::packets, false, [this] { view_ = View::packets; }),
-                   chip("chip_scalogram", tr("tui.decomposition.view.scalogram"), false, true, later)};
+                   chip("chip_scalogram", tr("tui.decomposition.view.scalogram"), view_ == View::scalogram, false, [this] { view_ = View::scalogram; })};
     Elements second{text((two_rows ? "" : " │ ") + tr("tui.decomposition.transform") + " ") | fg(th.dim, ui_),
                     chip("chip_dwt", "DWT", o.transform == Transform::dwt, packets_view, [this, &jobs] { set_transform(Transform::dwt, jobs); }),
                     chip("chip_swt", "SWT", o.transform == Transform::swt, packets_view, [this, &jobs] { set_transform(Transform::swt, jobs); }),
@@ -558,6 +558,43 @@ ftxui::Element DecompositionScreen::packets_energy(const PacketData& p, int max_
                        fmt::format(fmt::runtime(tr("tui.decomposition.packet_basis")), fmt::arg("n", basis.size())));
 }
 
+ftxui::Element DecompositionScreen::scalogram_body(const ScalogramData& s, int width, int max_rows) {
+    using namespace ftxui;
+    const auto& th = ui_.theme;
+    constexpr int kFreqWidth = 9;
+    const int plot_width = std::max(10, width - kFreqWidth - 4);
+    const int height = std::max(2, max_rows - 1);
+    const auto d = model_->data();
+    const double total = d ? d->duration() : 1;
+    const auto c0 = static_cast<std::size_t>(std::floor(begin_ / std::max(1e-12, total) * static_cast<double>(s.cols)));
+    auto c1 = static_cast<std::size_t>(std::ceil(end_ / std::max(1e-12, total) * static_cast<double>(s.cols)));
+    c1 = std::clamp(c1, std::min(c0 + 1, s.cols), s.cols);
+    HeatmapSpec spec;
+    spec.rows = s.rows;
+    spec.cols = c1 - c0;
+    spec.floor = -48;
+    spec.ceil = 0;
+    for (std::size_t r = 0; r < s.rows; ++r)
+        for (std::size_t c = c0; c < c1; ++c) {
+            spec.values.push_back(s.db[r * s.cols + c]);
+            spec.shade.push_back(s.coi[r * s.cols + c]);
+        }
+    Elements labels;
+    for (int y = 0; y < height; ++y) {
+        const auto row = std::min(s.rows - 1, static_cast<std::size_t>(2 * y + 1) * s.rows / static_cast<std::size_t>(2 * height));
+        const bool show = y == 0 || y + 1 == height || y % 3 == 0;
+        labels.push_back(text(show ? pad_left(hz_text(s.freq_hz[row]) + (y == 0 ? " " + tr("unit.hz") : std::string{}), kFreqWidth - 1) : std::string{}) |
+                         fg(th.dim, ui_));
+    }
+    plot_boxes_.assign(1, kNoBox);
+    Elements rows;
+    rows.push_back(hbox({vbox(std::move(labels)) | size(WIDTH, EQUAL, kFreqWidth), heatmap(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) |
+                                                                                   size(HEIGHT, EQUAL, height) | size(WIDTH, EQUAL, plot_width) |
+                                                                                   reflect(plot_boxes_[0])}));
+    rows.push_back(hbox({text(std::string(kFreqWidth, ' ')), time_axis(plot_width)}));
+    return vbox(std::move(rows));
+}
+
 void DecompositionScreen::pick_packet(core::PacketNode n) {
     pk_level_ = n.level;
     pk_pos_ = core::freq_position(n);
@@ -805,14 +842,26 @@ ftxui::Element DecompositionScreen::OnRender() {
     const auto title = view_ == View::subbands ? tr("tui.decomposition.title.subbands")
                        : view_ == View::mra    ? fmt::format(fmt::runtime(tr("tui.decomposition.title.mra")), fmt::arg("a", band_label(d->bands.size() - 1)))
                        : view_ == View::packets ? tr("tui.decomposition.title.packets")
+                       : view_ == View::scalogram ? tr("tui.decomposition.title.scalogram")
                                                : tr("tui.decomposition.title.tiles");
-    const auto chip_key = view_ == View::tiles ? "tui.decomposition.chip.tiles" : view_ == View::packets ? "tui.decomposition.chip.packets" : "tui.decomposition.chip.scale";
-    const std::vector<Chip> view_chips{{tr(chip_key), false}};
+    const auto chip_key = view_ == View::tiles       ? "tui.decomposition.chip.tiles"
+                          : view_ == View::packets   ? "tui.decomposition.chip.packets"
+                          : view_ == View::scalogram ? "tui.decomposition.chip.scalogram"
+                                                     : "tui.decomposition.chip.scale";
     std::shared_ptr<const PacketData> packets;
+    std::shared_ptr<const ScalogramData> scalogram;
     if (view_ == View::packets) {
         model_->request_packets(*ui_.jobs);
         packets = model_->packets();
     }
+    if (view_ == View::scalogram) {
+        model_->request_scalogram(*ui_.jobs);
+        scalogram = model_->scalogram();
+    }
+    auto chip_text = tr(chip_key);
+    if (scalogram && scalogram->decimation > 1)
+        chip_text += " · " + fmt::format(fmt::runtime(tr("tui.decomposition.chip.decimated")), fmt::arg("m", scalogram->decimation));
+    const std::vector<Chip> view_chips{{chip_text, false}};
     const bool small = breakpoint_ <= Breakpoint::small || maximized_;
     const int main_width = small ? cols : cols - kRightWidth - 1;
     const bool two_rows = cols < 150;
@@ -821,7 +870,18 @@ ftxui::Element DecompositionScreen::OnRender() {
     const int body_rows = small ? total - toolbar_rows - 2 : std::max(6, total - toolbar_rows - 1 - 2 - 1 - 9);
     Element body;
     int used = std::min(body_rows, static_cast<int>(2 * std::min(d->bands.size(), static_cast<std::size_t>(body_rows))) + 3);
-    if (view_ != View::packets) {
+    if (view_ == View::scalogram) {
+        label_boxes_.clear();
+        plot_boxes_.clear();
+        if (scalogram) {
+            body = scalogram_body(*scalogram, main_width, body_rows);
+            used = body_rows;
+        } else {
+            const auto e = model_->scalogram_error();
+            body = text(e ? *e : tr("tui.decomposition.scalogram_wait")) | fg(e ? th.err : th.dim, ui_);
+            used = 3;
+        }
+    } else if (view_ != View::packets) {
         body = view_body(*d, r.get(), main_width, body_rows);
     } else {
         plot_boxes_.clear();
@@ -1020,7 +1080,11 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
     }
     if (e == Event::Character('u')) return model_->undo(jobs), true;
     if (e == Event::Character('v')) {
-        view_ = view_ == View::subbands ? View::mra : view_ == View::mra ? View::tiles : view_ == View::tiles ? View::packets : View::subbands;
+        view_ = view_ == View::subbands ? View::mra
+                : view_ == View::mra    ? View::tiles
+                : view_ == View::tiles  ? View::packets
+                : view_ == View::packets ? View::scalogram
+                                         : View::subbands;
         return true;
     }
     if (e == Event::Character(' ')) {

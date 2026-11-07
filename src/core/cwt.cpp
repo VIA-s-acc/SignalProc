@@ -118,29 +118,49 @@ Result<void> cwt_rows(std::span<const double> x, std::span<const double> scales,
         longest = std::max(longest, picks[i].size());
     }
     if (n + longest - 1 > kMaxLength) return make_error(Errc::invalid_argument, "cwt: signal and wavelet too long");
+    std::vector<std::complex<double>> row(n);
+    auto emit = [&](std::size_t i, auto&& conv_at) {
+        const auto offset = (picks[i].size() - 2) / 2;
+        const double gain = -std::sqrt(scales[i]);
+        for (std::size_t t = 0; t < n; ++t) row[t] = gain * (conv_at(t + offset + 1) - conv_at(t + offset));
+        out(i, row);
+        if (progress) progress->report(static_cast<double>(i + 1) / static_cast<double>(scales.size()));
+    };
+    if (!w.complex()) {
+        const std::size_t m = pocketfft::detail::util::good_size_real(n + longest - 1);
+        const pocketfft::shape_t shape{m};
+        const pocketfft::stride_t real_stride{sizeof(double)}, complex_stride{sizeof(std::complex<double>)};
+        std::vector<double> buffer(m, 0.0);
+        std::vector<std::complex<double>> spectrum(m / 2 + 1), kernel(m / 2 + 1);
+        std::copy(x.begin(), x.end(), buffer.begin());
+        pocketfft::r2c(shape, real_stride, complex_stride, 0, pocketfft::FORWARD, buffer.data(), spectrum.data(), 1.0);
+        for (std::size_t i = 0; i < scales.size(); ++i) {
+            if (progress && progress->cancelled()) return std::unexpected{cancelled_error("cwt")};
+            const auto& j = picks[i];
+            std::fill(buffer.begin(), buffer.end(), 0.0);
+            for (std::size_t k = 0; k < j.size(); ++k) buffer[k] = int_psi[j[j.size() - 1 - k]].real();
+            pocketfft::r2c(shape, real_stride, complex_stride, 0, pocketfft::FORWARD, buffer.data(), kernel.data(), 1.0);
+            for (std::size_t k = 0; k < kernel.size(); ++k) kernel[k] *= spectrum[k];
+            pocketfft::c2r(shape, complex_stride, real_stride, 0, pocketfft::BACKWARD, kernel.data(), buffer.data(), 1.0 / static_cast<double>(m));
+            emit(i, [&](std::size_t k) { return std::complex<double>{buffer[k], 0}; });
+        }
+        return {};
+    }
     const std::size_t m = pocketfft::detail::util::good_size_cmplx(n + longest - 1);
     const pocketfft::shape_t shape{m};
     const pocketfft::stride_t stride{sizeof(std::complex<double>)};
-    std::vector<std::complex<double>> spectrum(m), kernel(m), conv(m), row(n);
+    std::vector<std::complex<double>> spectrum(m), kernel(m), conv(m);
     for (std::size_t k = 0; k < n; ++k) conv[k] = x[k];
     pocketfft::c2c(shape, stride, stride, {0}, pocketfft::FORWARD, conv.data(), spectrum.data(), 1.0);
     for (std::size_t i = 0; i < scales.size(); ++i) {
         if (progress && progress->cancelled()) return std::unexpected{cancelled_error("cwt")};
         const auto& j = picks[i];
-        const auto len = j.size();
         std::fill(conv.begin(), conv.end(), std::complex<double>{});
-        for (std::size_t k = 0; k < len; ++k) conv[k] = int_psi[j[len - 1 - k]];
+        for (std::size_t k = 0; k < j.size(); ++k) conv[k] = int_psi[j[j.size() - 1 - k]];
         pocketfft::c2c(shape, stride, stride, {0}, pocketfft::FORWARD, conv.data(), kernel.data(), 1.0);
         for (std::size_t k = 0; k < m; ++k) kernel[k] *= spectrum[k];
         pocketfft::c2c(shape, stride, stride, {0}, pocketfft::BACKWARD, kernel.data(), conv.data(), 1.0 / static_cast<double>(m));
-        const auto offset = (len - 2) / 2;
-        const double gain = -std::sqrt(scales[i]);
-        for (std::size_t t = 0; t < n; ++t) {
-            const auto v = gain * (conv[t + offset + 1] - conv[t + offset]);
-            row[t] = w.complex() ? v : std::complex<double>{v.real(), 0};
-        }
-        out(i, row);
-        if (progress) progress->report(static_cast<double>(i + 1) / static_cast<double>(scales.size()));
+        emit(i, [&](std::size_t k) { return conv[k]; });
     }
     return {};
 }

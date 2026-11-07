@@ -22,7 +22,7 @@ namespace signals::tui {
 
 class DecompositionScreen final : public TabScreen {
 public:
-    enum class View { subbands, mra, tiles, packets };
+    enum class View { subbands, mra, tiles, packets, scalogram };
 
     DecompositionScreen(UiContext& ui, std::shared_ptr<DecompositionModel> model);
 
@@ -64,6 +64,7 @@ private:
     ftxui::Element time_axis(int width) const;
     ftxui::Element energy_panel(const DecompositionData& d, int max_rows, int width, bool wide);
     ftxui::Element packets_body(const PacketData& p, int width, int max_rows);
+    ftxui::Element scalogram_body(const ScalogramData& s, int width, int max_rows);
     ftxui::Element packets_energy(const PacketData& p, int max_rows, int width);
     void pick_packet(core::PacketNode n);
     bool packet_key(const ftxui::Event& e, const PacketData& p);

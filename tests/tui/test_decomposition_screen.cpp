@@ -2,6 +2,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
+#include <cmath>
+#include <numbers>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -88,7 +90,7 @@ TEST_CASE("arrows and enter toggle the selected band", "[tui][decomposition]") {
     CHECK(f.h.frame().find("☐ d₃") != std::string::npos);
 }
 
-TEST_CASE("v cycles subbands, MRA, tiles and packets", "[tui][decomposition]") {
+TEST_CASE("v cycles subbands, MRA, tiles, packets and the scalogram", "[tui][decomposition]") {
     DecompositionFixture f;
     CHECK(f.screen->view() == DecompositionScreen::View::subbands);
     f.h.send(ftxui::Event::Character('v'));
@@ -100,6 +102,9 @@ TEST_CASE("v cycles subbands, MRA, tiles and packets", "[tui][decomposition]") {
     f.h.send(ftxui::Event::Character('v'));
     CHECK(f.screen->view() == DecompositionScreen::View::packets);
     CHECK(f.h.frame().find("Пакеты · клик по узлу") != std::string::npos);
+    f.h.send(ftxui::Event::Character('v'));
+    CHECK(f.screen->view() == DecompositionScreen::View::scalogram);
+    CHECK(f.h.frame().find("Скалограмма · CWT") != std::string::npos);
     f.h.send(ftxui::Event::Character('v'));
     CHECK(f.screen->view() == DecompositionScreen::View::subbands);
 }
@@ -131,11 +136,6 @@ TEST_CASE("b plays the enabled bands from the cursor and a and x switch in place
     CHECK(f.player.state() == signals::audio::PlayState::stopped);
 }
 
-TEST_CASE("M6 chips explain when they arrive", "[tui][decomposition]") {
-    DecompositionFixture f;
-    f.click("chip_scalogram");
-    CHECK(f.h.frame().find("появится в M6") != std::string::npos);
-}
 
 TEST_CASE("wheel zooms time and a click sets the cursor", "[tui][decomposition]") {
     DecompositionFixture f;
@@ -493,5 +493,85 @@ TEST_CASE("a new wavelet recomputes packets and hides the stale table", "[tui][d
     const auto p = f.model->packets();
     REQUIRE(p);
     CHECK(p->options.wavelet == "db4");
+}
+
+
+TEST_CASE("the scalogram peaks at the tone and marks the cone of influence", "[tui][decomposition][scalogram]") {
+    const double fs = 8000;
+    std::vector<double> x(16000);
+    for (std::size_t k = 0; k < x.size(); ++k) x[k] = std::sin(2 * std::numbers::pi * 1000 * static_cast<double>(k) / fs);
+    const auto s = compute_scalogram(x, fs, 64);
+    REQUIRE(s);
+    CHECK(s->cols == 64);
+    REQUIRE(s->rows == s->freq_hz.size());
+    REQUIRE(s->rows > 8);
+    REQUIRE(s->db.size() == s->rows * s->cols);
+    REQUIRE(s->coi.size() == s->rows * s->cols);
+    for (const double v : s->db) {
+        CHECK(std::isfinite(v));
+        CHECK(v <= 0);
+        CHECK(v >= -48);
+    }
+    CHECK(s->freq_hz.front() == Catch::Approx(0.4 * fs));
+    CHECK(s->freq_hz.front() > s->freq_hz.back());
+    std::size_t best = 0, nearest = 0;
+    double best_power = -1;
+    for (std::size_t r = 0; r < s->rows; ++r) {
+        double power = 0;
+        for (std::size_t c = 16; c < 48; ++c) power += std::pow(10.0, s->db[r * s->cols + c] / 10);
+        if (power > best_power) best_power = power, best = r;
+        if (std::abs(std::log(s->freq_hz[r] / 1000)) < std::abs(std::log(s->freq_hz[nearest] / 1000))) nearest = r;
+    }
+    CHECK((best > nearest ? best - nearest : nearest - best) <= 1);
+    const auto last = s->rows - 1;
+    CHECK(s->coi[last * s->cols] == 1);
+    CHECK(s->coi[last * s->cols + s->cols - 1] == 1);
+    CHECK(s->coi[s->cols / 2] == 0);
+    CHECK_FALSE(compute_scalogram(std::vector<double>(10, 1.0), fs, 64));
+}
+
+TEST_CASE("the scalogram chip shows the CWT heat map", "[tui][decomposition][scalogram]") {
+    DecompositionFixture f;
+    f.click("chip_scalogram");
+    CHECK(f.screen->view() == DecompositionScreen::View::scalogram);
+    const auto frame = f.h.frame();
+    REQUIRE(f.model->scalogram());
+    CHECK(frame.find("Скалограмма · CWT") != std::string::npos);
+    CHECK(f.screen->theory_link()->id == "cwt");
+}
+
+TEST_CASE("the scalogram survives a new wavelet and follows a new channel", "[tui][decomposition][scalogram]") {
+    DecompositionFixture f;
+    f.screen->set_view(DecompositionScreen::View::scalogram);
+    f.h.frame();
+    const auto first = f.model->scalogram();
+    REQUIRE(first);
+    auto o = f.model->options();
+    o.wavelet = "db4";
+    f.model->set_options(o, f.jobs);
+    f.h.frame();
+    CHECK(f.model->scalogram() == first);
+    o.channel = 0;
+    f.model->set_options(o, f.jobs);
+    CHECK_FALSE(f.model->scalogram());
+    f.h.frame();
+    const auto second = f.model->scalogram();
+    REQUIRE(second);
+    CHECK(second != first);
+    CHECK(second->channel == 0);
+}
+
+TEST_CASE("the scalogram fits a small terminal and zooms in time", "[tui][decomposition][scalogram]") {
+    DecompositionFixture f{true, 80, 24};
+    f.screen->set_view(DecompositionScreen::View::scalogram);
+    f.h.frame();
+    REQUIRE(f.model->scalogram());
+    const auto box = f.screen->area("view_plot");
+    REQUIRE(box.x_max > box.x_min);
+    CHECK(box.x_max < 80);
+    const auto [b0, e0] = f.screen->time_view();
+    f.h.wheel((box.x_min + box.x_max) / 2, (box.y_min + box.y_max) / 2, true);
+    const auto [b1, e1] = f.screen->time_view();
+    CHECK(e1 - b1 < e0 - b0);
 }
 

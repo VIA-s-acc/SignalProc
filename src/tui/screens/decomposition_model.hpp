@@ -5,6 +5,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -12,6 +13,7 @@
 #include "audio/player.hpp"
 #include "core/extension.hpp"
 #include "core/packets.hpp"
+#include "core/progress.hpp"
 #include "core/memory.hpp"
 #include "core/process/shrink.hpp"
 #include "core/process/threshold.hpp"
@@ -105,6 +107,19 @@ struct PacketData {
     const PacketNodeInfo& info(core::PacketNode n) const { return table[n.level][core::freq_position(n)]; }
 };
 
+struct ScalogramData {
+    std::size_t rows = 0, cols = 0;
+    std::vector<double> db;
+    std::vector<std::uint8_t> coi;
+    std::vector<double> freq_hz;
+    std::size_t decimation = 1;
+    std::weak_ptr<const SignalData> signal;
+    int channel = -1;
+    core::TrackedBytes memory;
+};
+
+core::Result<ScalogramData> compute_scalogram(std::span<const double> x, double fs, std::size_t cols, core::ProgressSink* progress = nullptr);
+
 enum class ClipKind { original, enabled, difference, band };
 
 class DecompositionModel {
@@ -140,6 +155,10 @@ public:
     double basis_cost() const;
     double basis_pr_error() const;
 
+    void request_scalogram(JobRunner& jobs);
+    std::shared_ptr<const ScalogramData> scalogram() const;
+    std::optional<std::string> scalogram_error() const;
+
 private:
     void compute(JobRunner& jobs);
     void reconstruct(JobRunner& jobs);
@@ -166,6 +185,12 @@ private:
     std::weak_ptr<const DecompositionData> packets_for_;
     std::optional<std::uint64_t> packets_job_;
     std::uint64_t packets_gen_ = 0, packets_done_ = 0;
+    std::shared_ptr<const ScalogramData> scalogram_;
+    std::optional<std::string> scalogram_error_;
+    std::weak_ptr<const SignalData> scalogram_for_;
+    int scalogram_channel_ = -1;
+    std::optional<std::uint64_t> scalogram_job_;
+    std::uint64_t scalogram_gen_ = 0, scalogram_done_ = 0;
 };
 
 }  // namespace signals::tui
