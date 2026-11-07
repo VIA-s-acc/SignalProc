@@ -12,6 +12,7 @@ add_executable(signals_tests
   core/test_swt.cpp
   core/test_lifting.cpp
   core/test_ops.cpp
+  core/test_analysis.cpp
   core/test_spectra.cpp
   core/test_packets.cpp
   core/test_cwt.cpp

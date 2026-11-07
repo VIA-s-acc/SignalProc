@@ -570,6 +570,28 @@ def ops_json():
         quant.append({"bits": bits, "y": floats(np.clip(np.round(y / step) * step, -1.0, 1.0 - step))})
     return {"x": floats(x), "mulaw": floats(mulaw), "y": floats(y), "quantize": quant}
 
+def analysis_json():
+    import scipy.fft
+    rng = np.random.default_rng(11)
+    signals = [rng.standard_normal(37), np.sin(0.3 * np.arange(64)) + 0.1 * rng.standard_normal(64), np.array([0.75])]
+    corr = []
+    for x, y in [(signals[0], signals[1][:20]), (signals[1], signals[0]), (signals[2], signals[0][:5])]:
+        for mode in ["full", "same", "valid"]:
+            corr.append({"x": floats(x), "y": floats(y), "mode": mode, "out": floats(scipy.signal.correlate(x, y, mode=mode, method="direct"))})
+    hilb, ceps, dct = [], [], []
+    for x in signals:
+        a = scipy.signal.hilbert(x)
+        hilb.append({"x": floats(x), "re": floats(a.real), "im": floats(a.imag)})
+        spectrum = np.abs(np.fft.fft(x))
+        ceps.append({"x": floats(x), "out": floats(np.real(np.fft.ifft(np.log(spectrum + 1e-12 * spectrum.max()))))})
+        dct.append({"x": floats(x), "dct": floats(scipy.fft.dct(x, type=2, norm="ortho"))})
+    x = signals[1][:50]
+    n, hop = 16, 4
+    _, _, z = scipy.signal.stft(x, nperseg=n, noverlap=n - hop, window="hann")
+    _, back = scipy.signal.istft(z, nperseg=n, noverlap=n - hop, window="hann")
+    stft = {"x": floats(x), "n": n, "hop": hop, "re": [floats(r) for r in z.real.T], "im": [floats(r) for r in z.imag.T], "istft": floats(back)}
+    return {"correlate": corr, "hilbert": hilb, "cepstrum": ceps, "dct": dct, "stft": stft}
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path)
@@ -589,7 +611,7 @@ def main():
                                ("spectral.json", spectral_json), ("swt.json", swt_json),
                                ("packets.json", packets_json), ("cwt.json", cwt_json),
                                ("processing.json", lambda: processing_json(sample_wav)),
-                               ("iir.json", iir_json), ("fir.json", fir_json), ("ops.json", ops_json)]:
+                               ("iir.json", iir_json), ("fir.json", fir_json), ("ops.json", ops_json), ("analysis.json", analysis_json)]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)

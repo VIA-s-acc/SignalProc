@@ -2,10 +2,12 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <filesystem>
+#include <numbers>
 #include <fstream>
 #include <sstream>
 #include <vector>
 
+#include "core/analysis.hpp"
 #include "core/check.hpp"
 #include "core/conv.hpp"
 #include "core/design/families.hpp"
@@ -272,4 +274,29 @@ TEST_CASE("lift53 and ilift53 reconstruct, and the integer mode is lossless on 1
         const auto* idwt = find_block_type("idwt");
         CHECK_FALSE(idwt->run(RunContext{}, c, *resolve_params(*idwt, {})));
     }
+}
+
+TEST_CASE("analysis blocks run per channel", "[pipeline][analysis]") {
+    core::AudioBuffer x;
+    x.sample_rate = 8000;
+    x.channels = {{}, {}};
+    for (std::size_t n = 0; n < 800; ++n) {
+        x.channels[0].push_back(std::sin(2 * std::numbers::pi * 500 * static_cast<double>(n) / 8000));
+        x.channels[1].push_back(0.5 * std::cos(2 * std::numbers::pi * 1000 * static_cast<double>(n) / 8000));
+    }
+    const auto env = audio(run("envelope", {x})[0]);
+    CHECK(env.channels[0] == core::envelope(x.channels[0]));
+    CHECK(env.sample_rate == 8000);
+    const auto inst = audio(run("inst_freq", {x})[0]);
+    CHECK(inst.channels[1].size() == 799);
+    CHECK(std::abs(inst.channels[1][400] - 1000) < 1e-6);
+    CHECK(audio(run("cepstrum", {x})[0]).channels[0] == core::real_cepstrum(x.channels[0]));
+    const auto d = run("dct", {x});
+    CHECK(core::max_abs_error(audio(run("idct", {d[0]})[0]).channels[1], x.channels[1]) < 1e-12);
+    const auto c = audio(run("xcorr", {x, x}, {{"mode", "full"}, {"normalize", "yes"}})[0]);
+    REQUIRE(c.channels[0].size() == 1599);
+    CHECK(std::abs(c.channels[0][799] - 1.0) < 1e-12);
+    CHECK(std::abs(c.channels[1][799] - 1.0) < 1e-12);
+    const auto same = audio(run("xcorr", {x, x}, {{"mode", "same"}})[0]);
+    CHECK(same.channels[0].size() == 800);
 }

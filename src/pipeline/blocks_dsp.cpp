@@ -6,6 +6,7 @@
 
 #include <fmt/format.h>
 
+#include "core/analysis.hpp"
 #include "core/check.hpp"
 #include "core/conv.hpp"
 #include "core/design/families.hpp"
@@ -386,6 +387,55 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                                r.fields.emplace_back("c" + std::to_string(ch) + "." + (b == 0 ? "a" + std::to_string(J) : "d" + std::to_string(J + 1 - b)), fractions[b]);
                        }
                        return std::vector<Value>{std::move(r)};
+                   }});
+    using Samples = core::Result<std::vector<double>>;
+    out.push_back({"envelope", kSignalIn, kSignalOut, {}, [](const RunContext&, std::span<const Value> in, const Params&) -> Out {
+                       const auto& a = in_audio(in);
+                       return per_channel(a, a.sample_rate, [](const std::vector<double>& c) -> Samples { return core::envelope(c); });
+                   }});
+    out.push_back({"inst_freq", kSignalIn, kSignalOut, {}, [](const RunContext&, std::span<const Value> in, const Params&) -> Out {
+                       const auto& a = in_audio(in);
+                       return per_channel(a, a.sample_rate, [&a](const std::vector<double>& c) -> Samples { return core::instantaneous_frequency(c, a.sample_rate); });
+                   }});
+    out.push_back({"cepstrum", kSignalIn, kSignalOut, {}, [](const RunContext&, std::span<const Value> in, const Params&) -> Out {
+                       const auto& a = in_audio(in);
+                       return per_channel(a, a.sample_rate, [](const std::vector<double>& c) -> Samples { return core::real_cepstrum(c); });
+                   }});
+    out.push_back({"dct", kSignalIn, kSignalOut, {}, [](const RunContext&, std::span<const Value> in, const Params&) -> Out {
+                       const auto& a = in_audio(in);
+                       return per_channel(a, a.sample_rate, [](const std::vector<double>& c) -> Samples { return core::dct2(c); });
+                   }});
+    out.push_back({"idct", kSignalIn, kSignalOut, {}, [](const RunContext&, std::span<const Value> in, const Params&) -> Out {
+                       const auto& a = in_audio(in);
+                       return per_channel(a, a.sample_rate, [](const std::vector<double>& c) -> Samples { return core::idct2(c); });
+                   }});
+    out.push_back({"xcorr",
+                   {{"a", PortType::signal}, {"b", PortType::signal}},
+                   kSignalOut,
+                   {{"mode", Kind::choice, "full", {"full", "same", "valid"}}, {"normalize", Kind::choice, "no", {"no", "yes"}}},
+                   [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                       const auto& a = in_audio(in, 0);
+                       const auto& b = in_audio(in, 1);
+                       if (b.channels.empty()) return core::make_error(core::Errc::invalid_argument, "xcorr: the second input has no channels");
+                       const auto& name = param_text(p, "mode");
+                       const auto mode = name == "same" ? core::CorrelationMode::same : name == "valid" ? core::CorrelationMode::valid : core::CorrelationMode::full;
+                       const bool normalize = param_text(p, "normalize") == "yes";
+                       core::AudioBuffer result;
+                       result.sample_rate = a.sample_rate;
+                       for (std::size_t ch = 0; ch < a.channels.size(); ++ch) {
+                           const auto& other = b.channels[std::min(ch, b.channels.size() - 1)];
+                           auto r = core::correlate(a.channels[ch], other, mode);
+                           if (!r) return std::unexpected{r.error()};
+                           if (normalize) {
+                               double ea = 0, eb = 0;
+                               for (double v : a.channels[ch]) ea += v * v;
+                               for (double v : other) eb += v * v;
+                               if (ea > 0 && eb > 0)
+                                   for (auto& v : *r) v /= std::sqrt(ea * eb);
+                           }
+                           result.channels.push_back(std::move(*r));
+                       }
+                       return std::vector<Value>{std::move(result)};
                    }});
     out.push_back({"check",
                    {{"ref", PortType::signal}, {"in", PortType::signal}},
