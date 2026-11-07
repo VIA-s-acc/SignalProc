@@ -630,10 +630,20 @@ bool TheoryScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (e == Event::Tab || e == Event::TabReverse) {
+        const bool forward = e == Event::Tab;
         const auto n = doc_.links.size();
+        const bool leaving = !toc_focus_ && !small_contents_ && (n == 0 || (focused_link_ && (forward ? *focused_link_ + 1 >= n : *focused_link_ == 0)));
+        if (leaving) {
+            focused_link_.reset();
+            if (breakpoint_ <= Breakpoint::small) small_contents_ = true;
+            toc_focus_ = true;
+            start_cursor();
+            return true;
+        }
+        if (toc_focus_ || small_contents_) toc_focus_ = small_contents_ = false, focused_link_.reset();
         if (n == 0) return true;
-        if (!focused_link_) focused_link_ = e == Event::Tab ? 0 : n - 1;
-        else focused_link_ = e == Event::Tab ? (*focused_link_ + 1) % n : (*focused_link_ + n - 1) % n;
+        if (!focused_link_) focused_link_ = forward ? 0 : n - 1;
+        else focused_link_ = forward ? *focused_link_ + 1 : *focused_link_ - 1;
         const int line = doc_.links[*focused_link_].line;
         if (line >= 0 && line < scroll_) scroll_ = line;
         if (line >= scroll_ + visible_rows_) scroll_ = line - visible_rows_ + 1;
