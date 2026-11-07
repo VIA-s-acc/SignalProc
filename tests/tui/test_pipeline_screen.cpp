@@ -558,3 +558,24 @@ TEST_CASE("the add-block list scrolls with the wheel and adds the clicked block"
     REQUIRE_FALSE(f.model->doc().nodes.empty());
     CHECK(f.model->doc().nodes.back().type == "wav_out");
 }
+
+TEST_CASE("C lists the free inputs a selected output can feed and connects the chosen one", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    f.model->add_node("gen");
+    const auto dwt = f.model->add_node("dwt");
+    f.model->add_node("idwt");
+    f.model->add_node("check");
+    REQUIRE(f.model->connect(port("gen"), port("dwt")));
+    f.model->selection = {Selection::Kind::node, dwt, {}};
+    f.h.frame();
+    f.h.send(ftxui::Event::Character('C'));
+    const auto it = std::find_if(items.begin(), items.end(), [](const Command& c) { return c.title.find("idwt") != std::string::npos; });
+    REQUIRE(it != items.end());
+    CHECK(std::none_of(items.begin(), items.end(), [](const Command& c) { return c.title.find("check") != std::string::npos; }));
+    it->run();
+    CHECK(f.model->doc().edges.size() == 2);
+    const auto hints = f.screen->hints();
+    CHECK(std::any_of(hints.begin(), hints.end(), [](const signals::tui::Hint& h) { return h.key == "c/C"; }));
+}

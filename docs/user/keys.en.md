@@ -222,6 +222,7 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `v` | time or spectrum |
 | `L` | layout and view |
 | `drag ● → ○` | connect |
+| `c/C` | connect: c — output, arrows, Enter; C — list of inputs |
 
 ## 9 Theory ▸ Explain
 

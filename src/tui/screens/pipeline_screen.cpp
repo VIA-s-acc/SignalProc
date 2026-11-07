@@ -83,7 +83,8 @@ std::vector<Hint> PipelineScreen::hints() const {
             {"M", tr("tui.pipeline.hint.bypass")},         {"p", tr("tui.pipeline.hint.probe")},     {"Del", tr("tui.pipeline.hint.delete")},
             {"Ctrl+Z/Y", tr("tui.pipeline.hint.undo")},    {"Ctrl+S", tr("tui.pipeline.hint.save")}, {"o", tr("tui.pipeline.hint.open")},
             {"r", tr("tui.pipeline.hint.run")},           {"A/B", tr("tui.pipeline.hint.ab")},      {"Space", tr("tui.pipeline.hint.listen")},
-            {"v", tr("tui.pipeline.hint.view")},          {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")}};
+            {"v", tr("tui.pipeline.hint.view")},          {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")},
+            {"c/C", tr("tui.pipeline.hint.connect_keys")}};
 }
 
 const pipeline::GraphNode* PipelineScreen::selected_node() const {
@@ -822,6 +823,29 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
             connecting_ = short_ref(n->id, n->type->outputs[k].name, n->type->outputs.size());
             notice_ = fmt::format(fmt::runtime(tr("tui.pipeline.connect_from")), fmt::arg("node", connecting_->port.empty() ? n->id : n->id + "." + connecting_->port));
         }
+        return true;
+    }
+    if (e == Event::Character('C') && ui_.choose) {
+        const auto* n = selected_node();
+        const auto* g = model_->graph();
+        if (!n || !g || n->type->outputs.empty()) return true;
+        std::vector<Command> items;
+        for (std::size_t o = 0; o < n->type->outputs.size(); ++o) {
+            const auto from = short_ref(n->id, n->type->outputs[o].name, n->type->outputs.size());
+            const auto from_name = from.port.empty() ? n->id : n->id + "." + from.port;
+            for (const auto& m : g->nodes) {
+                if (m.id == n->id) continue;
+                for (std::size_t i = 0; i < m.type->inputs.size(); ++i) {
+                    if (i < m.inputs.size() && m.inputs[i]) continue;
+                    if (m.type->inputs[i].type != n->type->outputs[o].type) continue;
+                    const auto to = short_ref(m.id, m.type->inputs[i].name, m.type->inputs.size());
+                    const auto to_name = to.port.empty() ? m.id : m.id + "." + to.port;
+                    items.push_back({from_name + "->" + to_name, from_name + " → " + to_name, [this, from, to] { report(model_->connect(from, to)); }});
+                }
+            }
+        }
+        if (items.empty()) notice_ = tr("tui.pipeline.no_free_inputs");
+        else ui_.choose(tr("tui.pipeline.connect_title"), std::move(items));
         return true;
     }
     if (connecting_ && e == Event::Escape) {

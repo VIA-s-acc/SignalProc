@@ -1271,5 +1271,8 @@
   "unit.node.many": "{n} nodes",
   "tui.processing.heard": "plays {span} s ({from}–{to} s)",
   "tui.pipeline.wire_drag": "wire {from} → {to} · release on an input ○",
-  "tui.pipeline.type_value": "type a value…"
+  "tui.pipeline.type_value": "type a value…",
+  "tui.pipeline.no_free_inputs": "no free inputs of a matching type",
+  "tui.pipeline.connect_title": "Connect to an input",
+  "tui.pipeline.hint.connect_keys": "connect: c — output, arrows, Enter; C — list of inputs"
 }
