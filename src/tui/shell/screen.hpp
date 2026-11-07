@@ -30,6 +30,7 @@ struct Command {
     std::string id;
     std::string title;
     std::function<void()> run;
+    std::string note = {};
 };
 
 struct NavArgs {
@@ -107,6 +108,7 @@ public:
     virtual bool capturing_text() const { return false; }
     virtual std::vector<MenuItem> context_menu(int /*x*/, int /*y*/) { return {}; }
     virtual std::vector<JumpTarget> jump_targets() const { return {}; }
+    virtual std::optional<std::string> explain_at(int /*x*/, int /*y*/) const { return std::nullopt; }
     virtual void open_with(const NavArgs&) {}
     virtual std::vector<Command> commands() { return {}; }
     virtual ftxui::Element context_element(const UiContext& ui, int width);

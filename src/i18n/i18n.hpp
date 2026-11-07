@@ -9,6 +9,7 @@ namespace signals {
 enum class Language { ru, en };
 
 std::string tr(std::string_view key);
+std::optional<std::string> tr_opt(std::string_view key);
 std::string tr_count(std::string_view key, long long n, std::string_view shown = {});
 
 void set_language(Language language);

@@ -170,7 +170,12 @@ ftxui::Element Palette::render(const UiContext& ui, int width) const {
     rows.push_back(text(ellipsize_start(": " + query_, inner - 1, ascii) + "▏") | bold);
     const auto matches = filter_commands(commands_, query_);
     for (std::size_t i = first_; i < matches.size() && i < first_ + kVisible; ++i) {
-        auto row = text(" " + ellipsize(matches[i]->title, inner - 2, ascii) + " ");
+        const auto title = ellipsize(matches[i]->title, inner - 2, ascii);
+        const auto& note = matches[i]->note;
+        const int note_room = inner - 4 - display_width(title);
+        Elements parts{text(" " + title + " ")};
+        if (!note.empty() && note_room > 8) parts.push_back(text(" " + ellipsize(note, note_room, ascii)) | (i == selected_ ? nothing : fg(ui.theme.dim, ui)));
+        auto row = hbox(std::move(parts));
         rows.push_back(i == selected_ ? row | bold | fg(ui.theme.bg, ui) | bg(ui.theme.accent, ui) : row);
     }
     if (matches.empty()) rows.push_back(text(tr("tui.help.nothing")) | fg(ui.theme.dim, ui));

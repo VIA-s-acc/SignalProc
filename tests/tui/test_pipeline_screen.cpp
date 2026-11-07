@@ -857,3 +857,45 @@ TEST_CASE("probes switch by click and arrows, and a report probe shows its numbe
     CHECK(f.h.frame().find("Щуп · pr") != std::string::npos);
     CHECK(frame.find("←→") != std::string::npos);
 }
+
+TEST_CASE("the inspector explains the picked parameter and its value, and the picker explains each value", "[tui][pipeline_screen][explain]") {
+    PipelineFixture f{150, 44, false};
+    const auto id = f.model->add_node("check");
+    f.model->selection = {Selection::Kind::node, id, {}};
+    f.h.frame();
+    f.h.send(ftxui::Event::Return);
+    auto frame = f.h.frame();
+    CHECK(frame.find(signals::tr("pipeline.param.check.kind")) != std::string::npos);
+    CHECK(frame.find(signals::tr("pipeline.param.check.kind.pr")) != std::string::npos);
+    f.h.send(ftxui::Event::ArrowRight);
+    frame = f.h.frame();
+    CHECK(frame.find(signals::tr("pipeline.param.check.kind.error")) != std::string::npos);
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    f.h.send(ftxui::Event::ArrowDown);
+    f.h.send(ftxui::Event::ArrowDown);
+    f.h.send(ftxui::Event::Return);
+    const auto it = std::find_if(items.begin(), items.end(), [](const Command& c) { return c.title == "auto"; });
+    REQUIRE(it != items.end());
+    CHECK(it->note == signals::tr("pipeline.param.check.delay.auto"));
+    const auto row = f.screen->area("inspector");
+    CHECK(f.screen->explain_at(row.x_min + 2, row.y_min + 2).has_value());
+}
+
+TEST_CASE("every block, parameter and choice value has an explanation in both languages", "[pipeline][explain]") {
+    for (const auto lang : {signals::Language::ru, signals::Language::en}) {
+        signals::LanguageScope scope{lang};
+        for (const auto& t : signals::pipeline::block_types()) {
+            INFO(t.id);
+            CHECK(signals::tr_opt("pipeline.about." + t.id));
+            for (const auto& p : t.params) {
+                INFO(p.name);
+                CHECK(signals::tr_opt("pipeline.param." + t.id + "." + p.name));
+                for (const auto& v : p.choices) {
+                    INFO(v);
+                    CHECK(signals::tr_opt("pipeline.param." + t.id + "." + p.name + "." + v));
+                }
+            }
+        }
+    }
+}

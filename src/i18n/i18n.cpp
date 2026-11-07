@@ -37,6 +37,11 @@ std::string tr(std::string_view key) {
     return std::string{key};
 }
 
+std::optional<std::string> tr_opt(std::string_view key) {
+    if (auto text = lookup(language(), key)) return std::string{*text};
+    return std::nullopt;
+}
+
 std::string tr_count(std::string_view key, long long n, std::string_view shown) {
     const auto abs = n < 0 ? -n : n;
     const char* form = ".many";

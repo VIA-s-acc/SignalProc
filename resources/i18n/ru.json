@@ -1343,6 +1343,8 @@
   "tui.pipeline.example.dwt_levels": "DWT db4 на 3 уровня со щупами на полосах",
   "tui.pipeline.example.denoise": "Шумоподавление файла: DWT, порог, IDWT",
   "tui.pipeline.ask_wav": "WAV для примера",
+  "tui.pipeline.param_default": "по умолчанию {value}",
+  "tui.pipeline.param_range": "от {min} до {max}",
   "tui.pipeline.example.haar_bank_wav": "Банк Хаара на своём WAV: спросит файл",
   "tui.pipeline.example.effects_chain": "Цепочка: чирп, модуляция, БИХ и КИХ, измерения, лифтинг 9/7",
   "pipeline.error.rates": "{block}: у входов разная частота дискретизации — {a} и {b} Гц; приведите их к одной блоком resample",
