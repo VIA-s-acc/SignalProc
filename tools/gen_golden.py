@@ -130,6 +130,47 @@ def swt_json():
     return {"signals": signals, "cases": cases}
 
 
+PACKET_WAVELETS = ["haar", "db2", "sym4", "coif1", "bior2.2"]
+PACKET_MODES = ["symmetric", "periodization", "zero"]
+PACKET_LENGTHS = [64, 77]
+
+
+def packets_json():
+    signals = {str(n): signal(n) for n in PACKET_LENGTHS}
+    cases = []
+    for name in PACKET_WAVELETS:
+        for mode in PACKET_MODES:
+            for n in PACKET_LENGTHS:
+                x = np.asarray(signals[str(n)])
+                max_level = pywt.dwt_max_level(n, pywt.Wavelet(name).dec_len)
+                for level in sorted({3, max_level}):
+                    wp = pywt.WaveletPacket(x, name, mode=mode, maxlevel=level)
+                    nodes = {node.path: floats(node.data) for j in range(1, level + 1) for node in wp.get_level(j, "natural")}
+                    for child in ["aaa", "aad", "da", "dd"]:
+                        del wp[child]
+                    leaves = [node.path for node in wp.get_leaf_nodes(decompose=False)]
+                    cases.append({"wavelet": name, "mode": mode, "n": n, "level": level, "nodes": nodes,
+                                  "basis": leaves, "reconstruct": floats(wp.reconstruct(update=False))})
+    return {"signals": signals, "cases": cases}
+
+
+CWT_WAVELETS = ["morl", "mexh", "cmor1.5-1.0"]
+CWT_LENGTHS = [100, 257]
+CWT_SCALES = [0.5, 1.0, 2.5, 8.0, 40.0]
+
+
+def cwt_json():
+    signals = {str(n): signal(n) for n in CWT_LENGTHS}
+    cases = []
+    for name in CWT_WAVELETS:
+        w = pywt.ContinuousWavelet(name)
+        for n in CWT_LENGTHS:
+            coefs, freqs = pywt.cwt(np.asarray(signals[str(n)]), CWT_SCALES, w, method="conv")
+            cases.append({"wavelet": name, "n": n, "scales": CWT_SCALES,
+                          "re": [floats(np.real(r)) for r in coefs], "im": [floats(np.imag(r)) for r in coefs],
+                          "frequencies": floats(freqs), "center": float(pywt.scale2frequency(w, 1.0, 12))})
+    return {"signals": signals, "cases": cases}
+
 WAV_FRAMES = 64
 PCM_SUBTYPE_GUID = bytes.fromhex("0100000000001000800000aa00389b71")
 G711_SEG_END = [0xFF, 0x1FF, 0x3FF, 0x7FF, 0xFFF, 0x1FFF, 0x3FFF, 0x7FFF]
@@ -365,7 +406,8 @@ def main():
                                ("kaiser.json", kaiser_json), ("upfirdn.json", upfirdn_json),
                                ("freqz.json", freqz_json), ("threshold.json", threshold_json),
                                ("denoise.json", lambda: denoise_json(sample_wav)),
-                               ("spectral.json", spectral_json), ("swt.json", swt_json)]:
+                               ("spectral.json", spectral_json), ("swt.json", swt_json),
+                               ("packets.json", packets_json), ("cwt.json", cwt_json)]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)
