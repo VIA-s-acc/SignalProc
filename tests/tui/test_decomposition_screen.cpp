@@ -130,7 +130,7 @@ TEST_CASE("b plays the enabled bands from the cursor and a and x switch in place
 
 TEST_CASE("M6 chips explain when they arrive", "[tui][decomposition]") {
     DecompositionFixture f;
-    f.click("chip_swt");
+    f.click("chip_packets");
     CHECK(f.h.frame().find("появится в M6") != std::string::npos);
 }
 
@@ -359,4 +359,41 @@ TEST_CASE("the lambda list stays inside the denoise panel", "[tui][decomposition
     const auto tail = line.substr(line.find("λ:"));
     const auto inside = tail.substr(0, tail.find("│"));
     CHECK((inside.back() == ' ' || inside.ends_with("…")));
+}
+
+TEST_CASE("t switches DWT, SWT and MODWT with undecimated bands and exact reconstruction", "[tui][decomposition][swt]") {
+    DecompositionFixture f;
+    CHECK(f.model->options().transform == Transform::dwt);
+    CHECK(f.h.send(ftxui::Event::Character('t')));
+    CHECK(f.model->options().transform == Transform::swt);
+    f.h.frame();
+    auto d = f.model->data();
+    REQUIRE(d);
+    CHECK(d->options.transform == Transform::swt);
+    for (const auto& b : d->bands) CHECK(b.length >= d->x.size());
+    CHECK(d->pr_error < 1e-9);
+    f.h.send(ftxui::Event::Character('t'));
+    f.h.frame();
+    d = f.model->data();
+    REQUIRE(d);
+    CHECK(d->options.transform == Transform::modwt);
+    CHECK(d->pr_error < 1e-9);
+    double total = 0;
+    for (const auto& b : d->bands) total += b.energy_pct;
+    CHECK(std::abs(total - 100) < 1e-6);
+    f.click("chip_dwt");
+    CHECK(f.model->options().transform == Transform::dwt);
+}
+
+TEST_CASE("the denoise panel works on SWT bands", "[tui][decomposition][swt]") {
+    DecompositionFixture f;
+    f.h.send(ftxui::Event::Character('t'));
+    f.h.frame();
+    for (int i = 0; i < 3; ++i) f.h.send(ftxui::Event::Tab);
+    f.h.send(ftxui::Event::Return);
+    f.h.frame();
+    const auto r = f.model->recon();
+    REQUIRE(r);
+    CHECK(r->processing.rule);
+    CHECK(r->energy_kept_pct < 100);
 }

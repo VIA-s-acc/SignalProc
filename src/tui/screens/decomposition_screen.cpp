@@ -48,6 +48,7 @@ std::vector<Hint> DecompositionScreen::hints() const {
             {"↑↓ PgUp PgDn", tr("tui.decomposition.hint.band")}, {"Enter", tr("tui.decomposition.hint.toggle")},
             {"←→ Home End", tr("tui.decomposition.hint.cursor")}, {"+ − 0 < >", tr("tui.hint.plot_zoom")},
             {"j/J", tr("tui.decomposition.hint.levels")},  {"e/E", tr("tui.decomposition.hint.edges")},
+            {"t", tr("tui.decomposition.hint.transform")},
             {"w", tr("tui.decomposition.hint.wavelet")},
             {"Space", tr("tui.decomposition.hint.listen")}, {"a/b/x", tr("tui.decomposition.hint.ab")},
             {"v", tr("tui.decomposition.hint.view")},     {"u", tr("tui.decomposition.hint.undo")},
@@ -266,9 +267,9 @@ ftxui::Element DecompositionScreen::toolbar(bool two_rows) {
                    chip("chip_packets", tr("tui.decomposition.view.packets"), false, true, later),
                    chip("chip_scalogram", tr("tui.decomposition.view.scalogram"), false, true, later)};
     Elements second{text((two_rows ? "" : " │ ") + tr("tui.decomposition.transform") + " ") | fg(th.dim, ui_),
-                    chip("chip_dwt", "DWT", true, false, [] {}),
-                    chip("chip_swt", "SWT", false, true, later),
-                    chip("chip_modwt", "MODWT", false, true, later),
+                    chip("chip_dwt", "DWT", o.transform == Transform::dwt, false, [this, &jobs] { set_transform(Transform::dwt, jobs); }),
+                    chip("chip_swt", "SWT", o.transform == Transform::swt, false, [this, &jobs] { set_transform(Transform::swt, jobs); }),
+                    chip("chip_modwt", "MODWT", o.transform == Transform::modwt, false, [this, &jobs] { set_transform(Transform::modwt, jobs); }),
                     text(" │ " + tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_),
                    clickable("wavelet", text(o.wavelet + " ▾") | fg(th.fg, ui_), [this] {
                        if (ui_.open_palette) ui_.open_palette(tr("tui.decomposition.cmd.wavelet"));
@@ -669,6 +670,12 @@ void DecompositionScreen::select(std::size_t band) {
     follow_ = true;
 }
 
+void DecompositionScreen::set_transform(Transform t, JobRunner& jobs) {
+    auto k = model_->options();
+    k.transform = t;
+    model_->set_options(k, jobs);
+}
+
 bool DecompositionScreen::OnEvent(ftxui::Event e) {
     using ftxui::Event;
     using ftxui::Mouse;
@@ -781,6 +788,11 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
         if (e == Event::Character('e')) k.mode = it == kModes.end() || it + 1 == kModes.end() ? kModes.front() : *(it + 1);
         else k.mode = it == kModes.begin() || it == kModes.end() ? kModes.back() : *(it - 1);
         model_->set_options(k, jobs);
+        return true;
+    }
+    if (e == Event::Character('t')) {
+        const auto now = model_->options().transform;
+        set_transform(now == Transform::dwt ? Transform::swt : now == Transform::swt ? Transform::modwt : Transform::dwt, jobs);
         return true;
     }
     if (e == Event::Character('w')) {

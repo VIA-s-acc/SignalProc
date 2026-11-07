@@ -72,5 +72,5 @@ for (std::size_t i = 0; i < processing.gains_db.size() && i <= J; ++i)
 auto kept = rec->processed;
 for (std::size_t i = 0; i <= J && i < enabled.size(); ++i)
     if (!enabled[i]) std::fill(kept.bands[J - i].begin(), kept.bands[J - i].end(), 0.0);
-auto xhat = core::waverec<double>(kept, bank, {d->options.mode});
+auto xhat = inverse_transform(kept, bank, d->options);
 ```

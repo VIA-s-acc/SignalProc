@@ -209,10 +209,14 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        const double share = 1.0 / static_cast<double>(std::max<std::size_t>(1, a.channels.size()));
                        for (const auto& ch : a.channels) {
                            const auto levels = param_int(p, "levels") > 0 ? static_cast<std::size_t>(param_int(p, "levels")) : core::default_levels(ch.size(), bank->length());
-                           const std::size_t block = std::size_t{1} << levels;
-                           std::vector<double> padded(ch);
                            if (ch.empty()) return core::make_error(core::Errc::invalid_argument, "swt: empty signal");
-                           while (padded.size() % block != 0) padded.push_back(ch[padded.size() % ch.size()]);
+                           if (levels >= 63 || (std::size_t{1} << levels) > ch.size())
+                               return core::make_error(core::Errc::level_out_of_range, fmt::format(fmt::runtime(tr("pipeline.error.swt_levels")), fmt::arg("levels", levels), fmt::arg("n", ch.size())));
+                           const std::size_t block = std::size_t{1} << levels;
+                           const auto size = (ch.size() + block - 1) / block * block;
+                           if (auto ok = checked_length(size, 1); !ok) return std::unexpected{ok.error()};
+                           std::vector<double> padded(size);
+                           for (std::size_t i = 0; i < size; ++i) padded[i] = ch[i % ch.size()];
                            ScaledProgress part{ctx.progress, share * static_cast<double>(c.channels.size()), share};
                            auto r = core::swt<double>(padded, *bank, levels, {c.norm, false}, &part);
                            if (!r) return std::unexpected{r.error()};

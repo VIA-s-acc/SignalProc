@@ -679,7 +679,7 @@
   "tui.decomposition.hint.undo": "undo",
   "tui.decomposition.mono": "mono (L+R)/2",
   "tui.decomposition.channel": "channel {n}",
-  "tui.decomposition.later": "arrives in M6: SWT, MODWT, packets, scalogram",
+  "tui.decomposition.later": "coming in M6: packets and the scalogram",
   "tui.decomposition.view": "View",
   "tui.decomposition.view.subbands": "Subbands",
   "tui.decomposition.view.tiles": "t–f tiles",
@@ -933,5 +933,7 @@
   "tui.pipeline.connect_from": "connecting from {node}: pick the target node with the arrows and press Enter, Esc — cancel",
   "pipeline.error.wrong_inverse": "the coefficients come from {transform} — use {inverse} to invert them",
   "pipeline.block.swt": "SWT",
-  "pipeline.block.iswt": "ISWT"
+  "pipeline.block.iswt": "ISWT",
+  "tui.decomposition.hint.transform": "DWT, SWT or MODWT",
+  "pipeline.error.swt_levels": "swt: {levels} levels exceed what length {n} allows — 2^levels must not exceed the length"
 }

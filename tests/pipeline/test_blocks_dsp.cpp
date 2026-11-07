@@ -209,3 +209,16 @@ TEST_CASE("swt then iswt reconstructs any length and refuses idwt", "[pipeline][
         CHECK_FALSE(idwt->run(RunContext{}, c, *resolve_params(*idwt, {})));
     }
 }
+
+TEST_CASE("swt refuses levels beyond the signal length before padding", "[pipeline][swt][review]") {
+    core::AudioBuffer a;
+    a.sample_rate = 8000;
+    a.channels.push_back(std::vector<double>(1000, 0.25));
+    const auto* swt = find_block_type("swt");
+    const auto params = resolve_params(*swt, {{"levels", "20"}});
+    REQUIRE(params);
+    const std::vector<Value> in{a};
+    const auto r = swt->run(RunContext{}, in, *params);
+    REQUIRE_FALSE(r);
+    CHECK(r.error().code == core::Errc::level_out_of_range);
+}

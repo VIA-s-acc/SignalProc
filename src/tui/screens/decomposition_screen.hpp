@@ -73,6 +73,7 @@ private:
     ftxui::Box plot_area() const;
     std::optional<double> playhead() const;
     void play(ClipKind kind);
+    void set_transform(Transform t, JobRunner& jobs);
     std::string band_label(std::size_t i) const;
 
     UiContext& ui_;

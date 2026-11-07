@@ -633,7 +633,7 @@
   "tui.decomposition.hint.undo": "отменить",
   "tui.decomposition.mono": "моно (L+R)/2",
   "tui.decomposition.channel": "канал {n}",
-  "tui.decomposition.later": "появится в M6: SWT, MODWT, пакеты, скалограмма",
+  "tui.decomposition.later": "появится в M6: пакеты и скалограмма",
   "tui.decomposition.view": "Вид",
   "tui.decomposition.view.subbands": "Подполосы",
   "tui.decomposition.view.tiles": "Плитки t–f",
@@ -933,5 +933,7 @@
   "tui.pipeline.connect_from": "соединение от {node}: выберите узел-приёмник стрелками и нажмите Enter, Esc — отмена",
   "pipeline.error.wrong_inverse": "коэффициенты получены преобразованием {transform} — для обратного нужен {inverse}",
   "pipeline.block.swt": "SWT",
-  "pipeline.block.iswt": "ISWT"
+  "pipeline.block.iswt": "ISWT",
+  "tui.decomposition.hint.transform": "DWT, SWT или MODWT",
+  "pipeline.error.swt_levels": "swt: уровней {levels} больше, чем позволяет длина {n} — нужно 2^уровни ≤ длины"
 }
