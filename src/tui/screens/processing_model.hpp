@@ -10,6 +10,7 @@
 #include <string_view>
 #include <vector>
 
+#include "audio/player.hpp"
 #include "core/extension.hpp"
 #include "core/process/shrink.hpp"
 #include "core/process/threshold.hpp"
@@ -58,6 +59,7 @@ struct ProcessingResult {
     std::size_t kept = 0, total = 0;
     std::vector<CurvePoint> curve;
     TransferCurves transfer;
+    std::vector<float> audio_noisy, audio_out, audio_residual;
     std::weak_ptr<const SignalData> source;
 };
 
@@ -80,12 +82,16 @@ public:
     std::optional<std::uint64_t> job() const;
     void cancel(JobRunner& jobs);
     std::shared_ptr<const SignalData> source() const { return source_->data(); }
+    enum class Clip { noisy, out, residual };
+    std::optional<audio::Clip> clip(Clip kind) const;
+    void undo(JobRunner& jobs);
 
 private:
     void compute(JobRunner& jobs);
 
     std::shared_ptr<SignalModel> source_;
     ProcessingOptions options_;
+    std::optional<ProcessingOptions> previous_;
     std::shared_ptr<const SignalData> seen_;
     mutable std::mutex mutex_;
     std::shared_ptr<const ProcessingResult> result_;

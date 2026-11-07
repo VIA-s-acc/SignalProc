@@ -214,8 +214,28 @@ void ProcessingModel::sync(JobRunner& jobs) {
 
 void ProcessingModel::set_options(ProcessingOptions o, JobRunner& jobs) {
     if (o == options_) return;
+    previous_ = options_;
     options_ = std::move(o);
     if (seen_) compute(jobs);
+}
+
+void ProcessingModel::undo(JobRunner& jobs) {
+    if (!previous_) return;
+    options_ = *previous_;
+    previous_.reset();
+    if (seen_) compute(jobs);
+}
+
+std::optional<audio::Clip> ProcessingModel::clip(Clip kind) const {
+    const auto r = result();
+    if (!r) return std::nullopt;
+    audio::Clip c;
+    c.rate = static_cast<std::uint32_t>(std::lround(r->fs));
+    c.owner = r;
+    const auto& v = kind == Clip::noisy ? r->audio_noisy : kind == Clip::out ? r->audio_out : r->audio_residual;
+    c.channels.emplace_back(v);
+    c.tag = kind == Clip::noisy ? "processing.a" : kind == Clip::out ? "processing.b" : "processing.x";
+    return c;
 }
 
 std::shared_ptr<const ProcessingResult> ProcessingModel::result() const {
@@ -272,6 +292,9 @@ void ProcessingModel::compute(JobRunner& jobs) {
         auto r = process_fragment(clean, noisy, s->info.sample_rate, o, &ctx);
         if (r) {
             r->source = s;
+            r->audio_noisy.assign(r->noisy.begin(), r->noisy.end());
+            r->audio_out.assign(r->out.begin(), r->out.end());
+            r->audio_residual.assign(r->residual.begin(), r->residual.end());
             ctx.finish();
         } else {
             ctx.fail(r.error().message);

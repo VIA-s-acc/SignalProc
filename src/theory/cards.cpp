@@ -148,7 +148,7 @@ std::vector<std::string> required_card_sections() {
 }
 
 std::vector<std::string_view> known_views() {
-    return {"signal", "spectrum", "filters", "designer", "decomposition", "matrix", "explain", "under_the_hood", "tutorial"};
+    return {"signal", "spectrum", "filters", "processing", "designer", "decomposition", "matrix", "explain", "under_the_hood", "tutorial"};
 }
 
 std::vector<CardIssue> lint_card(const Card& card, const std::filesystem::path& root) {

@@ -13,6 +13,7 @@
 #include "tui/screens/explain_screen.hpp"
 #include "tui/screens/filters_screen.hpp"
 #include "tui/screens/matrix_screen.hpp"
+#include "tui/screens/processing_screen.hpp"
 #include "tui/screens/signal_screen.hpp"
 #include "tui/screens/spectrum_screen.hpp"
 #include "tui/screens/theory_screen.hpp"
@@ -25,6 +26,7 @@ AppModels make_app_models() {
     AppModels m;
     m.signal = std::make_shared<SignalModel>();
     m.spectrum = std::make_shared<SpectrumModel>(m.signal);
+    m.processing = std::make_shared<ProcessingModel>(m.signal);
     m.comparison = std::make_shared<ComparisonSet>();
     for (auto role : {FilterRole::h0, FilterRole::h1}) (void)m.comparison->add({FilterRef::Kind::bank, "db2", role});
     m.designer = std::make_shared<DesignerModel>();
@@ -46,6 +48,7 @@ std::vector<std::shared_ptr<TabScreen>> make_app_screens(UiContext& ui, AppModel
                                                                                            tr("tui.placeholder.diagram.text"), "M6", &ui)}});
     screens[4] = make_decomposition_screen(ui, models.decomposition);
     screens[5] = make_matrix_screen(ui, models.matrix);
+    screens[6] = make_processing_screen(ui, models.processing);
     screens[7] = make_pipeline_screen(ui, models.pipeline, [signal = models.signal]() -> std::optional<std::filesystem::path> {
         const auto d = signal->data();
         return d ? std::optional{d->path} : std::nullopt;
