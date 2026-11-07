@@ -377,7 +377,21 @@ def spectral_json():
     for nperseg, noverlap in [(256, 128), (1024, 512), (1024, 0)]:
         f, p = scipy.signal.welch(x, fs, window="hann", nperseg=nperseg, noverlap=noverlap)
         cases.append({"nperseg": nperseg, "noverlap": noverlap, "f": floats(f), "p": floats(p)})
-    return {"fs": fs, "signal": floats(x), "cases": cases}
+    stft = []
+    for n in (64, 256):
+        _, _, z = scipy.signal.stft(x, fs, window="hann", nperseg=n, noverlap=3 * n // 4, boundary=None, padded=False)
+        stft.append({"n": n, "hop": n // 4, "power": [floats(np.abs(z[:, k]) ** 2) for k in range(z.shape[1])]})
+    _, pw = scipy.signal.welch(x, fs, window="hann", nperseg=1024, noverlap=512)
+    db = 10 * np.log10(pw / pw.max() + 1e-30)
+    peaks = []
+    for prominence, distance in [(12, 8), (3, 1), (20, 30)]:
+        idx, props = scipy.signal.find_peaks(db, prominence=prominence, distance=distance)
+        peaks.append({"prominence": prominence, "distance": distance, "index": [int(i) for i in idx],
+                      "prominences": floats(props["prominences"])})
+    plateau = [0, 1, 1, 0, 2, 2, 2, 1, 3, 3, 0, 5, 5]
+    flat = scipy.signal.find_peaks(plateau)[0]
+    return {"fs": fs, "signal": floats(x), "cases": cases, "stft": stft, "welch_db": floats(db), "peaks": peaks,
+            "plateau": plateau, "plateau_peaks": [int(i) for i in flat]}
 
 
 def tables_inc():
