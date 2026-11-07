@@ -90,3 +90,27 @@ TEST_CASE("daubechies smoothness grows with order up to db38", "[families][regul
     CHECK(*wavelet_regularity("bior2.2")->sobolev_f0 == Catch::Approx(1.5).margin(1e-9));
     CHECK(*wavelet_regularity("bior2.2")->sobolev_h0 == Catch::Approx(0.44).margin(0.01));
 }
+
+TEST_CASE("a user bank gets its info and regularity from its own coefficients", "[core][families][user_banks]") {
+    const auto db3 = signals::core::wavelet("db3");
+    REQUIRE(db3);
+    signals::core::set_user_wavelets([db3](std::string_view name) -> std::optional<signals::core::FilterBank> {
+        if (name != "my_bank") return std::nullopt;
+        auto b = *db3;
+        b.name = "my_bank";
+        return b;
+    }, [] { return std::vector<std::string>{"my_bank"}; });
+    const auto info = signals::core::wavelet_info("my_bank");
+    REQUIRE(info);
+    CHECK(info->family == "user");
+    CHECK(info->vanishing_moments_psi == 3);
+    const auto reg = signals::core::wavelet_regularity("my_bank");
+    REQUIRE(reg);
+    CHECK(reg->zeros_h0 == 3);
+    CHECK(reg->zeros_f0 == 3);
+    REQUIRE(reg->sobolev_h0);
+    const auto builtin = signals::core::wavelet_regularity("db3");
+    CHECK(*reg->sobolev_h0 == Catch::Approx(*builtin->sobolev_h0).margin(1e-3));
+    signals::core::set_user_wavelets({}, {});
+    CHECK_FALSE(signals::core::wavelet_info("my_bank"));
+}

@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+
 #include <chrono>
 #include <cmath>
 #include <memory>
@@ -9,6 +11,7 @@
 
 #include <ftxui/component/event.hpp>
 
+#include "core/design/families.hpp"
 #include "audio/manual_sink.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
@@ -277,4 +280,30 @@ TEST_CASE("every coefficient band stays reachable: the list scrolls with markers
     frame = f.h.frame();
     CHECK(frame.find("▲ ещё") != std::string::npos);
     CHECK(frame.find("d₁ ") != std::string::npos);
+}
+
+TEST_CASE("the processing wavelet is picked from a list that includes the user banks", "[tui][processing][user_banks]") {
+    const auto db2 = signals::core::wavelet("db2");
+    REQUIRE(db2);
+    signals::core::set_user_wavelets([db2](std::string_view name) -> std::optional<signals::core::FilterBank> {
+        if (name != "my_bank") return std::nullopt;
+        auto b = *db2;
+        b.name = "my_bank";
+        return b;
+    }, [] { return std::vector<std::string>{"my_bank"}; });
+    ProcessingFixture f;
+    std::string filter;
+    f.ui->open_palette = [&](std::string text) { filter = std::move(text); };
+    f.h.send(ftxui::Event::Character('w'));
+    CHECK(filter == signals::tr("tui.processing.cmd.wavelet"));
+    const auto commands = f.screen->commands();
+    const auto mine = std::find_if(commands.begin(), commands.end(), [](const Command& c) { return c.id == "processing.wavelet.my_bank"; });
+    REQUIRE(mine != commands.end());
+    CHECK(std::any_of(commands.begin(), commands.end(), [](const Command& c) { return c.id == "processing.wavelet.sym8"; }));
+    mine->run();
+    CHECK(f.model->options().wavelet == "my_bank");
+    REQUIRE(f.model->result());
+    CHECK(f.model->result()->options.wavelet == "my_bank");
+    CHECK(f.h.frame().find("my_bank ▾") != std::string::npos);
+    signals::core::set_user_wavelets({}, {});
 }

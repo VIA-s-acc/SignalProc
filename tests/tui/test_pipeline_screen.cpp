@@ -672,3 +672,35 @@ TEST_CASE("the inspector scrolls a long parameter list and follows the picked pa
     CHECK(frame.find(most->params.back().name) != std::string::npos);
     CHECK(frame.find("▲") != std::string::npos);
 }
+
+TEST_CASE("the wavelet and filter lists offer the user banks", "[tui][pipeline_screen][user_banks]") {
+    const auto db2 = signals::core::wavelet("db2");
+    REQUIRE(db2);
+    signals::core::set_user_wavelets([db2](std::string_view name) -> std::optional<signals::core::FilterBank> {
+        if (name != "my_bank") return std::nullopt;
+        auto b = *db2;
+        b.name = "my_bank";
+        return b;
+    }, [] { return std::vector<std::string>{"my_bank"}; });
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    for (const auto& [type, wanted] : {std::pair{"dwt", "my_bank"}, std::pair{"convolve", "my_bank.f0"}}) {
+        items.clear();
+        const auto id = f.model->add_node(type);
+        f.model->selection = {Selection::Kind::node, id, {}};
+        f.h.frame();
+        f.h.send(ftxui::Event::Return);
+        const auto* t = signals::pipeline::find_block_type(type);
+        const auto param = std::find_if(t->params.begin(), t->params.end(), [](const auto& p) { return p.name == "wavelet" || p.name == "filter"; });
+        REQUIRE(param != t->params.end());
+        for (auto k = t->params.begin(); k != param; ++k) f.h.send(ftxui::Event::ArrowDown);
+        f.h.send(ftxui::Event::Return);
+        const auto it = std::find_if(items.begin(), items.end(), [&](const Command& c) { return c.title == wanted; });
+        REQUIRE(it != items.end());
+        it->run();
+        CHECK(f.model->doc().nodes.back().params.at(param->name) == wanted);
+        f.h.send(ftxui::Event::Escape);
+    }
+    signals::core::set_user_wavelets({}, {});
+}

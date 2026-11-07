@@ -20,6 +20,11 @@
 
 namespace signals::tui {
 
+void load_user_wavelets() {
+    set_user_banks(load_user_banks(user_filters_dir(process_env())).banks);
+    install_user_wavelets();
+}
+
 int run(std::optional<std::filesystem::path> file, std::string_view theme, std::optional<Language> language) {
     const auto env = process_env();
     const auto prefs = load_prefs(prefs_path(env));
@@ -46,6 +51,7 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme, std::
     };
     const auto library = load_user_banks(ui.user_filters);
     set_user_banks(library.banks);
+    install_user_wavelets();
     set_user_filters(library.filters);
     auto models = make_app_models();
     for (const auto& e : library.errors)

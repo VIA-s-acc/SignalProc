@@ -190,6 +190,7 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `Tab` | panel |
 | `z` | fullscreen |
 | `a/b/x` | A, B, difference |
+| `w` | wavelet |
 | `j/J` | more or fewer levels |
 | `m` | method |
 | `s` | soft/hard |

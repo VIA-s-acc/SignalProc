@@ -9,6 +9,7 @@
 #include <sstream>
 #include <string>
 
+#include "core/design/families.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/diagram_screen.hpp"
@@ -245,4 +246,35 @@ TEST_CASE("the numbers view scrolls through every value of a long probe", "[tui]
     h.send(ftxui::Event::End);
     frame = h.frame();
     CHECK(frame.find("▼ ещё") == std::string::npos);
+}
+
+TEST_CASE("the diagram bank comes from a list with every wavelet and the user banks", "[tui][diagram][user_banks]") {
+    const auto db2 = signals::core::wavelet("db2");
+    REQUIRE(db2);
+    signals::core::set_user_wavelets([db2](std::string_view name) -> std::optional<signals::core::FilterBank> {
+        if (name != "my_bank") return std::nullopt;
+        auto b = *db2;
+        b.name = "my_bank";
+        return b;
+    }, [] { return std::vector<std::string>{"my_bank"}; });
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    std::string filter;
+    f.ui->open_palette = [&](std::string text) { filter = std::move(text); };
+    h.frame();
+    const auto commands = f.screen->commands();
+    CHECK(std::any_of(commands.begin(), commands.end(), [](const Command& c) { return c.id == "diagram.bank.coif3"; }));
+    const auto mine = std::find_if(commands.begin(), commands.end(), [](const Command& c) { return c.id == "diagram.bank.my_bank"; });
+    REQUIRE(mine != commands.end());
+    mine->run();
+    h.frame();
+    CHECK(f.screen->bank_name() == "my_bank");
+    for (int k = 0; k < 8; ++k) h.send(ftxui::Event::Character('w'));
+    h.frame();
+    CHECK(f.screen->bank_name() == "my_bank");
+    const auto more = f.screen->area("more_banks");
+    REQUIRE(more.x_max >= more.x_min);
+    h.click(more.x_min, more.y_min);
+    CHECK(filter == signals::tr("tui.diagram.cmd.bank"));
+    signals::core::set_user_wavelets({}, {});
 }

@@ -647,7 +647,7 @@ std::vector<JumpTarget> MatrixScreen::jump_targets() const {
 
 std::vector<Command> MatrixScreen::commands() {
     std::vector<Command> out;
-    for (auto name : core::wavelet_names())
+    for (const auto& name : core::all_wavelet_names())
         out.push_back({"matrix.filter." + std::string{name}, tr("tui.matrix.cmd.filter") + " " + std::string{name}, [this, n = std::string{name}] {
                            auto k = model_->options();
                            k.wavelet = n;

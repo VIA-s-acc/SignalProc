@@ -35,6 +35,7 @@ int main(int argc, char** argv) {
     SetConsoleCP(CP_UTF8);
 #endif
     if (argc == 1 && interactive()) return signals::tui::run(std::nullopt, "dark");
+    signals::tui::load_user_wavelets();
     std::vector<std::string_view> args(argv, argv + argc);
     std::optional<signals::cli::TuiRequest> request;
     const int code = signals::cli::run_cli(args, std::cout, std::cerr, &request);

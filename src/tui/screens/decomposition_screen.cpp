@@ -1183,7 +1183,7 @@ std::vector<JumpTarget> DecompositionScreen::jump_targets() const {
 
 std::vector<Command> DecompositionScreen::commands() {
     std::vector<Command> out;
-    for (auto name : core::wavelet_names())
+    for (const auto& name : core::all_wavelet_names())
         out.push_back({"decomposition.wavelet." + std::string{name}, tr("tui.decomposition.cmd.wavelet") + " " + std::string{name}, [this, n = std::string{name}] {
                            if (!ui_.jobs) return;
                            auto o = model_->options();

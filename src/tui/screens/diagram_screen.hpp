@@ -47,6 +47,7 @@ public:
     std::shared_ptr<const DiagramResult> result() const { return result_; }
     ftxui::Box area(std::string_view id) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<Command> commands() override;
     Panel focus() const { return focus_; }
     std::optional<Axis> plot_view(std::string_view id) const { return zoom_.view(id); }
 
@@ -64,6 +65,7 @@ private:
     void refresh();
     ftxui::Element clickable(ftxui::Element e, std::function<void()> action);
     ftxui::Element chips(std::vector<Item> items);
+    std::vector<std::string> quick_banks() const;
     ftxui::Element diagram_panel(int width);
     ftxui::Element probe_panel(int width, int height);
     void select(const std::string& id);
@@ -73,7 +75,9 @@ private:
     std::shared_ptr<DesignerModel> designer_;
     std::shared_ptr<SignalModel> signal_;
     Breakpoint breakpoint_ = Breakpoint::primary;
-    std::size_t bank_ = 0, length_ = 1, bank_length_ = 0;
+    std::size_t length_ = 1, bank_length_ = 0;
+    std::string bank_choice_ = "designer";
+    ftxui::Box more_banks_box_{};
     bool file_ = false, polyphase_ = false;
     ProbeView view_ = ProbeView::time;
     Panel focus_ = diagram_panel_id;

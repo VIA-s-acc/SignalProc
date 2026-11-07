@@ -3,8 +3,11 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <functional>
 #include <map>
+#include <memory>
 #include <mutex>
+#include <vector>
 
 #include "core/design/daubechies.hpp"
 #include "core/design/tables.hpp"
@@ -85,6 +88,42 @@ Result<FilterBank> build_wavelet(std::string_view name) {
 
 }  // namespace
 
+namespace {
+
+struct UserWavelets {
+    WaveletResolver resolve;
+    std::function<std::vector<std::string>()> names;
+};
+
+std::mutex g_user_mutex;
+std::shared_ptr<const UserWavelets> g_user = std::make_shared<const UserWavelets>();
+
+std::shared_ptr<const UserWavelets> user_wavelets() {
+    std::lock_guard lock{g_user_mutex};
+    return g_user;
+}
+
+}  // namespace
+
+void set_user_wavelets(WaveletResolver resolve, std::function<std::vector<std::string>()> names) {
+    auto next = std::make_shared<const UserWavelets>(UserWavelets{std::move(resolve), std::move(names)});
+    std::lock_guard lock{g_user_mutex};
+    g_user = std::move(next);
+}
+
+std::vector<std::string> user_wavelet_names() {
+    const auto user = user_wavelets();
+    return user->names ? user->names() : std::vector<std::string>{};
+}
+
+std::vector<std::string> all_wavelet_names() {
+    std::vector<std::string> out;
+    for (const auto name : wavelet_names()) out.emplace_back(name);
+    for (auto& name : user_wavelet_names())
+        if (std::find(out.begin(), out.end(), name) == out.end()) out.push_back(std::move(name));
+    return out;
+}
+
 Result<FilterBank> wavelet(std::string_view name) {
     static std::mutex mutex;
     static std::map<std::string, FilterBank, std::less<>> cache;
@@ -96,7 +135,10 @@ Result<FilterBank> wavelet(std::string_view name) {
     if (bank) {
         std::lock_guard lock{mutex};
         cache.emplace(std::string{name}, *bank);
+        return bank;
     }
+    if (const auto user = user_wavelets(); user->resolve)
+        if (auto mine = user->resolve(name)) return std::move(*mine);
     return bank;
 }
 
@@ -142,7 +184,12 @@ std::optional<double> numeric(const Laurent& h, int zeros) {
 
 Result<Regularity> wavelet_regularity(std::string_view name) {
     const auto p = parse(name);
-    if (!p) return make_error(Errc::unknown_wavelet, "unknown wavelet: '" + std::string{name} + "'");
+    if (!p) {
+        const auto bank = wavelet(name);
+        if (!bank) return std::unexpected(bank.error());
+        const int zh = zeros_at_minus_one(bank->h0, 1e-8), zf = zeros_at_minus_one(bank->f0, 1e-8);
+        return Regularity{zh, zf, numeric(bank->h0, zh), numeric(bank->f0, zf)};
+    }
     Regularity r;
     if (p->family == "dmey") return r;
     if (p->family == "haar" || p->family == "db" || p->family == "sym") {
@@ -169,7 +216,11 @@ Result<Regularity> wavelet_regularity(std::string_view name) {
 
 Result<WaveletInfo> wavelet_info(std::string_view name) {
     const auto p = parse(name);
-    if (!p) return make_error(Errc::unknown_wavelet, "unknown wavelet: '" + std::string{name} + "'");
+    if (!p) {
+        const auto bank = wavelet(name);
+        if (!bank) return std::unexpected(bank.error());
+        return WaveletInfo{std::string{name}, "user", false, true, true, zeros_at_minus_one(bank->h0, 1e-8)};
+    }
     WaveletInfo info{std::string{name}, std::string{p->family}, false, true, false, std::nullopt};
     const bool biorthogonal_family = p->family == "bior" || p->family == "rbio";
     info.orthogonal = !biorthogonal_family;

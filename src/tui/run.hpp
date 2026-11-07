@@ -9,5 +9,6 @@
 namespace signals::tui {
 
 int run(std::optional<std::filesystem::path> file, std::string_view theme, std::optional<Language> language = std::nullopt);
+void load_user_wavelets();
 
 }  // namespace signals::tui

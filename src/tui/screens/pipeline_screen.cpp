@@ -386,9 +386,9 @@ std::vector<std::string> PipelineScreen::param_values(const pipeline::BlockType&
     std::vector<std::string> out;
     if (spec.name == "wavelet") {
         if (spec.fallback == "auto") out.emplace_back("auto");
-        for (const auto name : core::wavelet_names()) out.emplace_back(name);
+        for (auto& name : core::all_wavelet_names()) out.push_back(std::move(name));
     } else if (spec.name == "filter" && spec.fallback.find('.') != std::string::npos) {
-        for (const auto name : core::wavelet_names())
+        for (const auto& name : core::all_wavelet_names())
             for (const char* role : {".h0", ".h1", ".f0", ".f1"}) out.push_back(std::string{name} + role);
     }
     return out;

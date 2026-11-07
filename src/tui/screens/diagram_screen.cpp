@@ -69,6 +69,7 @@ std::size_t DiagramScreen::length() const { return kLengths[length_]; }
 ftxui::Box DiagramScreen::area(std::string_view id) const {
     if (id == "diagram_panel") return panel_boxes_[diagram_panel_id];
     if (id == "probe_panel") return panel_boxes_[probe_panel_id];
+    if (id == "more_banks") return more_banks_box_;
     if (id == "probe_time_plot") return zoom_.box("probe_time");
     if (id == "probe_spectrum_plot") return zoom_.box("probe_spectrum");
     ftxui::Box out{0, -1, 0, -1};
@@ -101,7 +102,7 @@ void DiagramScreen::refresh() {
     std::optional<core::FilterBank> bank;
     std::string key;
     std::shared_ptr<const DesignerResult> source;
-    if (bank_ == 0) {
+    if (bank_choice_ == "designer") {
         if (auto r = designer_ ? designer_->result() : nullptr) {
             bank = r->bank;
             bank_name_ = tr("tui.diagram.designer");
@@ -112,7 +113,7 @@ void DiagramScreen::refresh() {
         }
     }
     if (!bank) {
-        const std::string name = bank_ == 0 ? "db2" : kBanks[bank_];
+        const std::string name = bank_choice_ == "designer" ? "db2" : bank_choice_;
         auto b = core::wavelet(name);
         if (!b) {
             notice_ = error_text(b.error());
@@ -162,6 +163,21 @@ void DiagramScreen::refresh() {
         return;
     }
     result_ = std::make_shared<const DiagramResult>(std::move(*r));
+}
+
+std::vector<std::string> DiagramScreen::quick_banks() const {
+    std::vector<std::string> out(kBanks.begin(), kBanks.end());
+    for (auto& name : core::user_wavelet_names())
+        if (std::find(out.begin(), out.end(), name) == out.end()) out.push_back(std::move(name));
+    if (std::find(out.begin(), out.end(), bank_choice_) == out.end()) out.push_back(bank_choice_);
+    return out;
+}
+
+std::vector<Command> DiagramScreen::commands() {
+    std::vector<Command> out{{"diagram.bank.designer", tr("tui.diagram.cmd.bank") + " " + tr("tui.diagram.designer"), [this] { bank_choice_ = "designer"; }}};
+    for (const auto& name : core::all_wavelet_names())
+        out.push_back({"diagram.bank." + name, tr("tui.diagram.cmd.bank") + " " + name, [this, name] { bank_choice_ = name; }});
+    return out;
 }
 
 ftxui::Element DiagramScreen::clickable(ftxui::Element e, std::function<void()> action) {
@@ -217,9 +233,14 @@ ftxui::Element DiagramScreen::diagram_panel(int width) {
     }
     if (!notice_.empty()) body.push_back(paragraph(notice_) | fg(th.warn, ui_));
     std::vector<Item> banks;
-    for (std::size_t i = 0; i < kBanks.size(); ++i)
-        banks.push_back({i == 0 ? tr("tui.diagram.designer") : std::string{kBanks[i]}, [this, i] { bank_ = i; }, bank_ == i});
-    body.push_back(hbox({text(tr("tui.diagram.bank") + " ") | fg(th.dim, ui_), chips(std::move(banks)), text("(w)") | fg(th.dim, ui_)}));
+    for (const auto* name : kBanks)
+        banks.push_back({std::string_view{name} == "designer" ? tr("tui.diagram.designer") : std::string{name}, [this, n = std::string{name}] { bank_choice_ = n; }, bank_choice_ == name});
+    if (std::find(kBanks.begin(), kBanks.end(), bank_choice_) == kBanks.end()) banks.push_back({bank_choice_, [] {}, true});
+    body.push_back(hbox({text(tr("tui.diagram.bank") + " ") | fg(th.dim, ui_), chips(std::move(banks)),
+                         clickable(text(tr("tui.diagram.more_banks")) | fg(th.accent, ui_), [this] {
+                             if (ui_.open_palette) ui_.open_palette(tr("tui.diagram.cmd.bank"));
+                         }) | reflect(more_banks_box_),
+                         text(" (w)") | fg(th.dim, ui_)}));
     std::vector<Item> inputs{{tr("tui.diagram.input.impulse"), [this] { file_ = false; }, !file_}, {tr("tui.diagram.input.file"), [this] { file_ = true; }, file_}};
     std::vector<Item> lengths;
     for (std::size_t i = 0; i < kLengths.size(); ++i) lengths.push_back({std::to_string(kLengths[i]), [this, i] { length_ = i; }, length_ == i});
@@ -314,6 +335,7 @@ ftxui::Element DiagramScreen::probe_panel(int width, int height) {
 ftxui::Element DiagramScreen::OnRender() {
     using namespace ftxui;
     clickables_.clear();
+    more_banks_box_ = ftxui::Box{0, -1, 0, -1};
     hits_.clear();
     panel_boxes_.fill(kNoBox);
     zoom_.begin_frame();
@@ -386,7 +408,10 @@ bool DiagramScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (e == Event::Character('w') || e == Event::Character('W')) {
-        bank_ = (bank_ + (e == Event::Character('w') ? 1 : kBanks.size() - 1)) % kBanks.size();
+        const auto list = quick_banks();
+        const auto it = std::find(list.begin(), list.end(), bank_choice_);
+        const auto k = it == list.end() ? 0 : static_cast<std::size_t>(it - list.begin());
+        bank_choice_ = list[(k + (e == Event::Character('w') ? 1 : list.size() - 1)) % list.size()];
         return true;
     }
     if (e == Event::Character('i')) {

@@ -524,3 +524,27 @@ TEST_CASE("m7e: every example graph runs and passes its checks", "[pipeline][tea
         CHECK(signals::tr(key) != key);
     }
 }
+
+TEST_CASE("a bank from the user library works in dwt, idwt and convolve", "[pipeline][user_banks]") {
+    const auto db2 = core::wavelet("db2");
+    REQUIRE(db2);
+    core::set_user_wavelets([db2](std::string_view name) -> std::optional<core::FilterBank> {
+        if (name != "my_bank") return std::nullopt;
+        auto b = *db2;
+        b.name = "my_bank";
+        return b;
+    }, [] { return std::vector<std::string>{"my_bank"}; });
+    CHECK(core::user_wavelet_names() == std::vector<std::string>{"my_bank"});
+    CHECK(core::all_wavelet_names().back() == "my_bank");
+    const auto x = audio(run("samples", {}, {{"values", "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16"}, {"rate", "16"}})[0]);
+    const auto c = run("dwt", {x}, {{"wavelet", "my_bank"}, {"levels", "2"}});
+    const auto back = audio(run("idwt", {c[0]}, {{"wavelet", "my_bank"}})[0]);
+    REQUIRE(back.channels[0].size() >= 16);
+    for (std::size_t k = 0; k < 16; ++k) CHECK(back.channels[0][k] == Catch::Approx(x.channels[0][k]).margin(1e-9));
+    const auto filtered = audio(run("convolve", {x}, {{"filter", "my_bank.h0"}, {"method", "direct"}})[0]);
+    CHECK(filtered.channels[0].size() >= 16);
+    CHECK_FALSE(core::wavelet("nobody").has_value());
+    core::set_user_wavelets({}, {});
+    CHECK(core::user_wavelet_names().empty());
+    CHECK_FALSE(core::wavelet("my_bank").has_value());
+}

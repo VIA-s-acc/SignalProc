@@ -30,6 +30,7 @@ public:
 
     std::string tab_label() const override;
     std::vector<Hint> hints() const override;
+    std::vector<Command> commands() override;
     std::optional<TheoryLink> theory_link() const override;
     void publish(theory::LiveValues& v) const override;
     std::string context() const override;
@@ -64,6 +65,7 @@ private:
     ftxui::Element summary_body(const ProcessingResult& r);
     ftxui::Element noise_body(const ProcessingResult& r);
     ftxui::Element listen_body();
+    void pick_wavelet();
     void change(const std::function<void(ProcessingOptions&)>& edit, bool new_step = true);
     void set_scale(double s, bool new_step = true);
     void set_preset(std::size_t p);
