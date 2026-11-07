@@ -42,15 +42,54 @@ function escapeSnippet(text) {
   return text.replace(/[$}\\]/g, (c) => '\\' + c);
 }
 
+function sigValue(value) {
+  return /^[A-Za-z0-9_.+\-]+$/.test(value) ? null : value;
+}
+
+function valueSnippet(value, index) {
+  const placeholder = `\${${index}:${escapeSnippet(value.replace(/[\\"]/g, (c) => '\\' + c))}}`;
+  return sigValue(value) === null ? placeholder : `"${placeholder}"`;
+}
+
 function nodeContext(document, position) {
-  const line = document.lineAt(position.line).text;
-  const m = NODE_LINE.exec(line);
+  let start = position.line;
+  for (; start >= 0 && position.line - start <= 50; --start) {
+    const text = document.lineAt(start).text;
+    if (/^\s*node\s/.test(text)) break;
+    if (start !== position.line && (/^\s*(pipeline|probe)\b/.test(text) || text.includes('->'))) return null;
+  }
+  if (start < 0 || position.line - start > 50) return null;
+  const head = document.lineAt(start).text;
+  const m = NODE_LINE.exec(head);
   if (!m) return null;
-  const typeStart = line.indexOf(m[2], line.indexOf('=') + 1);
-  const open = line.indexOf('(', typeStart);
-  const close = open < 0 ? -1 : line.indexOf(')', open);
-  const insideParens = open >= 0 && position.character > open && (close < 0 || position.character <= close);
-  return { line, id: m[1], type: m[2], typeStart, insideParens, open };
+  const line = document.lineAt(position.line).text;
+  let before = '';
+  for (let l = start; l < position.line; ++l) before += document.lineAt(l).text + '\n';
+  before += line.slice(0, position.character);
+  let depth = 0;
+  let quote = false;
+  for (let i = 0; i < before.length; ++i) {
+    const c = before[i];
+    if (quote) {
+      if (c === '\\') ++i;
+      else if (c === '"') quote = false;
+      continue;
+    }
+    if (c === '"') quote = true;
+    else if (c === '#') {
+      const end = before.indexOf('\n', i);
+      if (end < 0) break;
+      i = end;
+    } else if (c === '(') ++depth;
+    else if (c === ')') --depth;
+  }
+  let whole = before + line.slice(position.character);
+  for (let l = position.line + 1; l < document.lineCount && l <= position.line + 50; ++l) {
+    if (whole.lastIndexOf(')') > whole.indexOf('(') && whole.indexOf('(') >= 0) break;
+    whole += '\n' + document.lineAt(l).text;
+  }
+  const typeStart = position.line === start ? head.indexOf(m[2], head.indexOf('=') + 1) : -1;
+  return { line, id: m[1], type: m[2], typeStart, insideParens: depth > 0, inQuote: quote, whole };
 }
 
 function activate(context) {
@@ -95,7 +134,7 @@ function activate(context) {
               const item = new vscode.CompletionItem(b.id, vscode.CompletionItemKind.Function);
               item.detail = b.title;
               item.documentation = blockDoc(b, ru);
-              const args = b.params.map((p, i) => `${p.name}=\${${i + 1}:${escapeSnippet(p.default)}}`).join(', ');
+              const args = b.params.map((p, i) => `${p.name}=${valueSnippet(p.default, i + 1)}`).join(', ');
               item.insertText = new vscode.SnippetString(`${b.id}(${args})`);
               return item;
             });
@@ -114,14 +153,15 @@ function activate(context) {
                 return item;
               });
             }
-            const used = new Set([...ctx.line.matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*=/g)].map((m) => m[1]));
+            if (ctx.inQuote) return [];
+            const used = new Set([...ctx.whole.matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*=/g)].map((m) => m[1]));
             return block.params
               .filter((p) => !used.has(p.name))
               .map((p) => {
                 const item = new vscode.CompletionItem(p.name, vscode.CompletionItemKind.Property);
                 item.detail = p.about;
                 item.documentation = paramDoc(p, ru);
-                item.insertText = new vscode.SnippetString(`${p.name}=\${1:${escapeSnippet(p.default)}}`);
+                item.insertText = new vscode.SnippetString(`${p.name}=${valueSnippet(p.default, 1)}`);
                 return item;
               });
           }
