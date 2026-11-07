@@ -137,6 +137,7 @@ public:
     void undo(JobRunner& jobs);
     void cancel(JobRunner& jobs);
     void recompute(JobRunner& jobs);
+    bool retry_cancelled();
     bool cancelled() const;
     std::vector<bool> enabled() const { return enabled_; }
     Processing processing() const { return processing_; }
@@ -189,6 +190,7 @@ private:
     std::weak_ptr<const DecompositionData> packets_for_;
     std::optional<std::uint64_t> packets_job_;
     std::uint64_t packets_gen_ = 0, packets_done_ = 0;
+    bool packets_cancelled_ = false, scalogram_cancelled_ = false;
     std::shared_ptr<const ScalogramData> scalogram_;
     std::optional<std::string> scalogram_error_;
     std::weak_ptr<const SignalData> scalogram_for_;
