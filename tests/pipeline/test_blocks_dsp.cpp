@@ -5,6 +5,7 @@
 #include <numbers>
 #include <fstream>
 #include <variant>
+#include <span>
 #include <sstream>
 #include <tuple>
 #include <vector>
@@ -12,6 +13,7 @@
 #include <nlohmann/json.hpp>
 
 #include "core/analysis.hpp"
+#include "core/restoration.hpp"
 #include "i18n/i18n.hpp"
 #include "core/check.hpp"
 #include "core/conv.hpp"
@@ -489,4 +491,34 @@ TEST_CASE("m8a: the lms block cancels a correlated interference", "[pipeline][ad
     const auto* block = find_block_type("lms");
     const std::vector<Value> mismatched{other, d};
     CHECK_FALSE(block->run(RunContext{}, mismatched, *resolve_params(*block, {})));
+}
+
+TEST_CASE("m8a: the wiener, spectral_subtract and deconvolve blocks match the core", "[pipeline][restoration]") {
+    const auto g = signals::test::load_golden("restoration.json");
+    auto mono = [](std::vector<double> v) {
+        core::AudioBuffer a;
+        a.sample_rate = 8000;
+        a.channels.push_back(std::move(v));
+        return a;
+    };
+    const auto x = mono(g["x"].get<std::vector<double>>());
+    const auto noise = mono(g["noise"].get<std::vector<double>>());
+    const auto w = run("wiener", {x}, {{"size", "11"}});
+    CHECK(core::max_abs_error(audio(w[0]).channels[0], g["wiener"][1]["out"].get<std::vector<double>>()) < 1e-12);
+    const auto s = run("spectral_subtract", {x, noise}, {{"n", "64"}, {"alpha", "2"}, {"beta", "0.01"}});
+    CHECK(core::max_abs_error(audio(s[0]).channels[0], g["subtract"][0]["out"].get<std::vector<double>>()) < 1e-12);
+    const auto lead = run("spectral_subtract", {x, core::AudioBuffer{}}, {{"n", "64"}, {"noise_s", "0.02"}});
+    core::SpectralSubtraction o;
+    o.n = 64;
+    o.hop = 16;
+    const auto& xs = x.channels[0];
+    const auto expected = core::spectral_subtract(xs, std::span<const double>{xs}.first(160), o);
+    REQUIRE(expected);
+    CHECK(core::max_abs_error(audio(lead[0]).channels[0], *expected) < 1e-12);
+    const auto d = run("deconvolve", {mono(g["blurred"].get<std::vector<double>>()), mono(g["h"].get<std::vector<double>>())}, {{"snr_db", "40"}});
+    CHECK(core::max_abs_error(audio(d[0]).channels[0], g["deconvolve"][1]["out"].get<std::vector<double>>()) < 1e-12);
+    const auto* sub = find_block_type("spectral_subtract");
+    const std::vector<Value> too_short{x, core::AudioBuffer{}};
+    const auto r = sub->run(RunContext{}, too_short, *resolve_params(*sub, {{"n", "4096"}}));
+    REQUIRE_FALSE(r);
 }

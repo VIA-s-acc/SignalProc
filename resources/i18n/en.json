@@ -1270,5 +1270,8 @@
   "unit.node.few": "{n} nodes",
   "unit.node.many": "{n} nodes",
   "pipeline.error.rates": "{block}: the inputs have different sample rates — {a} and {b} Hz; bring them to one with the resample block",
-  "pipeline.block.lms": "Adaptive LMS/NLMS filter"
+  "pipeline.block.lms": "Adaptive LMS/NLMS filter",
+  "pipeline.block.wiener": "Wiener filter",
+  "pipeline.block.spectral_subtract": "Spectral subtraction",
+  "pipeline.block.deconvolve": "Deconvolution"
 }

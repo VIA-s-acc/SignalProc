@@ -1,8 +1,11 @@
 #include <algorithm>
+#include <cmath>
+#include <optional>
 
 #include <fmt/format.h>
 
 #include "core/adaptive.hpp"
+#include "core/restoration.hpp"
 #include "i18n/i18n.hpp"
 #include "pipeline/block.hpp"
 
@@ -44,6 +47,75 @@ void register_restore_blocks(std::vector<BlockType>& out) {
                            y.channels.push_back(std::move(r->y));
                        }
                        return std::vector<Value>{std::move(e), std::move(y)};
+                   }});
+    out.push_back({"wiener",
+                   {{"in", PortType::signal}},
+                   {{"out", PortType::signal}},
+                   {{"size", Kind::integer, "5", {}, 1, 1001}, {"noise", Kind::real, "0", {}, 0, 1e6}},
+                   [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                       const auto& a = audio_in(in, 0);
+                       const double level = param_real(p, "noise");
+                       core::AudioBuffer result;
+                       result.sample_rate = a.sample_rate;
+                       for (const auto& ch : a.channels) {
+                           auto r = core::wiener_local(ch, static_cast<std::size_t>(param_int(p, "size")), level > 0 ? std::optional<double>{level} : std::nullopt);
+                           if (!r) return std::unexpected{r.error()};
+                           result.channels.push_back(std::move(*r));
+                       }
+                       return std::vector<Value>{std::move(result)};
+                   }});
+    out.push_back({"spectral_subtract",
+                   {{"x", PortType::signal}, {"noise", PortType::signal, true}},
+                   {{"out", PortType::signal}},
+                   {{"alpha", Kind::real, "2", {}, 0, 10},
+                    {"beta", Kind::real, "0.01", {}, 0, 1},
+                    {"n", Kind::integer, "512", {}, 16, 16384},
+                    {"noise_s", Kind::real, "0.25", {}, 0.001, 60}},
+                   [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                       const auto& x = audio_in(in, 0);
+                       const auto& noise = audio_in(in, 1);
+                       if (!noise.channels.empty())
+                           if (auto ok = same_rate("spectral_subtract", x, noise); !ok) return std::unexpected{ok.error()};
+                       core::SpectralSubtraction o;
+                       o.alpha = param_real(p, "alpha");
+                       o.beta = param_real(p, "beta");
+                       o.n = static_cast<std::size_t>(param_int(p, "n"));
+                       o.hop = std::max<std::size_t>(1, o.n / 4);
+                       const auto lead = static_cast<std::size_t>(std::llround(param_real(p, "noise_s") * x.sample_rate));
+                       core::AudioBuffer result;
+                       result.sample_rate = x.sample_rate;
+                       for (std::size_t ch = 0; ch < x.channels.size(); ++ch) {
+                           const auto& signal = x.channels[ch];
+                           std::span<const double> segment;
+                           if (!noise.channels.empty()) {
+                               segment = noise.channels[std::min(ch, noise.channels.size() - 1)];
+                           } else {
+                               if (lead > signal.size())
+                                   return core::make_error(core::Errc::invalid_argument, "spectral_subtract: noise_s is longer than the signal; connect a noise input or shorten noise_s");
+                               segment = std::span<const double>{signal}.first(lead);
+                           }
+                           auto r = core::spectral_subtract(signal, segment, o);
+                           if (!r) return std::unexpected{r.error()};
+                           result.channels.push_back(std::move(*r));
+                       }
+                       return std::vector<Value>{std::move(result)};
+                   }});
+    out.push_back({"deconvolve",
+                   {{"y", PortType::signal}, {"h", PortType::signal}},
+                   {{"out", PortType::signal}},
+                   {{"snr_db", Kind::real, "30", {}, -20, 120}},
+                   [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                       const auto& y = audio_in(in, 0);
+                       const auto& h = audio_in(in, 1);
+                       if (auto ok = same_rate("deconvolve", y, h); !ok) return std::unexpected{ok.error()};
+                       core::AudioBuffer result;
+                       result.sample_rate = y.sample_rate;
+                       for (std::size_t ch = 0; ch < y.channels.size(); ++ch) {
+                           auto r = core::wiener_deconvolve(y.channels[ch], h.channels[std::min(ch, h.channels.size() - 1)], param_real(p, "snr_db"));
+                           if (!r) return std::unexpected{r.error()};
+                           result.channels.push_back(std::move(*r));
+                       }
+                       return std::vector<Value>{std::move(result)};
                    }});
 }
 

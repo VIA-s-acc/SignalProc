@@ -1270,5 +1270,8 @@
   "unit.node.few": "{n} узла",
   "unit.node.many": "{n} узлов",
   "pipeline.error.rates": "{block}: у входов разная частота дискретизации — {a} и {b} Гц; приведите их к одной блоком resample",
-  "pipeline.block.lms": "Адаптивный фильтр LMS/NLMS"
+  "pipeline.block.lms": "Адаптивный фильтр LMS/NLMS",
+  "pipeline.block.wiener": "Винеровский фильтр",
+  "pipeline.block.spectral_subtract": "Спектральное вычитание",
+  "pipeline.block.deconvolve": "Деконволюция"
 }
