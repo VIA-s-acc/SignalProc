@@ -234,9 +234,9 @@ void ProcessingModel::recompute(JobRunner& jobs) {
     if (seen_) compute(jobs);
 }
 
-void ProcessingModel::set_options(ProcessingOptions o, JobRunner& jobs) {
+void ProcessingModel::set_options(ProcessingOptions o, JobRunner& jobs, bool new_step) {
     if (o == options_) return;
-    previous_ = options_;
+    if (new_step || !previous_) previous_ = options_;
     options_ = std::move(o);
     if (seen_) compute(jobs);
 }

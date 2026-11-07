@@ -110,14 +110,24 @@ ftxui::Element ProcessingScreen::clickable(std::string id, ftxui::Element e, std
     return std::move(e) | ftxui::reflect(clickables_.back().box);
 }
 
-void ProcessingScreen::change(const std::function<void(ProcessingOptions&)>& edit) {
+void ProcessingScreen::change(const std::function<void(ProcessingOptions&)>& edit, bool new_step) {
     if (!ui_.jobs) return;
     auto o = model_->options();
     edit(o);
-    model_->set_options(o, *ui_.jobs);
+    model_->set_options(o, *ui_.jobs, new_step);
 }
 
-void ProcessingScreen::set_scale(double s) { change([s](ProcessingOptions& o) { o.scale = std::clamp(s, 0.1, 10.0); }); }
+void ProcessingScreen::set_scale(double s, bool new_step) {
+    change([s](ProcessingOptions& o) { o.scale = std::clamp(s, 0.1, 10.0); }, new_step);
+}
+
+std::size_t ProcessingScreen::active_preset() const {
+    const auto o = model_->options();
+    if (o.gains.empty()) return 0;
+    for (std::size_t p = 1; p < kPresets.size(); ++p)
+        if (preset_gains(p, o.levels) == o.gains) return p;
+    return kPresets.size();
+}
 
 void ProcessingScreen::set_preset(std::size_t p) {
     preset_ = p % kPresets.size();
@@ -136,10 +146,12 @@ void ProcessingScreen::play(View v) {
     if (auto r = ui_.player->play(std::move(*clip), 0); !r) notice_ = fmt::format(fmt::runtime(tr("tui.signal.audio_unavailable")), fmt::arg("reason", r.error().message));
 }
 
-ftxui::Element ProcessingScreen::toolbar(bool two_rows) {
+ftxui::Element ProcessingScreen::toolbar(bool two_rows, int width) {
     using namespace ftxui;
     const auto& th = ui_.theme;
+    int used = 0;
     auto chip = [&](std::string id, std::string label, bool on, std::function<void()> action) {
+        used += display_width(label) + 2;
         auto e = text(on ? "[" + label + "]" : " " + label + " ") | fg(on ? th.accent : th.fg, ui_);
         if (on) e = e | bold;
         return clickable(std::move(id), e, std::move(action));
@@ -152,14 +164,20 @@ ftxui::Element ProcessingScreen::toolbar(bool two_rows) {
     parts.push_back(text(" │") | fg(th.dim, ui_));
     for (const auto& [mode, name] : {std::pair{core::ThresholdMode::soft, "soft"}, std::pair{core::ThresholdMode::hard, "hard"}})
         parts.push_back(chip(std::string{"mode_"} + name, name, o.threshold == mode, [this, mode] { change([mode](ProcessingOptions& p) { p.threshold = mode; }); }));
-    Elements second{text((two_rows ? "" : " │ ") + std::string{"λ ×"}) | fg(th.dim, ui_)};
+    const std::string lead = (two_rows ? "" : " │ ") + std::string{"λ ×"};
+    used = display_width(lead);
+    Elements second{text(lead) | fg(th.dim, ui_)};
     for (const double s : kScales)
         second.push_back(chip("scale_" + format_fixed(s, 2), format_number(s, 2), std::abs(o.scale - s) < 1e-9, [this, s] { set_scale(s); }));
-    second.push_back(text(" │ " + tr("tui.processing.view") + " ") | fg(th.dim, ui_));
+    const std::string view_label = " │ " + tr("tui.processing.view") + " ";
+    used += display_width(view_label);
+    second.push_back(text(view_label) | fg(th.dim, ui_));
     for (const auto& [v, key, id] : {std::tuple{View::a, "tui.processing.view.a", "view_a"}, std::tuple{View::b, "tui.processing.view.b", "view_b"},
                                     std::tuple{View::x, "tui.processing.view.x", "view_x"}})
         second.push_back(chip(id, tr(key), view_ == v, [this, v] { view_ = v; }));
-    second.push_back(text(" │ " + tr("tui.decomposition.edges") + " " + std::string{core::to_string(o.mode)}) | fg(th.dim, ui_));
+    auto edges = " │ " + tr("tui.decomposition.edges") + " " + std::string{core::to_string(o.mode)};
+    if (two_rows && used + display_width(edges) > width) edges = ellipsize(edges, std::max(0, width - used), ui_.caps.glyphs == GlyphMode::ascii);
+    second.push_back(text(edges) | fg(th.dim, ui_));
     if (two_rows) return vbox({hbox(std::move(parts)), hbox(std::move(second))});
     for (auto& e : second) parts.push_back(std::move(e));
     return hbox(std::move(parts));
@@ -229,7 +247,7 @@ ftxui::Element ProcessingScreen::eq_body(const ProcessingResult& r, int width, i
     const auto& th = ui_.theme;
     Elements chips;
     for (std::size_t p = 0; p < kPresets.size(); ++p) {
-        const bool on = preset_ == p;
+        const bool on = active_preset() == p;
         chips.push_back(clickable("eq_" + std::to_string(p), text(on ? "[" + tr(kPresets[p]) + "]" : " " + tr(kPresets[p]) + " ") | fg(on ? th.accent : th.fg, ui_),
                                   [this, p] { set_preset(p); }));
     }
@@ -304,7 +322,7 @@ ftxui::Element ProcessingScreen::OnRender() {
         const bool stopped = model_->cancelled() && !model_->job();
         Elements lines{text(e ? *e : stopped ? tr("tui.processing.cancelled") : model_->source() ? tr("tui.processing.computing") : tr("tui.processing.empty")) |
                        fg(e ? th.err : stopped ? th.warn : th.dim, ui_)};
-        return vbox({toolbar(two_rows), frame_panel(coeffs_panel, centered(std::move(lines)), {}, tr("tui.processing.coeffs")) | flex});
+        return vbox({toolbar(two_rows, cols), frame_panel(coeffs_panel, centered(std::move(lines)), {}, tr("tui.processing.coeffs")) | flex});
     }
     const int coeff_rows = small ? total - 4 : static_cast<int>(2 * r->bands.size());
     const int lower = small ? total / 2 : std::max(5, total - (two_rows ? 2 : 1) - 1 - (coeff_rows + 2) - 2 - 1 - 9);
@@ -324,7 +342,7 @@ ftxui::Element ProcessingScreen::OnRender() {
         const auto p = maximized_ ? *maximized_ : static_cast<Panel>(layout_.small_index() % panel_count);
         focus_ = p;
         switch (p) {
-        case coeffs_panel: return vbox({toolbar(two_rows), coeffs | flex});
+        case coeffs_panel: return vbox({toolbar(two_rows, cols), coeffs | flex});
         case signal_panel: return signal;
         case curve_panel: return curve;
         case eq_panel: return eq;
@@ -337,7 +355,7 @@ ftxui::Element ProcessingScreen::OnRender() {
     }
     auto left = vbox({coeffs, signal | flex, hbox({curve | size(WIDTH, EQUAL, half), text(" "), eq | flex})});
     auto right = vbox({summary, noise, listen, theory | flex});
-    return vbox({toolbar(two_rows), text(""), hbox({left | flex, text(" "), right | size(WIDTH, EQUAL, kRightWidth)}) | flex});
+    return vbox({toolbar(two_rows, cols), text(""), hbox({left | flex, text(" "), right | size(WIDTH, EQUAL, kRightWidth)}) | flex});
 }
 
 bool ProcessingScreen::OnEvent(ftxui::Event e) {
@@ -356,11 +374,15 @@ bool ProcessingScreen::OnEvent(ftxui::Event e) {
                 }
             for (int p = 0; p < panel_count; ++p)
                 if (panel_boxes_[static_cast<std::size_t>(p)].Contain(m.x, m.y)) focus_ = static_cast<Panel>(p);
-            if (panel_boxes_[coeffs_panel].Contain(m.x, m.y)) drag_ = {true, m.y, model_->options().scale};
+            if (panel_boxes_[coeffs_panel].Contain(m.x, m.y)) drag_ = {true, false, m.y, m.y, model_->options().scale};
             return true;
         }
         if (drag_.active) {
-            if (m.y != drag_.y) set_scale(drag_.scale * std::pow(1.15, drag_.y - m.y));
+            if (m.y != drag_.last_y) {
+                set_scale(drag_.scale * std::pow(1.15, drag_.y - m.y), !drag_.moved);
+                drag_.moved = true;
+                drag_.last_y = m.y;
+            }
             if (m.motion == Mouse::Released) drag_.active = false;
             return true;
         }
@@ -424,7 +446,7 @@ bool ProcessingScreen::OnEvent(ftxui::Event e) {
         set_scale(next);
         return true;
     }
-    if (e == Event::Character('e')) return set_preset(preset_ + 1), true;
+    if (e == Event::Character('e')) return set_preset((active_preset() < kPresets.size() ? active_preset() : preset_) + 1), true;
     if (e == Event::Character('j')) return change([](ProcessingOptions& o) { o.levels = std::min<std::size_t>(10, o.levels + 1); }), true;
     if (e == Event::Character('J')) return change([](ProcessingOptions& o) { o.levels = std::max<std::size_t>(1, o.levels - 1); }), true;
     if (e == Event::Character('r')) return model_->recompute(jobs), true;

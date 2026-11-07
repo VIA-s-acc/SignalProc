@@ -158,3 +158,51 @@ TEST_CASE("the signal selection becomes the fragment", "[tui][processing][review
     CHECK(r->clean.size() == 22050);
     CHECK(f.screen->context().find("1,00–1,50 с") != std::string::npos);
 }
+
+namespace {
+
+ftxui::Event left(ftxui::Mouse::Motion motion, int x, int y) {
+    ftxui::Mouse m;
+    m.button = ftxui::Mouse::Left;
+    m.motion = motion;
+    m.x = x;
+    m.y = y;
+    return ftxui::Event::Mouse("", m);
+}
+
+}  // namespace
+
+TEST_CASE("m7c: one u undoes a whole λ drag, and dragging back to the press row restores λ", "[tui][processing]") {
+    ProcessingFixture f;
+    const auto b = f.screen->area("coeffs_panel");
+    REQUIRE(b.x_max > b.x_min);
+    const int x = (b.x_min + b.x_max) / 2, y = (b.y_min + b.y_max) / 2;
+    REQUIRE(f.model->options().scale == 1.0);
+    f.h.drag(x, y, x, y - 4);
+    CHECK(f.model->options().scale > 1.5);
+    f.h.send(ftxui::Event::Character('u'));
+    CHECK(f.model->options().scale == 1.0);
+    f.h.send(left(ftxui::Mouse::Pressed, x, y));
+    f.h.send(left(ftxui::Mouse::Moved, x, y - 2));
+    f.h.send(left(ftxui::Mouse::Moved, x, y));
+    f.h.send(left(ftxui::Mouse::Released, x, y));
+    CHECK(f.model->options().scale == 1.0);
+}
+
+TEST_CASE("m7c: u clears the preset highlight it no longer matches", "[tui][processing]") {
+    ProcessingFixture f;
+    f.h.send(ftxui::Event::Character('e'));
+    REQUIRE_FALSE(f.model->options().gains.empty());
+    CHECK(f.screen->active_preset() == 1);
+    f.h.send(ftxui::Event::Character('u'));
+    REQUIRE(f.model->options().gains.empty());
+    CHECK(f.screen->active_preset() == 0);
+}
+
+TEST_CASE("m7c: the second toolbar row at 80×24 ends with an ellipsis instead of a cut word", "[tui][processing]") {
+    ProcessingFixture f{80, 24};
+    const auto frame = f.h.frame();
+    const auto row = frame.substr(frame.find("λ ×"), frame.find('\n', frame.find("λ ×")) - frame.find("λ ×"));
+    INFO(row);
+    CHECK(row.find("…") != std::string::npos);
+}
