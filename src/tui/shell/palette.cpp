@@ -152,29 +152,32 @@ void Palette::select(std::size_t index, std::size_t count) {
     if (selected_ >= first_ + kVisible) first_ = selected_ - kVisible + 1;
 }
 
-ftxui::Element Palette::render(const UiContext& ui) const {
+ftxui::Element Palette::render(const UiContext& ui, int width) const {
     using namespace ftxui;
+    const int inner = std::clamp(width - 8, 20, 96);
+    const bool ascii = ui.caps.glyphs == GlyphMode::ascii;
+    const auto fit = [&](Element e) { return e | size(WIDTH, GREATER_THAN, std::min(60, inner)) | size(WIDTH, LESS_THAN, inner); };
     Elements rows;
     if (path_done_) {
         const auto cps = split_codepoints(query_);
-        const std::size_t room = 56 - std::min<std::size_t>(40, split_codepoints(prompt_).size());
+        const std::size_t room = static_cast<std::size_t>(std::max(8, inner - 4)) - std::min<std::size_t>(static_cast<std::size_t>(inner / 2), split_codepoints(prompt_).size());
         std::string tail;
         for (std::size_t i = cps.size() > room ? cps.size() - room : 0; i < cps.size(); ++i) tail += cps[i];
         rows.push_back(text(prompt_ + (cps.size() > room ? "…" : "") + tail + "▏"));
-        rows.push_back(text(tr("tui.palette.path_hint")) | fg(ui.theme.dim, ui));
-        return panel(tr("tui.palette.title"), {}, vbox(std::move(rows)) | size(WIDTH, GREATER_THAN, 60), true, ui);
+        rows.push_back(paragraph(tr("tui.palette.path_hint")) | fg(ui.theme.dim, ui));
+        return panel(tr("tui.palette.title"), {}, fit(vbox(std::move(rows))), true, ui);
     }
-    rows.push_back(text(": " + query_ + "▏") | bold);
+    rows.push_back(text(ellipsize_start(": " + query_, inner - 1, ascii) + "▏") | bold);
     const auto matches = filter_commands(commands_, query_);
     for (std::size_t i = first_; i < matches.size() && i < first_ + kVisible; ++i) {
-        auto row = text(" " + matches[i]->title + " ");
+        auto row = text(" " + ellipsize(matches[i]->title, inner - 2, ascii) + " ");
         rows.push_back(i == selected_ ? row | bold | fg(ui.theme.bg, ui) | bg(ui.theme.accent, ui) : row);
     }
     if (matches.empty()) rows.push_back(text(tr("tui.help.nothing")) | fg(ui.theme.dim, ui));
     auto keys = tr("tui.palette.keys");
     if (matches.size() > kVisible) keys += " · " + std::to_string(selected_ + 1) + " / " + std::to_string(matches.size());
-    rows.push_back(text(keys) | fg(ui.theme.dim, ui));
-    return panel(title_.empty() ? tr("tui.palette.title") : title_, {}, vbox(std::move(rows)) | size(WIDTH, GREATER_THAN, 60), true, ui);
+    rows.push_back(paragraph(keys) | fg(ui.theme.dim, ui));
+    return panel(title_.empty() ? tr("tui.palette.title") : title_, {}, fit(vbox(std::move(rows))), true, ui);
 }
 
 std::filesystem::path expand_path(std::string text, const EnvLookup& env) {

@@ -115,6 +115,7 @@
   "tui.help.close": "Esc — закрыть",
   "tui.help.nothing": "ничего не найдено",
   "tui.status.line": "CPU {cpu} % ({all} % от {cores}) · память {rss} (пик {peak}) · потоков {threads} · {fps} к/с",
+  "tui.status.short": "CPU {cpu} % · {rss} · потоков {threads} · {fps} к/с",
   "tui.small.warning": "Нужно не меньше 80×24, сейчас {w}×{h}. Увеличьте окно терминала.",
   "tui.spectrum.key.click": "клик",
   "tui.spectrum.key.drag": "тяни",

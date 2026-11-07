@@ -26,7 +26,7 @@ public:
     void close();
     bool is_open() const { return open_; }
     bool on_event(const ftxui::Event& e);
-    ftxui::Element render(const UiContext& ui) const;
+    ftxui::Element render(const UiContext& ui, int width) const;
 
 private:
     std::vector<Command> commands_;

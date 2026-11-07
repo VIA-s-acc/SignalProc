@@ -115,6 +115,7 @@
   "tui.help.close": "Esc — close",
   "tui.help.nothing": "nothing found",
   "tui.status.line": "CPU {cpu} % ({all} % of {cores}) · memory {rss} (peak {peak}) · threads {threads} · {fps} fps",
+  "tui.status.short": "CPU {cpu} % · {rss} · threads {threads} · {fps} fps",
   "tui.small.warning": "Need at least 80×24, got {w}×{h}. Enlarge the terminal window.",
   "tui.spectrum.key.click": "click",
   "tui.spectrum.key.drag": "drag",

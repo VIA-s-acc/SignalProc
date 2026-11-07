@@ -13,6 +13,7 @@
 #include "tui/harness.hpp"
 #include "tui/shell/layout.hpp"
 #include "tui/shell/overlays.hpp"
+#include "tui/shell/palette.hpp"
 #include "core/version.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/shell/shell.hpp"
@@ -393,4 +394,43 @@ TEST_CASE("a panel title that does not fit ends with an ellipsis and keeps the l
 TEST_CASE("ellipsize drops the spaces before the ellipsis", "[tui][text_util]") {
     CHECK(signals::tui::ellipsize("ошибка от K", 8, false) == "ошибка…");
     CHECK(signals::tui::ellipsize("ab   cd", 5, true) == "ab~");
+}
+
+TEST_CASE("the status line keeps every figure at 80 columns by switching to its short form", "[tui][shell]") {
+    auto ui = signals::test::make_ui(80, 24);
+    ResourceSnapshot r;
+    r.cpu_one_core_pct = 103.12;
+    r.cpu_all_cores_pct = 12.89;
+    r.core_load_pct.assign(16, 0.0);
+    r.rss = 1'820'000'000;
+    r.peak_rss = 2'400'000'000;
+    r.threads = 12;
+    r.fps = 60;
+    const auto full = signals::test::render_text(status_line(*ui, r, 200), 200, 1);
+    CHECK(full.find("пик") != std::string::npos);
+    const auto narrow = signals::test::render_text(status_line(*ui, r, 80), 80, 1);
+    CHECK(narrow.find("CPU 103") != std::string::npos);
+    CHECK(narrow.find("ГБ") != std::string::npos);
+    CHECK(narrow.find("60") != std::string::npos);
+    CHECK(narrow.find("к/с") != std::string::npos);
+}
+
+TEST_CASE("the palette and the context menu stay inside an 80-column screen", "[tui][shell][overlay]") {
+    auto ui = signals::test::make_ui(80, 24);
+    const std::string long_title = "Очень длинная команда с подробным описанием того, что она делает с сигналом и фильтром";
+    Palette p;
+    p.open({{"long", long_title, [] {}}, {"short", "коротко", [] {}}});
+    auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(80), ftxui::Dimension::Fixed(12));
+    ftxui::Render(screen, p.render(*ui, 80));
+    CHECK(screen.ToString().find("…") != std::string::npos);
+    CHECK(screen.ToString().find("коротко") != std::string::npos);
+
+    ContextMenu menu;
+    menu.open({{long_title, "Shift+клик", [] {}}}, 70, 3);
+    auto menu_screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(80), ftxui::Dimension::Fixed(12));
+    ftxui::Render(menu_screen, menu.render(*ui, 80, 12));
+    std::string row;
+    for (int x = 0; x < 80; ++x) row += menu_screen.CellAt(x, 5).character;
+    CHECK(row.find("…") != std::string::npos);
+    CHECK(row.find("Shift+клик") != std::string::npos);
 }

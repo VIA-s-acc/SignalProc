@@ -116,8 +116,8 @@ public:
         }
         auto resources = ui_.resources ? ui_.resources() : ResourceSnapshot{};
         auto base = vbox({hbox(std::move(tabs)), screen.Render() | flex, hbox(std::move(hints)),
-                          status_line(ui_, resources) | reflect(status_box_)});
-        if (palette_.is_open()) return paint(dbox({base, palette_.render(ui_) | clear_under | center}));
+                          status_line(ui_, resources, w) | reflect(status_box_)});
+        if (palette_.is_open()) return paint(dbox({base, palette_.render(ui_, w) | clear_under | center}));
         if (check_.is_open()) return paint(dbox({base, check_.render(ui_) | clear_under | center}));
         if (resources_open_) return paint(dbox({base, resources_panel(ui_, w, h, resources_scroll_) | clear_under | center}));
         if (menu_.is_open()) return paint(dbox({base, menu_.render(ui_, w, h)}));

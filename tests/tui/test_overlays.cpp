@@ -47,17 +47,17 @@ TEST_CASE("palette scrolls to keep the selection visible", "[tui][palette]") {
     Palette p;
     p.open(all);
     for (int i = 0; i < 20; ++i) p.on_event(ftxui::Event::ArrowDown);
-    auto text = signals::test::render_text(p.render(*ui), 80, 20);
+    auto text = signals::test::render_text(p.render(*ui, 80), 80, 20);
     CHECK(text.find("Команда 20") != std::string::npos);
     CHECK(text.find("Команда 00") == std::string::npos);
     CHECK(text.find("21 / 30") != std::string::npos);
     for (int i = 0; i < 20; ++i) p.on_event(ftxui::Event::ArrowUp);
-    text = signals::test::render_text(p.render(*ui), 80, 20);
+    text = signals::test::render_text(p.render(*ui, 80), 80, 20);
     CHECK(text.find("Команда 00") != std::string::npos);
     p.on_event(ftxui::Event::PageDown);
     p.on_event(ftxui::Event::PageDown);
     p.on_event(ftxui::Event::PageDown);
-    text = signals::test::render_text(p.render(*ui), 80, 20);
+    text = signals::test::render_text(p.render(*ui, 80), 80, 20);
     CHECK(text.find("Команда 29") != std::string::npos);
     CHECK(text.find("30 / 30") != std::string::npos);
 }
@@ -238,7 +238,7 @@ TEST_CASE("text prompts keep a space between the prompt and the typed value", "[
         Palette p;
         p.ask_text(prompt, "", [](std::string) {});
         p.on_event(ftxui::Event::Character("out.sig"));
-        const auto frame = signals::test::render_text(p.render(*ui), 80, 6);
+        const auto frame = signals::test::render_text(p.render(*ui, 80), 80, 6);
         CHECK(frame.find(shown) != std::string::npos);
         CHECK(frame.find("Enter — открыть") == std::string::npos);
     }
