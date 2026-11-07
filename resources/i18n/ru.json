@@ -1625,6 +1625,8 @@
   "tui.pipeline.example.haar_bank_wav": "Банк Хаара на своём WAV: спросит файл",
   "tui.pipeline.example.compression": "Сжатие: 10 % коэффициентов DWT и SNR восстановления",
   "tui.pipeline.example.lpc": "Линейное предсказание: остаток и обратный синтез",
+  "tui.pipeline.example.tempo": "Тон и время: растяжение, сдвиг высоты и скорость на одном тоне",
+  "tui.pipeline.example.tempo_wav": "Тон и время на своём WAV: спросит файл",
   "tui.pipeline.example.packets": "Пакеты вейвлетов: лучший базис и восстановление",
   "tui.pipeline.example.polyphase": "Полифаза: чётные и нечётные отсчёты (ленивый вейвлет)",
   "tui.pipeline.example.audio_chain": "Звуковая цепочка: ФВЧ, эквалайзер, компрессор, эхо, ревербератор",

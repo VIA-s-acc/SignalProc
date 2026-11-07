@@ -1625,6 +1625,8 @@
   "tui.pipeline.example.haar_bank_wav": "Haar bank on your WAV (asks for the file)",
   "tui.pipeline.example.compression": "Compression: keep 10 % of DWT coefficients, check SNR",
   "tui.pipeline.example.lpc": "Linear prediction: residual and resynthesis",
+  "tui.pipeline.example.tempo": "Tone and time: stretch, pitch shift and speed on one tone",
+  "tui.pipeline.example.tempo_wav": "Tone and time on your own WAV: asks for the file",
   "tui.pipeline.example.packets": "Wavelet packets: best basis and reconstruction",
   "tui.pipeline.example.polyphase": "Polyphase: even and odd samples (lazy wavelet)",
   "tui.pipeline.example.audio_chain": "Audio chain: high-pass, EQ, compressor, echo, reverb",
