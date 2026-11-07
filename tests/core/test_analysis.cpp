@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <cstdint>
 #include <complex>
 #include <numbers>
 #include <string>
@@ -106,4 +107,43 @@ TEST_CASE("stft and istft match scipy and reconstruct", "[analysis][golden]") {
     CHECK(gap(*back, s["istft"].get<std::vector<double>>()) < 1e-12);
     CHECK_FALSE(stft_complex(x, 16, 0));
     CHECK_FALSE(stft_complex(x, 16, 17));
+}
+
+TEST_CASE("thd of a tone with known harmonics", "[analysis]") {
+    constexpr double fs = 48000;
+    std::vector<double> x(48000);
+    for (std::size_t n = 0; n < x.size(); ++n) {
+        const double t = static_cast<double>(n) / fs;
+        x[n] = std::sin(2 * std::numbers::pi * 1000 * t) + 0.01 * std::sin(2 * std::numbers::pi * 2000 * t) + 0.001 * std::sin(2 * std::numbers::pi * 3000 * t);
+    }
+    const auto r = thd(x, fs, 5);
+    REQUIRE(r);
+    CHECK(std::abs(r->f0 - 1000) < 0.01);
+    CHECK(std::abs(r->thd / std::hypot(0.01, 0.001) - 1) < 1e-3);
+    REQUIRE(r->harmonic_db.size() == 4);
+    CHECK(std::abs(r->harmonic_db[0] + 40) < 0.05);
+    CHECK(std::abs(r->harmonic_db[1] + 60) < 0.05);
+    std::vector<double> off(30011);
+    for (std::size_t n = 0; n < off.size(); ++n) off[n] = std::sin(2 * std::numbers::pi * 441.7 * static_cast<double>(n) / 44100) + 0.02 * std::sin(2 * std::numbers::pi * 883.4 * static_cast<double>(n) / 44100);
+    const auto o = thd(off, 44100, 3);
+    REQUIRE(o);
+    CHECK(std::abs(o->f0 - 441.7) < 0.1);
+    CHECK(std::abs(o->thd / 0.02 - 1) < 0.02);
+    CHECK_FALSE(thd(std::vector<double>(100, 0.0), fs, 5));
+}
+
+TEST_CASE("onsets find synthetic clicks within two hops", "[analysis]") {
+    constexpr double fs = 16000;
+    std::vector<double> x(32000, 0.0);
+    const std::vector<double> clicks{0.25, 0.75, 1.3, 1.6};
+    std::uint32_t state = 1;
+    for (double t0 : clicks)
+        for (std::size_t k = 0; k < 160; ++k) {
+            state = state * 1664525u + 1013904223u;
+            x[static_cast<std::size_t>(t0 * fs) + k] = (static_cast<double>(state >> 8) / 16777216.0 - 0.5) * std::exp(-static_cast<double>(k) / 40);
+        }
+    const auto found = onsets(x, fs, 1024, 256);
+    REQUIRE(found.size() == clicks.size());
+    for (std::size_t i = 0; i < clicks.size(); ++i) CHECK(std::abs(found[i] - clicks[i]) <= 2 * 256 / fs);
+    CHECK(onsets(std::vector<double>(32000, 0.0), fs, 1024, 256).empty());
 }

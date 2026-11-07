@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <optional>
 
 #include "core/detail/pocketfft.hpp"
 #include "core/freq.hpp"
@@ -173,6 +174,90 @@ Result<std::vector<double>> istft(const ComplexStft& z) {
     const auto half = n / 2;
     if (total <= 2 * half) return std::vector<double>{};
     return std::vector<double>(out.begin() + static_cast<std::ptrdiff_t>(half), out.end() - static_cast<std::ptrdiff_t>(half));
+}
+
+Result<Thd> thd(std::span<const double> x, double fs, int harmonics) {
+    constexpr std::size_t kLobe = 4;
+    const auto n = x.size();
+    if (n < 64 || !(fs > 0) || harmonics < 2) return make_error(Errc::invalid_argument, "thd: need at least 64 samples, fs > 0 and two harmonics");
+    std::vector<double> buffer(n);
+    for (std::size_t k = 0; k < n; ++k) {
+        const double t = 2 * std::numbers::pi * static_cast<double>(k) / static_cast<double>(n);
+        buffer[k] = x[k] * (0.35875 - 0.48829 * std::cos(t) + 0.14128 * std::cos(2 * t) - 0.01168 * std::cos(3 * t));
+    }
+    std::vector<C> spectrum(n / 2 + 1);
+    const pocketfft::shape_t shape{n};
+    const pocketfft::stride_t real_stride{sizeof(double)}, complex_stride{sizeof(C)};
+    pocketfft::r2c(shape, real_stride, complex_stride, 0, pocketfft::FORWARD, buffer.data(), spectrum.data(), 1.0);
+    std::vector<double> power(spectrum.size());
+    for (std::size_t k = 0; k < power.size(); ++k) power[k] = std::norm(spectrum[k]);
+    const auto top = power.size() - 1;
+    if (top <= 2 * kLobe + 2) return make_error(Errc::invalid_argument, "thd: the signal is too short");
+    const auto peak = static_cast<std::size_t>(std::max_element(power.begin() + kLobe + 1, power.end() - 1) - power.begin());
+    if (!(power[peak] > 0)) return make_error(Errc::invalid_argument, "thd: no tone in the signal");
+    const double a = std::log(power[peak - 1] + 1e-300), b = std::log(power[peak]), c = std::log(power[peak + 1] + 1e-300);
+    const double denom = a - 2 * b + c;
+    const double position = static_cast<double>(peak) + (denom != 0 ? 0.5 * (a - c) / denom : 0.0);
+    auto band = [&](double at) {
+        const auto centre = static_cast<std::ptrdiff_t>(std::llround(at));
+        double sum = 0;
+        for (auto j = std::max<std::ptrdiff_t>(0, centre - static_cast<std::ptrdiff_t>(kLobe));
+             j <= std::min<std::ptrdiff_t>(static_cast<std::ptrdiff_t>(top), centre + static_cast<std::ptrdiff_t>(kLobe)); ++j)
+            sum += power[static_cast<std::size_t>(j)];
+        return sum;
+    };
+    Thd r;
+    r.f0 = position * fs / static_cast<double>(n);
+    const double fundamental = band(position);
+    double rest = 0;
+    for (int h = 2; h <= harmonics; ++h) {
+        const double at = position * h;
+        if (at + static_cast<double>(kLobe) > static_cast<double>(top)) break;
+        const double p = band(at);
+        rest += p;
+        r.harmonic_db.push_back(10 * std::log10(std::max(p, 1e-300) / fundamental));
+    }
+    r.thd = std::sqrt(rest / fundamental);
+    r.thd_db = 20 * std::log10(std::max(r.thd, 1e-15));
+    return r;
+}
+
+std::vector<double> onsets(std::span<const double> x, double fs, std::size_t n, std::size_t hop) {
+    if (n == 0 || hop == 0 || x.size() < n || !(fs > 0)) return {};
+    const auto window = hann(n);
+    const pocketfft::shape_t shape{n};
+    const pocketfft::stride_t real_stride{sizeof(double)}, complex_stride{sizeof(C)};
+    std::vector<double> buffer(n), previous(n / 2 + 1, 0.0), flux;
+    std::vector<C> spectrum(n / 2 + 1);
+    for (std::size_t start = 0; start + n <= x.size(); start += hop) {
+        for (std::size_t k = 0; k < n; ++k) buffer[k] = x[start + k] * window[k];
+        pocketfft::r2c(shape, real_stride, complex_stride, 0, pocketfft::FORWARD, buffer.data(), spectrum.data(), 1.0);
+        double f = 0;
+        for (std::size_t k = 0; k < spectrum.size(); ++k) {
+            const double m = std::abs(spectrum[k]);
+            f += std::max(0.0, m - previous[k]);
+            previous[k] = m;
+        }
+        flux.push_back(f);
+    }
+    const double peak = *std::max_element(flux.begin(), flux.end());
+    if (!(peak > 1e-12)) return {};
+    const auto half = std::max<std::size_t>(1, static_cast<std::size_t>(std::llround(0.25 * fs / static_cast<double>(hop))));
+    const auto gap = static_cast<std::size_t>(std::ceil(0.05 * fs / static_cast<double>(hop)));
+    std::vector<double> out, around;
+    std::optional<std::size_t> last;
+    for (std::size_t m = 0; m < flux.size(); ++m) {
+        const bool rising = (m == 0 || flux[m] >= flux[m - 1]) && (m + 1 == flux.size() || flux[m] > flux[m + 1]);
+        if (!rising) continue;
+        around.assign(flux.begin() + static_cast<std::ptrdiff_t>(m > half ? m - half : 0),
+                      flux.begin() + static_cast<std::ptrdiff_t>(std::min(flux.size(), m + half + 1)));
+        std::nth_element(around.begin(), around.begin() + static_cast<std::ptrdiff_t>(around.size() / 2), around.end());
+        const double threshold = 1.5 * around[around.size() / 2] + 0.1 * peak;
+        if (flux[m] <= threshold || (last && m - *last < gap)) continue;
+        out.push_back((static_cast<double>(m * hop) + static_cast<double>(n) / 2) / fs);
+        last = m;
+    }
+    return out;
 }
 
 }  // namespace signals::core

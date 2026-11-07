@@ -8,6 +8,7 @@
 
 #include "core/analysis.hpp"
 #include "core/check.hpp"
+#include "core/signal_ops.hpp"
 #include "core/conv.hpp"
 #include "core/design/families.hpp"
 #include "core/metrics.hpp"
@@ -18,6 +19,7 @@
 #include "core/swt.hpp"
 #include "core/wavedec.hpp"
 #include "i18n/i18n.hpp"
+#include "io/temp_file.hpp"
 #include "io/wav.hpp"
 #include "pipeline/block.hpp"
 
@@ -76,6 +78,23 @@ Out per_channel(const core::AudioBuffer& a, double rate, F&& f) {
         out.channels.push_back(std::move(*r));
     }
     return std::vector<Value>{std::move(out)};
+}
+
+std::string number(double v) { return std::isfinite(v) ? fmt::format("{:.17g}", v) : std::string{"null"}; }
+
+std::string json_string(std::string_view s) {
+    std::string out = "\"";
+    for (const char c : s) {
+        if (c == '"' || c == '\\') out += '\\', out += c;
+        else if (static_cast<unsigned char>(c) < 0x20) out += fmt::format("\\u{:04x}", static_cast<unsigned>(c));
+        else out += c;
+    }
+    return out + "\"";
+}
+
+std::filesystem::path output_path(const RunContext& ctx, const Params& p) {
+    auto path = utf8_path(param_text(p, "path"));
+    return path.is_relative() ? ctx.base_dir / path : path;
 }
 
 core::MultirateOptions multirate(const Params& p) {
@@ -436,6 +455,120 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                            result.channels.push_back(std::move(*r));
                        }
                        return std::vector<Value>{std::move(result)};
+                   }});
+    out.push_back({"denoise",
+                   kSignalIn,
+                   kSignalOut,
+                   {{"wavelet", Kind::text, "sym8"},
+                    {"levels", Kind::integer, "0", {}, 0, 32},
+                    {"rule", Kind::choice, "bayes", {"bayes", "visu", "sure", "minimax"}},
+                    {"mode", Kind::choice, "soft", {"soft", "hard"}},
+                    {"shifts", Kind::integer, "1", {}, 1, 64}},
+                   [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
+                       core::DenoiseOptions o;
+                       o.wavelet = param_text(p, "wavelet");
+                       if (const auto levels = param_int(p, "levels"); levels > 0) o.levels = static_cast<std::size_t>(levels);
+                       o.rule = core::parse_shrink_rule(param_text(p, "rule")).value_or(core::ShrinkRule::bayes);
+                       o.threshold = param_text(p, "mode") == "hard" ? core::ThresholdMode::hard : core::ThresholdMode::soft;
+                       const auto shifts = static_cast<std::size_t>(param_int(p, "shifts"));
+                       auto once = [&](std::span<const double> v) -> Samples {
+                           if (ctx.progress && ctx.progress->cancelled()) return core::make_error(core::Errc::cancelled, "denoise: cancelled");
+                           auto d = core::denoise(v, o);
+                           if (!d) return std::unexpected{d.error()};
+                           return std::move(d->first);
+                       };
+                       const auto& a = in_audio(in);
+                       return per_channel(a, a.sample_rate, [&](const std::vector<double>& c) { return shifts == 1 ? once(c) : core::cycle_spin(c, shifts, once); });
+                   }});
+    out.push_back({"thd", kSignalIn, kReportOut, {{"harmonics", Kind::integer, "5", {}, 2, 20}}, [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                       const auto& a = in_audio(in);
+                       Report r;
+                       for (std::size_t c = 0; c < a.channels.size(); ++c) {
+                           const auto t = core::thd(a.channels[c], a.sample_rate, static_cast<int>(param_int(p, "harmonics")));
+                           if (!t) return std::unexpected{t.error()};
+                           const auto suffix = a.channels.size() > 1 ? "_ch" + std::to_string(c) : std::string{};
+                           r.fields.push_back({"f0_hz" + suffix, t->f0});
+                           r.fields.push_back({"thd_percent" + suffix, 100 * t->thd});
+                           r.fields.push_back({"thd_db" + suffix, t->thd_db});
+                       }
+                       return std::vector<Value>{std::move(r)};
+                   }});
+    out.push_back({"onsets",
+                   kSignalIn,
+                   kReportOut,
+                   {{"n", Kind::integer, "1024", {}, 64, 65536}, {"hop", Kind::integer, "256", {}, 1, 65536}},
+                   [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                       const auto mono = core::mixdown(in_audio(in));
+                       const auto times = mono.channels.empty() ? std::vector<double>{}
+                                                                : core::onsets(mono.channels.front(), mono.sample_rate, static_cast<std::size_t>(param_int(p, "n")),
+                                                                               static_cast<std::size_t>(param_int(p, "hop")));
+                       std::string list;
+                       for (const double t : times) list += (list.empty() ? "" : " ") + fmt::format("{:.3f}", t);
+                       Report r;
+                       r.fields = {{"count", static_cast<double>(times.size())}, {"times_s", list}};
+                       return std::vector<Value>{std::move(r)};
+                   }});
+    out.push_back({"export",
+                   kSignalIn,
+                   kReportOut,
+                   {{"path", Kind::path, "out.csv"}, {"format", Kind::choice, "csv", {"csv", "json"}}},
+                   [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
+                       const auto path = output_path(ctx, p);
+                       const auto& a = in_audio(in);
+                       std::string text;
+                       if (param_text(p, "format") == "csv") {
+                           text = "n";
+                           std::size_t rows = 0;
+                           for (std::size_t c = 0; c < a.channels.size(); ++c) {
+                               text += ",ch" + std::to_string(c);
+                               rows = std::max(rows, a.channels[c].size());
+                           }
+                           text += "\n";
+                           for (std::size_t k = 0; k < rows; ++k) {
+                               text += std::to_string(k);
+                               for (const auto& ch : a.channels) text += "," + (k < ch.size() ? fmt::format("{:.17g}", ch[k]) : std::string{});
+                               text += "\n";
+                           }
+                       } else {
+                           text = "{\"rate\":" + number(a.sample_rate) + ",\"channels\":[";
+                           for (std::size_t c = 0; c < a.channels.size(); ++c) {
+                               text += c ? ",[" : "[";
+                               for (std::size_t k = 0; k < a.channels[c].size(); ++k) text += (k ? "," : "") + number(a.channels[c][k]);
+                               text += "]";
+                           }
+                           text += "]}\n";
+                       }
+                       if (auto w = io::write_file_atomic(path, text); !w) return std::unexpected{w.error()};
+                       Report r;
+                       r.fields = {{"path", path.string()}, {"bytes", static_cast<double>(text.size())}};
+                       return std::vector<Value>{std::move(r)};
+                   }});
+    out.push_back({"export_report",
+                   {{"in", PortType::report}},
+                   kReportOut,
+                   {{"path", Kind::path, "report.json"}, {"format", Kind::choice, "json", {"csv", "json"}}},
+                   [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
+                       const auto path = output_path(ctx, p);
+                       const auto& report = std::get<Report>(in[0]);
+                       std::string text;
+                       auto value = [](const std::variant<double, std::string>& v, bool json) {
+                           if (const auto* d = std::get_if<double>(&v)) return number(*d);
+                           const auto& s = std::get<std::string>(v);
+                           return json || s.find_first_of(",\"\n") != std::string::npos ? json_string(s) : s;
+                       };
+                       if (param_text(p, "format") == "csv") {
+                           text = "field,value\n";
+                           for (const auto& [k, v] : report.fields) text += k + "," + value(v, false) + "\n";
+                       } else {
+                           text = "{\"passed\":" + std::string{report.passed ? "true" : "false"} + ",\"fields\":{";
+                           for (std::size_t i = 0; i < report.fields.size(); ++i)
+                               text += (i ? "," : "") + json_string(report.fields[i].first) + ":" + value(report.fields[i].second, true);
+                           text += "}}\n";
+                       }
+                       if (auto w = io::write_file_atomic(path, text); !w) return std::unexpected{w.error()};
+                       Report r;
+                       r.fields = {{"path", path.string()}, {"bytes", static_cast<double>(text.size())}};
+                       return std::vector<Value>{std::move(r)};
                    }});
     out.push_back({"check",
                    {{"ref", PortType::signal}, {"in", PortType::signal}},

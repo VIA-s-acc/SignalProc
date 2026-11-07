@@ -1,4 +1,5 @@
 #include "io/wav.hpp"
+#include "io/temp_file.hpp"
 
 #include <algorithm>
 #include <bit>
@@ -207,42 +208,11 @@ bool open_for_reading(drwav& wav, const std::filesystem::path& path) {
 #endif
 }
 
-struct TempFile {
-    std::filesystem::path path;
-    std::FILE* file = nullptr;
-};
-
-std::optional<TempFile> create_temp_beside(const std::filesystem::path& target) {
-    std::random_device entropy;
-    for (int attempt = 0; attempt < 16; ++attempt) {
-        const auto tag = (static_cast<std::uint64_t>(entropy()) << 32) ^ entropy();
-        char hex[17];
-        std::snprintf(hex, sizeof hex, "%016llx", static_cast<unsigned long long>(tag));
-        auto path = target.parent_path() / ("." + target.filename().string() + "." + hex + ".partial");
-        // "x" is exclusive creation: it fails on an existing file and on a planted symlink.
-#ifdef _WIN32
-        std::FILE* file = _wfopen(path.c_str(), L"wbx");
-#else
-        std::FILE* file = std::fopen(path.c_str(), "wbx");
-#endif
-        if (file) return TempFile{std::move(path), file};
-        if (errno != EEXIST) return std::nullopt;
-    }
-    return std::nullopt;
-}
-
 size_t write_to_file(void* user, const void* data, size_t bytes) { return std::fwrite(data, 1, bytes, static_cast<std::FILE*>(user)); }
 
 drwav_bool32 seek_in_file(void* user, int offset, drwav_seek_origin origin) {
     const int whence = origin == DRWAV_SEEK_SET ? SEEK_SET : origin == DRWAV_SEEK_CUR ? SEEK_CUR : SEEK_END;
     return std::fseek(static_cast<std::FILE*>(user), offset, whence) == 0;
-}
-
-void discard(TempFile& temp) {
-    if (temp.file) std::fclose(temp.file);
-    temp.file = nullptr;
-    std::error_code ignored;
-    std::filesystem::remove(temp.path, ignored);
 }
 
 core::Result<WavWriteReport> write_failed(drwav* wav, TempFile* temp, const std::filesystem::path& target) {

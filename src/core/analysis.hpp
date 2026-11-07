@@ -23,6 +23,13 @@ struct ComplexStft {
     std::size_t n = 0, hop = 0;
     std::vector<std::vector<std::complex<double>>> frames;
 };
+struct Thd {
+    double f0 = 0, thd = 0, thd_db = 0;
+    std::vector<double> harmonic_db;
+};
+Result<Thd> thd(std::span<const double> x, double fs, int harmonics = 5);
+std::vector<double> onsets(std::span<const double> x, double fs, std::size_t n = 1024, std::size_t hop = 256);
+
 Result<ComplexStft> stft_complex(std::span<const double> x, std::size_t n, std::size_t hop);
 Result<std::vector<double>> istft(const ComplexStft& z);
 

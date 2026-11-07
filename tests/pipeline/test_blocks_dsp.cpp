@@ -4,8 +4,11 @@
 #include <filesystem>
 #include <numbers>
 #include <fstream>
+#include <variant>
 #include <sstream>
 #include <vector>
+
+#include <nlohmann/json.hpp>
 
 #include "core/analysis.hpp"
 #include "core/check.hpp"
@@ -16,6 +19,7 @@
 #include "core/process/shrink.hpp"
 #include "io/wav.hpp"
 #include "pipeline/block.hpp"
+#include "support/golden.hpp"
 #include "support/paths.hpp"
 
 using namespace signals;
@@ -299,4 +303,79 @@ TEST_CASE("analysis blocks run per channel", "[pipeline][analysis]") {
     CHECK(std::abs(c.channels[1][799] - 1.0) < 1e-12);
     const auto same = audio(run("xcorr", {x, x}, {{"mode", "same"}})[0]);
     CHECK(same.channels[0].size() == 800);
+}
+
+TEST_CASE("the denoise block spins cycles like the core", "[pipeline][analysis]") {
+    const auto g = signals::test::load_golden("ops.json");
+    core::AudioBuffer x;
+    x.sample_rate = 1024;
+    x.channels = {g["cycle_spin"]["noisy"].get<std::vector<double>>()};
+    const auto spun = audio(run("denoise", {x}, {{"wavelet", "db4"}, {"levels", "5"}, {"rule", "bayes"}, {"mode", "soft"}, {"shifts", "8"}})[0]);
+    CHECK(core::max_abs_error(spun.channels[0], g["cycle_spin"]["out"].get<std::vector<double>>()) < 1e-12);
+    core::DenoiseOptions o;
+    o.wavelet = "db4";
+    o.levels = 5;
+    const auto once = audio(run("denoise", {x}, {{"wavelet", "db4"}, {"levels", "5"}})[0]);
+    CHECK(once.channels[0] == core::denoise(x.channels[0], o)->first);
+}
+
+TEST_CASE("thd and onsets blocks report their measurements", "[pipeline][analysis]") {
+    core::AudioBuffer x;
+    x.sample_rate = 48000;
+    x.channels = {std::vector<double>(48000)};
+    for (std::size_t n = 0; n < 48000; ++n) {
+        const double t = static_cast<double>(n) / 48000;
+        x.channels[0][n] = std::sin(2 * std::numbers::pi * 1000 * t) + 0.01 * std::sin(2 * std::numbers::pi * 2000 * t);
+    }
+    const auto r = std::get<Report>(run("thd", {x}, {{"harmonics", "3"}})[0]);
+    auto field = [&](const Report& rep, const std::string& name) {
+        for (const auto& [k, v] : rep.fields)
+            if (k == name) return v;
+        FAIL("no field " << name);
+        return std::variant<double, std::string>{0.0};
+    };
+    CHECK(std::abs(std::get<double>(field(r, "f0_hz")) - 1000) < 0.01);
+    CHECK(std::abs(std::get<double>(field(r, "thd_percent")) - 1.0) < 0.01);
+    core::AudioBuffer clicks;
+    clicks.sample_rate = 16000;
+    clicks.channels = {std::vector<double>(32000, 0.0)};
+    for (const double t0 : {0.5, 1.2})
+        for (std::size_t k = 0; k < 80; ++k) clicks.channels[0][static_cast<std::size_t>(t0 * 16000) + k] = (k % 2 ? 0.8 : -0.8) * std::exp(-static_cast<double>(k) / 20);
+    const auto o = std::get<Report>(run("onsets", {clicks})[0]);
+    CHECK(std::get<double>(field(o, "count")) == 2);
+    CHECK(std::get<std::string>(field(o, "times_s")).find(' ') != std::string::npos);
+}
+
+TEST_CASE("export writes csv and json that read back", "[pipeline][analysis]") {
+    const auto dir = std::filesystem::temp_directory_path() / "signals-export-тест";
+    std::filesystem::create_directories(dir);
+    core::AudioBuffer x;
+    x.sample_rate = 8000;
+    x.channels = {{0.1, -0.25, 1.0 / 3}, {1, 2, 3}};
+    run("export", {x}, {{"path", (dir / "x.csv").string()}, {"format", "csv"}});
+    std::ifstream csv{dir / "x.csv"};
+    std::string header, first;
+    std::getline(csv, header);
+    std::getline(csv, first);
+    CHECK(header == "n,ch0,ch1");
+    CHECK(first == "0,0.10000000000000001,1");
+    run("export", {x}, {{"path", (dir / "x.json").string()}, {"format", "json"}});
+    std::ifstream js{dir / "x.json"};
+    const auto j = nlohmann::json::parse(js);
+    CHECK(j["rate"] == 8000);
+    CHECK(j["channels"][0][2].get<double>() == 1.0 / 3);
+    Report rep;
+    rep.fields = {{"snr_db", 12.5}, {"path", std::string{"a\"b"}}};
+    run("export_report", {rep}, {{"path", (dir / "r.json").string()}, {"format", "json"}});
+    std::ifstream rj{dir / "r.json"};
+    const auto parsed = nlohmann::json::parse(rj);
+    CHECK(parsed["fields"]["snr_db"] == 12.5);
+    CHECK(parsed["fields"]["path"] == "a\"b");
+    CHECK(parsed["passed"] == true);
+    const auto* t = find_block_type("export");
+    const auto params = resolve_params(*t, {{"path", (dir / "missing" / "x.csv").string()}});
+    REQUIRE(params);
+    CHECK_FALSE(t->run(RunContext{dir}, std::vector<Value>{x}, *params));
+    CHECK_FALSE(std::filesystem::exists(dir / "missing"));
+    std::filesystem::remove_all(dir);
 }

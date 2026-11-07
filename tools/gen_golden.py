@@ -568,7 +568,15 @@ def ops_json():
     for bits in [1, 2, 8, 16, 24]:
         step = 2.0 ** (1 - bits)
         quant.append({"bits": bits, "y": floats(np.clip(np.round(y / step) * step, -1.0, 1.0 - step))})
-    return {"x": floats(x), "mulaw": floats(mulaw), "y": floats(y), "quantize": quant}
+    from skimage.restoration import cycle_spin
+    doppler = pywt.data.demo_signal("Doppler", 1024)
+    doppler = doppler * 7 / np.std(doppler)
+    noisy = doppler + np.random.default_rng(3).normal(0, 1, doppler.size)
+    def denoise(v):
+        return _denoise._wavelet_threshold(v, "db4", method="BayesShrink", mode="soft", wavelet_levels=5)
+    spun = cycle_spin(noisy, func=denoise, max_shifts=7, channel_axis=None)
+    return {"x": floats(x), "mulaw": floats(mulaw), "y": floats(y), "quantize": quant,
+            "cycle_spin": {"noisy": floats(noisy), "shifts": 8, "out": floats(spun)}}
 
 def analysis_json():
     import scipy.fft
