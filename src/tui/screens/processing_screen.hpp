@@ -16,6 +16,7 @@
 #include "tui/screens/processing_model.hpp"
 #include "tui/shell/layout.hpp"
 #include "tui/shell/panel.hpp"
+#include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
 
 namespace signals::tui {
@@ -38,6 +39,8 @@ public:
     void open_with(const NavArgs& args) override;
 
     ftxui::Box area(std::string_view id) const;
+    std::optional<Axis> plot_view(std::string_view id) const;
+    std::vector<MenuItem> context_menu(int x, int y) override;
     View view() const { return view_; }
     std::size_t preset() const { return preset_; }
     std::size_t active_preset() const;
@@ -71,6 +74,9 @@ private:
     Breakpoint breakpoint_ = Breakpoint::primary;
     Panel focus_ = coeffs_panel;
     std::optional<Panel> maximized_;
+    PlotZoom zoom_;
+    AxisZoom coeff_zoom_{Axis{0, 1}};
+    ftxui::Box coeff_plot_box_{};
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::deque<Clickable> clickables_;
     View view_ = View::a;

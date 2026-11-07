@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <thread>
@@ -230,4 +231,36 @@ TEST_CASE("the listening panel says what A, B and X play", "[tui][processing]") 
     ProcessingFixture f;
     const auto frame = f.h.frame();
     CHECK(frame.find("звучат 4,00 с") != std::string::npos);
+}
+
+TEST_CASE("every processing plot zooms with the wheel and resets with 0", "[tui][processing][panels]") {
+    ProcessingFixture f;
+    f.h.frame();
+    for (const char* id : {"signal", "curve", "eq", "coeffs"}) {
+        INFO(id);
+        const auto b = f.screen->area(std::string{id} + "_plot");
+        REQUIRE(b.x_max > b.x_min);
+        const auto full = f.screen->plot_view(id);
+        REQUIRE(full);
+        const int x = b.x_min + (b.x_max - b.x_min) / 3, y = (b.y_min + b.y_max) / 2;
+        f.h.wheel(x, y, true);
+        f.h.wheel(x, y, true);
+        f.h.frame();
+        const auto zoomed = f.screen->plot_view(id);
+        REQUIRE(zoomed);
+        const bool log = full->scale == signals::tui::AxisScale::log10;
+        const double span = log ? std::log(zoomed->hi / zoomed->lo) : zoomed->hi - zoomed->lo;
+        const double whole = log ? std::log(full->hi / full->lo) : full->hi - full->lo;
+        CHECK(span < 0.7 * whole);
+        CHECK_FALSE(f.screen->context_menu(x, y).empty());
+        const double scale = f.model->options().scale;
+        f.h.click(x, y);
+        f.h.send(ftxui::Event::Character('0'));
+        f.h.frame();
+        const auto reset = f.screen->plot_view(id);
+        REQUIRE(reset);
+        CHECK(reset->lo == full->lo);
+        CHECK(reset->hi == full->hi);
+        CHECK(f.model->options().scale == scale);
+    }
 }
