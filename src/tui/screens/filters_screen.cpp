@@ -403,7 +403,9 @@ std::vector<const LibraryNode*> FiltersScreen::matches() const {
 }
 
 std::string FiltersScreen::focus_wavelet() const {
-    auto bank_like = [](const FilterRef& r) { return r.kind != FilterRef::Kind::classical && r.kind != FilterRef::Kind::cwt && !r.wavelet.empty(); };
+    auto bank_like = [](const FilterRef& r) {
+        return r.kind != FilterRef::Kind::classical && r.kind != FilterRef::Kind::cwt && r.kind != FilterRef::Kind::custom && !r.wavelet.empty();
+    };
     const auto entries = set_->entries();
     const auto f = set_->focus();
     if (f < entries.size() && bank_like(entries[f].ref)) return entries[f].ref.wavelet;
@@ -437,6 +439,7 @@ ftxui::Element FiltersScreen::library_panel(int width) {
         for (const auto& c : n.children) count(c);
     };
     count(library_);
+    if (!custom_ && !notice_.empty() && breakpoint_ <= Breakpoint::small) rows.push_back(text(notice_) | fg(th.warn, ui_));
     if (custom_) {
         rows.push_back(hbox({text(tr("tui.filters.custom.prompt") + " " + query_) | fg(th.fg, ui_),
                              text(ui_.caps.glyphs == GlyphMode::ascii ? "_" : "▏") | fg(th.accent, ui_)}));
@@ -1173,6 +1176,8 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
     if (e == Event::Character('c')) {
         custom_ = true;
         query_.clear();
+        if (breakpoint_ <= Breakpoint::small && !layout_.maximized())
+            for (std::size_t k = 0; k < panel_count && layout_.small_index() % panel_count != library; ++k) layout_.next_panel(panel_count);
         return true;
     }
     if (e.is_mouse()) return on_mouse(e.mouse());

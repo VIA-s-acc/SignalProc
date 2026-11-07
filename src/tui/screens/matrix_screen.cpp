@@ -193,7 +193,7 @@ ftxui::Element MatrixScreen::checks_panel(const MatrixData* d) {
     if (d->left_inverse_error) rows.push_back(hbox({text("‖S·A·x − x‖ = " + check_value(d->left_inverse_error)), mark(d->left_inverse_error, 1e-12)}));
     if (d->dct_error) rows.push_back(hbox({text(fmt::format(fmt::runtime(tr("tui.matrix.dct_check")), fmt::arg("value", check_value(d->dct_error)))), mark(d->dct_error, 1e-12)}));
     if (d->levinson_error)
-        rows.push_back(hbox({text(fmt::format(fmt::runtime(tr("tui.matrix.levinson_check")), fmt::arg("value", check_value(d->levinson_error)))), mark(d->levinson_error, 1e-9)}));
+        rows.push_back(hbox({text(fmt::format(fmt::runtime(tr("tui.matrix.levinson_check")), fmt::arg("value", check_value(d->levinson_error)))), mark(d->levinson_error, 1e-10)}));
     if (!d->singular.empty())
         rows.push_back(text(fmt::format(fmt::runtime(tr("tui.matrix.singular")), fmt::arg("hi", format_number(d->singular.front())),
                                         fmt::arg("lo", format_number(d->singular.back())), fmt::arg("cond", format_number(d->cond)))) |
