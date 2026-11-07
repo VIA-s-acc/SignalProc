@@ -138,9 +138,12 @@ TEST_CASE("an 80×24 terminal keeps the diagram and the probe apart", "[tui][dia
         if (poly) h.send(ftxui::Event::Character('P'));
         const auto frame = h.frame();
         CHECK(widest(frame) <= 80);
-        CHECK(frame.find("Щуп") != std::string::npos);
         CHECK(frame.find(poly ? "E(z)" : "F₀") != std::string::npos);
         CHECK(frame.find("⊕") != std::string::npos);
+        h.send(ftxui::Event::Tab);
+        const auto probe = h.frame();
+        CHECK(widest(probe) <= 80);
+        CHECK(probe.find("Щуп") != std::string::npos);
     }
 }
 
@@ -175,4 +178,51 @@ TEST_CASE("the diagram follows every designer change and leaves [ ] to the sub-t
     for (const auto& hint : f.screen->hints()) CHECK(hint.key.find('[') == std::string::npos);
     h.send(ftxui::Event::Character('+'));
     CHECK(f.screen->length() == 32);
+}
+
+TEST_CASE("diagram panels take focus with Tab, z maximizes, and 80×24 shows one at a time", "[tui][diagram][panels]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    h.frame();
+    CHECK(f.screen->focus() == DiagramScreen::diagram_panel_id);
+    h.send(ftxui::Event::Tab);
+    CHECK(f.screen->focus() == DiagramScreen::probe_panel_id);
+    h.send(ftxui::Event::Character('z'));
+    h.frame();
+    CHECK_FALSE(f.screen->area("diagram_panel").x_max > f.screen->area("diagram_panel").x_min);
+    h.send(ftxui::Event::Escape);
+    h.frame();
+    CHECK(f.screen->area("diagram_panel").x_max > f.screen->area("diagram_panel").x_min);
+    Fixture small{80, 24};
+    Harness hs{small.screen, 80, 24};
+    hs.frame();
+    CHECK(small.screen->area("diagram_panel").x_max > small.screen->area("diagram_panel").x_min);
+    CHECK_FALSE(small.screen->area("probe_panel").x_max > small.screen->area("probe_panel").x_min);
+    hs.send(ftxui::Event::Tab);
+    hs.frame();
+    CHECK(small.screen->area("probe_panel").x_max > small.screen->area("probe_panel").x_min);
+}
+
+TEST_CASE("the probe plots zoom with the wheel and reset with 0", "[tui][diagram][panels]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    h.frame();
+    for (const char* id : {"probe_time", "probe_spectrum"}) {
+        INFO(id);
+        h.frame();
+        const auto b = f.screen->area(std::string{id} + "_plot");
+        REQUIRE(b.x_max > b.x_min);
+        const auto full = f.screen->plot_view(id);
+        REQUIRE(full);
+        h.wheel(b.x_min + (b.x_max - b.x_min) / 3, (b.y_min + b.y_max) / 2, true);
+        h.wheel(b.x_min + (b.x_max - b.x_min) / 3, (b.y_min + b.y_max) / 2, true);
+        h.frame();
+        CHECK(f.screen->plot_view(id)->hi - f.screen->plot_view(id)->lo < 0.7 * (full->hi - full->lo));
+        CHECK_FALSE(f.screen->context_menu(b.x_min + 2, (b.y_min + b.y_max) / 2).empty());
+        h.click(b.x_min + 2, (b.y_min + b.y_max) / 2);
+        h.send(ftxui::Event::Character('0'));
+        h.frame();
+        CHECK(f.screen->plot_view(id)->hi - f.screen->plot_view(id)->lo == full->hi - full->lo);
+        h.send(ftxui::Event::Character('v'));
+    }
 }
