@@ -298,10 +298,6 @@ TEST_CASE("hovering designer presets and constraints explains them", "[tui][desi
         const auto b = f.screen->area(id);
         return f.screen->explain_at((b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2);
     };
-    auto over = [&](const std::string& frame, const std::string& needle) -> std::optional<std::string> {
-        const auto p = signals::test::locate(frame, needle);
-        return p ? f.screen->explain_at(p->first, p->second) : std::nullopt;
-    };
     f.h.frame();
     CHECK(at("preset_cdf") == signals::tr("tui.explain.designer.preset.cdf"));
     CHECK(at("preset_max_phase") == signals::tr("tui.explain.designer.preset.max_phase"));

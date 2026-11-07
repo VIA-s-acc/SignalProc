@@ -173,7 +173,8 @@ ftxui::Element Palette::render(const UiContext& ui, int width) const {
         const auto title = ellipsize(matches[i]->title, inner - 2, ascii);
         const auto& note = matches[i]->note;
         const int note_room = inner - 4 - display_width(title);
-        Elements parts{text(" " + title + " ")};
+        Elements parts;
+        parts.push_back(text(" " + title + " "));
         if (!note.empty() && note_room > 8) parts.push_back(text(" " + ellipsize(note, note_room, ascii)) | (i == selected_ ? nothing : fg(ui.theme.dim, ui)));
         auto row = hbox(std::move(parts));
         rows.push_back(i == selected_ ? row | bold | fg(ui.theme.bg, ui) | bg(ui.theme.accent, ui) : row);

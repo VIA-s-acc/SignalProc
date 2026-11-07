@@ -87,7 +87,6 @@ public:
         tabs.push_back(key_label(" ? ", ui_) | reflect(help_box_));
         Elements hints;
         if (const auto about = hover_ ? screen.explain_at(hover_->first, hover_->second) : std::nullopt) {
-            const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
             hints.push_back(text(ellipsize(std::string{ascii ? "i " : "ⓘ "} + *about, w, ascii)) | fg(ui_.theme.accent, ui_));
         }
         auto all = screen.hints();

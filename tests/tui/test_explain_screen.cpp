@@ -246,10 +246,6 @@ TEST_CASE("hovering the walkthrough controls explains them", "[tui][explain_scre
         const auto b = f.screen->area(id);
         return f.screen->explain_at((b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2);
     };
-    auto over = [&](const std::string& frame, const std::string& needle) -> std::optional<std::string> {
-        const auto p = signals::test::locate(frame, needle);
-        return p ? f.screen->explain_at(p->first, p->second) : std::nullopt;
-    };
     f.h.frame();
     CHECK(at("prev") == signals::tr("tui.explain.explain.prev"));
     CHECK(at("auto") == signals::tr("tui.explain.explain.auto"));
