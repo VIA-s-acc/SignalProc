@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <span>
 #include <vector>
 
@@ -20,6 +21,9 @@ struct ClipResult {
     std::size_t clipped = 0;
 };
 ClipResult hard_clip(std::span<const double> x, double limit);
+Result<std::vector<double>> quantize(std::span<const double> x, int bits, bool dither, std::uint64_t seed);
+std::vector<double> mulaw_encode(std::span<const double> x, double mu = 255);
+std::vector<double> mulaw_decode(std::span<const double> y, double mu = 255);
 
 Result<AudioBuffer> to_mid_side(const AudioBuffer& audio);
 Result<AudioBuffer> from_mid_side(const AudioBuffer& audio);

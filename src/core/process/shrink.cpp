@@ -163,4 +163,19 @@ std::size_t keep_largest(std::vector<std::vector<double>>& bands, double fractio
     return keep;
 }
 
+Result<std::vector<double>> cycle_spin(std::span<const double> x, std::size_t shifts, const SignalMap& f) {
+    if (shifts == 0) return make_error(Errc::invalid_argument, "cycle_spin: at least one shift is needed");
+    const auto n = x.size();
+    std::vector<double> sum(n, 0.0), rolled(n);
+    for (std::size_t s = 0; s < shifts; ++s) {
+        for (std::size_t i = 0; i < n; ++i) rolled[(i + s) % n] = x[i];
+        auto y = f(rolled);
+        if (!y) return std::unexpected{y.error()};
+        if (y->size() != n) return make_error(Errc::length_mismatch, "cycle_spin: the map changed the length");
+        for (std::size_t i = 0; i < n; ++i) sum[i] += (*y)[(i + s) % n];
+    }
+    for (auto& v : sum) v /= static_cast<double>(shifts);
+    return sum;
+}
+
 }  // namespace signals::core

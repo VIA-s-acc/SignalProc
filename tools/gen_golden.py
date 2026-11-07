@@ -557,6 +557,49 @@ def fir_json():
         firls.append({"numtaps": numtaps, "bands": bands, "desired": desired, "weight": weight, "h": floats(h)})
     return {"remez": remez, "firls": firls}
 
+def ops_json():
+    x = np.concatenate([np.linspace(-1.5, 1.5, 61), [0.3333333333333333, -0.7071067811865476, 1e-9, -1e-9]])
+    mu = 255.0
+    clipped = np.clip(x, -1.0, 1.0)
+    mulaw = np.sign(clipped) * np.log1p(mu * np.abs(clipped)) / np.log1p(mu)
+    rng = np.random.default_rng(5)
+    y = rng.uniform(-1.2, 1.2, 200)
+    quant = []
+    for bits in [1, 2, 8, 16, 24]:
+        step = 2.0 ** (1 - bits)
+        quant.append({"bits": bits, "y": floats(np.clip(np.round(y / step) * step, -1.0, 1.0 - step))})
+    from skimage.restoration import cycle_spin
+    doppler = pywt.data.demo_signal("Doppler", 1024)
+    doppler = doppler * 7 / np.std(doppler)
+    noisy = doppler + np.random.default_rng(3).normal(0, 1, doppler.size)
+    def denoise(v):
+        return _denoise._wavelet_threshold(v, "db4", method="BayesShrink", mode="soft", wavelet_levels=5)
+    spun = cycle_spin(noisy, func=denoise, max_shifts=7, channel_axis=None)
+    return {"x": floats(x), "mulaw": floats(mulaw), "y": floats(y), "quantize": quant,
+            "cycle_spin": {"noisy": floats(noisy), "shifts": 8, "out": floats(spun)}}
+
+def analysis_json():
+    import scipy.fft
+    rng = np.random.default_rng(11)
+    signals = [rng.standard_normal(37), np.sin(0.3 * np.arange(64)) + 0.1 * rng.standard_normal(64), np.array([0.75])]
+    corr = []
+    for x, y in [(signals[0], signals[1][:20]), (signals[1], signals[0]), (signals[2], signals[0][:5])]:
+        for mode in ["full", "same", "valid"]:
+            corr.append({"x": floats(x), "y": floats(y), "mode": mode, "out": floats(scipy.signal.correlate(x, y, mode=mode, method="direct"))})
+    hilb, ceps, dct = [], [], []
+    for x in signals:
+        a = scipy.signal.hilbert(x)
+        hilb.append({"x": floats(x), "re": floats(a.real), "im": floats(a.imag)})
+        spectrum = np.abs(np.fft.fft(x))
+        ceps.append({"x": floats(x), "out": floats(np.real(np.fft.ifft(np.log(spectrum + 1e-12 * spectrum.max()))))})
+        dct.append({"x": floats(x), "dct": floats(scipy.fft.dct(x, type=2, norm="ortho"))})
+    x = signals[1][:50]
+    n, hop = 16, 4
+    _, _, z = scipy.signal.stft(x, nperseg=n, noverlap=n - hop, window="hann")
+    _, back = scipy.signal.istft(z, nperseg=n, noverlap=n - hop, window="hann")
+    stft = {"x": floats(x), "n": n, "hop": hop, "re": [floats(r) for r in z.real.T], "im": [floats(r) for r in z.imag.T], "istft": floats(back)}
+    return {"correlate": corr, "hilbert": hilb, "cepstrum": ceps, "dct": dct, "stft": stft}
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path)
@@ -576,7 +619,7 @@ def main():
                                ("spectral.json", spectral_json), ("swt.json", swt_json),
                                ("packets.json", packets_json), ("cwt.json", cwt_json),
                                ("processing.json", lambda: processing_json(sample_wav)),
-                               ("iir.json", iir_json), ("fir.json", fir_json)]:
+                               ("iir.json", iir_json), ("fir.json", fir_json), ("ops.json", ops_json), ("analysis.json", analysis_json)]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)

@@ -7,6 +7,7 @@ add_library(signals_core STATIC
   memory.cpp
   thread_name.cpp
   spectral.cpp
+  analysis.cpp
   signal_ops.cpp
   multirate.cpp
   freq.cpp

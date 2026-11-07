@@ -156,3 +156,22 @@ TEST_CASE("keep_largest keeps everything at one and earlier ties first", "[core]
     std::vector<std::vector<double>> none{{1}};
     CHECK(keep_largest(none, 0.1) == 0);
 }
+
+TEST_CASE("cycle spinning matches skimage", "[shrink][golden]") {
+    const auto g = signals::test::load_golden("ops.json");
+    const auto& c = g["cycle_spin"];
+    const auto noisy = c["noisy"].get<std::vector<double>>();
+    DenoiseOptions o;
+    o.wavelet = "db4";
+    o.levels = 5;
+    o.rule = ShrinkRule::bayes;
+    o.threshold = ThresholdMode::soft;
+    const auto out = cycle_spin(noisy, c["shifts"].get<std::size_t>(), [&](std::span<const double> v) -> Result<std::vector<double>> {
+        auto d = denoise(v, o);
+        if (!d) return std::unexpected{d.error()};
+        return std::move(d->first);
+    });
+    REQUIRE(out);
+    CHECK(max_abs_error(*out, c["out"].get<std::vector<double>>()) < 1e-12);
+    CHECK_FALSE(cycle_spin(noisy, 0, [](std::span<const double> v) -> Result<std::vector<double>> { return std::vector<double>(v.begin(), v.end()); }));
+}

@@ -1,5 +1,6 @@
 add_library(signals_io STATIC
   wav.cpp
+  temp_file.cpp
   stats.cpp
   generators.cpp
 )

@@ -44,7 +44,7 @@ void register_basic_blocks(std::vector<BlockType>& out) {
     out.push_back({"gen",
                    {},
                    kOneOut,
-                   {{"kind", Kind::choice, "sine", {"sine", "sweep", "impulse", "step", "white", "pink", "harmonics"}},
+                   {{"kind", Kind::choice, "sine", {"sine", "sweep", "impulse", "step", "white", "pink", "harmonics", "doppler", "blocks", "bumps", "heavisine"}},
                     {"freq", Kind::real, "440"},
                     {"f1", Kind::real, "8000"},
                     {"amplitude", Kind::real, "1"},
@@ -66,10 +66,16 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                        else if (kind == "step") x = io::step(n, 0);
                        else if (kind == "white" || kind == "pink")
                            x = io::noise(kind == "white" ? io::NoiseColor::white : io::NoiseColor::pink, a, n, static_cast<std::uint64_t>(param_int(p, "seed")), ctx.progress);
+                       else if (kind == "doppler") x = io::donoho_johnstone(io::DonohoJohnstone::doppler, n);
+                       else if (kind == "blocks") x = io::donoho_johnstone(io::DonohoJohnstone::blocks, n);
+                       else if (kind == "bumps") x = io::donoho_johnstone(io::DonohoJohnstone::bumps, n);
+                       else if (kind == "heavisine") x = io::donoho_johnstone(io::DonohoJohnstone::heavisine, n);
                        else {
                            const std::vector<double> amplitudes{a, a / 2, a / 4, a / 8};
                            x = io::harmonics(f, amplitudes, rate, n, ctx.progress);
                        }
+                       if (kind == "doppler" || kind == "blocks" || kind == "bumps" || kind == "heavisine")
+                           for (auto& v : x) v *= a;
                        if (cancelled(ctx)) return core::make_error(core::Errc::cancelled, "gen: cancelled");
                        core::AudioBuffer buffer;
                        buffer.sample_rate = rate;
@@ -91,6 +97,35 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                    }});
     out.push_back({"remove_dc", kOneIn, kOneOut, {}, [](const RunContext&, std::span<const Value> in, const Params&) {
                        return per_channel(in, [](const std::vector<double>& c) { return core::remove_dc(c); });
+                   }});
+    out.push_back({"clip", kOneIn, kOneOut, {{"limit", Kind::real, "1", {}, 0, 1e6}}, [](const RunContext&, std::span<const Value> in, const Params& p) {
+                       const double limit = param_real(p, "limit");
+                       return per_channel(in, [limit](const std::vector<double>& c) { return core::hard_clip(c, limit).samples; });
+                   }});
+    out.push_back({"quantize",
+                   kOneIn,
+                   kOneOut,
+                   {{"bits", Kind::integer, "16", {}, 1, 32}, {"dither", Kind::choice, "yes", {"yes", "no"}}, {"seed", Kind::integer, "24301"}},
+                   [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                       const auto& a = in_audio(in);
+                       core::AudioBuffer result;
+                       result.sample_rate = a.sample_rate;
+                       const auto seed = static_cast<std::uint64_t>(param_int(p, "seed"));
+                       for (std::size_t c = 0; c < a.channels.size(); ++c) {
+                           auto q = core::quantize(a.channels[c], static_cast<int>(param_int(p, "bits")), param_text(p, "dither") == "yes", seed + c);
+                           if (!q) return std::unexpected{q.error()};
+                           result.channels.push_back(std::move(*q));
+                       }
+                       return std::vector<Value>{std::move(result)};
+                   }});
+    out.push_back({"mulaw",
+                   kOneIn,
+                   kOneOut,
+                   {{"direction", Kind::choice, "encode", {"encode", "decode"}}, {"mu", Kind::real, "255", {}, 1, 65535}},
+                   [](const RunContext&, std::span<const Value> in, const Params& p) {
+                       const double mu = param_real(p, "mu");
+                       const bool encode = param_text(p, "direction") == "encode";
+                       return per_channel(in, [&](const std::vector<double>& c) { return encode ? core::mulaw_encode(c, mu) : core::mulaw_decode(c, mu); });
                    }});
     out.push_back({"split",
                    kOneIn,
