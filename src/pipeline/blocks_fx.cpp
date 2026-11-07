@@ -173,6 +173,8 @@ void register_fx_blocks(std::vector<BlockType>& out) {
                            [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
                                const auto& a = audio(in);
                                if (auto e = need_rate("reverb", a)) return std::unexpected{*e};
+                               if (!(*std::ranges::max_element(kFreeverbCombs) * a.sample_rate / 44100 <= double(1 << 20)))
+                                   return std::unexpected{core::Error{core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.rate_too_high")), fmt::arg("block", "reverb"), fmt::arg("rate", a.sample_rate))}};
                                return each_channel(a, [&](const Samples& c) {
                                    return reverb(c, a.sample_rate, param_real(p, "room_size"), param_real(p, "damping"), param_real(p, "wet"), param_real(p, "dry"));
                                });

@@ -326,3 +326,31 @@ TEST_CASE("histogram stays inside its bins for huge and degenerate ranges", "[pi
     const auto flat = report(run("histogram", {buffer(8, {std::vector<double>(5, 2.0)})}, {{"bins", "3"}})[0]);
     CHECK(field(flat, "in_range") == 5);
 }
+
+TEST_CASE("pitch and reverb refuse an absurd sample rate with a clear message", "[pipeline][blocks][analysis][review]") {
+    const auto x = buffer(9e26, {std::vector<double>(64, 0.5)});
+    for (const char* id : {"pitch", "reverb"}) {
+        INFO(id);
+        const auto* t = find_block_type(id);
+        REQUIRE(t);
+        const auto params = resolve_params(*t, {});
+        REQUIRE(params);
+        const auto out = t->run(RunContext{std::filesystem::temp_directory_path()}, std::vector<Value>{x}, *params);
+        REQUIRE_FALSE(out);
+        CHECK(out.error().message.find("18446744073709551") == std::string::npos);
+        CHECK(out.error().message.find(id) != std::string::npos);
+    }
+}
+
+TEST_CASE("coeff_stats names wavelet-packet bands by their paths", "[pipeline][blocks][analysis][review]") {
+    const auto w = run("wpt", {input()}, {{"wavelet", "db2"}, {"levels", "2"}, {"basis", "full"}})[0];
+    const auto r = report(run("coeff_stats", {w})[0]);
+    const auto& c = std::get<signals::pipeline::Coeffs>(w);
+    for (std::size_t b = 0; b < c.channels.front().bands.size(); ++b) {
+        const auto name = signals::pipeline::band_label(c, b);
+        INFO(name);
+        bool found = false;
+        for (const auto& [k, v] : r.fields) found = found || k.find("." + name + ".energy") != std::string::npos || k == name + ".energy";
+        CHECK(found);
+    }
+}

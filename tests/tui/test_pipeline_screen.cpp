@@ -924,3 +924,19 @@ TEST_CASE("F1 without a selected node opens the .sig format chapter", "[tui][pip
     REQUIRE(opened);
     CHECK(opened->link.id == "sig-format");
 }
+
+TEST_CASE("a hidden inspector does not explain the graph cells under its old rows", "[tui][pipeline_screen][explain]") {
+    PipelineFixture f{150, 44, true};
+    f.model->selection = {Selection::Kind::node, "thr", {}};
+    f.h.frame();
+    const auto inspector = f.screen->area("inspector");
+    const int x = inspector.x_min + 3, y = inspector.y_min + 2;
+    REQUIRE(f.screen->explain_at(x, y));
+    const auto param_text = *f.screen->explain_at(x, y);
+    const auto graph = f.screen->area("graph");
+    f.h.click(graph.x_min + 1, graph.y_max);
+    f.h.send(ftxui::Event::Character('z'));
+    f.h.frame();
+    const auto again = f.screen->explain_at(x, y);
+    CHECK((!again || *again != param_text));
+}

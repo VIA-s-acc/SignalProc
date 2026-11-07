@@ -45,19 +45,19 @@ One statement per line. The order of lines does not matter: a wire may come befo
 Every block has inputs and outputs of a given type (listed in the block reference and in the inspector):
 
 - `signal` — a signal: one or more channels and a sample rate;
-- `coeffs` — wavelet coefficients (from `dwt`, `swt`, lifting);
+- `coeffs` — wavelet coefficients (from `dwt`, `swt`, `wpt`, lifting);
 - `filter` — a filter bank;
 - `scalar` — a single number;
 - `report` — a report: fields and whether the check passed.
 
 The port may be omitted when the choice is unambiguous: the node has one input or one required input, or a source has one output. With several inputs or outputs the program asks for a port and lists the options. An optional input with nothing connected receives an empty signal — for example, `multiply` without input `b` multiplies by a constant, and `spectral_subtract` without input `noise` takes the noise from the start of the signal.
 
-A `coeffs` output has bands: `dwt.a` — the approximation of the last level, `dwt.d1` … `dwt.dJ` — the details of levels 1…J. A band can feed a signal input or carry a probe; the band number is checked against the number of levels.
+A `coeffs` output has bands: `dwt.a` — the approximation of the last level, `dwt.d1` … `dwt.dJ` — the details of levels 1…J. A band can feed a signal input or carry a probe. The band number is checked in advance for a `dwt` with a set number of levels; `wpt` packet bands are named by node paths (`aa`, `ad`, …) and are chosen in `mra.component` and `band_edit.enabled`.
 
 ### Parameter values {#sig-values}
 
 - **Numbers:** `440`, `0.25`, `-3`, `1e-12` — with a point, not a comma.
-- **Durations and samples:** parameters such as `begin`, `end`, `samples` take a number of samples or seconds with an `s` suffix: `begin=4410`, `begin=0.1s`.
+- **Durations and samples:** some parameters take a number of samples or seconds with an `s` suffix — `cut.begin`/`end`, `delay.samples`, `pad.before`/`after`, `fade.fade_in`/`fade_out`, `sample_hold.hold`, `impulse_train.period`/`offset` and others (the inspector shows where): `begin=4410`, `begin=0.1s`. Other integer parameters, such as `shift.samples`, take samples only.
 - **Levels:** one number or a range `1..4`.
 - **Choices:** a word from the parameter's list: `ext=symmetric`, `anti_alias=no`, `kind=pr`.
 - **Filter:** `bank.role`, where the role is `h0`, `h1`, `f0` or `f1`: `haar.h0`, `db4.f1`, `sym8.h1`. A bank of your own from «My filters» is written by its name (`my_bank.h0`), a single filter of your own by its whole name.
@@ -86,7 +86,7 @@ Before a run the whole graph is checked, and every error names its line:
   - `--probe-dir folder` — save the probes: signals as WAV, the rest as JSON;
   - `--json` — the run report as JSON.
   
-  Exit code `0` — everything passed, `3` — some `check` failed, `1` — an error in the file or during the run.
+  Exit code `0` — everything passed, `3` — some `check` failed, `1` — an error in the file or during the run, `130` — the run was interrupted with Ctrl+C.
 - `signals graph graph.sig` — draw the graph as text (`--ascii` — ASCII only).
 - `signals blocks` — the block list; `--markdown` — the `docs/user/blocks.md` reference; `--json` — block descriptions for editors.
 

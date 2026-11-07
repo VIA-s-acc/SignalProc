@@ -351,7 +351,7 @@ ftxui::Element PipelineScreen::add_panel(int width, int height) {
                         text(std::to_string(found.size()) + " / " + std::to_string(all.size())) | fg(th.dim, ui_)}),
                   text(model_->selection.kind == Selection::Kind::wire ? tr("tui.pipeline.add_into_wire") : tr("tui.pipeline.add_free")) | fg(th.dim, ui_)};
     const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
-    add_rows_.assign(found.size(), {});
+    add_rows_.assign(found.size(), {std::string{}, kNoBox});
     Elements items;
     for (std::size_t k = 0; k < found.size(); ++k) {
         add_rows_[k].first = found[k]->id;
@@ -772,6 +772,8 @@ ftxui::Element PipelineScreen::OnRender() {
     graph_box_ = kNoBox;
     probe_view_box_ = kNoBox;
     probe_chip_boxes_.clear();
+    param_boxes_.clear();
+    if (!adding_) add_rows_.clear();
     picture_ = {};
     probe_zoom_.begin_frame();
     if (!seeded_ && current_file_ && model_->doc().nodes.empty() && !model_->path())

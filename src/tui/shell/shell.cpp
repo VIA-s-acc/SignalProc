@@ -132,6 +132,7 @@ public:
     }
 
     bool OnEvent(ftxui::Event e) override {
+        if (!e.is_mouse() && e != ftxui::Event::Custom) hover_.reset();
         if (palette_.is_open()) return palette_.on_event(e);
         if (check_.is_open()) return check_.on_event(e, ui_);
         if (resources_open_) {

@@ -469,3 +469,18 @@ TEST_CASE("hovering a control shows its explanation in the hint row", "[tui][she
     h.send(ftxui::Event::Mouse("", m));
     CHECK(h.frame().find("first hint") != std::string::npos);
 }
+
+TEST_CASE("a key press brings the key hints back after a hover", "[tui][shell][explain]") {
+    auto ui = signals::test::make_ui(150, 44);
+    std::vector<std::shared_ptr<TabScreen>> screens{std::make_shared<ExplainingScreen>()};
+    Harness h{make_shell(*ui, screens, [] {}), 150, 44};
+    ftxui::Mouse m;
+    m.button = ftxui::Mouse::None;
+    m.motion = ftxui::Mouse::Moved;
+    m.x = 3;
+    m.y = 2;
+    h.send(ftxui::Event::Mouse("", m));
+    REQUIRE(h.frame().find("first hint") == std::string::npos);
+    h.send(ftxui::Event::ArrowDown);
+    CHECK(h.frame().find("first hint") != std::string::npos);
+}

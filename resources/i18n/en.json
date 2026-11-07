@@ -2311,6 +2311,7 @@
   "pipeline.about.dc_block": "First-order high-pass y[n] = x[n] − x[n−1] + r·y[n−1]: removes DC",
   "pipeline.param.dc_block.r": "Pole: closer to 1 lowers the cutoff, about (1−r)·fs/2π, and slows settling",
   "pipeline.error.no_rate": "{block}: the input has no sample rate, so hertz and milliseconds mean nothing",
+  "pipeline.error.rate_too_high": "{block}: the sample rate {rate} Hz is too high — the block's delays and windows would not fit in memory",
   "pipeline.error.math_domain": "math: {op} is undefined at sample {index} of channel {channel}, where x = {value}",
   "pipeline.error.binary_domain": "binary: {op} is undefined at sample {index} of channel {channel}, where a = {a}, b = {b}",
   "pipeline.error.select_channel": "select_channel: there is no channel {index}, the input has {n}",

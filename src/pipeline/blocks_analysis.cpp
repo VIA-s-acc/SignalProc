@@ -239,6 +239,7 @@ void register_analysis_blocks(std::vector<BlockType>& out) {
                                Yin s{static_cast<std::size_t>(param_int(p, "frame")), static_cast<std::size_t>(param_int(p, "hop")), 0, 0, 0, a.sample_rate,
                                      param_real(p, "threshold")};
                                s.window = s.frame / 2;
+                               if (!(a.sample_rate / fmin <= kMaxSamples)) return fail(tr("pipeline.error.rate_too_high"), fmt::arg("block", "pitch"), fmt::arg("rate", a.sample_rate));
                                s.tau_min = std::max<std::size_t>(1, static_cast<std::size_t>(std::floor(a.sample_rate / fmax)));
                                s.tau_max = static_cast<std::size_t>(std::ceil(a.sample_rate / fmin));
                                if (s.tau_max > s.frame - s.window)
@@ -271,7 +272,7 @@ void register_analysis_blocks(std::vector<BlockType>& out) {
                             {"n_mels", Kind::integer, "40", {}, 1, 256},
                             {"frame", Kind::integer, "2048", {}, 16, 65536},
                             {"hop", Kind::integer, "512", {}, 1, 65536}},
-                           [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                           [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                                const auto& a = audio(in);
                                if (auto e = needs_rate("mfcc", a)) return std::unexpected{*e};
                                if (auto e = finite_input("mfcc", a)) return std::unexpected{*e};
@@ -292,7 +293,7 @@ void register_analysis_blocks(std::vector<BlockType>& out) {
                                            }
                                            const auto coeffs = core::dct2(energies);
                                            for (std::size_t k = 0; k < count; ++k) sums[k] += coeffs[k];
-                                       });
+                                       }, ctx.progress);
                                        if (!done) return std::unexpected{done.error()};
                                        frames = *done;
                                    }
@@ -307,7 +308,7 @@ void register_analysis_blocks(std::vector<BlockType>& out) {
                            kIn,
                            kReportOut,
                            {{"frame", Kind::integer, "2048", {}, 16, 65536}, {"hop", Kind::integer, "512", {}, 1, 65536}, {"rolloff_pct", Kind::real, "85", {}, 1, 99}},
-                           [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                           [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                                const auto& a = audio(in);
                                if (auto e = needs_rate("spectral_features", a)) return std::unexpected{*e};
                                if (auto e = finite_input("spectral_features", a)) return std::unexpected{*e};
@@ -321,7 +322,7 @@ void register_analysis_blocks(std::vector<BlockType>& out) {
                                    if (a.channels[c].size() >= n) {
                                        auto done = core::stft_frames(a.channels[c], n, hop, [&](std::size_t, std::span<const double> power) {
                                            spectral_frame(f, power, previous, a.sample_rate, n, pct);
-                                       });
+                                       }, ctx.progress);
                                        if (!done) return std::unexpected{done.error()};
                                        frames = *done;
                                    }
@@ -418,7 +419,7 @@ void register_analysis_blocks(std::vector<BlockType>& out) {
                                    for (const auto& band : bands)
                                        for (const double v : band) peak = std::max(peak, std::abs(v));
                                    for (std::size_t b = 0; b < bands.size(); ++b) {
-                                       const auto name = "c" + std::to_string(ch) + "." + (b == 0 ? "a" + std::to_string(levels) : "d" + std::to_string(levels + 1 - b));
+                                       const auto name = "c" + std::to_string(ch) + "." + band_label(c, b);
                                        const auto small = std::ranges::count_if(bands[b], [&](double v) { return std::abs(v) < tol * peak; });
                                        const double sparsity = bands[b].empty() ? 0.0 : peak > 0 ? static_cast<double>(small) / static_cast<double>(bands[b].size()) : 1.0;
                                        r.fields.push_back({name + ".energy", shares[b]});

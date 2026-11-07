@@ -2311,6 +2311,7 @@
   "pipeline.about.dc_block": "ФВЧ первого порядка y[n] = x[n] − x[n−1] + r·y[n−1]: убирает постоянную",
   "pipeline.param.dc_block.r": "Полюс: ближе к 1 — ниже частота среза, около (1−r)·fs/2π, и дольше установление",
   "pipeline.error.no_rate": "{block}: у входа нет частоты дискретизации, поэтому герцы и миллисекунды не определены",
+  "pipeline.error.rate_too_high": "{block}: частота дискретизации {rate} Гц слишком велика — задержки и окна блока не поместятся в память",
   "pipeline.error.math_domain": "math: {op} не определена в отсчёте {index} канала {channel}, где x = {value}",
   "pipeline.error.binary_domain": "binary: {op} не определена в отсчёте {index} канала {channel}, где a = {a}, b = {b}",
   "pipeline.error.select_channel": "select_channel: канала {index} нет, у входа каналов: {n}",
