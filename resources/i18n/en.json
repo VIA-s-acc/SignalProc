@@ -1537,7 +1537,7 @@
   "pipeline.param.export_report.path": "File path; a relative path is resolved against the pipeline's folder",
   "pipeline.param.export_report.format": "File format",
   "pipeline.param.export_report.format.csv": "two columns field,value, one row per field",
-  "pipeline.param.export_report.format.json": "object {passed, fields: {name: value}}",
+  "pipeline.param.export_report.format.json": "object with passed and fields (name → value)",
   "pipeline.about.check": "Compares a signal with the reference ref and reports pass or fail",
   "pipeline.param.check.kind": "Pass criterion; a channel count mismatch or a short input always fails",
   "pipeline.param.check.kind.pr": "perfect reconstruction: max|x̂ − x| at most tol",

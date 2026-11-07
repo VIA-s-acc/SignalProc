@@ -1537,7 +1537,7 @@
   "pipeline.param.export_report.path": "Путь к файлу; относительный путь отсчитывается от папки конвейера",
   "pipeline.param.export_report.format": "Формат файла",
   "pipeline.param.export_report.format.csv": "две колонки field,value, по строке на поле",
-  "pipeline.param.export_report.format.json": "объект {passed, fields: {имя: значение}}",
+  "pipeline.param.export_report.format.json": "объект с полями passed и fields (имя → значение)",
   "pipeline.about.check": "Сравнивает сигнал с эталоном ref и сообщает, пройдена ли проверка",
   "pipeline.param.check.kind": "Критерий прохождения; разное число каналов или короткий вход — всегда провал",
   "pipeline.param.check.kind.pr": "полное восстановление: max|x̂ − x| не больше tol",
