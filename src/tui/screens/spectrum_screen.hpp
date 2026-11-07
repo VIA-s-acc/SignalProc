@@ -16,6 +16,7 @@
 #include "tui/screens/spectrum_model.hpp"
 #include "tui/shell/layout.hpp"
 #include "tui/shell/panel.hpp"
+#include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
 
 namespace signals::tui {
@@ -39,6 +40,7 @@ public:
     std::optional<std::pair<int, int>> menu_anchor() const override;
 
     ftxui::Box area(std::string_view id) const;
+    std::optional<Axis> plot_view(std::string_view id) const { return zoom_.view(id); }
     std::optional<std::pair<double, double>> cursor() const { return cursor_; }
     std::optional<Measure> measurement() const { return measure_; }
     bool harmonics_shown() const { return harmonics_; }
@@ -79,6 +81,7 @@ private:
     PanelLayout layout_;
     Breakpoint breakpoint_ = Breakpoint::primary;
     Panel focus_ = spectrogram_panel;
+    PlotZoom zoom_;
     std::optional<Panel> maximized_;
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::deque<Clickable> clickables_;

@@ -216,3 +216,26 @@ TEST_CASE("m7c: a box outside the view is not drawn at the plot edge", "[tui][sp
     CHECK(frame.find("┘") == std::string::npos);
     CHECK(frame.find("┐") == std::string::npos);
 }
+
+TEST_CASE("the wheel zooms the selection spectrum around the pointer and 0 resets it", "[tui][spectrum]") {
+    SpectrumFixture f;
+    f.h.frame();
+    const auto b = f.screen->area("selection_plot");
+    REQUIRE(b.x_max > b.x_min);
+    const auto full = f.screen->plot_view("selection");
+    REQUIRE(full);
+    const int x = b.x_min + (b.x_max - b.x_min) / 4, y = (b.y_min + b.y_max) / 2;
+    f.h.wheel(x, y, true);
+    f.h.wheel(x, y, true);
+    f.h.frame();
+    const auto zoomed = f.screen->plot_view("selection");
+    REQUIRE(zoomed);
+    CHECK(zoomed->hi - zoomed->lo < 0.7 * (full->hi - full->lo));
+    CHECK(f.screen->time_view().first == 0);
+    f.h.click(x, y);
+    f.h.send(ftxui::Event::Character('0'));
+    f.h.frame();
+    const auto reset = f.screen->plot_view("selection");
+    REQUIRE(reset);
+    CHECK(reset->hi - reset->lo == full->hi - full->lo);
+}
