@@ -19,6 +19,7 @@
 #include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
 #include "tui/widgets/axis_zoom.hpp"
+#include "tui/widgets/screen_util.hpp"
 
 namespace signals::tui {
 
@@ -36,6 +37,7 @@ public:
     bool OnEvent(ftxui::Event e) override;
     void open_with(const NavArgs& args) override;
     std::vector<JumpTarget> jump_targets() const override;
+    std::optional<std::string> explain_at(int x, int y) const override;
     std::vector<Command> commands() override;
 
     struct Block {
@@ -80,6 +82,7 @@ private:
     Panel focus_ = main;
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::deque<Clickable> clickables_;
+    Notes notes_{"matrix"};
     ftxui::Box matrix_box_{};
     std::size_t row_ = 5, col_ = 0;
     bool numbers_ = false;

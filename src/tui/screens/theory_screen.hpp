@@ -36,6 +36,7 @@ public:
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event e) override;
     std::vector<JumpTarget> jump_targets() const override;
+    std::optional<std::string> explain_at(int x, int y) const override;
     std::vector<MenuItem> context_menu(int x, int y) override;
 
     ftxui::Box area(std::string_view id) const;

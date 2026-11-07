@@ -18,6 +18,7 @@
 #include "tui/shell/panel.hpp"
 #include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/screen_util.hpp"
 
 namespace signals::tui {
 
@@ -49,6 +50,8 @@ public:
     double floor_db() const { return floor_db_; }
     std::pair<double, double> time_view() const { return {begin_, end_}; }
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<JumpTarget> jump_targets() const override;
+    std::optional<std::string> explain_at(int x, int y) const override;
 
 private:
     enum Panel { spectrogram_panel, spectrum_panel, cursor_panel, window_panel, measure_panel, list_panel, theory_panel, panel_count };
@@ -86,6 +89,7 @@ private:
     std::optional<Panel> maximized_;
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::deque<Clickable> clickables_;
+    Notes notes_{"spectrum"};
     ftxui::Box plot_box_{};
     std::shared_ptr<const SpectrogramData> seen_;
     std::shared_ptr<const SpectrogramData> grid_for_;

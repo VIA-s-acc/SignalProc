@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <optional>
+
 #include <chrono>
 #include <memory>
 #include <string>
@@ -264,4 +266,29 @@ TEST_CASE("the origin panel scrolls with the wheel when its text does not fit", 
     for (int k = 0; k < 20; ++k) f.h.wheel((box.x_min + box.x_max) / 2, (box.y_min + box.y_max) / 2, false);
     frame = f.h.frame();
     CHECK(frame.find("Левинсон — O(N²)") != std::string::npos);
+}
+
+TEST_CASE("hovering a matrix control explains the hovered value", "[tui][matrix][explain]") {
+    MatrixFixture f;
+    auto at = [&](std::string_view id) {
+        const auto b = f.screen->area(id);
+        return f.screen->explain_at((b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2);
+    };
+    auto over = [&](const std::string& frame, const std::string& needle) -> std::optional<std::string> {
+        const auto p = signals::test::locate(frame, needle);
+        return p ? f.screen->explain_at(p->first, p->second) : std::nullopt;
+    };
+    const auto frame = f.h.frame();
+    CHECK(at("op_multilevel") == signals::tr("tui.explain.matrix.op.multilevel"));
+    CHECK(at("op_toeplitz_hankel") == signals::tr("tui.explain.matrix.op.toeplitz_hankel"));
+    CHECK(at("mode_symm.") == signals::tr("tui.explain.matrix.mode.symm"));
+    CHECK(at("mode_zero") == signals::tr("tui.explain.matrix.mode.zero"));
+    CHECK(at("order_interleaved") == signals::tr("tui.explain.matrix.order.interleaved"));
+    CHECK(at("cell_mode") == signals::tr("tui.explain.matrix.cell"));
+    CHECK(over(frame, signals::tr("tui.matrix.edges")) == signals::tr("tui.explain.matrix.mode"));
+    CHECK(over(frame, signals::tr("tui.matrix.controls")) == signals::tr("tui.explain.matrix.panel.controls"));
+    CHECK(over(frame, "‖AᵀA − I‖") == signals::tr("tui.explain.matrix.check.orth"));
+    const signals::LanguageScope en{signals::Language::en};
+    CHECK(at("op_multilevel") == signals::tr("tui.explain.matrix.op.multilevel"));
+    CHECK(at("op_multilevel") != signals::tr_opt("tui.explain.matrix.op.analysis"));
 }

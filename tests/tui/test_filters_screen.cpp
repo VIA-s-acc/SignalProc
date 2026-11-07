@@ -1,6 +1,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <optional>
+
 #include <ftxui/component/event.hpp>
 
 #include <chrono>
@@ -613,4 +615,23 @@ TEST_CASE("a new search starts with its first match in view after the library wa
     REQUIRE(h.frame().find("▲") != std::string::npos);
     h.send(ftxui::Event::Character('/'));
     CHECK(h.frame().find("▲ ещё") == std::string::npos);
+}
+
+TEST_CASE("hovering filters chips, roles and titles explains them", "[tui][filters][explain]") {
+    Fixture f;
+    Harness h{f.screen, 150, 41};
+    auto at = [&](std::string_view id) {
+        const auto b = f.screen->area(id);
+        return f.screen->explain_at((b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2);
+    };
+    auto over = [&](const std::string& frame, const std::string& needle) -> std::optional<std::string> {
+        const auto p = signals::test::locate(frame, needle);
+        return p ? f.screen->explain_at(p->first, p->second) : std::nullopt;
+    };
+    const auto frame = h.frame();
+    CHECK(at("role_f1") == signals::tr("tui.explain.filters.role.f1"));
+    CHECK(at("group") == signals::tr("tui.explain.filters.group"));
+    CHECK(over(frame, signals::tr("tui.filters.chip.log")) == signals::tr("tui.explain.filters.chip.log"));
+    CHECK(over(frame, signals::tr("tui.filters.chip.normalised")) == signals::tr("tui.explain.filters.chip.normalised"));
+    CHECK(over(frame, signals::tr("tui.filters.delay")) == signals::tr("tui.explain.filters.panel.delay"));
 }

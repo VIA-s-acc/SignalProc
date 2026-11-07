@@ -575,3 +575,13 @@ TEST_CASE("Tab walks the links, then the contents panel, then back to the first 
     CHECK_FALSE(f.screen->focused_link());
     CHECK(f.screen->hints().front().key == "↑↓");
 }
+
+TEST_CASE("hovering a tutorial link explains what it does", "[tui][theory][explain]") {
+    TheoryFixture f{TheoryScreen::Mode::tutorial};
+    f.h.frame();
+    const auto targets = f.screen->jump_targets();
+    REQUIRE_FALSE(targets.empty());
+    const auto& b = targets.front().box;
+    CHECK(f.screen->explain_at(b.x_min, b.y_min) == signals::tr("tui.explain.theory.link"));
+    CHECK_FALSE(f.screen->explain_at(0, 0).has_value());
+}

@@ -1,6 +1,7 @@
 #include "tui/widgets/screen_util.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 
 #include "i18n/i18n.hpp"
@@ -66,6 +67,34 @@ ftxui::Element centered(std::vector<ftxui::Element> rows) {
     for (auto& r : rows) out.push_back(std::move(r) | ftxui::hcenter);
     out.push_back(ftxui::filler());
     return ftxui::vbox(std::move(out));
+}
+
+std::optional<std::string> explain_note(std::string_view screen, std::string_view id) {
+    std::string key{id};
+    while (!key.empty() && key.back() == '.') key.pop_back();
+    if (const auto u = key.find('_'); u != std::string::npos && u < key.find('.')) key[u] = '.';
+    for (auto& c : key) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    const auto own = "tui.explain." + std::string{screen} + ".";
+    const std::string common = "tui.explain.common.";
+    if (auto text = tr_opt(own + key)) return text;
+    if (auto text = tr_opt(common + key)) return text;
+    const auto dot = key.find('.');
+    if (dot == std::string::npos) return std::nullopt;
+    if (auto text = tr_opt(own + key.substr(0, dot))) return text;
+    return tr_opt(common + key.substr(0, dot));
+}
+
+ftxui::Box* Notes::box(std::string id) {
+    items_.push_back({std::move(id), kNoBox});
+    return &items_.back().second;
+}
+
+ftxui::Element Notes::mark(std::string id, ftxui::Element e) { return std::move(e) | ftxui::reflect(*box(std::move(id))); }
+
+std::optional<std::string> Notes::at(int x, int y) const {
+    for (const auto& [id, b] : items_)
+        if (valid(b) && b.Contain(x, y)) return explain(id);
+    return std::nullopt;
 }
 
 }  // namespace signals::tui

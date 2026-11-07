@@ -1,6 +1,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <optional>
+
 #include <ftxui/component/event.hpp>
 
 #include <atomic>
@@ -568,4 +570,26 @@ TEST_CASE("a long file name keeps its tail in the source panel", "[tui][signal]"
     const auto frame = h.frame();
     CHECK(frame.find("…") != std::string::npos);
     CHECK(frame.find("шума-test.wav") != std::string::npos);
+}
+
+TEST_CASE("hovering the signal chips and titles explains them", "[tui][signal][explain]") {
+    auto ui = signals::test::make_ui(150, 44);
+    JobRunner jobs{[] {}, 0ms, true};
+    ui->jobs = &jobs;
+    auto screen = std::make_shared<SignalScreen>(*ui, loaded(jobs));
+    screen->set_breakpoint(Breakpoint::primary);
+    Harness h{screen, 150, 41};
+    auto at = [&](std::string_view id) {
+        const auto b = screen->area(id);
+        return screen->explain_at((b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2);
+    };
+    auto over = [&](const std::string& frame, const std::string& needle) -> std::optional<std::string> {
+        const auto p = signals::test::locate(frame, needle);
+        return p ? screen->explain_at(p->first, p->second) : std::nullopt;
+    };
+    const auto frame = h.frame();
+    CHECK(at("drag_chip") == signals::tr("tui.explain.signal.drag.pan"));
+    CHECK(over(frame, signals::tr("tui.signal.chip.minmax")) == signals::tr("tui.explain.signal.chip.minmax"));
+    CHECK(over(frame, signals::tr("tui.signal.chip.edges")) == signals::tr("tui.explain.signal.chip.edges"));
+    CHECK(over(frame, signals::tr("tui.signal.log")) == signals::tr("tui.explain.signal.panel.log"));
 }

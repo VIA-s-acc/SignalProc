@@ -1,6 +1,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <optional>
+
 #include <chrono>
 #include <filesystem>
 #include <memory>
@@ -288,4 +290,22 @@ TEST_CASE("the designer z-plane zooms around the pointer, pans by drag and reset
     menu.back().action();
     f.h.frame();
     CHECK(f.screen->plot_axis("roots").lo == wide.lo);
+}
+
+TEST_CASE("hovering designer presets and constraints explains them", "[tui][designer][explain]") {
+    DesignerFixture f;
+    auto at = [&](std::string_view id) {
+        const auto b = f.screen->area(id);
+        return f.screen->explain_at((b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2);
+    };
+    auto over = [&](const std::string& frame, const std::string& needle) -> std::optional<std::string> {
+        const auto p = signals::test::locate(frame, needle);
+        return p ? f.screen->explain_at(p->first, p->second) : std::nullopt;
+    };
+    f.h.frame();
+    CHECK(at("preset_cdf") == signals::tr("tui.explain.designer.preset.cdf"));
+    CHECK(at("preset_max_phase") == signals::tr("tui.explain.designer.preset.max_phase"));
+    CHECK(at("linear_phase") == signals::tr("tui.explain.designer.linear.phase"));
+    CHECK(at("zeros_more") == signals::tr("tui.explain.designer.zeros"));
+    CHECK(at("group_0") == signals::tr("tui.explain.designer.group"));
 }

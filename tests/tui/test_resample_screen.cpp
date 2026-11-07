@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <optional>
+
 #include <ftxui/component/event.hpp>
 #include <ftxui/screen/string.hpp>
 
@@ -242,4 +244,23 @@ TEST_CASE("the wheel zooms the resampling spectra and 0 resets the focused one",
     h.frame();
     CHECK(f.screen->plot_view("before")->hi - f.screen->plot_view("before")->lo == full->hi - full->lo);
     CHECK(f.screen->options().m == m);
+}
+
+TEST_CASE("hovering resampling controls explains mode, filter and factors", "[tui][resample][explain]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    auto at = [&](std::string_view id) {
+        const auto b = f.screen->area(id);
+        return f.screen->explain_at((b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2);
+    };
+    auto over = [&](const std::string& frame, const std::string& needle) -> std::optional<std::string> {
+        const auto p = signals::test::locate(frame, needle);
+        return p ? f.screen->explain_at(p->first, p->second) : std::nullopt;
+    };
+    const auto frame = h.frame();
+    CHECK(at("mode_up") == signals::tr("tui.explain.resample.mode.up"));
+    CHECK(at("filter_bypass") == signals::tr("tui.explain.resample.filter.bypass"));
+    CHECK(at("m_more") == signals::tr("tui.explain.resample.m"));
+    CHECK(at("source_sweep") == signals::tr("tui.explain.resample.source.sweep"));
+    CHECK(over(frame, signals::tr("tui.resample.cutoff")) == signals::tr("tui.explain.resample.cutoff"));
 }

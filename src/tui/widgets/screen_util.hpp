@@ -2,7 +2,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <deque>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -33,5 +36,21 @@ struct Span {
 };
 ftxui::Element line(const std::vector<Span>& spans, const UiContext& ui);
 ftxui::Element centered(std::vector<ftxui::Element> rows);
+
+std::optional<std::string> explain_note(std::string_view screen, std::string_view id);
+
+class Notes {
+public:
+    explicit Notes(std::string screen) : screen_{std::move(screen)} {}
+    void clear() { items_.clear(); }
+    ftxui::Box* box(std::string id);
+    ftxui::Element mark(std::string id, ftxui::Element e);
+    std::optional<std::string> at(int x, int y) const;
+    std::optional<std::string> explain(std::string_view id) const { return explain_note(screen_, id); }
+
+private:
+    std::string screen_;
+    std::deque<std::pair<std::string, ftxui::Box>> items_;
+};
 
 }  // namespace signals::tui
