@@ -1270,5 +1270,6 @@
   "unit.node.few": "{n} узла",
   "unit.node.many": "{n} узлов",
   "tui.processing.heard": "звучат {span} с ({from}–{to} с)",
-  "tui.pipeline.wire_drag": "провод {from} → {to} · отпустите на ○ входа"
+  "tui.pipeline.wire_drag": "провод {from} → {to} · отпустите на ○ входа",
+  "tui.pipeline.type_value": "ввести вручную…"
 }

@@ -20,7 +20,7 @@ std::vector<const Command*> filter_commands(const std::vector<Command>& all, std
 
 class Palette {
 public:
-    void open(std::vector<Command> commands, std::string filter = {});
+    void open(std::vector<Command> commands, std::string filter = {}, std::string title = {});
     void ask_path(std::string prompt, std::function<void(std::string)> done);
     void ask_text(std::string prompt, std::string initial, std::function<void(std::string)> done);
     void close();
@@ -36,7 +36,7 @@ private:
     std::size_t selected_ = 0;
     std::size_t first_ = 0;
     bool open_ = false;
-    std::string prompt_;
+    std::string prompt_, title_;
     std::function<void(std::string)> path_done_;
 };
 

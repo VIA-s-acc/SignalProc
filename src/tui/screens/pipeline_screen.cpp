@@ -10,6 +10,7 @@
 #include <fmt/format.h>
 
 #include "core/spectral.hpp"
+#include "core/design/families.hpp"
 #include "i18n/i18n.hpp"
 #include "pipeline/block.hpp"
 #include "pipeline/sig.hpp"
@@ -306,6 +307,15 @@ bool PipelineScreen::on_add_key(const ftxui::Event& e) {
     return true;
 }
 
+std::vector<std::string> PipelineScreen::param_values(const pipeline::BlockType& type, const pipeline::ParamSpec& spec) const {
+    (void)type;
+    std::vector<std::string> out;
+    if (spec.name != "wavelet") return out;
+    if (spec.fallback == "auto") out.emplace_back("auto");
+    for (const auto name : core::wavelet_names()) out.emplace_back(name);
+    return out;
+}
+
 void PipelineScreen::edit_param(int step) {
     const auto* n = selected_node();
     if (!n || n->type->params.empty()) return;
@@ -319,8 +329,26 @@ void PipelineScreen::edit_param(int step) {
         report(model_->set_param(id, spec.name, spec.choices[static_cast<std::size_t>(k)]));
         return;
     }
-    if (step != 0 || !ui_.ask_text) return;
     const auto name = spec.name;
+    if (const auto names = param_values(*n->type, spec); !names.empty()) {
+        if (step != 0) {
+            auto it = std::find(names.begin(), names.end(), current);
+            auto k = it == names.end() ? 0 : static_cast<long>(it - names.begin());
+            k = (k + step + static_cast<long>(names.size())) % static_cast<long>(names.size());
+            report(model_->set_param(id, name, names[static_cast<std::size_t>(k)]));
+            return;
+        }
+        if (ui_.choose) {
+            std::vector<Command> items;
+            for (const auto& v : names) items.push_back({v, v, [this, id, name, v] { report(model_->set_param(id, name, v)); }});
+            if (ui_.ask_text)
+                items.push_back({"manual", tr("tui.pipeline.type_value"),
+                                 [this, id, name, current] { ui_.ask_text(id + "." + name, current, [this, id, name](std::string value) { report(model_->set_param(id, name, value)); }); }});
+            ui_.choose(id + "." + name, std::move(items));
+            return;
+        }
+    }
+    if (step != 0 || !ui_.ask_text) return;
     ui_.ask_text(id + "." + name, current, [this, id, name](std::string value) { report(model_->set_param(id, name, value)); });
 }
 
@@ -586,6 +614,7 @@ ftxui::Box PipelineScreen::area(std::string_view id) const {
         return ftxui::Box{x, x, y, y};
     };
     if (id == "graph") return graph_box_;
+    if (id == "inspector") return panel_boxes_[kInspector];
     for (const auto& n : picture_.nodes)
         if (id == "node:" + n.id) return ftxui::Box{graph_box_.x_min + n.x - ox_, graph_box_.x_min + n.x - ox_ + n.w - 1, graph_box_.y_min + n.y - oy_, graph_box_.y_min + n.y - oy_ + n.h - 1};
     for (const auto& p : picture_.ports)

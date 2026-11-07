@@ -30,6 +30,7 @@ public:
         ui_.ask_open = [this] { ask_open_file(); };
         ui_.navigate = [this](std::string_view target, const NavArgs& args) { navigate(target, args); };
         ui_.open_palette = [this](std::string filter) { palette_.open(commands(), std::move(filter)); };
+        ui_.choose = [this](std::string title, std::vector<Command> items) { palette_.open(std::move(items), {}, std::move(title)); };
         ui_.ask_text = [this](std::string prompt, std::string initial, std::function<void(std::string)> done) {
             palette_.ask_text(std::move(prompt), std::move(initial), std::move(done));
         };
@@ -39,6 +40,7 @@ public:
         ui_.ask_open = nullptr;
         ui_.navigate = nullptr;
         ui_.open_palette = nullptr;
+        ui_.choose = nullptr;
         ui_.ask_text = nullptr;
     }
 

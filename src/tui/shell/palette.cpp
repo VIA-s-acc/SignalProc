@@ -67,7 +67,8 @@ std::vector<const Command*> filter_commands(const std::vector<Command>& all, std
     return out;
 }
 
-void Palette::open(std::vector<Command> commands, std::string filter) {
+void Palette::open(std::vector<Command> commands, std::string filter, std::string title) {
+    title_ = std::move(title);
     commands_ = std::move(commands);
     query_ = std::move(filter);
     selected_ = 0;
@@ -173,7 +174,7 @@ ftxui::Element Palette::render(const UiContext& ui) const {
     auto keys = tr("tui.palette.keys");
     if (matches.size() > kVisible) keys += " · " + std::to_string(selected_ + 1) + " / " + std::to_string(matches.size());
     rows.push_back(text(keys) | fg(ui.theme.dim, ui));
-    return panel(tr("tui.palette.title"), {}, vbox(std::move(rows)) | size(WIDTH, GREATER_THAN, 60), true, ui);
+    return panel(title_.empty() ? tr("tui.palette.title") : title_, {}, vbox(std::move(rows)) | size(WIDTH, GREATER_THAN, 60), true, ui);
 }
 
 std::filesystem::path expand_path(std::string text, const EnvLookup& env) {

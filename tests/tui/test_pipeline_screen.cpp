@@ -478,3 +478,28 @@ TEST_CASE("long values in the inspector and the .sig text keep their ends visibl
     CHECK(inspector.find("…") != std::string::npos);
     CHECK(frame.find("test.wav\")") != std::string::npos);
 }
+
+TEST_CASE("the wavelet parameter is picked from a list, and arrows step through it", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    std::string title;
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string t, std::vector<Command> list) {
+        title = std::move(t);
+        items = std::move(list);
+    };
+    const auto id = f.model->add_node("dwt");
+    f.model->selection = {Selection::Kind::node, id, {}};
+    f.h.frame();
+    const auto inspector = f.screen->area("inspector");
+    REQUIRE(inspector.x_max > inspector.x_min);
+    f.h.click(inspector.x_min + 2, inspector.y_min + 1);
+    f.h.send(ftxui::Event::Return);
+    REQUIRE(items.size() > 100);
+    CHECK(title.find("wavelet") != std::string::npos);
+    const auto sym8 = std::find_if(items.begin(), items.end(), [](const Command& c) { return c.title == "sym8"; });
+    REQUIRE(sym8 != items.end());
+    sym8->run();
+    CHECK(f.model->doc().nodes.back().params.at("wavelet") == "sym8");
+    f.h.send(ftxui::Event::ArrowRight);
+    CHECK(f.model->doc().nodes.back().params.at("wavelet") != "sym8");
+}

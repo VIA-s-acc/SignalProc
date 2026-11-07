@@ -51,6 +51,7 @@ private:
     ftxui::Element toolbar() const;
     ftxui::Element graph_panel(int width, int height);
     ftxui::Element inspector_panel(int width);
+    std::vector<std::string> param_values(const pipeline::BlockType& type, const pipeline::ParamSpec& spec) const;
     ftxui::Element add_panel();
     bool on_add_key(const ftxui::Event& e);
     bool on_inspector_key(const ftxui::Event& e);
