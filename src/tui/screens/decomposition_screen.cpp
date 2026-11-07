@@ -290,7 +290,7 @@ ftxui::Element DecompositionScreen::more_row(bool up, std::size_t count) const {
     return ftxui::text(arrow + fmt::format(fmt::runtime(tr("tui.theory.blocks_more")), fmt::arg("count", count))) | fg(ui_.theme.dim, ui_);
 }
 
-ftxui::Element DecompositionScreen::toolbar(bool two_rows) {
+ftxui::Element DecompositionScreen::toolbar(bool two_rows, int cols) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     auto chip = [&](std::string id, std::string label, bool on, bool later, std::function<void()> action) {
@@ -334,7 +334,14 @@ ftxui::Element DecompositionScreen::toolbar(bool two_rows) {
                        k.mode = it == kModes.end() || it + 1 == kModes.end() ? kModes.front() : *(it + 1);
                        model_->set_options(k, jobs);
                    })};
-    if (two_rows) return vbox({hbox(std::move(parts)), hbox(std::move(second))});
+    if (two_rows) {
+        auto measured = hbox(second);
+        measured->ComputeRequirement();
+        if (measured->requirement().min_x <= cols) return vbox({hbox(std::move(parts)), hbox(std::move(second))});
+        Elements transform(second.begin(), second.begin() + 4), settings(second.begin() + 5, second.end());
+        settings.insert(settings.begin(), text(tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_));
+        return vbox({hbox(std::move(parts)), hbox(std::move(transform)), hbox(std::move(settings))});
+    }
     for (auto& e : second) parts.push_back(std::move(e));
     return hbox(std::move(parts));
 }
@@ -883,7 +890,9 @@ ftxui::Element DecompositionScreen::OnRender() {
     const bool small = breakpoint_ <= Breakpoint::small || maximized_;
     const int main_width = small ? cols : cols - kRightWidth - 1;
     const bool two_rows = cols < 150;
-    const int toolbar_rows = two_rows ? 2 : 1;
+    auto bar = toolbar(two_rows, cols);
+    bar->ComputeRequirement();
+    const int toolbar_rows = std::max(1, bar->requirement().min_y);
     const int total = std::max(8, rows - 3);
     const int body_rows = small ? total - toolbar_rows - 2 : std::max(6, total - toolbar_rows - 1 - 2 - 1 - 9);
     Element body;
@@ -922,7 +931,7 @@ ftxui::Element DecompositionScreen::OnRender() {
         const auto p = maximized_ ? *maximized_ : static_cast<Panel>(layout_.small_index() % panel_count);
         focus_ = p;
         switch (p) {
-        case view_panel: return vbox({toolbar(two_rows), main | flex});
+        case view_panel: return vbox({bar, main | flex});
         case energy: return packets ? packets_energy(*packets, energy_rows, energy_width) : energy_panel(*d, energy_rows, energy_width, wide);
         case cursor_panel: return frame_panel(cursor_panel, cursor_body(*d, r.get(), total - 2), {}, tr("tui.decomposition.cursor"));
         case denoise: return denoise_panel(*d, r.get());
@@ -937,7 +946,7 @@ ftxui::Element DecompositionScreen::OnRender() {
                         frame_panel(cursor_panel, cursor_body(*d, r.get(), energy_rows), {}, cursor_title) | size(WIDTH, EQUAL, 42)});
     auto left = vbox({main, text(""), bottom | flex});
     auto right = vbox({denoise_panel(*d, r.get()), text(""), listen_panel(*d), text(""), summary_panel(*d, r.get()) | flex});
-    return vbox({toolbar(two_rows), text(""), hbox({left | flex, text(" "), right | size(WIDTH, EQUAL, kRightWidth)}) | flex});
+    return vbox({bar, text(""), hbox({left | flex, text(" "), right | size(WIDTH, EQUAL, kRightWidth)}) | flex});
 }
 
 void DecompositionScreen::select(std::size_t band) {

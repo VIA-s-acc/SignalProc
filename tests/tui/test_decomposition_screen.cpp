@@ -891,3 +891,14 @@ TEST_CASE("m7d: the English packet basis title counts one node", "[tui][decompos
     CHECK(frame.find("Packet basis · 1 node") != std::string::npos);
     CHECK(frame.find("1 nodes") == std::string::npos);
 }
+
+TEST_CASE("the toolbar wraps to a third row at 80 columns instead of cutting the edge mode", "[tui][decomposition]") {
+    DecompositionFixture f{true, 80, 24};
+    auto o = f.model->options();
+    o.mode = signals::core::Extension::antisymmetric;
+    o.wavelet = "bior3.5";
+    f.model->set_options(o, f.jobs);
+    const auto frame = f.h.frame();
+    CHECK(frame.find("antisymmetric ▾") != std::string::npos);
+    CHECK(frame.find("bior3.5 ▾") != std::string::npos);
+}

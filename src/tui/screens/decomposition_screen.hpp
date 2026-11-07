@@ -59,7 +59,7 @@ private:
 
     ftxui::Element frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title);
     ftxui::Element clickable(std::string id, ftxui::Element e, std::function<void()> action);
-    ftxui::Element toolbar(bool two_rows);
+    ftxui::Element toolbar(bool two_rows, int cols);
     ftxui::Element view_body(const DecompositionData& d, const Reconstruction* r, int width, int max_rows);
     ftxui::Element more_row(bool up, std::size_t count) const;
     ftxui::Element time_axis(int width) const;
