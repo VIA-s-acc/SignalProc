@@ -1,7 +1,11 @@
 #include "tui/data/user_filters.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <complex>
 #include <fstream>
+#include <locale>
+#include <sstream>
 #include <set>
 #include <memory>
 #include <mutex>
@@ -10,11 +14,72 @@
 #include <fmt/format.h>
 #include <toml++/toml.hpp>
 
+#include "i18n/i18n.hpp"
+
 namespace signals::tui {
 namespace {
 
 std::mutex g_mutex;
 std::shared_ptr<const std::vector<UserBank>> g_banks = std::make_shared<const std::vector<UserBank>>();
+std::shared_ptr<const std::vector<UserFilter>> g_filters = std::make_shared<const std::vector<UserFilter>>();
+
+std::string_view trim(std::string_view s) {
+    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) s.remove_prefix(1);
+    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) s.remove_suffix(1);
+    return s;
+}
+
+bool real_number(std::string_view s, double& out) {
+    if (s.empty()) return false;
+    std::istringstream in{std::string{s}};
+    in.imbue(std::locale::classic());
+    in >> out;
+    return !in.fail() && in.peek() == std::char_traits<char>::eof() && std::isfinite(out);
+}
+
+std::vector<std::string> tokens(std::string_view s) {
+    std::vector<std::string> out;
+    std::string cur;
+    for (const char c : s) {
+        if (std::isspace(static_cast<unsigned char>(c)) || c == ',' || c == ';') {
+            if (!cur.empty()) out.push_back(std::exchange(cur, {}));
+        } else {
+            cur += c;
+        }
+    }
+    if (!cur.empty()) out.push_back(cur);
+    return out;
+}
+
+bool root_token(std::string_view s, std::vector<std::complex<double>>& roots) {
+    double re = 0;
+    if (real_number(s, re)) {
+        roots.emplace_back(re, 0.0);
+        return true;
+    }
+    if (s.size() < 2 || (s.back() != 'j' && s.back() != 'i')) return false;
+    s.remove_suffix(1);
+    std::size_t split = s.find("±"), width = 2;
+    bool minus = false;
+    if (split == std::string_view::npos) {
+        width = 1;
+        for (std::size_t i = 1; i < s.size(); ++i)
+            if ((s[i] == '+' || s[i] == '-') && s[i - 1] != 'e' && s[i - 1] != 'E') split = i, minus = s[i] == '-';
+    }
+    double im = 0;
+    if (split == std::string_view::npos) {
+        if (!real_number(s, im)) return false;
+        re = 0;
+    } else if (!real_number(s.substr(0, split), re) || !real_number(s.substr(split + width), im)) {
+        return false;
+    }
+    if (minus) im = -im;
+    roots.emplace_back(re, im);
+    if (im != 0) roots.emplace_back(re, -im);
+    return true;
+}
+
+core::Error custom_error(const std::string& message) { return core::Error{core::Errc::invalid_argument, message}; }
 
 std::string file_stem(const std::string& name) {
     std::string out;
@@ -65,6 +130,51 @@ core::Result<core::Laurent> read_filter(const toml::table& t, std::string_view k
 
 }  // namespace
 
+core::Result<CustomFilter> parse_custom_filter(std::string_view text) {
+    CustomFilter out;
+    text = trim(text);
+    if (const auto eq = text.find('='); eq != std::string_view::npos) {
+        out.name = std::string{trim(text.substr(0, eq))};
+        if (out.name.empty()) return std::unexpected{custom_error(tr("tui.filters.custom.error.name"))};
+        text = trim(text.substr(eq + 1));
+    }
+    if (text.empty()) return std::unexpected{custom_error(tr("tui.filters.custom.error.empty"))};
+    const bool roots = text.starts_with("z:") || text.starts_with("Z:");
+    const auto parts = tokens(roots ? text.substr(2) : text);
+    if (parts.size() + (roots ? 1 : 0) > kMaxCustomTaps)
+        return std::unexpected{custom_error(fmt::format(fmt::runtime(tr("tui.filters.custom.error.too_long")), fmt::arg("max", kMaxCustomTaps)))};
+    if (!roots) {
+        for (const auto& t : parts) {
+            double v = 0;
+            if (!real_number(t, v)) return std::unexpected{custom_error(fmt::format(fmt::runtime(tr("tui.filters.custom.error.number")), fmt::arg("token", t)))};
+            out.h.coeffs.push_back(v);
+        }
+        if (out.h.coeffs.empty()) return std::unexpected{custom_error(tr("tui.filters.custom.error.empty"))};
+        return out;
+    }
+    std::vector<std::complex<double>> zeros;
+    for (const auto& t : parts)
+        if (!root_token(t, zeros)) return std::unexpected{custom_error(fmt::format(fmt::runtime(tr("tui.filters.custom.error.number")), fmt::arg("token", t)))};
+    if (zeros.empty()) return std::unexpected{custom_error(tr("tui.filters.custom.error.roots"))};
+    if (zeros.size() + 1 > kMaxCustomTaps)
+        return std::unexpected{custom_error(fmt::format(fmt::runtime(tr("tui.filters.custom.error.too_long")), fmt::arg("max", kMaxCustomTaps)))};
+    std::vector<std::complex<double>> poly{1.0};
+    for (const auto& r : zeros) {
+        poly.push_back(0.0);
+        for (std::size_t k = poly.size() - 1; k > 0; --k) poly[k] -= r * poly[k - 1];
+    }
+    double sum = 0, alternating = 0, peak = 0;
+    for (std::size_t k = 0; k < poly.size(); ++k) {
+        out.h.coeffs.push_back(poly[k].real());
+        sum += poly[k].real();
+        alternating += (k % 2 ? -1.0 : 1.0) * poly[k].real();
+        peak = std::max(peak, std::abs(poly[k].real()));
+    }
+    const double scale = std::abs(sum) > 1e-12 * peak ? sum : std::abs(alternating) > 1e-12 * peak ? alternating : peak;
+    for (auto& v : out.h.coeffs) v /= scale;
+    return out;
+}
+
 std::filesystem::path user_filters_dir(const EnvLookup& env) {
     if (auto xdg = env("XDG_CONFIG_HOME"); xdg && !xdg->empty()) return std::filesystem::path{*xdg} / "signals" / "filters";
 #ifdef _WIN32
@@ -99,6 +209,29 @@ core::Result<std::filesystem::path> save_user_bank(const std::filesystem::path& 
     return path;
 }
 
+core::Result<std::filesystem::path> save_user_filter(const std::filesystem::path& dir, UserFilter& filter) {
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    if (ec) return core::make_error(core::Errc::io_error, "cannot create " + dir.string() + ": " + ec.message());
+    std::set<std::string, std::less<>> taken;
+    for (const auto& f : load_user_banks(dir).filters) taken.insert(f.name);
+    const auto base = filter.name;
+    auto path = dir / (file_stem(base) + ".flt");
+    for (int n = 2; taken.contains(filter.name) || std::filesystem::exists(path); ++n) {
+        filter.name = base + "-" + std::to_string(n);
+        path = dir / (file_stem(filter.name) + ".flt");
+    }
+    std::ofstream out{path, std::ios::binary};
+    if (!out) return core::make_error(core::Errc::io_error, "cannot write " + path.string());
+    out << "name = " << toml_string(filter.name) << "\n"
+        << "kind = \"filter\"\n"
+        << "h_offset = " << filter.h.offset << "\n"
+        << "h = " << array(filter.h.coeffs) << "\n"
+        << "note = " << toml_string(filter.note) << "\n";
+    if (!out) return core::make_error(core::Errc::io_error, "cannot write " + path.string());
+    return path;
+}
+
 UserLibrary load_user_banks(const std::filesystem::path& dir) {
     UserLibrary lib;
     std::error_code ec;
@@ -110,6 +243,15 @@ UserLibrary load_user_banks(const std::filesystem::path& dir) {
     for (const auto& f : files) {
         try {
             const auto t = toml::parse_file(f.string());
+            if (t["kind"].value_or(std::string{"bank"}) == "filter") {
+                auto h = read_filter(t, "h");
+                if (!h) {
+                    lib.errors.push_back(f.filename().string() + ": " + h.error().message);
+                    continue;
+                }
+                lib.filters.push_back({t["name"].value_or(f.stem().string()), std::move(*h), t["note"].value_or(std::string{})});
+                continue;
+            }
             auto h0 = read_filter(t, "h0");
             auto f0 = read_filter(t, "f0");
             if (!h0 || !f0) {
@@ -133,6 +275,17 @@ void set_user_banks(std::vector<UserBank> banks) {
 std::vector<UserBank> user_banks() {
     std::lock_guard lock{g_mutex};
     return *g_banks;
+}
+
+void set_user_filters(std::vector<UserFilter> filters) {
+    auto next = std::make_shared<const std::vector<UserFilter>>(std::move(filters));
+    std::lock_guard lock{g_mutex};
+    g_filters = std::move(next);
+}
+
+std::vector<UserFilter> user_filters() {
+    std::lock_guard lock{g_mutex};
+    return *g_filters;
 }
 
 }  // namespace signals::tui

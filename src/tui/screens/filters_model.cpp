@@ -7,6 +7,7 @@
 #include <cmath>
 #include <complex>
 #include <limits>
+#include <locale>
 #include <new>
 #include <numbers>
 #include <sstream>
@@ -151,6 +152,14 @@ std::optional<FilterRef> spectrum_step(const FilterRef& ref, int step) {
     return next;
 }
 
+FilterRef custom_ref(const core::Laurent& h, std::string title) {
+    std::string key;
+    for (std::size_t k = 0; k < h.coeffs.size(); ++k) key += (k ? "," : "") + fmt::format("{:.17g}", h.coeffs[k]);
+    FilterRef r{FilterRef::Kind::custom, std::move(key), FilterRole::h0};
+    r.title = std::move(title);
+    return r;
+}
+
 double span_of(const FilterRef& ref) { return ref.kind == FilterRef::Kind::scaling || ref.kind == FilterRef::Kind::wavelet_fn ? 8.0 : 1.0; }
 
 std::string FilterRef::label() const {
@@ -168,6 +177,11 @@ std::string FilterRef::label() const {
     case Kind::wavelet_fn: return std::string{analysis_side(role) ? "Ψ̃ " : "Ψ "} + wavelet + factors_suffix(level);
     case Kind::cwt: return "Ψ̂ " + wavelet + " a=" + std::to_string(level);
     case Kind::packet: return core::packet_path({level, node}) + " " + wavelet;
+    case Kind::custom: {
+        if (!title.empty()) return title;
+        const auto taps = static_cast<std::size_t>(std::count(wavelet.begin(), wavelet.end(), ',')) + 1;
+        return fmt::format(fmt::runtime(tr("tui.filters.custom.label")), fmt::arg("taps", taps));
+    }
     case Kind::classical: break;
     }
     return wavelet;
@@ -249,6 +263,7 @@ LibraryNode build_library(std::string_view equivalent_wavelet, std::size_t level
         }
         mine.children.push_back(std::move(node));
     }
+    for (const auto& f : user_filters()) mine.children.push_back({f.name, {}, custom_ref(f.h, f.name)});
     if (mine.children.empty()) mine.later = tr("tui.filters.mine_empty");
     root.children.push_back(std::move(mine));
     return root;
@@ -459,8 +474,29 @@ core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points) {
 
 namespace {
 
+core::Result<FilterAnalysis> analyze_custom(const FilterRef& ref, std::size_t points) {
+    FilterAnalysis a;
+    a.ref = ref;
+    std::istringstream in{ref.wavelet};
+    in.imbue(std::locale::classic());
+    for (std::string part; std::getline(in, part, ',');) {
+        std::istringstream value{part};
+        value.imbue(std::locale::classic());
+        double v = 0;
+        if (!(value >> v)) return core::make_error(core::Errc::invalid_argument, "custom filter: bad coefficient " + part);
+        a.h.coeffs.push_back(v);
+    }
+    if (a.h.coeffs.empty()) return core::make_error(core::Errc::invalid_argument, "custom filter: no coefficients");
+    a.response = core::frequency_response(a.h, points);
+    a.metrics = core::band_metrics(a.response, -1.0, 2.0);
+    if (auto zp = core::zeros_poles(a.h)) a.zp = std::move(*zp);
+    a.linear_phase = core::is_linear_phase(a.h, kLinearPhaseTol);
+    return a;
+}
+
 core::Result<FilterAnalysis> analyze_any(const FilterRef& ref, std::size_t points) {
     if (ref.kind == FilterRef::Kind::classical) return analyze_classical(ref, points);
+    if (ref.kind == FilterRef::Kind::custom) return analyze_custom(ref, points);
     if (ref.kind == FilterRef::Kind::cwt) return analyze_cwt(ref, points);
     const auto bank = bank_of(ref);
     if (!bank) return std::unexpected(bank.error());
@@ -494,6 +530,7 @@ core::Result<FilterAnalysis> analyze_any(const FilterRef& ref, std::size_t point
         break;
     }
     case FilterRef::Kind::classical:
+    case FilterRef::Kind::custom:
     case FilterRef::Kind::scaling:
     case FilterRef::Kind::wavelet_fn:
     case FilterRef::Kind::cwt: break;

@@ -20,13 +20,14 @@ namespace signals::tui {
 enum class FilterRole { h0, h1, f0, f1 };
 
 struct FilterRef {
-    enum class Kind { bank, equivalent, distortion, alias, user, classical, scaling, wavelet_fn, cwt, packet };
+    enum class Kind { bank, equivalent, distortion, alias, user, classical, scaling, wavelet_fn, cwt, packet, custom };
     Kind kind = Kind::bank;
     std::string wavelet;
     FilterRole role = FilterRole::h0;
     std::size_t level = 0;
     bool detail = false;
     std::size_t node = 0;
+    std::string title = {};
 
     std::string label() const;
     friend bool operator==(const FilterRef&, const FilterRef&) = default;
@@ -49,6 +50,7 @@ FilterRef classical_ref(const ClassicalSpec& spec);
 std::optional<FilterRef> classical_step(const FilterRef& ref, int order_step, double edge_factor);
 std::optional<FilterRef> spectrum_step(const FilterRef& ref, int step);
 double span_of(const FilterRef& ref);
+FilterRef custom_ref(const core::Laurent& h, std::string title);
 
 struct LibraryNode {
     std::string label;

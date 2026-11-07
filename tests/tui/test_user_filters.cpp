@@ -116,3 +116,51 @@ TEST_CASE("names and notes with quotes and line breaks round-trip", "[tui][user_
     CHECK(lib.banks[0].name == "a \"b\"");
     CHECK(lib.banks[0].note == "p = 1\nвторая строка \\ конец");
 }
+
+TEST_CASE("custom filters parse coefficients, roots and a name", "[tui][user_filters][custom]") {
+    auto c = parse_custom_filter("0.25 0.5 0.25");
+    REQUIRE(c);
+    CHECK(c->name.empty());
+    CHECK(c->h.coeffs == std::vector<double>{0.25, 0.5, 0.25});
+    c = parse_custom_filter("  треуг = 0.25, 0.5, 0.25 ");
+    REQUIRE(c);
+    CHECK(c->name == "треуг");
+    CHECK(c->h.coeffs.size() == 3);
+    c = parse_custom_filter("z: -1 -1");
+    REQUIRE(c);
+    CHECK(c->h.coeffs == std::vector<double>{0.25, 0.5, 0.25});
+    c = parse_custom_filter("z: 0.5±0.5j");
+    REQUIRE(c);
+    REQUIRE(c->h.coeffs.size() == 3);
+    CHECK(std::abs(c->h.coeffs[0] - 2) < 1e-12);
+    CHECK(std::abs(c->h.coeffs[1] + 2) < 1e-12);
+    CHECK(std::abs(c->h.coeffs[2] - 1) < 1e-12);
+    CHECK(parse_custom_filter("z: 1 1")->h.coeffs.size() == 3);
+    for (const char* bad : {"", "abc", "z:", "0.5 x", "= 1 2", "1e999"}) {
+        INFO(bad);
+        const auto r = parse_custom_filter(bad);
+        REQUIRE_FALSE(r);
+        CHECK_FALSE(r.error().message.empty());
+    }
+    std::string many;
+    for (int k = 0; k < 5000; ++k) many += "1 ";
+    CHECK_FALSE(parse_custom_filter(many));
+}
+
+TEST_CASE("user filters are saved beside the banks and load back", "[tui][user_filters][custom]") {
+    const auto dir = fresh_dir("signals-custom-тест");
+    UserFilter f{"мой/фильтр", core::Laurent{{0.25, 0.5, 0.25}, 0}, ""};
+    const auto path = save_user_filter(dir, f);
+    REQUIRE(path);
+    CHECK(path->parent_path() == dir);
+    CHECK(path->filename().string().find('/') == std::string::npos);
+    UserBank b{"bank", core::wavelet("db2")->h0, core::wavelet("db2")->f0, ""};
+    REQUIRE(save_user_bank(dir, b));
+    const auto lib = load_user_banks(dir);
+    CHECK(lib.errors.empty());
+    REQUIRE(lib.banks.size() == 1);
+    REQUIRE(lib.filters.size() == 1);
+    CHECK(lib.filters[0].name == "мой/фильтр");
+    CHECK(lib.filters[0].h.coeffs == f.h.coeffs);
+    std::filesystem::remove_all(dir);
+}

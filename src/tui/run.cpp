@@ -46,6 +46,7 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme, std::
     };
     const auto library = load_user_banks(ui.user_filters);
     set_user_banks(library.banks);
+    set_user_filters(library.filters);
     auto models = make_app_models();
     for (const auto& e : library.errors)
         models.signal->add_log(fmt::format(fmt::runtime(tr("tui.user_filters.broken")), fmt::arg("error", e)), LogLine::warn);
