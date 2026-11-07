@@ -913,7 +913,7 @@ ftxui::Element FiltersScreen::OnRender() {
     }
     double span = 1;
     for (const auto& e : entries_)
-        if (e.analysis) span = std::max(span, e.analysis->span);
+        if (e.visible) span = std::max(span, span_of(e.ref));
     if (span != span_) {
         span_ = span;
         lo_ = 0;

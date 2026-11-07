@@ -425,3 +425,20 @@ TEST_CASE("the spectra group offers φ, ψ and their duals", "[tui][filters][spe
     CHECK(spectrum_step(FilterRef{Kind::scaling, "db4", FilterRole::f0, 1}, -1)->level == 1);
     CHECK_FALSE(spectrum_step(FilterRef{Kind::bank, "db4"}, 1));
 }
+
+TEST_CASE("a spectrum analysis is not redone once it is current", "[tui][filters][spectra]") {
+    JobRunner jobs{[] {}, std::chrono::milliseconds{0}, true};
+    ComparisonSet set;
+    REQUIRE(set.add({Kind::scaling, "db2", FilterRole::f0}));
+    set.request(jobs, 256);
+    const auto first = set.entries()[0].analysis;
+    REQUIRE(first);
+    set.request(jobs, 256);
+    CHECK(set.entries()[0].analysis == first);
+    set.request(jobs, 512);
+    CHECK(set.entries()[0].analysis != first);
+    CHECK(span_of({Kind::scaling, "db4", FilterRole::f0}) == 8);
+    CHECK(span_of({Kind::wavelet_fn, "db4", FilterRole::h0}) == 8);
+    CHECK(span_of({Kind::cwt, "morl", FilterRole::h0, 8}) == 1);
+    CHECK(span_of({Kind::bank, "db4", FilterRole::h0}) == 1);
+}

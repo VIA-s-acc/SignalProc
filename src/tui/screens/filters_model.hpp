@@ -46,6 +46,7 @@ std::optional<ClassicalSpec> parse_classical(std::string_view key);
 FilterRef classical_ref(const ClassicalSpec& spec);
 std::optional<FilterRef> classical_step(const FilterRef& ref, int order_step, double edge_factor);
 std::optional<FilterRef> spectrum_step(const FilterRef& ref, int step);
+double span_of(const FilterRef& ref);
 
 struct LibraryNode {
     std::string label;
@@ -69,6 +70,7 @@ struct FilterAnalysis {
     std::optional<core::Zpk> zpk = {};
     std::optional<bool> stable = {};
     double span = 1;
+    std::size_t points = 0;
     std::optional<std::size_t> factors = {};
     std::optional<double> partition_error = {}, centre = {}, quality = {}, at_zero = {};
 };

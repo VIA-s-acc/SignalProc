@@ -44,7 +44,7 @@ public:
     std::pair<double, double> view() const { return {lo_, hi_}; }
     std::optional<double> cursor_a() const { return cursor_a_; }
     std::optional<double> cursor_b() const { return cursor_b_; }
-    void set_cursor_a(double w) { cursor_a_ = std::clamp(w, 0.0, 1.0); }
+    void set_cursor_a(double w) { cursor_a_ = std::clamp(w, 0.0, span_); }
     double omega_at(std::string_view plot, int x) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
     std::optional<std::pair<int, int>> menu_anchor() const override;

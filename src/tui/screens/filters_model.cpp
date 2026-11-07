@@ -131,6 +131,8 @@ std::optional<FilterRef> spectrum_step(const FilterRef& ref, int step) {
     return next;
 }
 
+double span_of(const FilterRef& ref) { return ref.kind == FilterRef::Kind::scaling || ref.kind == FilterRef::Kind::wavelet_fn ? 8.0 : 1.0; }
+
 std::string FilterRef::label() const {
     if (kind == Kind::classical) {
         const auto s = parse_classical(wavelet);
@@ -339,7 +341,7 @@ std::optional<double> psi_partition(const core::Laurent& lowpass, const core::La
 
 core::Result<FilterAnalysis> analyze_spectrum(const FilterRef& ref, const core::FilterBank& bank, std::size_t points) {
     constexpr double pi = std::numbers::pi;
-    constexpr double kSpan = 8;
+    const double kSpan = span_of(ref);
     const bool dual = analysis_side(ref.role);
     const auto lowpass = dual ? core::reverse(bank.h0) : bank.f0;
     const auto highpass = dual ? core::reverse(bank.h1) : bank.f1;
@@ -401,7 +403,21 @@ core::Result<FilterAnalysis> analyze_cwt(const FilterRef& ref, std::size_t point
 
 }  // namespace
 
+namespace {
+
+core::Result<FilterAnalysis> analyze_any(const FilterRef& ref, std::size_t points);
+
+}  // namespace
+
 core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points) {
+    auto a = analyze_any(ref, points);
+    if (a) a->points = points;
+    return a;
+}
+
+namespace {
+
+core::Result<FilterAnalysis> analyze_any(const FilterRef& ref, std::size_t points) {
     if (ref.kind == FilterRef::Kind::classical) return analyze_classical(ref, points);
     if (ref.kind == FilterRef::Kind::cwt) return analyze_cwt(ref, points);
     const auto bank = bank_of(ref);
@@ -474,6 +490,8 @@ void align_unwrapped(core::FrequencyResponse& r, const core::FrequencyResponse& 
     const double shift = 2 * pi * std::round((full.phase_unwrapped[i] - r.phase_unwrapped.front()) / (2 * pi));
     for (auto& p : r.phase_unwrapped) p += shift;
 }
+
+}  // namespace
 
 }  // namespace
 
@@ -600,7 +618,7 @@ void ComparisonSet::request(JobRunner& jobs, std::size_t points) {
     {
         std::lock_guard lock{mutex_};
         for (const auto& e : entries_)
-            if (!e.error && (!e.analysis || e.analysis->response.omega.size() != points) &&
+            if (!e.error && (!e.analysis || e.analysis->points != points) &&
                 std::find(pending_.begin(), pending_.end(), e.ref) == pending_.end())
                 todo.push_back(e.ref);
         pending_.insert(pending_.end(), todo.begin(), todo.end());

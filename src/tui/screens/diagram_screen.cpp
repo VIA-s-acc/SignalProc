@@ -4,7 +4,6 @@
 #include <array>
 #include <cmath>
 #include <complex>
-#include <cstdint>
 #include <map>
 #include <numbers>
 
@@ -40,8 +39,6 @@ double energy(const std::vector<double>& v) {
     return e;
 }
 
-std::string address(const void* p) { return std::to_string(reinterpret_cast<std::uintptr_t>(p)); }
-
 }  // namespace
 
 DiagramScreen::DiagramScreen(UiContext& ui, std::shared_ptr<DesignerModel> designer, std::shared_ptr<SignalModel> signal)
@@ -51,7 +48,7 @@ std::string DiagramScreen::tab_label() const { return tr("tui.sub.diagram"); }
 
 std::vector<Hint> DiagramScreen::hints() const {
     return {{"P", tr("tui.diagram.hint.polyphase")}, {"w", tr("tui.diagram.hint.bank")},   {"i", tr("tui.diagram.hint.input")},
-            {"[ ]", tr("tui.diagram.hint.length")}, {"v", tr("tui.diagram.hint.view")},     {"←→", tr("tui.diagram.hint.wire")},
+            {"+ −", tr("tui.diagram.hint.length")}, {"v", tr("tui.diagram.hint.view")},     {"←→", tr("tui.diagram.hint.wire")},
             {tr("tui.signal.key.click"), tr("tui.diagram.hint.click")}};
 }
 
@@ -97,11 +94,13 @@ void DiagramScreen::refresh() {
     notice_.clear();
     std::optional<core::FilterBank> bank;
     std::string key;
+    std::shared_ptr<const DesignerResult> source;
     if (bank_ == 0) {
-        if (const auto r = designer_ ? designer_->result() : nullptr) {
+        if (auto r = designer_ ? designer_->result() : nullptr) {
             bank = r->bank;
             bank_name_ = tr("tui.diagram.designer");
-            key = "designer:" + address(r.get());
+            key = "designer";
+            source = std::move(r);
         } else {
             notice_ = tr("tui.diagram.no_designer");
         }
@@ -128,11 +127,16 @@ void DiagramScreen::refresh() {
         if (const auto sel = signal_->selection()) {
             start = std::min(s.size() - 1, static_cast<std::size_t>(std::max(0.0, sel->first) * data->info.sample_rate));
         } else {
-            const auto peak = static_cast<std::size_t>(std::max_element(s.begin(), s.end(), [](float l, float r) { return std::abs(l) < std::abs(r); }) - s.begin());
-            start = peak > n / 2 ? std::min(peak - n / 2, s.size() > n ? s.size() - n : std::size_t{0}) : 0;
+            if (data != peak_data_ || n != peak_length_) {
+                const auto peak = static_cast<std::size_t>(std::max_element(s.begin(), s.end(), [](float l, float r) { return std::abs(l) < std::abs(r); }) - s.begin());
+                peak_start_ = peak > n / 2 ? std::min(peak - n / 2, s.size() > n ? s.size() - n : std::size_t{0}) : 0;
+                peak_data_ = data;
+                peak_length_ = n;
+            }
+            start = peak_start_;
         }
         x.assign(s.begin() + static_cast<std::ptrdiff_t>(start), s.begin() + static_cast<std::ptrdiff_t>(std::min(s.size(), start + n)));
-        key += ":file:" + address(data.get()) + ":" + std::to_string(start);
+        key += ":file:" + std::to_string(start);
     } else {
         if (file_) notice_ = tr("tui.diagram.no_file");
         x.assign(n, 0.0);
@@ -140,8 +144,11 @@ void DiagramScreen::refresh() {
         key += ":impulse";
     }
     key += ":" + std::to_string(n);
-    if (key == key_ && result_) return;
+    const auto shown = file_ ? data : nullptr;
+    if (key == key_ && result_ && source == source_bank_ && shown == source_data_) return;
     key_ = key;
+    source_bank_ = std::move(source);
+    source_data_ = shown;
     auto r = run_diagram(*bank, x);
     if (!r) {
         notice_ = error_text(r.error());
@@ -249,19 +256,25 @@ ftxui::Element DiagramScreen::probe_panel(int width, int height) {
     } else if (view_ == ProbeView::spectrum) {
         constexpr std::size_t kBins = 256;
         constexpr double pi = std::numbers::pi;
+        if (spectrum_of_ != result_ || spectrum_wire_ != probe_ || spectrum_polyphase_ != polyphase_) {
+            spectrum_db_.assign(kBins, 0.0);
+            for (std::size_t k = 0; k < kBins; ++k) {
+                const auto step = std::polar(1.0, -pi * static_cast<double>(k) / static_cast<double>(kBins - 1));
+                std::complex<double> s{0, 0};
+                for (std::size_t n = v.size(); n-- > 0;) s = s * step + v[n];
+                spectrum_db_[k] = 20 * std::log10(std::max(std::abs(s), 1e-15));
+            }
+            spectrum_of_ = result_;
+            spectrum_wire_ = probe_;
+            spectrum_polyphase_ = polyphase_;
+        }
         tui::Trace t{};
         t.color = color;
-        double top = -300;
+        const double top = *std::max_element(spectrum_db_.begin(), spectrum_db_.end());
         for (std::size_t k = 0; k < kBins; ++k) {
-            const double om = pi * static_cast<double>(k) / static_cast<double>(kBins - 1);
-            std::complex<double> s{0, 0};
-            for (std::size_t n = 0; n < v.size(); ++n) s += v[n] * std::polar(1.0, -om * static_cast<double>(n));
-            const double db = 20 * std::log10(std::max(std::abs(s), 1e-15));
-            t.x.push_back(om);
-            t.y.push_back(db);
-            top = std::max(top, db);
+            t.x.push_back(pi * static_cast<double>(k) / static_cast<double>(kBins - 1));
+            t.y.push_back(std::max(spectrum_db_[k], top - 100));
         }
-        for (auto& y : t.y) y = std::max(y, top - 100);
         PlotSpec spec;
         spec.x = {0, pi, AxisScale::pi};
         spec.y = {top - 100, top + 3};
@@ -338,11 +351,11 @@ bool DiagramScreen::OnEvent(ftxui::Event e) {
         file_ = !file_;
         return true;
     }
-    if (e == Event::Character(']') || e == Event::Character('+')) {
+    if (e == Event::Character('+') || e == Event::Character('=')) {
         length_ = std::min(kLengths.size() - 1, length_ + 1);
         return true;
     }
-    if (e == Event::Character('[') || e == Event::Character('-')) {
+    if (e == Event::Character('-')) {
         length_ = length_ ? length_ - 1 : 0;
         return true;
     }

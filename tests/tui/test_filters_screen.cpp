@@ -399,3 +399,25 @@ TEST_CASE("the derived groups start folded so every group header fits", "[tui][f
     CHECK(frame.find("▾ CWT: Ψ̂(aω)") != std::string::npos);
     CHECK(frame.find("morl a=2") != std::string::npos);
 }
+
+TEST_CASE("the axis follows visible spectra, also while they are recomputed", "[tui][filters][spectra]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    REQUIRE(f.set->add({Kind::bank, "db4", FilterRole::h0}));
+    f.set->set_focus(0);
+    h.frame();
+    search_and_add(h, "Φ");
+    h.frame();
+    REQUIRE(f.screen->view().second == 8);
+    f.screen->set_cursor_a(2.5);
+    f.ui->jobs = nullptr;
+    h.send(ftxui::Event::Character('O'));
+    h.frame();
+    REQUIRE_FALSE(f.set->entries()[1].analysis);
+    CHECK(f.screen->view().second == 8);
+    REQUIRE(f.screen->cursor_a());
+    CHECK(*f.screen->cursor_a() == 2.5);
+    f.set->toggle(1);
+    h.frame();
+    CHECK(f.screen->view().second == 1);
+}
