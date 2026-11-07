@@ -8,6 +8,7 @@
 #include <string_view>
 #include <vector>
 
+#include "core/design/fir.hpp"
 #include "core/design/iir.hpp"
 #include "core/error.hpp"
 #include "core/freq.hpp"
@@ -32,12 +33,13 @@ struct FilterRef {
 };
 
 struct ClassicalSpec {
-    enum class Method { iir, remez, firls } method = Method::iir;
+    enum class Method { iir, remez, firls, window, freqsamp } method = Method::iir;
     core::IirFamily family = core::IirFamily::butterworth;
     core::BandType type = core::BandType::lowpass;
     int order = 4;
     std::vector<double> edges = {0.25};
     double rp = 1, rs = 40;
+    core::FirWindow window = core::FirWindow::hamming;
     std::string key() const;
     std::string label() const;
 };

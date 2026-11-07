@@ -6,6 +6,7 @@
 
 namespace signals::core {
 
+double bessel_i0(double x);
 double kaiser_beta(double attenuation_db);
 
 struct KaiserOrder {

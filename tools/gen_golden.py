@@ -555,7 +555,22 @@ def fir_json():
     ]:
         h = scipy.signal.firls(numtaps, bands, desired, weight=weight)
         firls.append({"numtaps": numtaps, "bands": bands, "desired": desired, "weight": weight, "h": floats(h)})
-    return {"remez": remez, "firls": firls}
+    firwin = []
+    for numtaps, cutoff, window, pass_zero in [
+        (31, [0.25], "hamming", True), (31, [0.25], "hann", True), (31, [0.25], "boxcar", True), (31, [0.25], "blackman", True),
+        (41, [0.3], ("kaiser", 5.0), True), (41, [0.5], "hamming", False), (51, [0.2, 0.4], "blackman", False),
+        (51, [0.3, 0.6], "hamming", True), (30, [0.4], "hann", True), (61, [0.1, 0.3, 0.5, 0.7], "hamming", True),
+        (33, [0.45], ("kaiser", 8.6), False), (21, [0.1, 0.9], "boxcar", False)]:
+        h = scipy.signal.firwin(numtaps, cutoff, window=window, pass_zero=pass_zero, fs=2.0)
+        name, beta = (window, 0.0) if isinstance(window, str) else window
+        firwin.append({"numtaps": numtaps, "cutoff": cutoff, "window": name, "beta": beta, "pass_zero": pass_zero, "h": floats(h)})
+    firwin2 = []
+    for numtaps, freq, gain, window in [
+        (33, [0, 0.4, 0.5, 1], [1, 1, 0, 0], "hamming"), (51, [0, 0.2, 0.25, 0.6, 0.65, 1], [0, 0, 1, 1, 0, 0], "hann"),
+        (31, [0, 1], [0, 1], "boxcar"), (64, [0, 0.3, 1], [1, 0.5, 0], "blackman")]:
+        h = scipy.signal.firwin2(numtaps, freq, gain, window=window, fs=2.0)
+        firwin2.append({"numtaps": numtaps, "freq": freq, "gain": gain, "window": window, "h": floats(h)})
+    return {"remez": remez, "firls": firls, "firwin": firwin, "firwin2": firwin2}
 
 def ops_json():
     x = np.concatenate([np.linspace(-1.5, 1.5, 61), [0.3333333333333333, -0.7071067811865476, 1e-9, -1e-9]])

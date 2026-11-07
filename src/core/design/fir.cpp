@@ -2,9 +2,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <complex>
+#include <limits>
 #include <numbers>
 
 #include <Eigen/Dense>
+
+#include "core/design/window_fir.hpp"
+#include "core/detail/pocketfft.hpp"
 
 namespace signals::core {
 
@@ -265,6 +270,122 @@ Result<std::vector<double>> firls(int numtaps, std::span<const double> bands, st
     h[static_cast<std::size_t>(big_m)] = 2 * a(0);
     for (int i = 1; i <= big_m; ++i) h[static_cast<std::size_t>(big_m + i)] = a(i);
     return h;
+}
+
+std::optional<FirWindow> parse_fir_window(std::string_view name) {
+    if (name == "boxcar" || name == "rect") return FirWindow::boxcar;
+    if (name == "hann") return FirWindow::hann;
+    if (name == "hamming") return FirWindow::hamming;
+    if (name == "blackman") return FirWindow::blackman;
+    if (name == "kaiser") return FirWindow::kaiser;
+    return std::nullopt;
+}
+
+std::string_view fir_window_name(FirWindow w) {
+    switch (w) {
+    case FirWindow::boxcar: return "boxcar";
+    case FirWindow::hann: return "hann";
+    case FirWindow::hamming: return "hamming";
+    case FirWindow::blackman: return "blackman";
+    case FirWindow::kaiser: return "kaiser";
+    }
+    return "boxcar";
+}
+
+std::vector<double> symmetric_window(FirWindow w, std::size_t n, double beta) {
+    std::vector<double> out(n, 1.0);
+    if (n < 2) return out;
+    const double last = static_cast<double>(n - 1);
+    for (std::size_t k = 0; k < n; ++k) {
+        const double t = 2 * kPi * static_cast<double>(k) / last;
+        switch (w) {
+        case FirWindow::boxcar: break;
+        case FirWindow::hann: out[k] = 0.5 - 0.5 * std::cos(t); break;
+        case FirWindow::hamming: out[k] = 0.54 - 0.46 * std::cos(t); break;
+        case FirWindow::blackman: out[k] = 0.42 - 0.5 * std::cos(t) + 0.08 * std::cos(2 * t); break;
+        case FirWindow::kaiser: {
+            const double r = 2 * static_cast<double>(k) / last - 1;
+            out[k] = bessel_i0(beta * std::sqrt(std::max(0.0, 1 - r * r))) / bessel_i0(beta);
+            break;
+        }
+        }
+    }
+    return out;
+}
+
+Result<std::vector<double>> firwin(int numtaps, std::span<const double> cutoff, FirWindow window, bool pass_zero, double beta) {
+    if (numtaps < 1) return make_error(Errc::invalid_argument, "firwin: numtaps must be at least 1");
+    if (cutoff.empty()) return make_error(Errc::invalid_argument, "firwin: at least one cutoff is needed");
+    for (std::size_t i = 0; i < cutoff.size(); ++i) {
+        if (!(cutoff[i] > 0 && cutoff[i] < 1)) return make_error(Errc::invalid_argument, "firwin: cutoffs must lie strictly between 0 and 1 (Nyquist)");
+        if (i && !(cutoff[i] > cutoff[i - 1])) return make_error(Errc::invalid_argument, "firwin: cutoffs must increase");
+    }
+    const bool pass_nyquist = (cutoff.size() % 2 == 1) != pass_zero;
+    if (pass_nyquist && numtaps % 2 == 0)
+        return make_error(Errc::invalid_argument, "firwin: a filter that passes Nyquist needs an odd number of taps");
+    std::vector<double> edges;
+    if (pass_zero) edges.push_back(0.0);
+    edges.insert(edges.end(), cutoff.begin(), cutoff.end());
+    if (pass_nyquist) edges.push_back(1.0);
+    const auto n = static_cast<std::size_t>(numtaps);
+    const double alpha = 0.5 * (numtaps - 1);
+    auto sinc = [](double x) { return x == 0 ? 1.0 : std::sin(kPi * x) / (kPi * x); };
+    std::vector<double> h(n, 0.0);
+    for (std::size_t b = 0; b + 1 < edges.size(); b += 2) {
+        const double left = edges[b], right = edges[b + 1];
+        for (std::size_t k = 0; k < n; ++k) {
+            const double m = static_cast<double>(k) - alpha;
+            h[k] += right * sinc(right * m) - left * sinc(left * m);
+        }
+    }
+    const auto w = symmetric_window(window, n, beta);
+    for (std::size_t k = 0; k < n; ++k) h[k] *= w[k];
+    const double left = edges[0], right = edges[1];
+    const double scale = left == 0 ? 0.0 : right == 1 ? 1.0 : 0.5 * (left + right);
+    double s = 0;
+    for (std::size_t k = 0; k < n; ++k) s += h[k] * std::cos(kPi * (static_cast<double>(k) - alpha) * scale);
+    for (auto& v : h) v /= s;
+    return h;
+}
+
+Result<std::vector<double>> firwin2(int numtaps, std::span<const double> freq_in, std::span<const double> gain, FirWindow window, double beta) {
+    if (numtaps < 3) return make_error(Errc::invalid_argument, "firwin2: numtaps must be at least 3");
+    if (freq_in.size() != gain.size() || freq_in.size() < 2) return make_error(Errc::invalid_argument, "firwin2: freq and gain need the same length, at least 2");
+    if (freq_in.front() != 0 || freq_in.back() != 1) return make_error(Errc::invalid_argument, "firwin2: freq must start at 0 and end at 1 (Nyquist)");
+    for (std::size_t i = 1; i < freq_in.size(); ++i)
+        if (freq_in[i] < freq_in[i - 1]) return make_error(Errc::invalid_argument, "firwin2: freq must not decrease");
+    if (numtaps % 2 == 0 && gain.back() != 0) return make_error(Errc::invalid_argument, "firwin2: an even number of taps needs zero gain at Nyquist");
+    std::vector<double> freq(freq_in.begin(), freq_in.end());
+    const double eps = std::numeric_limits<double>::epsilon();
+    for (std::size_t k = 0; k + 1 < freq.size(); ++k)
+        if (freq[k] == freq[k + 1]) {
+            freq[k] -= eps;
+            freq[k + 1] += eps;
+        }
+    const auto nfreqs = 1 + (std::size_t{1} << static_cast<int>(std::ceil(std::log2(static_cast<double>(numtaps)))));
+    std::vector<std::complex<double>> fx(nfreqs);
+    for (std::size_t i = 0; i < nfreqs; ++i) {
+        const double x = static_cast<double>(i) / static_cast<double>(nfreqs - 1);
+        auto it = std::upper_bound(freq.begin(), freq.end(), x);
+        double g;
+        if (it == freq.begin()) g = gain.front();
+        else if (it == freq.end()) g = gain.back();
+        else {
+            const auto j = static_cast<std::size_t>(it - freq.begin());
+            const double t = (x - freq[j - 1]) / (freq[j] - freq[j - 1]);
+            g = gain[j - 1] + t * (gain[j] - gain[j - 1]);
+        }
+        fx[i] = g * std::polar(1.0, -0.5 * (numtaps - 1) * kPi * x);
+    }
+    const std::size_t full = 2 * (nfreqs - 1);
+    std::vector<double> out(full);
+    const pocketfft::shape_t shape{full};
+    const pocketfft::stride_t complex_stride{sizeof(std::complex<double>)}, real_stride{sizeof(double)};
+    pocketfft::c2r(shape, complex_stride, real_stride, 0, pocketfft::BACKWARD, fx.data(), out.data(), 1.0 / static_cast<double>(full));
+    out.resize(static_cast<std::size_t>(numtaps));
+    const auto w = symmetric_window(window, out.size(), beta);
+    for (std::size_t k = 0; k < out.size(); ++k) out[k] *= w[k];
+    return out;
 }
 
 }  // namespace signals::core

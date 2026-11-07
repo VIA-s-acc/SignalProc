@@ -238,7 +238,7 @@ TEST_CASE("the classical group designs Butterworth, Chebyshev, elliptic, Bessel 
     REQUIRE(classic);
     std::vector<FilterRef> refs;
     collect(*classic, refs);
-    REQUIRE(refs.size() == 10);
+    REQUIRE(refs.size() == 14);
     for (const auto& r : refs) {
         INFO(r.label());
         CHECK(r.kind == Kind::classical);
@@ -441,4 +441,33 @@ TEST_CASE("a spectrum analysis is not redone once it is current", "[tui][filters
     CHECK(span_of({Kind::wavelet_fn, "db4", FilterRole::h0}) == 8);
     CHECK(span_of({Kind::cwt, "morl", FilterRole::h0, 8}) == 1);
     CHECK(span_of({Kind::bank, "db4", FilterRole::h0}) == 1);
+}
+
+TEST_CASE("window and frequency-sampling presets design like the core", "[tui][filters][classic]") {
+    using M = ClassicalSpec::Method;
+    using T = signals::core::BandType;
+    using W = signals::core::FirWindow;
+    const ClassicalSpec hamming{M::window, signals::core::IirFamily::butterworth, T::lowpass, 31, {0.25}, 1, 40, W::hamming};
+    const auto ref = classical_ref(hamming);
+    CHECK(ref.label() == "Окно Хэмминга ФНЧ 31 · 0,25π");
+    const auto back = parse_classical(ref.wavelet);
+    REQUIRE(back);
+    CHECK(back->method == M::window);
+    CHECK(back->window == W::hamming);
+    const auto a = analyze(ref, 512);
+    REQUIRE(a);
+    CHECK(a->h.coeffs == *signals::core::firwin(31, std::vector<double>{0.25}, W::hamming, true));
+    CHECK(a->linear_phase);
+    const ClassicalSpec kaiser{M::window, signals::core::IirFamily::butterworth, T::highpass, 41, {0.5}, 1, 60, W::kaiser};
+    const auto k = analyze(classical_ref(kaiser), 512);
+    REQUIRE(k);
+    CHECK(k->response.magnitude[511] == Catch::Approx(1).margin(1e-2));
+    CHECK(k->response.magnitude[0] < 1e-2);
+    const ClassicalSpec sampled{M::freqsamp, signals::core::IirFamily::butterworth, T::lowpass, 33, {0.4, 0.5}, 1, 40, W::hamming};
+    CHECK(classical_ref(sampled).label() == "Частотная выборка ФНЧ 33 · 0,40–0,50π");
+    const auto s = analyze(classical_ref(sampled), 512);
+    REQUIRE(s);
+    CHECK(s->h.coeffs.size() == 33);
+    CHECK(s->response.magnitude[64] == Catch::Approx(1).margin(2e-2));
+    CHECK_FALSE(parse_classical("window/triangle/lowpass/31/0.25/rp1/rs40"));
 }
