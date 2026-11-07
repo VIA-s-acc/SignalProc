@@ -114,6 +114,7 @@ std::vector<double> real_cepstrum(std::span<const double> x) {
     auto spectrum = fft(std::vector<C>(x.begin(), x.end()), true);
     double peak = 0;
     for (const auto& v : spectrum) peak = std::max(peak, std::abs(v));
+    if (!(peak > 0)) return std::vector<double>(x.size(), 0.0);
     for (auto& v : spectrum) v = std::log(std::abs(v) + 1e-12 * peak);
     const auto back = fft(std::move(spectrum), false);
     std::vector<double> out(back.size());
@@ -193,11 +194,13 @@ Result<Thd> thd(std::span<const double> x, double fs, int harmonics) {
     for (std::size_t k = 0; k < power.size(); ++k) power[k] = std::norm(spectrum[k]);
     const auto top = power.size() - 1;
     if (top <= 2 * kLobe + 2) return make_error(Errc::invalid_argument, "thd: the signal is too short");
-    const auto peak = static_cast<std::size_t>(std::max_element(power.begin() + kLobe + 1, power.end() - 1) - power.begin());
+    const auto peak = static_cast<std::size_t>(std::max_element(power.begin() + 1, power.end() - 1) - power.begin());
     if (!(power[peak] > 0)) return make_error(Errc::invalid_argument, "thd: no tone in the signal");
+    if (peak < 2 * kLobe + 2)
+        return make_error(Errc::invalid_argument, "thd: the tone is too low for this length — its band overlaps the second harmonic; use a longer signal");
     const double a = std::log(power[peak - 1] + 1e-300), b = std::log(power[peak]), c = std::log(power[peak + 1] + 1e-300);
     const double denom = a - 2 * b + c;
-    const double position = static_cast<double>(peak) + (denom != 0 ? 0.5 * (a - c) / denom : 0.0);
+    const double position = static_cast<double>(peak) + (denom != 0 ? std::clamp(0.5 * (a - c) / denom, -0.5, 0.5) : 0.0);
     auto band = [&](double at) {
         const auto centre = static_cast<std::ptrdiff_t>(std::llround(at));
         double sum = 0;
@@ -217,6 +220,7 @@ Result<Thd> thd(std::span<const double> x, double fs, int harmonics) {
         rest += p;
         r.harmonic_db.push_back(10 * std::log10(std::max(p, 1e-300) / fundamental));
     }
+    if (r.harmonic_db.empty()) return make_error(Errc::invalid_argument, "thd: no harmonic of this tone lies below Nyquist");
     r.thd = std::sqrt(rest / fundamental);
     r.thd_db = 20 * std::log10(std::max(r.thd, 1e-15));
     return r;

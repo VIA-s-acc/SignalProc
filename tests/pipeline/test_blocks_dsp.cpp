@@ -17,6 +17,7 @@
 #include "core/metrics.hpp"
 #include "core/multirate.hpp"
 #include "core/process/shrink.hpp"
+#include "io/generators.hpp"
 #include "io/wav.hpp"
 #include "pipeline/block.hpp"
 #include "support/golden.hpp"
@@ -378,4 +379,44 @@ TEST_CASE("export writes csv and json that read back", "[pipeline][analysis]") {
     CHECK_FALSE(t->run(RunContext{dir}, std::vector<Value>{x}, *params));
     CHECK_FALSE(std::filesystem::exists(dir / "missing"));
     std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("m6g review: exports are side effects, stream to disk and stop on cancel", "[pipeline][analysis]") {
+    CHECK(find_block_type("export")->side_effect);
+    CHECK(find_block_type("export_report")->side_effect);
+    struct Stop final : core::ProgressSink {
+        void report(double) override {}
+        bool cancelled() const override { return true; }
+    } stop;
+    const auto dir = std::filesystem::temp_directory_path() / "signals-export-cancel";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    core::AudioBuffer x;
+    x.sample_rate = 48000;
+    x.channels = {std::vector<double>(200000, 0.5)};
+    const auto* t = find_block_type("export");
+    const auto params = resolve_params(*t, {{"path", (dir / "big.csv").string()}});
+    REQUIRE(params);
+    RunContext ctx{dir};
+    ctx.progress = &stop;
+    const auto r = t->run(ctx, std::vector<Value>{x}, *params);
+    REQUIRE_FALSE(r);
+    CHECK(r.error().code == core::Errc::cancelled);
+    CHECK(std::filesystem::is_empty(dir));
+    Report rep;
+    rep.fields = {{"path", std::string{"/tmp/my \"best\", take.wav"}}};
+    run("export_report", {rep}, {{"path", (dir / "r.csv").string()}, {"format", "csv"}});
+    std::ifstream in{dir / "r.csv"};
+    std::string header, line;
+    std::getline(in, header);
+    std::getline(in, line);
+    CHECK(line == "path,\"/tmp/my \"\"best\"\", take.wav\"");
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("m6g review: the cepstrum of silence is zero and gen scales the test signals", "[pipeline][analysis]") {
+    for (double v : core::real_cepstrum(std::vector<double>(8, 0.0))) CHECK(v == 0);
+    const auto y = audio(run("gen", {}, {{"kind", "bumps"}, {"rate", "1024"}, {"duration", "1"}, {"amplitude", "0.1"}})[0]);
+    const auto ref = io::donoho_johnstone(io::DonohoJohnstone::bumps, 1024);
+    for (std::size_t n = 0; n < ref.size(); n += 97) CHECK(y.channels[0][n] == 0.1 * ref[n]);
 }

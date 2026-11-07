@@ -74,6 +74,8 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                            const std::vector<double> amplitudes{a, a / 2, a / 4, a / 8};
                            x = io::harmonics(f, amplitudes, rate, n, ctx.progress);
                        }
+                       if (kind == "doppler" || kind == "blocks" || kind == "bumps" || kind == "heavisine")
+                           for (auto& v : x) v *= a;
                        if (cancelled(ctx)) return core::make_error(core::Errc::cancelled, "gen: cancelled");
                        core::AudioBuffer buffer;
                        buffer.sample_rate = rate;
