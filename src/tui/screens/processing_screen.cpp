@@ -379,8 +379,9 @@ bool ProcessingScreen::OnEvent(ftxui::Event e) {
         }
         if (drag_.active) {
             if (m.y != drag_.last_y) {
+                const double before = model_->options().scale;
                 set_scale(drag_.scale * std::pow(1.15, drag_.y - m.y), !drag_.moved);
-                drag_.moved = true;
+                if (model_->options().scale != before) drag_.moved = true;
                 drag_.last_y = m.y;
             }
             if (m.motion == Mouse::Released) drag_.active = false;

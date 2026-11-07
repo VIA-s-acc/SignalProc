@@ -206,3 +206,22 @@ TEST_CASE("m7c: the second toolbar row at 80×24 ends with an ellipsis instead o
     INFO(row);
     CHECK(row.find("…") != std::string::npos);
 }
+
+TEST_CASE("m7d: a λ drag that starts at the limit still undoes in one step", "[tui][processing]") {
+    ProcessingFixture f;
+    auto o = f.model->options();
+    o.scale = 10;
+    f.model->set_options(o, f.jobs);
+    o.rule = signals::core::ShrinkRule::visu;
+    f.model->set_options(o, f.jobs);
+    const auto b = f.screen->area("coeffs_panel");
+    const int x = (b.x_min + b.x_max) / 2, y = (b.y_min + b.y_max) / 2;
+    f.h.send(left(ftxui::Mouse::Pressed, x, y));
+    f.h.send(left(ftxui::Mouse::Moved, x, y - 1));
+    f.h.send(left(ftxui::Mouse::Moved, x, y + 2));
+    f.h.send(left(ftxui::Mouse::Released, x, y + 2));
+    REQUIRE(f.model->options().scale < 10);
+    f.h.send(ftxui::Event::Character('u'));
+    CHECK(f.model->options().scale == 10);
+    CHECK(f.model->options().rule == signals::core::ShrinkRule::visu);
+}

@@ -153,7 +153,7 @@ std::optional<FilterRef> spectrum_step(const FilterRef& ref, int step) {
 }
 
 FilterRef custom_ref(const core::Laurent& h, std::string title) {
-    std::string key;
+    std::string key = h.offset != 0 ? fmt::format("@{}:", h.offset) : std::string{};
     for (std::size_t k = 0; k < h.coeffs.size(); ++k) key += (k ? "," : "") + fmt::format("{:.17g}", h.coeffs[k]);
     FilterRef r{FilterRef::Kind::custom, std::move(key), FilterRole::h0};
     r.title = std::move(title);
@@ -477,7 +477,16 @@ namespace {
 core::Result<FilterAnalysis> analyze_custom(const FilterRef& ref, std::size_t points) {
     FilterAnalysis a;
     a.ref = ref;
-    std::istringstream in{ref.wavelet};
+    std::string_view taps = ref.wavelet;
+    if (taps.starts_with('@')) {
+        const auto colon = taps.find(':');
+        if (colon == std::string_view::npos) return core::make_error(core::Errc::invalid_argument, "custom filter: bad offset in " + ref.wavelet);
+        std::istringstream offset{std::string{taps.substr(1, colon - 1)}};
+        offset.imbue(std::locale::classic());
+        if (!(offset >> a.h.offset)) return core::make_error(core::Errc::invalid_argument, "custom filter: bad offset in " + ref.wavelet);
+        taps.remove_prefix(colon + 1);
+    }
+    std::istringstream in{std::string{taps}};
     in.imbue(std::locale::classic());
     for (std::string part; std::getline(in, part, ',');) {
         std::istringstream value{part};
