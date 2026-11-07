@@ -460,3 +460,26 @@ TEST_CASE("c types a custom filter, adds it and saves a named one", "[tui][filte
     set_user_filters({});
     std::filesystem::remove_all(dir);
 }
+
+TEST_CASE("m6h review: a custom filter in focus keeps the wavelet groups, and c shows its prompt at 80×24", "[tui][filters][custom]") {
+    {
+        Fixture f;
+        Harness h{f.screen, 150, 44};
+        h.frame();
+        h.send(ftxui::Event::Character('c'));
+        h.send(ftxui::Event::Character("0.25 0.5 0.25"));
+        h.send(ftxui::Event::Return);
+        REQUIRE(f.set->entries().size() == 1);
+        const auto frame = h.frame();
+        CHECK(frame.find("Эквивалентные (db2") != std::string::npos);
+        CHECK(frame.find("0.25,0.5") == std::string::npos);
+    }
+    Fixture f{80, 24};
+    Harness h{f.screen, 80, 24};
+    h.frame();
+    h.send(ftxui::Event::Character('c'));
+    h.send(ftxui::Event::Character("abc"));
+    CHECK(h.frame().find("свой фильтр: abc") != std::string::npos);
+    h.send(ftxui::Event::Return);
+    CHECK(h.frame().find("Не число") != std::string::npos);
+}

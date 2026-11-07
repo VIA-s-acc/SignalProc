@@ -174,13 +174,15 @@ void MatrixModel::set(MatrixOptions o, JobRunner& jobs) {
                 for (std::size_t i = 0; i + k < h.coeffs.size(); ++i) r[k] += h.coeffs[i] * h.coeffs[i + k];
             e[0] = 1;
             if (const auto lv = core::levinson_solve(r, e)) {
-                double worst = 0;
+                double worst = 0, norm_t = std::abs(r[0]), norm_x = 0;
+                for (std::size_t k = 1; k < o.n; ++k) norm_t += 2 * std::abs(r[k]);
+                for (double v : lv->x) norm_x = std::max(norm_x, std::abs(v));
                 for (std::size_t i = 0; i < o.n; ++i) {
                     double s = 0;
                     for (std::size_t j = 0; j < o.n; ++j) s += r[i > j ? i - j : j - i] * lv->x[j];
                     worst = std::max(worst, std::abs(s - e[i]));
                 }
-                d->levinson_error = worst;
+                d->levinson_error = norm_t > 0 && norm_x > 0 ? worst / (norm_t * norm_x) : worst;
             }
             for (Eigen::Index k = 0; k < a.rows(); ++k) {
                 d->row_names.push_back("y" + sub(static_cast<std::size_t>(k)));

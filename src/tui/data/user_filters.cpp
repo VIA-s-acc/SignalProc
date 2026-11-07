@@ -37,17 +37,48 @@ bool real_number(std::string_view s, double& out) {
     return !in.fail() && in.peek() == std::char_traits<char>::eof() && std::isfinite(out);
 }
 
-std::vector<std::string> tokens(std::string_view s) {
-    std::vector<std::string> out;
-    std::string cur;
-    for (const char c : s) {
-        if (std::isspace(static_cast<unsigned char>(c)) || c == ',' || c == ';') {
-            if (!cur.empty()) out.push_back(std::exchange(cur, {}));
+void push_number_token(std::vector<std::string>& out, std::string token) {
+    if (token.empty()) return;
+    const auto comma = token.find(',');
+    if (comma == std::string::npos) {
+        out.push_back(std::move(token));
+        return;
+    }
+    const bool single = token.find(',', comma + 1) == std::string::npos && token.find('.') == std::string::npos;
+    if (single && comma > 0 && comma + 1 < token.size() && std::isdigit(static_cast<unsigned char>(token[comma - 1])) &&
+        std::isdigit(static_cast<unsigned char>(token[comma + 1]))) {
+        token[comma] = '.';
+        out.push_back(std::move(token));
+        return;
+    }
+    std::string piece;
+    for (const char c : token) {
+        if (c == ',') {
+            if (!piece.empty()) out.push_back(std::exchange(piece, {}));
         } else {
-            cur += c;
+            piece += c;
         }
     }
-    if (!cur.empty()) out.push_back(cur);
+    if (!piece.empty()) out.push_back(piece);
+}
+
+std::vector<std::string> tokens(std::string_view s) {
+    std::string text;
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        if (s.substr(i).starts_with("−")) {
+            text += '-';
+            i += std::string_view{"−"}.size() - 1;
+        } else {
+            text += s[i];
+        }
+    }
+    std::vector<std::string> out;
+    std::string cur;
+    for (const char c : text) {
+        if (std::isspace(static_cast<unsigned char>(c)) || c == ';') push_number_token(out, std::exchange(cur, {}));
+        else cur += c;
+    }
+    push_number_token(out, cur);
     return out;
 }
 
@@ -82,10 +113,16 @@ bool root_token(std::string_view s, std::vector<std::complex<double>>& roots) {
 core::Error custom_error(const std::string& message) { return core::Error{core::Errc::invalid_argument, message}; }
 
 std::string file_stem(const std::string& name) {
+    constexpr std::size_t kMaxStem = 120;
     std::string out;
     for (unsigned char c : name) {
         if (c >= 0x80 || std::isalnum(c) || c == '-' || c == '_') out += static_cast<char>(c);
         else if (c == ' ') out += '_';
+    }
+    if (out.size() > kMaxStem) {
+        std::size_t cut = kMaxStem;
+        while (cut > 0 && (static_cast<unsigned char>(out[cut]) & 0xC0) == 0x80) --cut;
+        out.resize(cut);
     }
     return out.empty() ? std::string{"bank"} : out;
 }
@@ -171,7 +208,10 @@ core::Result<CustomFilter> parse_custom_filter(std::string_view text) {
         peak = std::max(peak, std::abs(poly[k].real()));
     }
     const double scale = std::abs(sum) > 1e-12 * peak ? sum : std::abs(alternating) > 1e-12 * peak ? alternating : peak;
-    for (auto& v : out.h.coeffs) v /= scale;
+    for (auto& v : out.h.coeffs) {
+        v /= scale;
+        if (!std::isfinite(v)) return std::unexpected{custom_error(tr("tui.filters.custom.error.overflow"))};
+    }
     return out;
 }
 
@@ -191,10 +231,11 @@ core::Result<std::filesystem::path> save_user_bank(const std::filesystem::path& 
     std::set<std::string, std::less<>> taken;
     for (const auto& b : load_user_banks(dir).banks) taken.insert(b.name);
     const auto base = bank.name;
-    auto path = dir / (file_stem(base) + ".flt");
-    for (int n = 2; taken.contains(bank.name) || std::filesystem::exists(path); ++n) {
+    const auto stem = file_stem(base);
+    auto path = dir / (stem + ".flt");
+    for (int n = 2; taken.contains(bank.name) || std::filesystem::exists(path, ec); ++n) {
         bank.name = base + "-" + std::to_string(n);
-        path = dir / (file_stem(bank.name) + ".flt");
+        path = dir / (stem + "-" + std::to_string(n) + ".flt");
     }
     std::ofstream out{path, std::ios::binary};
     if (!out) return core::make_error(core::Errc::io_error, "cannot write " + path.string());
@@ -216,10 +257,11 @@ core::Result<std::filesystem::path> save_user_filter(const std::filesystem::path
     std::set<std::string, std::less<>> taken;
     for (const auto& f : load_user_banks(dir).filters) taken.insert(f.name);
     const auto base = filter.name;
-    auto path = dir / (file_stem(base) + ".flt");
-    for (int n = 2; taken.contains(filter.name) || std::filesystem::exists(path); ++n) {
+    const auto stem = file_stem(base);
+    auto path = dir / (stem + ".flt");
+    for (int n = 2; taken.contains(filter.name) || std::filesystem::exists(path, ec); ++n) {
         filter.name = base + "-" + std::to_string(n);
-        path = dir / (file_stem(filter.name) + ".flt");
+        path = dir / (stem + "-" + std::to_string(n) + ".flt");
     }
     std::ofstream out{path, std::ios::binary};
     if (!out) return core::make_error(core::Errc::io_error, "cannot write " + path.string());

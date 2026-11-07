@@ -164,3 +164,35 @@ TEST_CASE("user filters are saved beside the banks and load back", "[tui][user_f
     CHECK(lib.filters[0].h.coeffs == f.h.coeffs);
     std::filesystem::remove_all(dir);
 }
+
+TEST_CASE("m6h review: decimal commas, unicode minus, overflow and long names", "[tui][user_filters][custom]") {
+    auto c = parse_custom_filter("0,5 0,5");
+    REQUIRE(c);
+    CHECK(c->h.coeffs == std::vector<double>{0.5, 0.5});
+    c = parse_custom_filter("+0,250 +0,500 +0,250");
+    REQUIRE(c);
+    CHECK(c->h.coeffs == std::vector<double>{0.25, 0.5, 0.25});
+    c = parse_custom_filter("1,2,3");
+    REQUIRE(c);
+    CHECK(c->h.coeffs == std::vector<double>{1, 2, 3});
+    c = parse_custom_filter("0.25,0.5");
+    REQUIRE(c);
+    CHECK(c->h.coeffs == std::vector<double>{0.25, 0.5});
+    c = parse_custom_filter("z: −1 −1");
+    REQUIRE(c);
+    CHECK(c->h.coeffs == std::vector<double>{0.25, 0.5, 0.25});
+    CHECK_FALSE(parse_custom_filter("z: 1e200 1e200"));
+    const auto dir = fresh_dir("signals-long-name");
+    std::string name;
+    for (int k = 0; k < 200; ++k) name += "ф";
+    UserFilter f{name, core::Laurent{{1.0}, 0}, ""};
+    const auto saved = save_user_filter(dir, f);
+    REQUIRE(saved);
+    CHECK(std::filesystem::exists(*saved));
+    UserBank b{name, core::wavelet("db2")->h0, core::wavelet("db2")->f0, ""};
+    CHECK(save_user_bank(dir, b));
+    const auto lib = load_user_banks(dir);
+    REQUIRE(lib.filters.size() == 1);
+    CHECK(lib.filters[0].name == name);
+    std::filesystem::remove_all(dir);
+}

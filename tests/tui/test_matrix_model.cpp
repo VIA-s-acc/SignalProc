@@ -180,3 +180,17 @@ TEST_CASE("toeplitz plus hankel is diagonal in the dct-ii basis for a symmetric 
     m.set(o, jobs);
     CHECK_FALSE(m.data()->singular.empty());
 }
+
+TEST_CASE("m6h review: the levinson check is relative and passes for db8 at N = 256", "[tui][matrix][toeplitz_hankel]") {
+    JobRunner jobs{[] {}, std::chrono::milliseconds{0}, true};
+    MatrixModel m;
+    MatrixOptions o;
+    o.op = MatrixOp::toeplitz_hankel;
+    o.wavelet = "db8";
+    o.n = 256;
+    m.set(o, jobs);
+    const auto d = m.data();
+    REQUIRE(d);
+    REQUIRE(d->levinson_error);
+    CHECK(*d->levinson_error < 1e-10);
+}
