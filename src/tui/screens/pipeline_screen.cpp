@@ -107,6 +107,7 @@ std::vector<Hint> PipelineScreen::hints() const {
             {"M", tr("tui.pipeline.hint.bypass")},         {"p", tr("tui.pipeline.hint.probe")},     {"Del", tr("tui.pipeline.hint.delete")},
             {"Ctrl+Z/Y", tr("tui.pipeline.hint.undo")},    {"Ctrl+S", tr("tui.pipeline.hint.save")}, {"o", tr("tui.pipeline.hint.open")},
             {"r", tr("tui.pipeline.hint.run")},           {"A/B", tr("tui.pipeline.hint.ab")},      {"Space", tr("tui.pipeline.hint.listen")},
+            {"PgUp/PgDn", tr("tui.hint.page")},
             {"v", tr("tui.pipeline.hint.view")},          {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")},
             {"c/C", tr("tui.pipeline.hint.connect_keys")}};
 }
@@ -1005,6 +1006,8 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
         notice_.clear();
         return true;
     }
+    if (focus_ == kRun && key_scroll(e, run_scroll_)) return true;
+    if (focus_ == kText && key_scroll(e, text_scroll_)) return true;
     if (e == Event::ArrowRight) return move_selection(1, 0), true;
     if (e == Event::ArrowLeft) return move_selection(-1, 0), true;
     if (e == Event::ArrowDown) return move_selection(0, 1), true;

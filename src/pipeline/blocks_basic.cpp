@@ -49,16 +49,19 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                        core::AudioBuffer a;
                        a.sample_rate = static_cast<double>(param_int(p, "rate"));
                        std::vector<double> values;
-                       std::string token;
-                       std::istringstream in{param_text(p, "values")};
+                       auto text = param_text(p, "values");
+                       for (auto& c : text)
+                           if (c == ',' || c == ';') c = ' ';
+                       std::istringstream in{text};
                        in.imbue(std::locale::classic());
-                       while (in >> token) {
-                           for (auto& c : token)
-                               if (c == ',' || c == ';') c = ' ';
+                       for (std::string token; in >> token;) {
                            std::istringstream part{token};
                            part.imbue(std::locale::classic());
-                           for (double v = 0; part >> v;) values.push_back(v);
-                           if (!part.eof()) return core::make_error(core::Errc::invalid_argument, "samples: not a number: " + token);
+                           double v = 0;
+                           part >> v;
+                           if (part.fail() || part.peek() != std::char_traits<char>::eof() || !std::isfinite(v))
+                               return core::make_error(core::Errc::invalid_argument, "samples: not a finite number: " + token);
+                           values.push_back(v);
                        }
                        if (values.empty()) return core::make_error(core::Errc::invalid_argument, "samples: list the values, e.g. 4 6 10 12");
                        a.channels.push_back(std::move(values));

@@ -100,7 +100,7 @@ private:
         bool on = false;
     };
     ftxui::Element chip_rows(std::vector<Item> items, int width, int indent);
-    std::vector<ftxui::Element> chip_lines(std::vector<Item> items, int width, int indent);
+    std::vector<ftxui::Element> chip_lines(std::vector<Item> items, int width, int indent, std::optional<std::size_t>* on_line = nullptr);
 
     Axis omega_axis() const;
     double to_axis(double w) const;
@@ -142,6 +142,7 @@ private:
     std::array<ftxui::Box, 3> plot_boxes_{};
     std::deque<Clickable> clickables_;
     Scroll library_scroll_, roots_scroll_;
+    std::size_t match_follow_ = static_cast<std::size_t>(-1);
     PlotZoom impulse_zoom_;
     ZView zview_;
     ftxui::Box zplane_box_{}, roots_box_{};

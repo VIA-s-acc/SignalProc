@@ -1,6 +1,7 @@
 #include "tui/widgets/scroll.hpp"
 
 #include <algorithm>
+#include <limits>
 
 #include <fmt/format.h>
 
@@ -33,6 +34,18 @@ bool wheel_scroll(const ftxui::Mouse& m, const ftxui::Box& box, Scroll& scroll, 
     if (m.button == ftxui::Mouse::WheelDown) scroll.first += static_cast<std::size_t>(step);
     else scroll.first = scroll.first > static_cast<std::size_t>(step) ? scroll.first - static_cast<std::size_t>(step) : 0;
     return true;
+}
+
+bool key_scroll(const ftxui::Event& e, Scroll& scroll, bool arrows, std::size_t page) {
+    using ftxui::Event;
+    auto& first = scroll.first;
+    if (arrows && e == Event::ArrowUp) return first = first > 0 ? first - 1 : 0, true;
+    if (arrows && e == Event::ArrowDown) return ++first, true;
+    if (e == Event::PageUp) return first = first > page ? first - page : 0, true;
+    if (e == Event::PageDown) return first += page, true;
+    if (e == Event::Home) return first = 0, true;
+    if (e == Event::End) return first = std::numeric_limits<std::size_t>::max() / 2, true;
+    return false;
 }
 
 }  // namespace signals::tui

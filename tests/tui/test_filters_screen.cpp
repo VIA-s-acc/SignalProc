@@ -568,3 +568,29 @@ TEST_CASE("the impulse plot and the z-plane zoom with the wheel and the roots li
     for (int k = 0; k < 10; ++k) h.wheel((list.x_min + list.x_max) / 2, (list.y_min + list.y_max) / 2, false);
     CHECK(h.frame().find("▲") != std::string::npos);
 }
+
+TEST_CASE("the library scrolls from the keyboard and the search keeps the highlighted match in view", "[tui][filters][scroll]") {
+    Fixture f{120, 40};
+    Harness h{f.screen, 120, 37};
+    auto frame = h.frame();
+    for (const auto* header : {"▸ Спектры", "▸ CWT", "▸ Пакеты"}) {
+        const auto at = signals::test::locate(frame, header);
+        if (!at) continue;
+        h.click(at->first + 2, at->second);
+        frame = h.frame();
+    }
+    const auto box = f.screen->area("library");
+    h.click(box.x_min + 2, box.y_max - 1);
+    h.send(ftxui::Event::End);
+    frame = h.frame();
+    CHECK(frame.find("Мои фильтры") != std::string::npos);
+    CHECK(frame.find("▲") != std::string::npos);
+    h.send(ftxui::Event::Home);
+    h.send(ftxui::Event::Character('/'));
+    frame = h.frame();
+    REQUIRE(frame.find("▼ ещё") != std::string::npos);
+    h.send(ftxui::Event::End);
+    frame = h.frame();
+    CHECK(frame.find("▲ ещё") != std::string::npos);
+    CHECK(frame.find("▼ ещё") == std::string::npos);
+}

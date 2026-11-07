@@ -307,3 +307,15 @@ TEST_CASE("the processing wavelet is picked from a list that includes the user b
     CHECK(f.h.frame().find("my_bank ▾") != std::string::npos);
     signals::core::set_user_wavelets({}, {});
 }
+
+TEST_CASE("the coefficient bands scroll from the keyboard when the panel has focus", "[tui][processing][scroll]") {
+    ProcessingFixture f{120, 40};
+    for (int k = 0; k < 6; ++k) f.h.send(ftxui::Event::Character('j'));
+    f.h.frame();
+    const auto panel = f.screen->area("coeffs_panel");
+    f.h.click(panel.x_min + 3, panel.y_min + 1);
+    f.h.send(ftxui::Event::PageDown);
+    CHECK(f.h.frame().find("▲ ещё") != std::string::npos);
+    f.h.send(ftxui::Event::Home);
+    CHECK(f.h.frame().find("▲ ещё") == std::string::npos);
+}

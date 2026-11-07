@@ -642,3 +642,26 @@ TEST_CASE("check delay=auto needs the whole reference and rejects a bad delay", 
         CHECK_FALSE(t->run(RunContext{std::filesystem::temp_directory_path()}, std::vector<Value>{x, good}, *params));
     }
 }
+
+TEST_CASE("samples refuses values it cannot read instead of dropping them", "[pipeline][teaching][review]") {
+    const auto* t = find_block_type("samples");
+    for (const char* bad : {"1 1e999 3", "1 2x 3", "nan 1", "1 inf"}) {
+        const auto params = resolve_params(*t, {{"values", bad}});
+        REQUIRE(params);
+        INFO(bad);
+        CHECK_FALSE(t->run(RunContext{std::filesystem::temp_directory_path()}, std::vector<Value>{}, *params));
+    }
+    const auto ok = audio(run("samples", {}, {{"values", "1, -2.5;3e2"}, {"rate", "8"}})[0]);
+    CHECK(ok.channels[0] == std::vector<double>{1, -2.5, 300});
+}
+
+TEST_CASE("a built-in bank role wins over a user filter with the same name", "[pipeline][user_banks][review]") {
+    core::set_named_filters([](std::string_view name) -> std::optional<core::Laurent> {
+        if (name != "db2.h0") return std::nullopt;
+        return core::Laurent{{1.0}, 0};
+    }, [] { return std::vector<std::string>{"db2.h0"}; });
+    const auto x = audio(run("samples", {}, {{"values", "1 0 0 0 0 0"}, {"rate", "8"}})[0]);
+    const auto y = audio(run("convolve", {x}, {{"filter", "db2.h0"}, {"method", "direct"}})[0]);
+    CHECK(y.channels[0][0] == Catch::Approx(core::wavelet("db2")->h0.coeffs[0]));
+    core::set_named_filters({}, {});
+}

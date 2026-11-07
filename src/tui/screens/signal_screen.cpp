@@ -646,6 +646,7 @@ bool SignalScreen::OnEvent(ftxui::Event e) {
     using ftxui::Event;
     if (e.is_mouse()) return on_mouse(e.mouse());
     if (focus_ == log && on_log_key(e)) return true;
+    if (focus_ == source && key_scroll(e, source_scroll_)) return true;
     if (e == Event::Character(' ')) {
         toggle_playback();
         return true;

@@ -59,11 +59,13 @@ std::vector<std::string> split_list(const std::string& s) {
 core::Result<core::FilterBank> bank_of(const std::string& name) { return core::wavelet(name); }
 
 core::Result<core::Laurent> filter_of(const std::string& spec) {
-    if (auto mine = core::named_filter(spec)) return std::move(*mine);
     const auto dot = spec.rfind('.');
-    if (dot == std::string::npos) return core::make_error(core::Errc::invalid_argument, "filter must look like db2.h0 or name a filter from the user library");
-    auto bank = bank_of(spec.substr(0, dot));
-    if (!bank) return std::unexpected{bank.error()};
+    auto bank = dot == std::string::npos ? core::Result<core::FilterBank>{core::make_error(core::Errc::invalid_argument, "filter must look like db2.h0 or name a filter from the user library")}
+                                         : bank_of(spec.substr(0, dot));
+    if (!bank) {
+        if (auto mine = core::named_filter(spec)) return std::move(*mine);
+        return std::unexpected{bank.error()};
+    }
     const auto role = spec.substr(dot + 1);
     if (role == "h0") return bank->h0;
     if (role == "h1") return bank->h1;

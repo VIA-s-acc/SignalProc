@@ -728,3 +728,28 @@ TEST_CASE("mra component and check delay are picked from lists", "[tui][pipeline
         f.h.send(ftxui::Event::Escape);
     }
 }
+
+TEST_CASE("the run panel and the .sig text scroll from the keyboard when focused", "[tui][pipeline_screen][scroll]") {
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    const auto commands = f.screen->commands();
+    std::find_if(commands.begin(), commands.end(), [](const Command& c) { return c.id == "pipeline.example"; })->run();
+    std::find_if(items.begin(), items.end(), [](const Command& c) { return c.id == "haar_two_levels"; })->run();
+    f.model->run(f.jobs);
+    for (int k = 0; k < 2000 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    f.h.frame();
+    for (const char* id : {"run_panel", "text_panel"}) {
+        const auto box = f.screen->area(id);
+        REQUIRE(box.x_max > box.x_min);
+        f.h.click(box.x_min + 2, box.y_max - 1);
+        const auto before = f.h.frame();
+        f.h.send(ftxui::Event::PageDown);
+        f.h.send(ftxui::Event::PageDown);
+        const auto after = f.h.frame();
+        CHECK(after != before);
+        std::size_t ups = 0;
+        for (auto at = after.find("▲ ещё"); at != std::string::npos; at = after.find("▲ ещё", at + 1)) ++ups;
+        CHECK(ups >= 1);
+    }
+}

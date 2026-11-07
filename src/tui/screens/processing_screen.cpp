@@ -72,7 +72,7 @@ std::vector<Hint> ProcessingScreen::hints() const {
     return {{"Tab", tr("tui.explain.hint.tab")},       {"z", tr("tui.signal.hint.zoom")},          {"a/b/x", tr("tui.processing.hint.view")},
             {"w", tr("tui.decomposition.wavelet")}, {"j/J", tr("tui.decomposition.hint.levels")}, {"m", tr("tui.processing.hint.method")},  {"s", tr("tui.processing.hint.mode")},      {"[ ]", tr("tui.processing.hint.scale")},
             {tr("tui.spectrum.key.drag"), "±λ"},       {"e", tr("tui.processing.hint.eq")},        {"u", tr("tui.decomposition.hint.undo")},
-            {"Space", tr("tui.processing.hint.stop")}, {"F1", tr("tui.processing.hint.f1")}};
+            {"Space", tr("tui.processing.hint.stop")}, {"PgUp/PgDn", tr("tui.hint.page")}, {"F1", tr("tui.processing.hint.f1")}};
 }
 
 std::optional<TheoryLink> ProcessingScreen::theory_link() const { return TheoryLink{TheoryLink::Kind::card, "threshold"}; }
@@ -524,6 +524,7 @@ bool ProcessingScreen::OnEvent(ftxui::Event e) {
     if (e == Event::Character('e')) return set_preset((active_preset() < kPresets.size() ? active_preset() : preset_) + 1), true;
     if (e == Event::Character('j')) return change([](ProcessingOptions& o) { o.levels = std::min<std::size_t>(10, o.levels + 1); }), true;
     if (e == Event::Character('J')) return change([](ProcessingOptions& o) { o.levels = std::max<std::size_t>(1, o.levels - 1); }), true;
+    if (focus_ == coeffs_panel && key_scroll(e, bands_scroll_)) return true;
     if (e == Event::Character('w')) return pick_wavelet(), true;
     if (e == Event::Character('r')) return model_->recompute(jobs), true;
     if (e == Event::Character('u')) return model_->undo(jobs), true;

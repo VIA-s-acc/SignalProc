@@ -143,6 +143,7 @@ std::vector<Hint> FiltersScreen::hints() const {
             {"/", tr("tui.filters.hint.search")},     {"Enter", tr("tui.filters.hint.add")},
             {"Space", tr("tui.filters.hint.visible")}, {"r", tr("tui.filters.hint.reference")},
             {"Del", tr("tui.filters.hint.remove")},    {"←→", tr("tui.filters.hint.cursor")},
+            {"PgUp/PgDn", tr("tui.hint.page")},
             {"b", tr("tui.signal.hint.cursor_b")},     {"+ − 0 < >", tr("tui.hint.plot_zoom")},
             {"[ ]", tr("tui.filters.hint.vertical")},  {"↑↓", tr("tui.filters.hint.focus_row")},
             {"l", tr("tui.filters.hint.log")},         {"d", tr("tui.filters.hint.db")},
@@ -375,7 +376,7 @@ ftxui::Element FiltersScreen::clickable(ftxui::Element e, std::function<void()> 
 
 ftxui::Element FiltersScreen::chip_rows(std::vector<Item> items, int width, int indent) { return ftxui::vbox(chip_lines(std::move(items), width, indent)); }
 
-std::vector<ftxui::Element> FiltersScreen::chip_lines(std::vector<Item> items, int width, int indent) {
+std::vector<ftxui::Element> FiltersScreen::chip_lines(std::vector<Item> items, int width, int indent, std::optional<std::size_t>* on_line) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     Elements rows, row;
@@ -389,6 +390,7 @@ std::vector<ftxui::Element> FiltersScreen::chip_lines(std::vector<Item> items, i
             used = indent;
             if (indent) row.push_back(text(std::string(static_cast<std::size_t>(indent), ' ')));
         }
+        if (item.on && on_line && !*on_line) *on_line = rows.size();
         auto t = text(ellipsize(item.label, std::max(4, width - indent - 1), ui_.caps.glyphs == GlyphMode::ascii));
         t = item.on ? t | bold | fg(th.bg, ui_) | bg(th.trace[0], ui_) : t | fg(th.fg, ui_);
         row.push_back(clickable(t, std::move(item.action)));
@@ -487,6 +489,7 @@ ftxui::Element FiltersScreen::library_panel(int width, int height) {
     const auto open = std::string{ui_.caps.glyphs == GlyphMode::ascii ? "v" : "▾"};
     const auto closed = std::string{ui_.caps.glyphs == GlyphMode::ascii ? ">" : "▸"};
     Elements list;
+    std::optional<std::size_t> follow;
     const auto append = [&](Elements lines) {
         for (auto& l : lines) list.push_back(std::move(l));
     };
@@ -494,8 +497,14 @@ ftxui::Element FiltersScreen::library_panel(int width, int height) {
         const auto m = matches();
         std::vector<Item> items;
         for (std::size_t i = 0; i < m.size(); ++i) items.push_back({m[i]->label, [this, n = m[i]] { add(*n->ref); searching_ = false; query_.clear(); }, i == match_index_});
-        if (items.empty()) list.push_back(text(tr("tui.filters.nothing")) | fg(th.dim, ui_));
-        else append(chip_lines(std::move(items), inner, 0));
+        if (items.empty()) {
+            list.push_back(text(tr("tui.filters.nothing")) | fg(th.dim, ui_));
+        } else {
+            std::optional<std::size_t> line;
+            append(chip_lines(std::move(items), inner, 0, &line));
+            if (match_index_ != match_follow_) follow = line;
+            match_follow_ = match_index_;
+        }
     } else {
         for (const auto& group : library_.children) {
             if (!group.later.empty()) {
@@ -533,7 +542,7 @@ ftxui::Element FiltersScreen::library_panel(int width, int height) {
     for (const auto* key : {"tui.filters.mouse_hint.wheel", "tui.filters.mouse_hint.drag"})
         for (const auto& part : wrap_words(tr(key), inner)) foot.push_back(text(part) | fg(th.dim, ui_));
     const int budget = std::max(3, height - 2 - static_cast<int>(rows.size()) - static_cast<int>(foot.size()));
-    rows.push_back(scrolled(std::move(list), library_scroll_, budget, std::nullopt, ui_));
+    rows.push_back(scrolled(std::move(list), library_scroll_, budget, follow, ui_));
     rows.push_back(filler());
     for (auto& l : foot) rows.push_back(std::move(l));
     return frame_panel(library, vbox(std::move(rows)), {}, tr("tui.filters.library"));
@@ -1232,6 +1241,7 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
     }
     if (e.is_mouse()) return on_mouse(e.mouse());
     if (focus_ == impulse && impulse_zoom_.on_key(e, "impulse")) return true;
+    if (focus_ == library && key_scroll(e, library_scroll_, false)) return true;
     if (focus_ == zeros && zview_.on_key(e, ZPlaneSpec{}.extent)) return true;
     if (focus_ == zeros && (e == Event::PageDown || e == Event::PageUp)) {
         roots_scroll_.first = e == Event::PageDown ? roots_scroll_.first + 5 : roots_scroll_.first > 5 ? roots_scroll_.first - 5 : 0;
