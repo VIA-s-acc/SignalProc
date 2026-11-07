@@ -12,6 +12,7 @@
 #include "core/spectral.hpp"
 #include "core/design/families.hpp"
 #include "i18n/i18n.hpp"
+#include "pipeline/examples.hpp"
 #include "pipeline/block.hpp"
 #include "pipeline/sig.hpp"
 #include "tui/shell/palette.hpp"
@@ -61,10 +62,25 @@ std::string PipelineScreen::context() const {
     return model_->path() ? model_->path()->filename().string() : tr("tui.pipeline.untitled");
 }
 
+void PipelineScreen::open_example(std::string_view name, std::string_view text) {
+    if (auto ok = model_->load_text(name, text); !ok) return report(ok);
+    const auto file = current_file_ ? current_file_() : std::nullopt;
+    if (!file) return;
+    for (const auto& n : model_->doc().nodes)
+        if (n.type == "wav") (void)model_->set_param(n.id, "path", std::filesystem::absolute(*file).string());
+}
+
 std::vector<Command> PipelineScreen::commands() {
     std::vector<Command> out;
     out.push_back({"pipeline.example", tr("tui.pipeline.cmd.example"), [this] {
-                       report(model_->load(std::filesystem::path{ui_.repo_root} / "examples" / "denoise.sig"));
+                       std::vector<Command> items;
+                       for (const auto& ex : pipeline::examples()) {
+                           const auto key = "tui.pipeline.example." + std::string{ex.name};
+                           const auto title = tr(key);
+                           items.push_back({std::string{ex.name}, title == key ? std::string{ex.name} : title, [this, ex] { open_example(ex.name, ex.text); }});
+                       }
+                       if (ui_.choose) ui_.choose(tr("tui.pipeline.cmd.example"), std::move(items));
+                       else if (!items.empty()) items.front().run();
                    }});
     out.push_back({"pipeline.run", tr("tui.pipeline.cmd.run"), [this] {
                        if (ui_.jobs) model_->run(*ui_.jobs);

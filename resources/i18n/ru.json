@@ -1184,7 +1184,7 @@
   "tui.pipeline.probe_hint": "p — щуп на выбранном проводе, r — запуск",
   "tui.pipeline.channels": "кан.",
   "tui.pipeline.nothing_to_play": "нечего слушать: запустите граф и поставьте щуп",
-  "tui.pipeline.cmd.example": "Конвейер: открыть пример denoise.sig",
+  "tui.pipeline.cmd.example": "Конвейер: открыть пример…",
   "tui.pipeline.cmd.run": "Конвейер: запустить",
   "tui.pipeline.cmd.save": "Конвейер: сохранить",
   "tui.pipeline.cmd.open": "Конвейер: открыть .sig",
@@ -1274,5 +1274,11 @@
   "tui.pipeline.type_value": "ввести вручную…",
   "tui.pipeline.no_free_inputs": "нет свободных входов подходящего типа",
   "tui.pipeline.connect_title": "Соединить с входом",
-  "tui.pipeline.hint.connect_keys": "соединить: c — выход, стрелки, Enter; C — список входов"
+  "tui.pipeline.hint.connect_keys": "соединить: c — выход, стрелки, Enter; C — список входов",
+  "pipeline.block.samples": "Отсчёты",
+  "pipeline.block.add": "Сумматор ⊕",
+  "tui.pipeline.example.haar_bank": "Банк Хаара: анализ и синтез, как на «Объяснении»",
+  "tui.pipeline.example.haar_two_levels": "Банк Хаара в два уровня",
+  "tui.pipeline.example.dwt_levels": "DWT db4 на 3 уровня со щупами на полосах",
+  "tui.pipeline.example.denoise": "Шумоподавление файла: DWT, порог, IDWT"
 }

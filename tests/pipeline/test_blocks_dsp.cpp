@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <numbers>
 #include <fstream>
+#include <iterator>
 #include <variant>
 #include <sstream>
 #include <tuple>
@@ -11,6 +12,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "commands/cli.hpp"
 #include "core/analysis.hpp"
 #include "i18n/i18n.hpp"
 #include "core/check.hpp"
@@ -469,4 +471,51 @@ TEST_CASE("m7b review: swt and lift53 level errors name each unit once", "[pipel
             CHECK(m.find(ru ? "уровней 30" : "levels levels") == std::string::npos);
         }
     }
+}
+
+TEST_CASE("m7e: samples, add, phased downsampling and zero stuffing build a filter bank", "[pipeline][teaching]") {
+    const auto x = audio(run("samples", {}, {{"values", "4 6 10 12 8 6 5 5"}, {"rate", "8"}})[0]);
+    REQUIRE(x.channels.size() == 1);
+    CHECK(x.channels[0] == std::vector<double>{4, 6, 10, 12, 8, 6, 5, 5});
+    CHECK(x.sample_rate == 8);
+    const auto odd = audio(run("downsample", {x}, {{"m", "2"}, {"anti_alias", "no"}, {"phase", "1"}})[0]);
+    CHECK(odd.channels[0] == std::vector<double>{6, 12, 6, 5});
+    CHECK(odd.sample_rate == 4);
+    const auto stuffed = audio(run("upsample", {odd}, {{"m", "2"}, {"anti_image", "no"}})[0]);
+    CHECK(stuffed.channels[0] == std::vector<double>{6, 0, 12, 0, 6, 0, 5, 0});
+    core::AudioBuffer shorter = x;
+    shorter.channels[0].resize(3);
+    const auto sum = audio(run("add", {x, shorter})[0]);
+    CHECK(sum.channels[0] == std::vector<double>{8, 12, 20, 12, 8, 6, 5, 5});
+    const auto diff = audio(run("add", {x, x}, {{"op", "sub"}})[0]);
+    CHECK(diff.channels[0] == std::vector<double>(8, 0.0));
+    core::AudioBuffer late = x;
+    late.channels[0].insert(late.channels[0].begin(), 0.0);
+    const auto report = std::get<Report>(run("check", {x, late}, {{"kind", "pr"}, {"delay", "auto"}})[0]);
+    CHECK(report.passed);
+    const auto delay = std::find_if(report.fields.begin(), report.fields.end(), [](const auto& f) { return f.first == "delay"; });
+    REQUIRE(delay != report.fields.end());
+    CHECK(std::get<double>(delay->second) == 1);
+}
+
+TEST_CASE("m7e: every example graph runs and passes its checks", "[pipeline][teaching]") {
+    for (const auto& entry : std::filesystem::directory_iterator{std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples"}) {
+        if (entry.path().extension() != ".sig") continue;
+        INFO(entry.path().filename().string());
+        std::ostringstream out, err;
+        const auto path = entry.path().string();
+        std::ifstream text_in{entry.path()};
+        const std::string text{std::istreambuf_iterator<char>{text_in}, std::istreambuf_iterator<char>{}};
+        const auto out_file = (std::filesystem::temp_directory_path() / "signals-example-out.wav").string();
+        std::vector<std::string_view> args{"signals", "run", path};
+        if (text.find("wav_out(") != std::string::npos) {
+            args.push_back("-o");
+            args.push_back(out_file);
+        }
+        const int code = signals::cli::run_cli(args, out, err);
+        INFO(out.str() << err.str());
+        CHECK(code == 0);
+    }
+    for (const char* name : {"haar_bank.sig", "haar_two_levels.sig", "dwt_levels.sig"})
+        CHECK(std::filesystem::exists(std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples" / name));
 }

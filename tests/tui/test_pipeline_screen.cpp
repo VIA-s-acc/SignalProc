@@ -579,3 +579,26 @@ TEST_CASE("C lists the free inputs a selected output can feed and connects the c
     const auto hints = f.screen->hints();
     CHECK(std::any_of(hints.begin(), hints.end(), [](const signals::tui::Hint& h) { return h.key == "c/C"; }));
 }
+
+TEST_CASE("the example command lists the built-in graphs and opens the chosen one", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    const auto commands = f.screen->commands();
+    const auto example = std::find_if(commands.begin(), commands.end(), [](const Command& c) { return c.id == "pipeline.example"; });
+    REQUIRE(example != commands.end());
+    example->run();
+    REQUIRE(items.size() >= 4);
+    const auto haar = std::find_if(items.begin(), items.end(), [](const Command& c) { return c.id == "haar_bank"; });
+    REQUIRE(haar != items.end());
+    CHECK(haar->title.find("Хаар") != std::string::npos);
+    haar->run();
+    const auto& nodes = f.model->doc().nodes;
+    CHECK(std::any_of(nodes.begin(), nodes.end(), [](const auto& n) { return n.type == "add"; }));
+    f.model->run(f.jobs);
+    for (int k = 0; k < 400 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    const auto run = f.model->run_view();
+    CHECK_FALSE(run.error);
+    REQUIRE_FALSE(run.reports.empty());
+    CHECK(run.reports.front().report.passed);
+}

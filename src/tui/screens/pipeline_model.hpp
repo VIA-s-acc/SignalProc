@@ -59,6 +59,7 @@ public:
     std::size_t undo_depth() const { return undo_.size(); }
 
     core::Result<void> load(const std::filesystem::path& file);
+    core::Result<void> load_text(std::string_view name, std::string_view text);
     core::Result<void> save(const std::filesystem::path& file);
     std::string add_node(std::string_view type);
     core::Result<void> insert_into_wire(const pipeline::Edge& wire, std::string_view type);

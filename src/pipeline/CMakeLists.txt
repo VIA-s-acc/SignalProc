@@ -1,4 +1,8 @@
+signals_embed_dir(${PROJECT_SOURCE_DIR}/examples "*.sig" ${CMAKE_CURRENT_BINARY_DIR}/examples_embedded.cpp kSignalsExamples)
+
 add_library(signals_pipeline STATIC
+  examples.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/examples_embedded.cpp
   docs.cpp
   value.cpp
   registry.cpp

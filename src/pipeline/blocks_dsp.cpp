@@ -160,20 +160,25 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"downsample",
                    kSignalIn,
                    kSignalOut,
-                   {{"m", Kind::integer, "2", {}, 1, kMaxFactor}, kAttenuation, {"anti_alias", Kind::choice, "yes", {"yes", "no"}}},
+                   {{"m", Kind::integer, "2", {}, 1, kMaxFactor}, kAttenuation, {"anti_alias", Kind::choice, "yes", {"yes", "no"}}, {"phase", Kind::integer, "0", {}, 0, kMaxFactor - 1}},
                    [](const RunContext&, std::span<const Value> in, const Params& p) {
                        const auto m = static_cast<std::size_t>(param_int(p, "m"));
+                       const auto phase = static_cast<std::size_t>(param_int(p, "phase"));
                        const auto o = multirate(p);
                        return per_channel(in_audio(in), in_audio(in).sample_rate / static_cast<double>(m),
-                                          [&](const std::vector<double>& c) { return core::decimate(c, m, o); });
+                                          [&](const std::vector<double>& c) -> core::Result<std::vector<double>> {
+                                              if (phase >= m) return core::make_error(core::Errc::invalid_argument, "downsample: phase must be below m");
+                                              return core::decimate(std::span<const double>{c}.subspan(std::min(phase, c.size())), m, o);
+                                          });
                    }});
     out.push_back({"upsample",
                    kSignalIn,
                    kSignalOut,
-                   {{"m", Kind::integer, "2", {}, 1, kMaxFactor}, kAttenuation},
+                   {{"m", Kind::integer, "2", {}, 1, kMaxFactor}, kAttenuation, {"anti_image", Kind::choice, "yes", {"yes", "no"}}},
                    [](const RunContext&, std::span<const Value> in, const Params& p) {
                        const auto m = static_cast<std::size_t>(param_int(p, "m"));
-                       const auto o = multirate(p);
+                       auto o = multirate(p);
+                       o.anti_alias = param_text(p, "anti_image") == "yes";
                        return per_channel(in_audio(in), in_audio(in).sample_rate * static_cast<double>(m),
                                           [&](const std::vector<double>& c) -> core::Result<std::vector<double>> {
                                               if (auto n = checked_length(c.size(), m); !n) return std::unexpected{n.error()};
@@ -640,15 +645,34 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"check",
                    {{"ref", PortType::signal}, {"in", PortType::signal}},
                    kReportOut,
-                   {{"kind", Kind::choice, "pr", {"pr", "error", "snr"}}, {"tol", Kind::real, "1e-12"}},
+                   {{"kind", Kind::choice, "pr", {"pr", "error", "snr"}}, {"tol", Kind::real, "1e-12"}, {"delay", Kind::text, "0"}},
                    [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
                        const auto& ref = in_audio(in, 0);
                        const auto& test = in_audio(in, 1);
                        Report r;
                        double worst = 0, rms = 0, snr = std::numeric_limits<double>::infinity();
+                       std::size_t shift = 0;
+                       const auto& delay = param_text(p, "delay");
+                       if (delay == "auto") {
+                           if (!ref.channels.empty() && !test.channels.empty()) {
+                               const auto& a = ref.channels[0];
+                               const auto& b = test.channels[0];
+                               double best = std::numeric_limits<double>::infinity();
+                               for (std::size_t s = 0; s < std::min<std::size_t>(b.size(), 4096); ++s) {
+                                   const auto n = std::min(a.size(), b.size() - s);
+                                   if (n == 0) break;
+                                   const double e = core::max_abs_error(std::span<const double>{a.data(), n}, std::span<const double>{b.data() + s, n});
+                                   if (e < best) best = e, shift = s;
+                               }
+                           }
+                       } else {
+                           const auto parsed = std::strtoll(delay.c_str(), nullptr, 10);
+                           if (parsed < 0) return core::make_error(core::Errc::invalid_argument, "check: delay must be auto or a non-negative number of samples");
+                           shift = static_cast<std::size_t>(parsed);
+                       }
                        for (std::size_t ch = 0; ch < std::min(ref.channels.size(), test.channels.size()); ++ch) {
-                           const auto n = std::min(ref.channels[ch].size(), test.channels[ch].size());
-                           const std::span<const double> a{ref.channels[ch].data(), n}, b{test.channels[ch].data(), n};
+                           const auto n = test.channels[ch].size() > shift ? std::min(ref.channels[ch].size(), test.channels[ch].size() - shift) : 0;
+                           const std::span<const double> a{ref.channels[ch].data(), n}, b{test.channels[ch].data() + std::min(shift, test.channels[ch].size()), n};
                            worst = std::max(worst, core::max_abs_error(a, b));
                            rms = std::max(rms, core::rms_error(a, b));
                            snr = std::min(snr, core::snr_db(a, b));
@@ -656,6 +680,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        const auto& kind = param_text(p, "kind");
                        const double tol = param_real(p, "tol");
                        r.fields = {{"max_abs", worst}, {"rms", rms}, {"snr_db", snr}};
+                       if (delay != "0") r.fields.push_back({"delay", static_cast<double>(shift)});
                        r.passed = kind == "snr" ? snr >= tol : worst <= tol;
                        if (ref.channels.size() != test.channels.size()) r.passed = false;
                        return std::vector<Value>{std::move(r)};

@@ -1184,7 +1184,7 @@
   "tui.pipeline.probe_hint": "p — probe on the selected wire, r — run",
   "tui.pipeline.channels": "ch.",
   "tui.pipeline.nothing_to_play": "nothing to play: run the graph and add a probe",
-  "tui.pipeline.cmd.example": "Pipeline: open the denoise.sig example",
+  "tui.pipeline.cmd.example": "Pipeline: open an example…",
   "tui.pipeline.cmd.run": "Pipeline: run",
   "tui.pipeline.cmd.save": "Pipeline: save",
   "tui.pipeline.cmd.open": "Pipeline: open .sig",
@@ -1274,5 +1274,11 @@
   "tui.pipeline.type_value": "type a value…",
   "tui.pipeline.no_free_inputs": "no free inputs of a matching type",
   "tui.pipeline.connect_title": "Connect to an input",
-  "tui.pipeline.hint.connect_keys": "connect: c — output, arrows, Enter; C — list of inputs"
+  "tui.pipeline.hint.connect_keys": "connect: c — output, arrows, Enter; C — list of inputs",
+  "pipeline.block.samples": "Samples",
+  "pipeline.block.add": "Adder ⊕",
+  "tui.pipeline.example.haar_bank": "Haar bank: analysis and synthesis, as in «Explain»",
+  "tui.pipeline.example.haar_two_levels": "Haar bank on two levels",
+  "tui.pipeline.example.dwt_levels": "db4 DWT on 3 levels with a probe on every band",
+  "tui.pipeline.example.denoise": "Denoise a file: DWT, threshold, IDWT"
 }
