@@ -8,6 +8,7 @@
 #include <string_view>
 #include <vector>
 
+#include "core/design/iir.hpp"
 #include "core/error.hpp"
 #include "core/freq.hpp"
 #include "core/laurent.hpp"
@@ -18,7 +19,7 @@ namespace signals::tui {
 enum class FilterRole { h0, h1, f0, f1 };
 
 struct FilterRef {
-    enum class Kind { bank, equivalent, distortion, alias, user };
+    enum class Kind { bank, equivalent, distortion, alias, user, classical };
     Kind kind = Kind::bank;
     std::string wavelet;
     FilterRole role = FilterRole::h0;
@@ -28,6 +29,21 @@ struct FilterRef {
     std::string label() const;
     friend bool operator==(const FilterRef&, const FilterRef&) = default;
 };
+
+struct ClassicalSpec {
+    enum class Method { iir, remez, firls } method = Method::iir;
+    core::IirFamily family = core::IirFamily::butterworth;
+    core::BandType type = core::BandType::lowpass;
+    int order = 4;
+    std::vector<double> edges = {0.25};
+    double rp = 1, rs = 40;
+    std::string key() const;
+    std::string label() const;
+};
+
+std::optional<ClassicalSpec> parse_classical(std::string_view key);
+FilterRef classical_ref(const ClassicalSpec& spec);
+std::optional<FilterRef> classical_step(const FilterRef& ref, int order_step, double edge_factor);
 
 struct LibraryNode {
     std::string label;
@@ -47,6 +63,8 @@ struct FilterAnalysis {
     std::optional<int> zeros_at_minus_one;
     std::optional<double> pr_error, orth_error, sobolev;
     bool linear_phase = false;
+    std::optional<core::Zpk> zpk = {};
+    std::optional<bool> stable = {};
 };
 
 core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points);
@@ -73,6 +91,7 @@ public:
     void toggle(std::size_t i);
     void set_reference(std::optional<std::size_t> i);
     void set_focus(std::size_t i);
+    core::Result<void> replace(std::size_t i, FilterRef ref);
 
     std::vector<Entry> entries() const;
     std::optional<std::size_t> reference() const;

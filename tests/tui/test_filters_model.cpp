@@ -72,7 +72,7 @@ TEST_CASE("library lists every wavelet once and marks later groups", "[tui][filt
         collect(g, none);
         CHECK(none.empty());
     }
-    CHECK(later == 4);
+    CHECK(later == 3);
 }
 
 TEST_CASE("filter refs label bank roles with subscripts", "[tui][filters]") {
@@ -230,4 +230,100 @@ TEST_CASE("view responses cover the zoomed band", "[tui][filters]") {
     CHECK(e.view_hi == 0.6);
     CHECK(e.view->omega.size() == 512);
     CHECK_FALSE(set.view_pending());
+}
+
+TEST_CASE("the classical group designs Butterworth, Chebyshev, elliptic, Bessel and FIR filters", "[tui][filters][classic]") {
+    const auto lib = build_library();
+    const auto* classic = child(lib, "Классические КИХ / БИХ");
+    REQUIRE(classic);
+    std::vector<FilterRef> refs;
+    collect(*classic, refs);
+    REQUIRE(refs.size() == 10);
+    for (const auto& r : refs) {
+        INFO(r.label());
+        CHECK(r.kind == Kind::classical);
+        const auto a = analyze(r, 512);
+        REQUIRE(a);
+        CHECK(a->response.omega.size() == 512);
+        if (a->zpk) CHECK(a->stable.value_or(false));
+    }
+    CHECK(refs[0].label() == "Баттерворт ФНЧ 4 · 0,25π");
+    const auto butter = analyze(refs[0], 512);
+    REQUIRE(butter);
+    CHECK(butter->response.magnitude[128] == Catch::Approx(std::sqrt(0.5)).margin(1e-9));
+    CHECK(butter->response.magnitude[0] == Catch::Approx(1).margin(1e-9));
+    REQUIRE(butter->zp);
+    CHECK(butter->zp->poles.size() == 4);
+    double dc = 0;
+    for (double v : butter->h.coeffs) dc += v;
+    CHECK(dc == Catch::Approx(1).margin(1e-3));
+    const auto remez = analyze(refs[8], 512);
+    REQUIRE(remez);
+    CHECK(remez->h.coeffs.size() == 31);
+    CHECK(remez->linear_phase);
+}
+
+TEST_CASE("classical steps change the order and the cutoff", "[tui][filters][classic]") {
+    ClassicalSpec s;
+    const auto ref = classical_ref(s);
+    const auto up = classical_step(ref, 1, 1.0);
+    REQUIRE(up);
+    CHECK(parse_classical(up->wavelet)->order == 5);
+    const auto wide = classical_step(ref, 0, 1.1);
+    REQUIRE(wide);
+    CHECK(parse_classical(wide->wavelet)->edges[0] == Catch::Approx(0.275));
+    ClassicalSpec fir;
+    fir.method = ClassicalSpec::Method::remez;
+    fir.order = 31;
+    fir.edges = {0.4, 0.5};
+    CHECK(parse_classical(classical_step(classical_ref(fir), 1, 1.0)->wavelet)->order == 33);
+    CHECK_FALSE(classical_step(FilterRef{Kind::bank, "db2"}, 1, 1.0));
+    CHECK_FALSE(parse_classical("iir/oops/lowpass/4/0.25"));
+}
+
+TEST_CASE("edge steps keep classical band edges apart at the limits", "[tui][filters][classic]") {
+    using M = ClassicalSpec::Method;
+    using T = signals::core::BandType;
+    for (const auto& spec : {ClassicalSpec{M::iir, signals::core::IirFamily::butterworth, T::bandpass, 4, {0.2, 0.4}},
+                             ClassicalSpec{M::iir, signals::core::IirFamily::butterworth, T::bandstop, 4, {0.3, 0.5}},
+                             ClassicalSpec{M::remez, signals::core::IirFamily::butterworth, T::lowpass, 31, {0.4, 0.5}}}) {
+        auto ref = classical_ref(spec);
+        INFO(ref.label());
+        for (const auto& [factor, presses] : {std::pair{1.1, 40}, std::pair{1 / 1.1, 40}, std::pair{1.1, 25}}) {
+            for (int k = 0; k < presses; ++k) {
+                const auto next = classical_step(ref, 0, factor);
+                REQUIRE(next);
+                ref = *next;
+                const auto edges = parse_classical(ref.wavelet)->edges;
+                CHECK(edges.front() >= 0.01);
+                CHECK(edges.back() <= 0.98);
+                for (std::size_t i = 1; i < edges.size(); ++i) CHECK(edges[i] > edges[i - 1] * 1.05);
+            }
+            if (factor < 1) continue;
+            const auto a = analyze(ref, 256);
+            INFO((a ? std::string{} : a.error().message));
+            CHECK(a);
+        }
+    }
+}
+
+TEST_CASE("every library group has filters or says when they come", "[tui][filters]") {
+    const auto lib = build_library();
+    for (const auto& g : lib.children) {
+        INFO(g.label);
+        CHECK_FALSE(g.label.empty());
+        CHECK((!g.children.empty() || !g.later.empty()));
+    }
+}
+
+TEST_CASE("a zoomed IIR view continues the unwrapped phase of the full band", "[tui][filters][classic]") {
+    JobRunner jobs{[] {}, std::chrono::milliseconds{0}, true};
+    ComparisonSet set;
+    REQUIRE(set.add(classical_ref(ClassicalSpec{ClassicalSpec::Method::iir, signals::core::IirFamily::butterworth, signals::core::BandType::lowpass, 8, {0.25}})));
+    set.request(jobs, 1024);
+    set.request_view(jobs, 0.5, 0.75, 257);
+    const auto e = set.entries()[0];
+    REQUIRE(e.analysis);
+    REQUIRE(e.view);
+    CHECK(e.view->phase_unwrapped.front() == Catch::Approx(e.analysis->response.phase_unwrapped[512]).margin(1e-9));
 }

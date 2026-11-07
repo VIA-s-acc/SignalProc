@@ -499,6 +499,64 @@ def processing_json(sample_wav):
             "bayes": bayes, "visu": visu, "snr_in": snr(clean, noisy), "combos": combos, "curve": curve,
             "bins": bins, "np": np_, "transfer": transfer}
 
+def complex_list(a):
+    a = np.sort_complex(np.atleast_1d(np.asarray(a, dtype=complex)))
+    return [[float(v.real), float(v.imag)] for v in a]
+
+
+def iir_json():
+    import scipy.special
+    special = {"ellipk": [], "ellipj": []}
+    for m in [0.0, 1e-12, 0.1, 0.5, 0.9, 0.99, 1 - 1e-9]:
+        special["ellipk"].append({"m": m, "k": float(scipy.special.ellipk(m)), "km1": float(scipy.special.ellipkm1(1 - m)) if m < 1 else None})
+    for u in [0.0, 0.3, 1.1, 2.5]:
+        for m in [0.0, 0.2, 0.7, 0.999]:
+            sn, cn, dn, ph = scipy.special.ellipj(u, m)
+            special["ellipj"].append({"u": u, "m": m, "sn": float(sn), "cn": float(cn), "dn": float(dn)})
+    prototypes = []
+    for n in range(1, 11):
+        for name, args in [("butter", ()), ("cheby1", (1.0,)), ("cheby2", (40.0,)), ("ellip", (1.0, 40.0)), ("bessel", ())]:
+            fn = {"butter": scipy.signal.buttap, "cheby1": scipy.signal.cheb1ap, "cheby2": scipy.signal.cheb2ap,
+                  "ellip": scipy.signal.ellipap, "bessel": scipy.signal.besselap}[name]
+            z, pz, k = fn(n, *args)
+            prototypes.append({"family": name, "n": n, "z": complex_list(z), "p": complex_list(pz), "k": float(k)})
+    digital = []
+    w = np.linspace(0, np.pi, 512, endpoint=False)
+    for ftype, rp, rs in [("butter", None, None), ("cheby1", 1.0, None), ("cheby2", None, 40.0), ("ellip", 0.5, 60.0), ("bessel", None, None)]:
+        for btype, wn in [("lowpass", 0.3), ("highpass", 0.6), ("bandpass", [0.2, 0.45]), ("bandstop", [0.3, 0.5])]:
+            for n in [1, 4, 9]:
+                z, pz, k = scipy.signal.iirfilter(n, wn, rp=rp, rs=rs, btype=btype, ftype=ftype, output="zpk")
+                sos = scipy.signal.zpk2sos(z, pz, k)
+                _, h = scipy.signal.sosfreqz(sos, worN=w)
+                digital.append({"family": ftype, "type": btype, "n": n, "wn": wn if isinstance(wn, list) else [wn],
+                                "rp": rp, "rs": rs, "z": complex_list(z), "p": complex_list(pz), "k": float(k),
+                                "mag": floats(np.abs(h))})
+    return {"special": special, "prototypes": prototypes, "digital": digital}
+
+def fir_json():
+    remez = []
+    for numtaps, bands, desired, weight, kind in [
+        (31, [0, 0.2, 0.3, 0.5], [1, 0], None, "bandpass"),
+        (32, [0, 0.2, 0.3, 0.5], [1, 0], [1, 10], "bandpass"),
+        (45, [0, 0.1, 0.15, 0.3, 0.35, 0.5], [0, 1, 0], [10, 1, 10], "bandpass"),
+        (31, [0.05, 0.45], [1], None, "hilbert"),
+        (30, [0.05, 0.45], [1], None, "hilbert"),
+        (21, [0, 0.4], [1], None, "differentiator"),
+        (31, [0, 0.37], [1], None, "differentiator"),
+        (30, [0.02, 0.41], [1], None, "differentiator"),
+    ]:
+        h = scipy.signal.remez(numtaps, bands, desired, weight=weight, type=kind, fs=1.0)
+        remez.append({"numtaps": numtaps, "bands": bands, "desired": desired, "weight": weight, "type": kind, "h": floats(h)})
+    firls = []
+    for numtaps, bands, desired, weight in [
+        (31, [0, 0.3, 0.4, 1], [1, 1, 0, 0], None),
+        (41, [0, 0.2, 0.25, 0.5, 0.55, 1], [0, 0, 1, 1, 0, 0], [10, 1, 10]),
+        (21, [0, 1], [0, 1], None),
+    ]:
+        h = scipy.signal.firls(numtaps, bands, desired, weight=weight)
+        firls.append({"numtaps": numtaps, "bands": bands, "desired": desired, "weight": weight, "h": floats(h)})
+    return {"remez": remez, "firls": firls}
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path)
@@ -517,7 +575,8 @@ def main():
                                ("denoise.json", lambda: denoise_json(sample_wav)),
                                ("spectral.json", spectral_json), ("swt.json", swt_json),
                                ("packets.json", packets_json), ("cwt.json", cwt_json),
-                               ("processing.json", lambda: processing_json(sample_wav))]:
+                               ("processing.json", lambda: processing_json(sample_wav)),
+                               ("iir.json", iir_json), ("fir.json", fir_json)]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)

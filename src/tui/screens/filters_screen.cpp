@@ -66,6 +66,7 @@ std::string describe(const FilterRef& r) {
     case FilterRef::Kind::equivalent: return tr("tui.filters.role.equivalent");
     case FilterRef::Kind::distortion: return tr("tui.filters.role.distortion");
     case FilterRef::Kind::alias: return tr("tui.filters.role.alias");
+    case FilterRef::Kind::classical: return tr("tui.filters.role.classical");
     }
     return {};
 }
@@ -125,6 +126,7 @@ std::vector<Hint> FiltersScreen::hints() const {
             {"[ ]", tr("tui.filters.hint.vertical")},  {"↑↓", tr("tui.filters.hint.focus_row")},
             {"l", tr("tui.filters.hint.log")},         {"d", tr("tui.filters.hint.db")},
             {"n", tr("tui.filters.hint.normalise")},   {"t", tr("tui.filters.hint.role")},
+            {"o/O", tr("tui.filters.hint.order")},      {"f/F", tr("tui.filters.hint.edge")},
             {"F1", tr("tui.filters.hint.f1")},         {tr("tui.signal.key.wheel"), tr("tui.filters.hint.zoom")},
             {tr("tui.signal.key.click"), tr("tui.signal.hint.click")}};
 }
@@ -134,6 +136,10 @@ std::string FiltersScreen::context() const { return tr("tui.filters.context"); }
 std::optional<TheoryLink> FiltersScreen::theory_link() const {
     const auto* e = focused();
     const bool equivalent = e && e->ref.kind == FilterRef::Kind::equivalent;
+    if (e && e->ref.kind == FilterRef::Kind::classical) {
+        const auto spec = parse_classical(e->ref.wavelet);
+        return TheoryLink{TheoryLink::Kind::card, spec && spec->method != ClassicalSpec::Method::iir ? "fir_design" : "iir_design"};
+    }
     return TheoryLink{TheoryLink::Kind::card, equivalent ? "equivalent_filters" : "freq_response"};
 }
 
@@ -145,6 +151,14 @@ void FiltersScreen::publish(theory::LiveValues& v) const {
     const auto pi = [](double w) { return format_fixed(w, 3) + "π"; };
     v.set("block.filter", e->ref.label());
     v.set("block.length", std::to_string(a.h.coeffs.size()));
+    if (const auto spec = e->ref.kind == FilterRef::Kind::classical ? parse_classical(e->ref.wavelet) : std::nullopt) {
+        v.set("block.order", std::to_string(spec->order));
+        std::string cutoff;
+        for (const double w : spec->edges) cutoff += (cutoff.empty() ? "" : "–") + pi(w);
+        v.set("block.cutoff", cutoff);
+        if (a.zpk) v.set("metric.poles", std::to_string(a.zpk->p.size()));
+        if (a.stable) v.set("check.stable", yes_no(*a.stable));
+    }
     v.set("block.points", std::to_string(a.response.omega.size()));
     v.set("block.zeros_at_minus_one", a.zeros_at_minus_one ? std::to_string(*a.zeros_at_minus_one) : std::string{"—"});
     v.set("block.linear_phase", yes_no(a.linear_phase));
@@ -670,13 +684,19 @@ ftxui::Element FiltersScreen::zeros_panel(int rows) {
     const auto& zp = *e->analysis->zp;
     const auto color = color_of(set_->focus());
     Elements list;
-    const auto roots = group_roots(zp.zeros);
+    const auto zero_roots = group_roots(zp.zeros);
+    const auto pole_roots = group_roots(zp.poles);
+    std::vector<std::pair<bool, Root>> roots;
+    for (const auto& r : zero_roots) roots.emplace_back(false, r);
+    for (const auto& r : pole_roots) roots.emplace_back(true, r);
     const int lines = std::max(1, rows - 2);
     const int room = std::max(1, lines - (zp.poles_at_origin > 0 ? 1 : 0));
     const bool clipped = static_cast<int>(roots.size()) > room;
     const auto shown = clipped ? static_cast<std::size_t>(room - 1) : roots.size();
-    for (std::size_t i = 0; i < shown; ++i)
-        list.push_back(hbox({text(ui_.caps.glyphs == GlyphMode::ascii ? "o " : "○ ") | fg(color, ui_), text(root_text(roots[i])) | fg(th.fg, ui_)}));
+    for (std::size_t i = 0; i < shown; ++i) {
+        const auto mark = roots[i].first ? std::string{ui_.caps.glyphs == GlyphMode::ascii ? "x " : "× "} : std::string{ui_.caps.glyphs == GlyphMode::ascii ? "o " : "○ "};
+        list.push_back(hbox({text(mark) | fg(color, ui_), text(root_text(roots[i].second)) | fg(th.fg, ui_)}));
+    }
     if (clipped)
         list.push_back(text(fmt::format(fmt::runtime(tr("tui.filters.more_roots")), fmt::arg("count", roots.size() - shown))) | fg(th.dim, ui_));
     if (zp.poles_at_origin > 0)
@@ -684,7 +704,7 @@ ftxui::Element FiltersScreen::zeros_panel(int rows) {
                                                                    fg(th.fg, ui_)}));
     const int plane = layout_.maximized() ? std::clamp(2 * lines, 8, 2 * lines) : std::clamp(2 * lines, 8, 16);
     return frame_panel(zeros,
-                       hbox({zplane(ZPlaneSpec{zp.zeros, zp.poles_at_origin}, th, ui_.caps.color, ui_.caps.glyphs) | size(WIDTH, EQUAL, plane),
+                       hbox({zplane(ZPlaneSpec{zp.zeros, zp.poles_at_origin, zp.poles}, th, ui_.caps.color, ui_.caps.glyphs) | size(WIDTH, EQUAL, plane),
                              text(" "), vbox(std::move(list))}),
                        {}, tr("tui.filters.zeros"));
 }
@@ -699,29 +719,44 @@ ftxui::Element FiltersScreen::properties_panel() {
     const auto g = ui_.caps.glyphs;
     auto mark = [&](bool ok) { return text(" " + std::string{glyph(ok ? Glyph::check : Glyph::cross, g)}) | fg(ok ? th.ok : th.err, ui_); };
     Elements rows;
-    rows.push_back(text(fmt::format(fmt::runtime(tr("tui.filters.prop.fir")), fmt::arg("taps", a.h.coeffs.size()))) | fg(th.fg, ui_));
+    if (a.zpk) {
+        rows.push_back(hbox({text(fmt::format(fmt::runtime(tr("tui.filters.prop.iir")), fmt::arg("poles", a.zpk->p.size()), fmt::arg("sections", (a.zpk->p.size() + 1) / 2))) |
+                                 fg(th.fg, ui_),
+                             text(" · " + tr(a.stable.value_or(false) ? "tui.filters.stable" : "tui.filters.unstable")) | fg(th.fg, ui_), mark(a.stable.value_or(false))}));
+    } else {
+        rows.push_back(text(fmt::format(fmt::runtime(tr("tui.filters.prop.fir")), fmt::arg("taps", a.h.coeffs.size()))) | fg(th.fg, ui_));
+    }
+    const bool classical = a.ref.kind == FilterRef::Kind::classical;
     Elements orth;
-    if (a.orth_error) {
+    if (!classical && a.orth_error) {
         orth.push_back(text(tr("tui.filters.prop.orthogonal")) | fg(th.fg, ui_));
         orth.push_back(mark(*a.orth_error < kCheckTol));
-    } else {
+    } else if (!classical) {
         orth.push_back(text(tr("tui.filters.prop.biorthogonal")) | fg(th.fg, ui_));
     }
-    orth.push_back(text("   " + tr("tui.filters.prop.linear_phase")) | fg(th.fg, ui_));
+    orth.push_back(text((classical ? "" : "   ") + tr("tui.filters.prop.linear_phase")) | fg(th.fg, ui_));
     orth.push_back(mark(a.linear_phase));
     rows.push_back(hbox(std::move(orth)));
-    rows.push_back(text(tr("tui.filters.prop.zeros") + " " + (a.zeros_at_minus_one ? std::to_string(*a.zeros_at_minus_one) : std::string{"—"})) |
-                   fg(th.fg, ui_));
-    rows.push_back(text(tr("tui.filters.prop.sobolev") + " " + (a.sobolev ? format_fixed(*a.sobolev, 3) : std::string{"—"})) | fg(th.fg, ui_));
+    if (!classical) {
+        rows.push_back(text(tr("tui.filters.prop.zeros") + " " + (a.zeros_at_minus_one ? std::to_string(*a.zeros_at_minus_one) : std::string{"—"})) |
+                       fg(th.fg, ui_));
+        rows.push_back(text(tr("tui.filters.prop.sobolev") + " " + (a.sobolev ? format_fixed(*a.sobolev, 3) : std::string{"—"})) | fg(th.fg, ui_));
+    }
     if (a.pr_error)
         rows.push_back(hbox({text(tr("tui.filters.prop.pr") + " " + (*a.pr_error < kRoundOff ? std::string{"< 10⁻¹⁵"} : format_number(*a.pr_error, 2))) | fg(th.fg, ui_), mark(*a.pr_error < kCheckTol)}));
-    double sum = 0, alternating = 0;
-    for (std::size_t k = 0; k < a.h.coeffs.size(); ++k) {
-        sum += a.h.coeffs[k];
-        alternating += ((a.h.offset + static_cast<std::ptrdiff_t>(k)) % 2 == 0 ? 1.0 : -1.0) * a.h.coeffs[k];
-    }
     const auto tiny = [](double v) { return std::abs(v) < 1e-12 ? std::string{"0"} : format_number(v, 4); };
-    rows.push_back(text("Σh = " + tiny(sum) + "   |H(π)| = " + tiny(std::abs(alternating))) | fg(th.fg, ui_));
+    if (a.zpk) {
+        const std::vector<double> ends{0.0, kPi};
+        const auto gain = core::zpk_response(*a.zpk, ends);
+        rows.push_back(text("|H(0)| = " + tiny(std::abs(gain[0])) + "   |H(π)| = " + tiny(std::abs(gain[1]))) | fg(th.fg, ui_));
+    } else {
+        double sum = 0, alternating = 0;
+        for (std::size_t k = 0; k < a.h.coeffs.size(); ++k) {
+            sum += a.h.coeffs[k];
+            alternating += ((a.h.offset + static_cast<std::ptrdiff_t>(k)) % 2 == 0 ? 1.0 : -1.0) * a.h.coeffs[k];
+        }
+        rows.push_back(text("Σh = " + tiny(sum) + "   |H(π)| = " + tiny(std::abs(alternating))) | fg(th.fg, ui_));
+    }
     return frame_panel(properties, vbox(std::move(rows)), {}, tr("tui.filters.properties") + " · " + e->ref.label());
 }
 
@@ -1115,6 +1150,17 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
     }
     if (e == Event::Character('d')) {
         decibels_ = !decibels_;
+        return true;
+    }
+    if (e == Event::Character('o') || e == Event::Character('O') || e == Event::Character('f') || e == Event::Character('F')) {
+        const auto entries = set_->entries();
+        const auto i = set_->focus();
+        if (i >= entries.size()) return false;
+        const int step = e == Event::Character('o') ? 1 : e == Event::Character('O') ? -1 : 0;
+        const double factor = e == Event::Character('f') ? 1.1 : e == Event::Character('F') ? 1 / 1.1 : 1.0;
+        const auto next = classical_step(entries[i].ref, step, factor);
+        if (!next) return false;
+        (void)set_->replace(i, *next);
         return true;
     }
     if (e == Event::Character('n')) {
