@@ -557,6 +557,19 @@ def fir_json():
         firls.append({"numtaps": numtaps, "bands": bands, "desired": desired, "weight": weight, "h": floats(h)})
     return {"remez": remez, "firls": firls}
 
+def ops_json():
+    x = np.concatenate([np.linspace(-1.5, 1.5, 61), [0.3333333333333333, -0.7071067811865476, 1e-9, -1e-9]])
+    mu = 255.0
+    clipped = np.clip(x, -1.0, 1.0)
+    mulaw = np.sign(clipped) * np.log1p(mu * np.abs(clipped)) / np.log1p(mu)
+    rng = np.random.default_rng(5)
+    y = rng.uniform(-1.2, 1.2, 200)
+    quant = []
+    for bits in [1, 2, 8, 16, 24]:
+        step = 2.0 ** (1 - bits)
+        quant.append({"bits": bits, "y": floats(np.clip(np.round(y / step) * step, -1.0, 1.0 - step))})
+    return {"x": floats(x), "mulaw": floats(mulaw), "y": floats(y), "quantize": quant}
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path)
@@ -576,7 +589,7 @@ def main():
                                ("spectral.json", spectral_json), ("swt.json", swt_json),
                                ("packets.json", packets_json), ("cwt.json", cwt_json),
                                ("processing.json", lambda: processing_json(sample_wav)),
-                               ("iir.json", iir_json), ("fir.json", fir_json)]:
+                               ("iir.json", iir_json), ("fir.json", fir_json), ("ops.json", ops_json)]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)

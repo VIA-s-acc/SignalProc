@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 #include <numbers>
 #include <string>
 
@@ -114,6 +115,42 @@ Result<std::vector<double>> cut(std::span<const double> x, std::size_t begin, st
     if (begin > end || end > x.size())
         return make_error(Errc::invalid_argument, "cut: need begin <= end <= " + std::to_string(x.size()));
     return std::vector<double>(x.begin() + static_cast<std::ptrdiff_t>(begin), x.begin() + static_cast<std::ptrdiff_t>(end));
+}
+
+Result<std::vector<double>> quantize(std::span<const double> x, int bits, bool dither, std::uint64_t seed) {
+    if (bits < 1 || bits > 32) return make_error(Errc::invalid_argument, "quantize: bits must be in 1..32");
+    const double scale = std::ldexp(1.0, bits - 1);
+    std::mt19937_64 rng{seed};
+    std::uniform_real_distribution<double> uniform{0.0, 1.0};
+    std::vector<double> out(x.size());
+    for (std::size_t n = 0; n < x.size(); ++n) {
+        double v = std::isfinite(x[n]) ? x[n] * scale : 0.0;
+        if (dither) {
+            const double d1 = uniform(rng), d2 = uniform(rng);
+            v += d1 - d2;
+        }
+        out[n] = std::clamp(std::nearbyint(v), -scale, scale - 1) / scale;
+    }
+    return out;
+}
+
+std::vector<double> mulaw_encode(std::span<const double> x, double mu) {
+    std::vector<double> out(x.size());
+    const double norm = std::log1p(mu);
+    for (std::size_t n = 0; n < x.size(); ++n) {
+        const double v = std::isnan(x[n]) ? 0.0 : std::clamp(x[n], -1.0, 1.0);
+        out[n] = std::copysign(std::log1p(mu * std::abs(v)) / norm, v);
+    }
+    return out;
+}
+
+std::vector<double> mulaw_decode(std::span<const double> y, double mu) {
+    std::vector<double> out(y.size());
+    for (std::size_t n = 0; n < y.size(); ++n) {
+        const double v = std::isnan(y[n]) ? 0.0 : std::clamp(y[n], -1.0, 1.0);
+        out[n] = std::copysign(std::expm1(std::abs(v) * std::log1p(mu)) / mu, v);
+    }
+    return out;
 }
 
 }  // namespace signals::core

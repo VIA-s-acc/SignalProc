@@ -5,6 +5,7 @@
 #include <span>
 #include <vector>
 
+#include "core/metrics.hpp"
 #include "core/signal_ops.hpp"
 #include "io/generators.hpp"
 #include "io/wav.hpp"
@@ -107,4 +108,32 @@ TEST_CASE("value keys change with content", "[pipeline]") {
     a.channels[0][0] += 1e-12;
     CHECK(k != value_key(a));
     CHECK(type_of(Value{2.0}) == PortType::scalar);
+}
+
+TEST_CASE("clip, quantize and mulaw blocks act per channel", "[pipeline][ops]") {
+    core::AudioBuffer x;
+    x.sample_rate = 8000;
+    x.channels = {{-1.5, -0.25, 0.0, 0.3, 1.2}, {0.9, -0.9, 0.1, 0.2, -0.3}};
+    const auto clipped = audio(run("clip", {x}, {{"limit", "0.5"}})[0]);
+    CHECK(clipped.channels[0] == std::vector<double>{-0.5, -0.25, 0.0, 0.3, 0.5});
+    CHECK(clipped.channels[1].size() == 5);
+    const auto q = audio(run("quantize", {x}, {{"bits", "2"}, {"dither", "no"}})[0]);
+    CHECK(q.channels[0] == std::vector<double>{-1.0, 0.0, 0.0, 0.5, 0.5});
+    CHECK(q.sample_rate == 8000);
+    const auto enc = run("mulaw", {x}, {{"direction", "encode"}});
+    const auto back = audio(run("mulaw", {enc[0]}, {{"direction", "decode"}})[0]);
+    CHECK(core::max_abs_error(back.channels[1], x.channels[1]) < 1e-12);
+    CHECK(audio(enc[0]).channels[0][0] == -1.0);
+    const auto* q_type = find_block_type("quantize");
+    REQUIRE(q_type);
+    CHECK_FALSE(resolve_params(*q_type, {{"bits", "40"}}));
+}
+
+TEST_CASE("gen makes the Donoho–Johnstone test signals", "[pipeline][ops]") {
+    for (const auto& [kind, dj] : {std::pair{"doppler", io::DonohoJohnstone::doppler}, std::pair{"blocks", io::DonohoJohnstone::blocks},
+                                   std::pair{"bumps", io::DonohoJohnstone::bumps}, std::pair{"heavisine", io::DonohoJohnstone::heavisine}}) {
+        INFO(kind);
+        const auto y = audio(run("gen", {}, {{"kind", kind}, {"rate", "1024"}, {"duration", "2"}})[0]);
+        CHECK(y.channels[0] == io::donoho_johnstone(dj, 2048));
+    }
 }
