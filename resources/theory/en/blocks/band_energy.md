@@ -56,13 +56,13 @@ Band energies $E_b$ or their shares $p_b$: {{metric.energies}}.
 
 ## Implementation
 
-Energy of each band and normalization by the sum.
+Energy of each band and normalization by the sum. For SWT a level-$j$ band gets weight $2^{-j}$: without decimation it carries $2^j$ times the MODWT energy.
 
 ```cpp
-std::vector<double> band_energy_fractions(const BasicCoeffs<double>& coeffs) {
+std::vector<double> band_energy_fractions(const BasicCoeffs<double>& coeffs, std::span<const double> weights) {
     std::vector<double> e;
     e.reserve(coeffs.bands.size());
-    for (const auto& band : coeffs.bands) e.push_back(energy(band));
+    for (std::size_t k = 0; k < coeffs.bands.size(); ++k) e.push_back(energy(coeffs.bands[k]) * (k < weights.size() ? weights[k] : 1.0));
     const double total = neumaier_sum(e);
     for (double& v : e) v = total > 0 ? v / total : 0.0;
     return e;

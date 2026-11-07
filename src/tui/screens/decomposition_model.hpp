@@ -21,12 +21,18 @@
 
 namespace signals::tui {
 
+enum class Transform { dwt, swt, modwt };
+
 struct DecompositionOptions {
     std::string wavelet = "db2";
     std::size_t levels = 6;
     core::Extension mode = core::Extension::symmetric;
     int channel = -1;
+    Transform transform = Transform::dwt;
 };
+
+core::Result<core::BasicCoeffs<double>> forward_transform(const std::vector<double>& x, const core::FilterBank& bank, const DecompositionOptions& o);
+core::Result<std::vector<double>> inverse_transform(const core::BasicCoeffs<double>& c, const core::FilterBank& bank, const DecompositionOptions& o);
 
 struct BandInfo {
     std::string name;

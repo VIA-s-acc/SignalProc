@@ -13,6 +13,7 @@
 #include "core/multirate.hpp"
 #include "core/process/shrink.hpp"
 #include "core/process/threshold.hpp"
+#include "core/swt.hpp"
 #include "core/wavedec.hpp"
 #include "i18n/i18n.hpp"
 #include "io/wav.hpp"
@@ -167,6 +168,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    {{"wavelet", Kind::text, "auto"}, {"ext", Kind::choice, "auto", kExtensionsOrAuto}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                        const auto& c = in_coeffs(in);
+                       if (c.transform != "dwt") return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", "iswt")));
                        const auto& wavelet = param_text(p, "wavelet");
                        const auto& ext = param_text(p, "ext");
                        if (wavelet != "auto" && wavelet != c.wavelet)
@@ -190,6 +192,63 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        }
                        return std::vector<Value>{std::move(result)};
                    }});
+    out.push_back({"swt",
+                   kSignalIn,
+                   kCoeffsOut,
+                   {{"wavelet", Kind::text, "db2"}, {"levels", Kind::integer, "0", {}, 0, 32}, {"norm", Kind::choice, "no", {"no", "yes"}}},
+                   [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
+                       auto bank = bank_of(param_text(p, "wavelet"));
+                       if (!bank) return std::unexpected{bank.error()};
+                       const auto& a = in_audio(in);
+                       Coeffs c;
+                       c.wavelet = param_text(p, "wavelet");
+                       c.mode = core::Extension::periodization;
+                       c.rate = a.sample_rate;
+                       c.transform = "swt";
+                       c.norm = param_text(p, "norm") == "yes";
+                       const double share = 1.0 / static_cast<double>(std::max<std::size_t>(1, a.channels.size()));
+                       for (const auto& ch : a.channels) {
+                           const auto levels = param_int(p, "levels") > 0 ? static_cast<std::size_t>(param_int(p, "levels")) : core::default_levels(ch.size(), bank->length());
+                           if (ch.empty()) return core::make_error(core::Errc::invalid_argument, "swt: empty signal");
+                           if (levels >= 63 || (std::size_t{1} << levels) > ch.size())
+                               return core::make_error(core::Errc::level_out_of_range, fmt::format(fmt::runtime(tr("pipeline.error.swt_levels")), fmt::arg("levels", levels), fmt::arg("n", ch.size())));
+                           const std::size_t block = std::size_t{1} << levels;
+                           const auto size = (ch.size() + block - 1) / block * block;
+                           if (auto ok = checked_length(size, levels + 1); !ok) return std::unexpected{ok.error()};
+                           std::vector<double> padded(size);
+                           for (std::size_t i = 0; i < size; ++i) padded[i] = ch[i % ch.size()];
+                           ScaledProgress part{ctx.progress, share * static_cast<double>(c.channels.size()), share};
+                           auto r = core::swt<double>(padded, *bank, levels, {c.norm, false}, &part);
+                           if (!r) return std::unexpected{r.error()};
+                           c.channels.push_back(std::move(*r));
+                           c.lengths.push_back(ch.size());
+                       }
+                       return std::vector<Value>{std::move(c)};
+                   }});
+    out.push_back({"iswt",
+                   kCoeffsIn,
+                   kSignalOut,
+                   {{"wavelet", Kind::text, "auto"}},
+                   [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
+                       const auto& c = in_coeffs(in);
+                       if (c.transform != "swt") return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", "idwt")));
+                       const auto& wavelet = param_text(p, "wavelet");
+                       if (wavelet != "auto" && wavelet != c.wavelet)
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.idwt_wavelet")), fmt::arg("coeffs", c.wavelet), fmt::arg("wavelet", wavelet)));
+                       auto bank = bank_of(c.wavelet);
+                       if (!bank) return std::unexpected{bank.error()};
+                       core::AudioBuffer result;
+                       result.sample_rate = c.rate;
+                       const double share = 1.0 / static_cast<double>(std::max<std::size_t>(1, c.channels.size()));
+                       for (std::size_t i = 0; i < c.channels.size(); ++i) {
+                           ScaledProgress part{ctx.progress, share * static_cast<double>(i), share};
+                           auto y = core::iswt<double>(c.channels[i], *bank, {c.norm, false}, &part);
+                           if (!y) return std::unexpected{y.error()};
+                           if (i < c.lengths.size()) y->resize(c.lengths[i]);
+                           result.channels.push_back(std::move(*y));
+                       }
+                       return std::vector<Value>{std::move(result)};
+                   }});
     out.push_back({"threshold",
                    kCoeffsIn,
                    kCoeffsOut,
@@ -207,13 +266,14 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                            const auto J = bands.size() - 1;
                            double sigma = 0;
                            if (param_text(p, "sigma") == "mad_d1") sigma = core::noise_sigma_mad(bands.back());
-                           else sigma = param_real(p, "sigma");
+                           else sigma = param_real(p, "sigma") * (c.transform == "swt" && c.norm ? std::sqrt(0.5) : 1.0);
                            if (sigma == 0) continue;
                            const auto n = ch < c.lengths.size() ? c.lengths[ch] : 0;
                            for (std::size_t b = 1; b <= J; ++b) {
                                const auto level = J + 1 - b;
                                if (level < first || level > last) continue;
-                               const double t = bayes ? core::bayes_threshold(bands[b], sigma) : core::universal_threshold(sigma, n);
+                               const double level_sigma = sigma * core::swt_noise_scale(level, c.transform == "swt" && c.norm);
+                               const double t = bayes ? core::bayes_threshold(bands[b], level_sigma) : core::universal_threshold(level_sigma, n);
                                bands[b] = core::threshold(bands[b], t, mode);
                            }
                        }
@@ -250,8 +310,9 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        const auto& c = in_coeffs(in);
                        Report r;
                        for (std::size_t ch = 0; ch < c.channels.size(); ++ch) {
-                           const auto fractions = core::band_energy_fractions(c.channels[ch]);
                            const auto J = c.channels[ch].bands.size() - 1;
+                           const auto weights = c.transform == "swt" ? core::swt_energy_weights(J, c.norm) : std::vector<double>{};
+                           const auto fractions = core::band_energy_fractions(c.channels[ch], weights);
                            for (std::size_t b = 0; b < fractions.size(); ++b)
                                r.fields.emplace_back("c" + std::to_string(ch) + "." + (b == 0 ? "a" + std::to_string(J) : "d" + std::to_string(J + 1 - b)), fractions[b]);
                        }

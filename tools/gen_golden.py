@@ -105,6 +105,31 @@ def wavedec_json():
     return {"signals": signals, "cases": cases}
 
 
+SWT_WAVELETS = ["haar", "db2", "db4", "sym8", "coif2", "bior2.2"]
+SWT_LENGTHS = [64, 96]
+
+
+def swt_json():
+    signals = {str(n): signal(n) for n in SWT_LENGTHS}
+    cases = []
+    for name in SWT_WAVELETS:
+        for n in SWT_LENGTHS:
+            max_level = pywt.swt_max_level(n)
+            for level in sorted({1, 3, max_level}):
+                if level < 1 or level > max_level:
+                    continue
+                x = np.asarray(signals[str(n)])
+                for norm in (False, True):
+                    coeffs = pywt.swt(x, name, level=level, trim_approx=True, norm=norm)
+                    case = {"wavelet": name, "n": n, "level": level, "max_level": max_level, "norm": norm,
+                            "coeffs": [floats(c) for c in coeffs],
+                            "iswt": floats(pywt.iswt(coeffs, name, norm=norm))}
+                    if norm:
+                        case["mra"] = [floats(c) for c in pywt.mra(x, name, level=level, transform="swt")]
+                    cases.append(case)
+    return {"signals": signals, "cases": cases}
+
+
 WAV_FRAMES = 64
 PCM_SUBTYPE_GUID = bytes.fromhex("0100000000001000800000aa00389b71")
 G711_SEG_END = [0xFF, 0x1FF, 0x3FF, 0x7FF, 0xFFF, 0x1FFF, 0x3FFF, 0x7FFF]
@@ -340,7 +365,7 @@ def main():
                                ("kaiser.json", kaiser_json), ("upfirdn.json", upfirdn_json),
                                ("freqz.json", freqz_json), ("threshold.json", threshold_json),
                                ("denoise.json", lambda: denoise_json(sample_wav)),
-                               ("spectral.json", spectral_json)]:
+                               ("spectral.json", spectral_json), ("swt.json", swt_json)]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)

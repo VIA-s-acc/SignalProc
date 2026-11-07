@@ -52,6 +52,8 @@ std::uint64_t value_key(const Value& v) {
                 for (const auto& c : x.channels) h.doubles(c);
             } else if constexpr (std::is_same_v<T, Coeffs>) {
                 h.text(x.wavelet);
+                h.text(x.transform);
+                h.count(x.norm ? 1 : 0);
                 h.count(static_cast<std::size_t>(x.mode));
                 h.number(x.rate);
                 for (const auto& c : x.channels)
@@ -113,7 +115,7 @@ std::optional<Value> band_port(const Coeffs& c, std::string_view name) {
     if (!i) return std::nullopt;
     const auto level = *i == 0 ? c.levels() : c.levels() + 1 - *i;
     core::AudioBuffer out;
-    out.sample_rate = c.rate / static_cast<double>(std::size_t{1} << level);
+    out.sample_rate = c.transform == "dwt" ? c.rate / static_cast<double>(std::size_t{1} << level) : c.rate;
     for (const auto& ch : c.channels) out.channels.push_back(ch.bands[*i]);
     return Value{std::move(out)};
 }

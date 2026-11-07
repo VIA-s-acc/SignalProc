@@ -9,12 +9,33 @@
 #include "core/bank.hpp"
 #include "core/design/families.hpp"
 #include "core/metrics.hpp"
+#include "core/swt.hpp"
 #include "i18n/i18n.hpp"
 #include "tui/monitor/sampler.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/screen_util.hpp"
 
 namespace signals::tui {
+core::Result<core::BasicCoeffs<double>> forward_transform(const std::vector<double>& x, const core::FilterBank& bank, const DecompositionOptions& o) {
+    if (o.transform == Transform::dwt) return core::wavedec<double>(x, bank, o.levels, {o.mode});
+    if (x.empty()) return core::make_error(core::Errc::invalid_argument, "swt: empty signal");
+    if (o.levels >= 63 || (std::size_t{1} << o.levels) > x.size()) return core::make_error(core::Errc::level_out_of_range, "swt: too many levels for the signal length");
+    const std::size_t block = std::size_t{1} << o.levels;
+    const auto size = (x.size() + block - 1) / block * block;
+    std::vector<double> padded(size);
+    for (std::size_t i = 0; i < size; ++i) padded[i] = x[i % x.size()];
+    auto c = core::swt<double>(padded, bank, o.levels, {o.transform == Transform::modwt, false});
+    if (c) c->original_length = x.size();
+    return c;
+}
+
+core::Result<std::vector<double>> inverse_transform(const core::BasicCoeffs<double>& c, const core::FilterBank& bank, const DecompositionOptions& o) {
+    if (o.transform == Transform::dwt) return core::waverec<double>(c, bank, {o.mode});
+    auto y = core::iswt<double>(c, bank, {o.transform == Transform::modwt, false});
+    if (y && c.original_length > 0) y->resize(c.original_length);
+    return y;
+}
+
 namespace {
 
 constexpr std::size_t kTileColumns = 512;
@@ -27,6 +48,13 @@ double energy(std::span<const double> v) {
 }
 
 std::vector<float> to_float(const std::vector<double>& v) { return {v.begin(), v.end()}; }
+
+std::size_t undecimated_bytes(std::size_t n, const DecompositionOptions& o) {
+    if (o.transform == Transform::dwt || o.levels >= 63) return 0;
+    const std::size_t block = std::size_t{1} << o.levels;
+    const auto size = (n + block - 1) / block * block;
+    return (o.levels + 1) * size * 6 * sizeof(double);
+}
 
 }  // namespace
 
@@ -153,7 +181,12 @@ void DecompositionModel::compute(JobRunner& jobs) {
                     for (std::size_t i = 0; i < n; ++i) d->x[i] += ch[i];
                 for (double& v : d->x) v /= static_cast<double>(s->samples.size());
             }
-            auto coeffs = core::wavedec<double>(d->x, bank, opts.levels, {opts.mode});
+            const auto need = undecimated_bytes(n, opts);
+            auto coeffs = need > budget ? core::Result<core::BasicCoeffs<double>>{core::make_error(
+                                              core::Errc::invalid_argument,
+                                              fmt::format(fmt::runtime(tr("tui.decomposition.swt_memory")), fmt::arg("need", format_si(static_cast<double>(need), tr("unit.byte"))),
+                                                          fmt::arg("budget", format_si(static_cast<double>(budget), tr("unit.byte")))))}
+                                        : forward_transform(d->x, bank, opts);
             if (!coeffs) {
                 ctx.fail(coeffs.error().message);
                 std::lock_guard lock{mutex_};
@@ -168,7 +201,8 @@ void DecompositionModel::compute(JobRunner& jobs) {
             if (ctx.cancelled()) return;
             ctx.begin(1);
             const auto J = opts.levels;
-            const auto fractions = core::band_energy_fractions(d->coeffs);
+            const auto weights = opts.transform == Transform::dwt ? std::vector<double>{} : core::swt_energy_weights(J, opts.transform == Transform::modwt);
+            const auto fractions = core::band_energy_fractions(d->coeffs, weights);
             std::size_t coeff_bytes = 0;
             for (std::size_t i = 0; i <= J; ++i) {
                 const auto k = J - i;
@@ -199,11 +233,13 @@ void DecompositionModel::compute(JobRunner& jobs) {
                     cell = std::max(cell, std::max(kTileFloorDb, db));
                 }
             }
-            if (auto back = core::waverec<double>(d->coeffs, bank, {opts.mode})) d->pr_error = core::max_abs_error(*back, d->x);
+            if (auto back = inverse_transform(d->coeffs, bank, opts)) d->pr_error = core::max_abs_error(*back, d->x);
             else d->pr_error = INFINITY;
             double total = 0;
-            for (const auto& b : d->coeffs.bands) total += energy(b);
-            const double ex = energy(d->x);
+            for (std::size_t k = 0; k < d->coeffs.bands.size(); ++k) total += energy(d->coeffs.bands[k]) * (k < weights.size() ? weights[k] : 1.0);
+            double ex = energy(d->x);
+            if (opts.transform != Transform::dwt)
+                for (std::size_t i = n; i < d->coeffs.bands.front().size(); ++i) ex += d->x[i % n] * d->x[i % n];
             d->parseval_error = ex > 0 ? std::abs(total - ex) / ex : 0;
             d->sigma = core::noise_sigma_mad(d->coeffs.bands.back());
             d->orthogonal = core::check_orthogonality(bank, 1e-9).passed();
@@ -226,7 +262,7 @@ void DecompositionModel::compute(JobRunner& jobs) {
             rec->processing = p;
             ctx.begin(2);
             rec->processed = published->coeffs;
-            auto xhat = core::waverec<double>(rec->processed, bank, {opts.mode});
+            auto xhat = inverse_transform(rec->processed, bank, opts);
             if (!xhat) {
                 ctx.fail(xhat.error().message);
                 return;
@@ -249,7 +285,7 @@ void DecompositionModel::compute(JobRunner& jobs) {
                     auto only = rec->processed;
                     for (std::size_t b = 0; b < only.bands.size(); ++b)
                         if (b != J - i) std::fill(only.bands[b].begin(), only.bands[b].end(), 0.0);
-                    auto comp = core::waverec<double>(only, bank, {opts.mode});
+                    auto comp = inverse_transform(only, bank, opts);
                     if (!comp) break;
                     comp->resize(n);
                     rec->components.push_back(to_float(*comp));
@@ -303,10 +339,11 @@ void DecompositionModel::reconstruct(JobRunner& jobs) {
                                         const auto last = std::min(processing.last_level, J);
                                         for (std::size_t level = std::max<std::size_t>(1, processing.first_level); level <= last; ++level) {
                                             auto& band = bands[J + 1 - level];
-                                            const double lambda = *processing.rule == core::ShrinkRule::bayes ? core::bayes_threshold(band, d->sigma)
-                                                                                                             : core::universal_threshold(d->sigma, n);
+                                            const double sigma = d->sigma * core::swt_noise_scale(level, d->options.transform == Transform::modwt);
+                                            const double lambda = *processing.rule == core::ShrinkRule::bayes ? core::bayes_threshold(band, sigma)
+                                                                                                             : core::universal_threshold(sigma, n);
                                             rec->lambdas.push_back(lambda);
-                                            if (d->sigma > 0) band = core::threshold(band, lambda, processing.mode);
+                                            if (sigma > 0) band = core::threshold(band, lambda, processing.mode);
                                         }
                                     }
                                     if (processing.keep_fraction) core::keep_largest(bands, *processing.keep_fraction, 1);
@@ -318,7 +355,7 @@ void DecompositionModel::reconstruct(JobRunner& jobs) {
                                     auto kept = rec->processed;
                                     for (std::size_t i = 0; i <= J && i < enabled.size(); ++i)
                                         if (!enabled[i]) std::fill(kept.bands[J - i].begin(), kept.bands[J - i].end(), 0.0);
-                                    auto xhat = core::waverec<double>(kept, bank, {d->options.mode});
+                                    auto xhat = inverse_transform(kept, bank, d->options);
                                     if (!xhat) {
                                         ctx.fail(xhat.error().message);
                                         std::lock_guard lock{mutex_};
@@ -346,7 +383,7 @@ void DecompositionModel::reconstruct(JobRunner& jobs) {
                                             auto only = rec->processed;
                                             for (std::size_t b = 0; b < only.bands.size(); ++b)
                                                 if (b != J - i) std::fill(only.bands[b].begin(), only.bands[b].end(), 0.0);
-                                            auto comp = core::waverec<double>(only, bank, {d->options.mode});
+                                            auto comp = inverse_transform(only, bank, d->options);
                                             if (!comp) break;
                                             comp->resize(n);
                                             rec->components.push_back(to_float(*comp));

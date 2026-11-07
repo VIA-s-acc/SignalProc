@@ -191,3 +191,66 @@ TEST_CASE("idwt inherits the wavelet and edges of its coefficients and refuses o
     REQUIRE(params);
     CHECK_FALSE(idwt->run(RunContext{}, c, *params));
 }
+
+TEST_CASE("swt then iswt reconstructs any length and refuses idwt", "[pipeline][swt]") {
+    const auto x = test_wav();
+    for (const char* norm : {"no", "yes"}) {
+        const auto c = run("swt", {x}, {{"wavelet", "db2"}, {"levels", "3"}, {"norm", norm}});
+        const auto& coeffs = std::get<Coeffs>(c[0]);
+        CHECK(coeffs.transform == "swt");
+        CHECK(coeffs.levels() == 3);
+        const auto d1 = band_port(coeffs, "d1");
+        REQUIRE(d1);
+        CHECK(std::get<core::AudioBuffer>(*d1).sample_rate == x.sample_rate);
+        const auto y = run("iswt", {c[0]});
+        CHECK(audio(y[0]).channels[0].size() == x.channels[0].size());
+        CHECK(core::max_abs_error(x.channels[0], audio(y[0]).channels[0]) < 1e-10);
+        const auto* idwt = find_block_type("idwt");
+        CHECK_FALSE(idwt->run(RunContext{}, c, *resolve_params(*idwt, {})));
+    }
+}
+
+TEST_CASE("swt refuses levels beyond the signal length before padding", "[pipeline][swt][review]") {
+    core::AudioBuffer a;
+    a.sample_rate = 8000;
+    a.channels.push_back(std::vector<double>(1000, 0.25));
+    const auto* swt = find_block_type("swt");
+    const auto params = resolve_params(*swt, {{"levels", "20"}});
+    REQUIRE(params);
+    const std::vector<Value> in{a};
+    const auto r = swt->run(RunContext{}, in, *params);
+    REQUIRE_FALSE(r);
+    CHECK(r.error().code == core::Errc::level_out_of_range);
+}
+
+TEST_CASE("modwt and swt thresholds give the same signal and energies", "[pipeline][swt][review]") {
+    const auto x = test_wav();
+    const auto s = run("swt", {x}, {{"wavelet", "db2"}, {"levels", "4"}, {"norm", "no"}});
+    const auto m = run("swt", {x}, {{"wavelet", "db2"}, {"levels", "4"}, {"norm", "yes"}});
+    for (const char* rule : {"bayes", "visu"})
+        for (const char* sigma : {"mad_d1", "0.01"}) {
+            INFO(rule << " sigma=" << sigma);
+            const auto ys = audio(run("iswt", {run("threshold", {s[0]}, {{"rule", rule}, {"sigma", sigma}})[0]})[0]);
+            const auto ym = audio(run("iswt", {run("threshold", {m[0]}, {{"rule", rule}, {"sigma", sigma}})[0]})[0]);
+            CHECK(core::max_abs_error(ys.channels[0], ym.channels[0]) < (std::string_view{sigma} == "mad_d1" ? 1e-4 : 1e-9));
+            CHECK(core::max_abs_error(ys.channels[0], x.channels[0]) > 1e-4);
+        }
+    const auto es = std::get<Report>(run("band_energy", {s[0]})[0]);
+    const auto em = std::get<Report>(run("band_energy", {m[0]})[0]);
+    REQUIRE(es.fields.size() == em.fields.size());
+    for (std::size_t i = 0; i < es.fields.size(); ++i) CHECK(std::get<double>(es.fields[i].second) == Catch::Approx(std::get<double>(em.fields[i].second)).margin(1e-9));
+}
+
+TEST_CASE("swt refuses an output above the length cap", "[pipeline][swt][review]") {
+    core::AudioBuffer a;
+    a.sample_rate = 8000;
+    a.channels.push_back(std::vector<double>(std::size_t{1} << 24, 0.25));
+    const auto* swt = find_block_type("swt");
+    const auto params = resolve_params(*swt, {{"levels", "16"}});
+    REQUIRE(params);
+    const std::vector<Value> in{std::move(a)};
+    const auto r = swt->run(RunContext{}, in, *params);
+    REQUIRE_FALSE(r);
+    CHECK(r.error().code == core::Errc::invalid_argument);
+}
+

@@ -624,6 +624,7 @@
   "tui.decomposition.stage.tiles": "энергия и плитки",
   "tui.decomposition.stage.recon": "реконструкция",
   "tui.decomposition.mra_skipped": "MRA пропущено: нужно {need}, больше половины памяти",
+  "tui.decomposition.swt_memory": "SWT не помещается в память: нужно {need}, доступно {budget}. Уменьшите J или выберите DWT",
   "tui.decomposition.hint.band": "полоса",
   "tui.decomposition.hint.toggle": "☑/☐",
   "tui.decomposition.hint.listen": "слушать Σ☑",
@@ -633,7 +634,7 @@
   "tui.decomposition.hint.undo": "отменить",
   "tui.decomposition.mono": "моно (L+R)/2",
   "tui.decomposition.channel": "канал {n}",
-  "tui.decomposition.later": "появится в M6: SWT, MODWT, пакеты, скалограмма",
+  "tui.decomposition.later": "появится в M6: пакеты и скалограмма",
   "tui.decomposition.view": "Вид",
   "tui.decomposition.view.subbands": "Подполосы",
   "tui.decomposition.view.tiles": "Плитки t–f",
@@ -930,5 +931,10 @@
   "tui.pipeline.cmd.open": "Конвейер: открыть .sig",
   "tui.pipeline.cannot_write": "не удалось записать {path}",
   "tui.pipeline.save_for_cli": "граф изменён не только параметрами — сохраните его (Ctrl+S), чтобы повторить в CLI",
-  "tui.pipeline.connect_from": "соединение от {node}: выберите узел-приёмник стрелками и нажмите Enter, Esc — отмена"
+  "tui.pipeline.connect_from": "соединение от {node}: выберите узел-приёмник стрелками и нажмите Enter, Esc — отмена",
+  "pipeline.error.wrong_inverse": "коэффициенты получены преобразованием {transform} — для обратного нужен {inverse}",
+  "pipeline.block.swt": "SWT",
+  "pipeline.block.iswt": "ISWT",
+  "tui.decomposition.hint.transform": "DWT, SWT или MODWT",
+  "pipeline.error.swt_levels": "swt: уровней {levels} больше, чем позволяет длина {n} — нужно 2^уровни ≤ длины"
 }

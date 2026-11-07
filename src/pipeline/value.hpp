@@ -24,6 +24,8 @@ struct Coeffs {
     std::string wavelet;
     core::Extension mode = core::Extension::symmetric;
     double rate = 0;
+    std::string transform = "dwt";
+    bool norm = false;
     std::size_t levels() const { return channels.empty() ? 0 : channels.front().bands.size() - 1; }
 };
 
