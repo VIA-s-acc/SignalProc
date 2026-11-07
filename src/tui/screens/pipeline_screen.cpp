@@ -622,11 +622,13 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
         else break;
     }
     Elements head;
+    probe_chip_boxes_.assign(chips.size(), kNoBox);
     if (lo > 0) head.push_back(text(more + " ") | fg(th.dim, ui_));
-    for (std::size_t i = lo; i < hi && i < chips.size(); ++i) head.push_back(text(chip(i)) | fg(i == probe_index_ ? th.accent : th.fg, ui_));
+    for (std::size_t i = lo; i < hi && i < chips.size(); ++i)
+        head.push_back(text(chip(i)) | fg(i == probe_index_ ? th.accent : th.fg, ui_) | reflect(probe_chip_boxes_[i]));
     if (hi < chips.size()) head.push_back(text(" " + more) | fg(th.dim, ui_));
     head.push_back(filler());
-    head.push_back(text(view) | fg(th.dim, ui_));
+    head.push_back(text(view) | fg(th.dim, ui_) | reflect(probe_view_box_));
     Elements rows;
     if (run.probes.empty()) {
         rows.push_back(paragraph(tr("tui.pipeline.probe_hint")) | fg(th.dim, ui_));
@@ -657,6 +659,37 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
         spec.traces.push_back({probe_.db, probe_.freqs, th.trace[0]});
         auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, plot_rows);
         rows.push_back(probe_zoom_.track("probe_spectrum", std::move(spec), std::move(drawn)));
+    } else if (!probe_.samples) {
+        Elements lines;
+        if (const auto* r = std::get_if<pipeline::Report>(&value)) {
+            lines.push_back(text(std::string{glyph(r->passed ? Glyph::check : Glyph::cross, ui_.caps.glyphs)} + " " + tr(r->passed ? "tui.pipeline.report.passed" : "tui.pipeline.report.failed")) |
+                            fg(r->passed ? th.ok : th.err, ui_));
+            for (const auto& [key, field] : r->fields) {
+                const auto shown = std::holds_alternative<double>(field) ? format_number(std::get<double>(field), 4) : std::get<std::string>(field);
+                lines.push_back(hbox({text(pad_right(key, 14)) | fg(th.dim, ui_), text(shown) | fg(th.fg, ui_)}));
+            }
+        } else if (const auto* number = std::get_if<double>(&value)) {
+            lines.push_back(text(format_number(*number, 6)) | bold | fg(th.fg, ui_));
+        } else if (const auto* bank = std::get_if<core::FilterBank>(&value)) {
+            lines.push_back(text(bank->name) | bold | fg(th.fg, ui_));
+            for (const auto& [role, h] : {std::pair{"h0", &bank->h0}, std::pair{"h1", &bank->h1}, std::pair{"f0", &bank->f0}, std::pair{"f1", &bank->f1}})
+                lines.push_back(hbox({text(pad_right(role, 4)) | fg(th.dim, ui_), text(tr_count("unit.tap", static_cast<long long>(h->coeffs.size()), group(h->coeffs.size()))) | fg(th.fg, ui_)}));
+        } else if (const auto* coeffs = std::get_if<pipeline::Coeffs>(&value); coeffs && !coeffs->channels.empty()) {
+            lines.push_back(text(coeffs->transform + " · " + coeffs->wavelet + " · J = " + std::to_string(coeffs->levels())) | bold | fg(th.fg, ui_));
+            const auto& bands = coeffs->channels.front().bands;
+            double total = 0;
+            for (const auto& b : bands)
+                for (double v : b) total += v * v;
+            for (std::size_t k = 0; k < bands.size(); ++k) {
+                double e = 0;
+                for (double v : bands[k]) e += v * v;
+                const auto name = k == 0 ? "a" + std::to_string(coeffs->levels()) : "d" + std::to_string(coeffs->levels() + 1 - k);
+                lines.push_back(hbox({text(pad_right(name, 5)) | fg(th.trace[0], ui_), text(pad_left(group(bands[k].size()), 9)) | fg(th.dim, ui_),
+                                      text(pad_left(format_fixed(total > 0 ? 100 * e / total : 0, 2) + " %", 10)) | fg(th.fg, ui_)}));
+            }
+        }
+        rows.push_back(scrolled(std::move(lines), probe_text_scroll_, plot_rows, std::nullopt, ui_));
+        rows.push_back(filler());
     } else {
         rows.push_back(filler());
     }
@@ -669,6 +702,7 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
             if (const auto it = run.nodes.find(g->nodes[p->source.node].id); it != run.nodes.end() && it->second.status.state == pipeline::NodeState::cached)
                 info += " · " + tr("tui.pipeline.cached") + " #" + std::to_string(run.number);
     }
+    if (run.probes.size() > 1) info += " · " + tr("tui.pipeline.probe_keys");
     rows.push_back(text(ellipsize(info, std::max(10, width), ascii)) | fg(th.dim, ui_));
     return frame_panel(kProbe, vbox(std::move(rows)), {}, tr("tui.pipeline.probe") + " · " + probe_.name);
 }
@@ -698,6 +732,8 @@ ftxui::Element PipelineScreen::OnRender() {
     using namespace ftxui;
     panel_boxes_.fill(kNoBox);
     graph_box_ = kNoBox;
+    probe_view_box_ = kNoBox;
+    probe_chip_boxes_.clear();
     picture_ = {};
     probe_zoom_.begin_frame();
     if (!seeded_ && current_file_ && model_->doc().nodes.empty() && !model_->path())
@@ -764,6 +800,15 @@ ftxui::Box PipelineScreen::area(std::string_view id) const {
     if (id == "inspector") return panel_boxes_[kInspector];
     if (id == "text_panel") return panel_boxes_[kText];
     if (id == "probe_time_plot") return probe_zoom_.box("probe_time");
+    if (id.starts_with("probe_chip:")) {
+        const auto run = model_->run_view();
+        std::size_t k = 0;
+        for (const auto& [name, value] : run.probes) {
+            if ("probe_chip:" + name == id && k < probe_chip_boxes_.size()) return probe_chip_boxes_[k];
+            ++k;
+        }
+        return kNoBox;
+    }
     if (id == "probe_spectrum_plot") return probe_zoom_.box("probe_spectrum");
     if (id == "run_panel") return panel_boxes_[kRun];
     for (const auto& [type, row] : add_rows_)
@@ -817,6 +862,17 @@ bool PipelineScreen::on_mouse(const ftxui::Mouse& m) {
     using ftxui::Mouse;
     if (wheel_scroll(m, panel_boxes_[kText], text_scroll_) || wheel_scroll(m, panel_boxes_[kRun], run_scroll_) || wheel_scroll(m, panel_boxes_[kInspector], inspector_scroll_)) return true;
     if (probe_zoom_.on_mouse(m)) return true;
+    if (m.button == Mouse::Left && m.motion == Mouse::Pressed) {
+        for (std::size_t i = 0; i < probe_chip_boxes_.size(); ++i)
+            if (valid(probe_chip_boxes_[i]) && probe_chip_boxes_[i].Contain(m.x, m.y)) {
+                probe_index_ = i;
+                probe_text_scroll_ = {};
+                focus_ = kProbe;
+                return true;
+            }
+        if (valid(probe_view_box_) && probe_view_box_.Contain(m.x, m.y)) return spectrum_ = !spectrum_, focus_ = kProbe, true;
+    }
+    if (wheel_scroll(m, panel_boxes_[kProbe], probe_text_scroll_) && !probe_.samples) return true;
     if (m.button == Mouse::Left && m.motion == Mouse::Pressed && panel_boxes_[kProbe].Contain(m.x, m.y)) probe_zoom_.press(m.x, m.y);
     if ((m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) && m.control && valid(graph_box_) && graph_box_.Contain(m.x, m.y)) {
         set_graph_zoom(graph_zoom_ + (m.button == Mouse::WheelUp ? 1 : -1), std::pair{m.x - graph_box_.x_min, m.y - graph_box_.y_min});
@@ -922,11 +978,14 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (focus_ == kProbe && probe_zoom_.on_key(e, spectrum_ ? "probe_spectrum" : "probe_time")) return true;
-    if (focus_ == kProbe && (e == Event::ArrowDown || e == Event::ArrowUp)) {
+    if (focus_ == kProbe && (e == Event::ArrowDown || e == Event::ArrowUp || e == Event::ArrowLeft || e == Event::ArrowRight)) {
         const auto n = model_->run_view().probes.size();
-        if (n > 0) probe_index_ = e == Event::ArrowDown ? (probe_index_ + 1) % n : (probe_index_ + n - 1) % n;
+        const bool next = e == Event::ArrowDown || e == Event::ArrowRight;
+        if (n > 0) probe_index_ = next ? (probe_index_ + 1) % n : (probe_index_ + n - 1) % n;
+        probe_text_scroll_ = {};
         return true;
     }
+    if (focus_ == kProbe && key_scroll(e, probe_text_scroll_, false)) return true;
     if (e == Event::CtrlZ) return model_->undo(), true;
     if (e == Event::CtrlY) return model_->redo(), true;
     if (e == Event::CtrlS) {

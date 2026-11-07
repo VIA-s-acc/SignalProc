@@ -100,7 +100,9 @@ private:
     } drag_;
     std::string notice_;
     std::vector<std::pair<std::string, ftxui::Box>> add_rows_;
-    Scroll text_scroll_, run_scroll_, add_scroll_, inspector_scroll_;
+    Scroll text_scroll_, run_scroll_, add_scroll_, inspector_scroll_, probe_text_scroll_;
+    std::vector<ftxui::Box> probe_chip_boxes_;
+    ftxui::Box probe_view_box_{};
     std::vector<ftxui::Box> param_boxes_;
     std::string param_follow_;
     PlotZoom probe_zoom_;

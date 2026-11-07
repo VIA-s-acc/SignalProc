@@ -830,3 +830,30 @@ TEST_CASE("O lists the examples and a WAV example asks for the file, offering th
     REQUIRE(x != nodes.end());
     CHECK(x->params.at("path") == "/tmp/other.wav");
 }
+
+TEST_CASE("probes switch by click and arrows, and a report probe shows its numbers", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    f.ui->ask_text = [](std::string, std::string, std::function<void(std::string)>) {};
+    f.h.send(ftxui::Event::Character('O'));
+    std::find_if(items.begin(), items.end(), [](const Command& c) { return c.id == "haar_bank"; })->run();
+    f.model->toggle_probe({"pr", {}, 0, 0});
+    f.model->run(f.jobs);
+    for (int k = 0; k < 2000 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    f.h.frame();
+    const auto chip = f.screen->area("probe_chip:pr");
+    REQUIRE(chip.x_max >= chip.x_min);
+    f.h.click(chip.x_min + 1, chip.y_min);
+    auto frame = f.h.frame();
+    CHECK(frame.find("Щуп · pr") != std::string::npos);
+    CHECK(frame.find("max_abs") != std::string::npos);
+    CHECK(frame.find("delay") != std::string::npos);
+    CHECK(frame.find("✓") != std::string::npos);
+    f.h.send(ftxui::Event::ArrowLeft);
+    frame = f.h.frame();
+    CHECK(frame.find("Щуп · pr") == std::string::npos);
+    f.h.send(ftxui::Event::ArrowRight);
+    CHECK(f.h.frame().find("Щуп · pr") != std::string::npos);
+    CHECK(frame.find("←→") != std::string::npos);
+}
