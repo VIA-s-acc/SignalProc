@@ -56,6 +56,10 @@ std::uint64_t value_key(const Value& v) {
                 h.count(x.norm ? 1 : 0);
                 h.count(static_cast<std::size_t>(x.mode));
                 h.number(x.rate);
+                for (const auto& n : x.basis) {
+                    h.count(n.level);
+                    h.count(n.index);
+                }
                 for (const auto& c : x.channels)
                     for (const auto& b : c.bands) h.doubles(b);
             } else if constexpr (std::is_same_v<T, core::FilterBank>) {
@@ -98,6 +102,8 @@ std::size_t value_bytes(const Value& v) {
 }
 
 std::optional<std::size_t> band_index(const Coeffs& c, std::string_view name) {
+    for (std::size_t k = 0; k < c.basis.size(); ++k)
+        if (core::packet_path(c.basis[k]) == name) return k;
     const auto levels = c.levels();
     if (name == "a" || name == "a" + std::to_string(levels)) return 0;
     if (name.size() < 2 || name[0] != 'd') return std::nullopt;
@@ -113,11 +119,20 @@ std::optional<std::size_t> band_index(const Coeffs& c, std::string_view name) {
 std::optional<Value> band_port(const Coeffs& c, std::string_view name) {
     const auto i = band_index(c, name);
     if (!i) return std::nullopt;
-    const auto level = *i == 0 ? c.levels() : c.levels() + 1 - *i;
+    const auto level = *i < c.basis.size() ? c.basis[*i].level : *i == 0 ? c.levels() : c.levels() + 1 - *i;
     core::AudioBuffer out;
     out.sample_rate = c.transform != "swt" ? c.rate / static_cast<double>(std::size_t{1} << level) : c.rate;
     for (const auto& ch : c.channels) out.channels.push_back(ch.bands[*i]);
     return Value{std::move(out)};
+}
+
+std::string band_label(const Coeffs& c, std::size_t band) {
+    if (band < c.basis.size()) {
+        auto path = core::packet_path(c.basis[band]);
+        return path.empty() ? std::string{"x"} : path;
+    }
+    const auto levels = c.levels();
+    return band == 0 ? "a" + std::to_string(levels) : "d" + std::to_string(levels + 1 - band);
 }
 
 }  // namespace signals::pipeline

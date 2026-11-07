@@ -25,6 +25,9 @@ const std::vector<BlockType>& registry() {
         register_channel_blocks(out);
         register_measure_blocks(out);
         register_restore_blocks(out);
+        register_coeff_blocks(out);
+        register_effect_blocks(out);
+        register_analysis_blocks(out);
         return out;
     }();
     return all;
