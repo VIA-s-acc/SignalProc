@@ -1098,6 +1098,7 @@
   "docs.blocks.params_title": "Block parameters",
   "cli.blocks.description": "List the pipeline blocks with their ports and parameters",
   "cli.blocks.markdown": "Print the reference as Markdown",
+  "cli.blocks.json": "Print the reference as JSON, for editors",
   "cli.graph.ascii": "ASCII characters only",
   "cli.dither": "dither when writing: tpdf or none",
   "pipeline.cli.cannot_read": "cannot read {path}",

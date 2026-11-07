@@ -1,0 +1,3065 @@
+[
+ {
+  "about": "Читает WAV-файл со всеми каналами и его частотой дискретизации",
+  "id": "wav",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Путь к файлу; относительный путь отсчитывается от папки конвейера",
+    "choices": [],
+    "default": "",
+    "name": "path",
+    "values": {}
+   }
+  ],
+  "title": "WAV"
+ },
+ {
+  "about": "Одноканальный сигнал из списка чисел, введённых вручную",
+  "id": "samples",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Значения отсчётов через пробел, запятую или точку с запятой",
+    "choices": [],
+    "default": "4 6 10 12 8 6 5 5",
+    "name": "values",
+    "values": {}
+   },
+   {
+    "about": "Частота дискретизации, Гц: сколько отсчётов приходится на секунду",
+    "choices": [],
+    "default": "8",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   }
+  ],
+  "title": "Отсчёты"
+ },
+ {
+  "about": "Складывает или вычитает два сигнала поотсчётно; короткий дополняется нулями",
+  "id": "add",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Действие над входами: a + b или a − b",
+    "choices": [
+     "add",
+     "sub"
+    ],
+    "default": "add",
+    "name": "op",
+    "values": {
+     "add": "сумма a + b",
+     "sub": "разность a − b"
+    }
+   }
+  ],
+  "title": "Сумматор ⊕"
+ },
+ {
+  "about": "Тестовые сигналы: тон, свип, импульс, шум, сигналы Донохо–Джонстона",
+  "id": "gen",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Вид сигнала; от него зависит, какие из остальных параметров действуют",
+    "choices": [
+     "sine",
+     "sweep",
+     "impulse",
+     "step",
+     "white",
+     "pink",
+     "harmonics",
+     "doppler",
+     "blocks",
+     "bumps",
+     "heavisine"
+    ],
+    "default": "sine",
+    "name": "kind",
+    "values": {
+     "blocks": "Blocks Донохо–Джонстона: кусочно-постоянный сигнал со скачками",
+     "bumps": "Bumps Донохо–Джонстона: острые пики на нулевом фоне",
+     "doppler": "Doppler Донохо–Джонстона: колебание с растущим периодом",
+     "harmonics": "тон freq и обертоны 2f, 3f, 4f с амплитудами a, a/2, a/4, a/8",
+     "heavisine": "HeaviSine Донохо–Джонстона: синусоида с двумя скачками",
+     "impulse": "единичный импульс в первом отсчёте, дальше нули",
+     "pink": "розовый шум 1/f; amplitude — его среднеквадратичное значение, реализацию задаёт seed",
+     "sine": "синусоида частоты freq с амплитудой amplitude",
+     "step": "единичная ступенька: единицы с первого отсчёта",
+     "sweep": "логарифмический свип от freq до f1 с амплитудой 1",
+     "white": "белый гауссов шум; amplitude — его среднеквадратичное значение, реализацию задаёт seed"
+    }
+   },
+   {
+    "about": "Частота, Гц: тона и основного тона гармоник, начало свипа",
+    "choices": [],
+    "default": "440",
+    "name": "freq",
+    "values": {}
+   },
+   {
+    "about": "Конечная частота свипа, Гц; другим видам не нужна",
+    "choices": [],
+    "default": "8000",
+    "name": "f1",
+    "values": {}
+   },
+   {
+    "about": "Амплитуда (у шума — среднеквадратичное значение); у свипа, импульса и ступеньки не действует",
+    "choices": [],
+    "default": "1",
+    "name": "amplitude",
+    "values": {}
+   },
+   {
+    "about": "Частота дискретизации, Гц; частоты выше её половины дадут наложение",
+    "choices": [],
+    "default": "44100",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "Длительность сигнала, с",
+    "choices": [],
+    "default": "1",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "duration",
+    "values": {}
+   },
+   {
+    "about": "Зерно генератора шума: то же зерно — тот же шум; только для white и pink",
+    "choices": [],
+    "default": "1",
+    "name": "seed",
+    "values": {}
+   }
+  ],
+  "title": "Генератор"
+ },
+ {
+  "about": "Умножает сигнал на постоянный множитель, заданный в децибелах",
+  "id": "gain",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Усиление, дБ: +6 — амплитуда примерно вдвое больше, отрицательное — тише",
+    "choices": [],
+    "default": "0",
+    "name": "db",
+    "values": {}
+   }
+  ],
+  "title": "Усиление"
+ },
+ {
+  "about": "Масштабирует каждый канал до заданного пикового или RMS-уровня",
+  "id": "normalize",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "По какому уровню нормировать: по пику или по среднеквадратичному значению",
+    "choices": [
+     "peak",
+     "rms"
+    ],
+    "default": "peak",
+    "name": "kind",
+    "values": {
+     "peak": "max|x| становится равным target_dbfs",
+     "rms": "среднеквадратичное значение становится равным target_dbfs"
+    }
+   },
+   {
+    "about": "Целевой уровень, дБ относительно полной шкалы (0 дБ — амплитуда 1,0)",
+    "choices": [],
+    "default": "-1",
+    "name": "target_dbfs",
+    "values": {}
+   }
+  ],
+  "title": "Нормировка"
+ },
+ {
+  "about": "Вычитает из каждого канала его среднее, убирая постоянную составляющую",
+  "id": "remove_dc",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Без DC"
+ },
+ {
+  "about": "Жёстко ограничивает отсчёты уровнем ±limit",
+  "id": "clip",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Порог ограничения: всё, что выходит за ±limit, срезается до него",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "limit",
+    "values": {}
+   }
+  ],
+  "title": "Ограничение"
+ },
+ {
+  "about": "Квантует сигнал до заданной разрядности, по желанию с дизерингом",
+  "id": "quantize",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Число разрядов: меньше — грубее шаг и громче шум квантования",
+    "choices": [],
+    "default": "16",
+    "max": 32.0,
+    "min": 1.0,
+    "name": "bits",
+    "values": {}
+   },
+   {
+    "about": "Добавлять ли перед округлением треугольный шум (TPDF)",
+    "choices": [
+     "yes",
+     "no"
+    ],
+    "default": "yes",
+    "name": "dither",
+    "values": {
+     "no": "простое округление: ошибка следует за сигналом и звучит как искажение",
+     "yes": "с TPDF-дизерингом: ошибка становится ровным шумом, не связанным с сигналом"
+    }
+   },
+   {
+    "about": "Зерно генератора дизеринга; канал c получает seed + c",
+    "choices": [],
+    "default": "24301",
+    "name": "seed",
+    "values": {}
+   }
+  ],
+  "title": "Квантование"
+ },
+ {
+  "about": "Компандирование по μ-закону: сжатие или обратное расширение динамики",
+  "id": "mulaw",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Направление: сжатие (кодирование) или расширение (декодирование)",
+    "choices": [
+     "encode",
+     "decode"
+    ],
+    "default": "encode",
+    "name": "direction",
+    "values": {
+     "decode": "расширение: обратное отображение, возвращает исходную шкалу",
+     "encode": "сжатие: y = sign(x)·ln(1 + μ|x|)/ln(1 + μ), вход обрезается до ±1"
+    }
+   },
+   {
+    "about": "Параметр μ: больше — сильнее сжаты громкие отсчёты относительно тихих",
+    "choices": [],
+    "default": "255",
+    "max": 65535.0,
+    "min": 1.0,
+    "name": "mu",
+    "values": {}
+   }
+  ],
+  "title": "μ-закон"
+ },
+ {
+  "about": "Делит сигнал на левый и правый каналы или выделяет один канал",
+  "id": "split",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "l",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "r",
+    "optional": true,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Что подать на выходы l и r",
+    "choices": [
+     "lr",
+     "channel"
+    ],
+    "default": "lr",
+    "name": "mode",
+    "values": {
+     "channel": "оба выхода получают канал с номером channel",
+     "lr": "l — канал 0, r — канал 1 (у моно оба получают канал 0)"
+    }
+   },
+   {
+    "about": "Номер канала с нуля для режима channel",
+    "choices": [],
+    "default": "0",
+    "name": "channel",
+    "values": {}
+   }
+  ],
+  "title": "Каналы"
+ },
+ {
+  "about": "Сводит все каналы в один, усредняя их",
+  "id": "mixdown",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "В моно"
+ },
+ {
+  "about": "Поворот стерео L/R ↔ M/S: M = (L + R)/√2, S = (L − R)/√2",
+  "id": "mid_side",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Направление; поворот ортогонален, поэтому обратим без потерь",
+    "choices": [
+     "encode",
+     "decode"
+    ],
+    "default": "encode",
+    "name": "direction",
+    "values": {
+     "decode": "M/S → L/R: возвращает левый и правый каналы",
+     "encode": "L/R → M/S: канал 0 становится средним, канал 1 — разностным"
+    }
+   }
+  ],
+  "title": "M/S"
+ },
+ {
+  "about": "Задерживает сигнал, вставляя нули в начало",
+  "id": "delay",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Задержка в отсч. или в секундах с суффиксом s (0.01s)",
+    "choices": [],
+    "default": "0",
+    "name": "samples",
+    "values": {}
+   }
+  ],
+  "title": "Задержка"
+ },
+ {
+  "about": "Разворачивает сигнал во времени: последний отсчёт становится первым",
+  "id": "reverse",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Разворот"
+ },
+ {
+  "about": "Оставляет участок сигнала [begin, end)",
+  "id": "cut",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Начало участка, включительно: в отсч. или в секундах с суффиксом s (0.01s)",
+    "choices": [],
+    "default": "0",
+    "name": "begin",
+    "values": {}
+   },
+   {
+    "about": "Конец участка, не включается; 0 — до конца сигнала. В отсч. или в секундах с суффиксом s (0.01s)",
+    "choices": [],
+    "default": "0",
+    "name": "end",
+    "values": {}
+   }
+  ],
+  "title": "Вырезка"
+ },
+ {
+  "about": "Прореживание ↓M: оставляет каждый M-й отсчёт, по желанию подавив наложение",
+  "id": "downsample",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Коэффициент прореживания M: частота дискретизации делится на M",
+    "choices": [],
+    "default": "2",
+    "max": 1024.0,
+    "min": 1.0,
+    "name": "m",
+    "values": {}
+   },
+   {
+    "about": "Подавление наложения фильтром Кайзера, дБ: больше — чище, но длиннее фильтр",
+    "choices": [],
+    "default": "80",
+    "max": 200.0,
+    "min": 10.0,
+    "name": "attenuation_db",
+    "values": {}
+   },
+   {
+    "about": "Пропускать ли сигнал перед прореживанием через ФНЧ со срезом fs/(2M)",
+    "choices": [
+     "yes",
+     "no"
+    ],
+    "default": "yes",
+    "name": "anti_alias",
+    "values": {
+     "no": "просто каждый M-й отсчёт: частоты выше fs/(2M) наложатся на низкие",
+     "yes": "сначала ФНЧ Кайзера, затем каждый M-й отсчёт: без наложения спектров"
+    }
+   },
+   {
+    "about": "Сдвиг прореживания: p оставляет x[p], x[p+M], …; должен быть меньше M",
+    "choices": [],
+    "default": "0",
+    "max": 1023.0,
+    "min": 0.0,
+    "name": "phase",
+    "values": {}
+   }
+  ],
+  "title": "Прореживание ↓M"
+ },
+ {
+  "about": "Растяжение ↑M: вставляет M−1 нулей между отсчётами, по желанию убирая изображения",
+  "id": "upsample",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Коэффициент растяжения M: частота дискретизации умножается на M",
+    "choices": [],
+    "default": "2",
+    "max": 1024.0,
+    "min": 1.0,
+    "name": "m",
+    "values": {}
+   },
+   {
+    "about": "Подавление изображений спектра фильтром Кайзера, дБ: больше — чище, но длиннее фильтр",
+    "choices": [],
+    "default": "80",
+    "max": 200.0,
+    "min": 10.0,
+    "name": "attenuation_db",
+    "values": {}
+   },
+   {
+    "about": "Пропускать ли растянутый сигнал через ФНЧ, убирающий изображения спектра",
+    "choices": [
+     "yes",
+     "no"
+    ],
+    "default": "yes",
+    "name": "anti_image",
+    "values": {
+     "no": "только вставка нулей: в спектре остаются M−1 изображений",
+     "yes": "ФНЧ Кайзера с усилением M: гладкая интерполяция исходного сигнала"
+    }
+   }
+  ],
+  "title": "Растяжение ↑M"
+ },
+ {
+  "about": "Смена частоты в L/M раз: растяжение ↑L, ФНЧ, прореживание ↓M",
+  "id": "resample",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Коэффициент растяжения L — числитель отношения частот",
+    "choices": [],
+    "default": "1",
+    "max": 1024.0,
+    "min": 1.0,
+    "name": "l",
+    "values": {}
+   },
+   {
+    "about": "Коэффициент прореживания M — знаменатель: новая частота fs·L/M",
+    "choices": [],
+    "default": "1",
+    "max": 1024.0,
+    "min": 1.0,
+    "name": "m",
+    "values": {}
+   },
+   {
+    "about": "Подавление изображений и наложения фильтрами Кайзера, дБ: больше — чище, но длиннее",
+    "choices": [],
+    "default": "80",
+    "max": 200.0,
+    "min": 10.0,
+    "name": "attenuation_db",
+    "values": {}
+   }
+  ],
+  "title": "Ресемплинг L/M"
+ },
+ {
+  "about": "Полная свёртка с фильтром банка или библиотеки: длина выхода N + L − 1",
+  "id": "convolve",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Фильтр вида вейвлет.роль: h0/h1 — анализ ФНЧ/ФВЧ, f0/f1 — синтез; или имя из библиотеки",
+    "choices": [],
+    "default": "db2.h0",
+    "name": "filter",
+    "values": {}
+   },
+   {
+    "about": "Способ вычисления; результат одинаков с точностью до округления",
+    "choices": [
+     "auto",
+     "direct",
+     "fft"
+    ],
+    "default": "auto",
+    "name": "method",
+    "values": {
+     "auto": "БПФ, если оба операнда не короче 160 отсч., иначе прямая сумма",
+     "direct": "прямая сумма произведений, O(N·L): быстрее для коротких фильтров",
+     "fft": "через БПФ, O((N+L) log(N+L)): быстрее для длинных фильтров"
+    }
+   }
+  ],
+  "title": "Свёртка"
+ },
+ {
+  "about": "Дискретное вейвлет-преобразование: многоуровневое разложение на полосы aJ, dJ…d1",
+  "id": "dwt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Имя вейвлета (haar, db4, sym8, coif3, bior2.2, dmey…): задаёт банк фильтров",
+    "choices": [],
+    "default": "db2",
+    "name": "wavelet",
+    "values": {}
+   },
+   {
+    "about": "Число уровней J; 0 — автоматически: максимум для этой длины минус 3, не меньше 1",
+    "choices": [],
+    "default": "0",
+    "max": 64.0,
+    "min": 0.0,
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "Как продолжать сигнал за краями при свёртке; от этого зависят длины полос",
+    "choices": [
+     "symmetric",
+     "periodization",
+     "zero",
+     "constant",
+     "smooth",
+     "periodic",
+     "reflect",
+     "antisymmetric",
+     "antireflect"
+    ],
+    "default": "symmetric",
+    "name": "ext",
+    "values": {
+     "antireflect": "отражение относительно крайнего отсчёта: x[−n] = 2x0 − x[n]",
+     "antisymmetric": "зеркало со сменой знака: … −x1 −x0 | x0 x1 …",
+     "constant": "повтор крайнего отсчёта",
+     "periodic": "периодический повтор сигнала, полосы удлиняются",
+     "periodization": "круговое без расширения: ⌈N/2⌉ коэффициентов на уровень",
+     "reflect": "зеркало без повтора края: … x2 x1 | x0 x1 x2 …",
+     "smooth": "линейное продолжение по двум крайним отсчётам",
+     "symmetric": "зеркало с повтором края: … x1 x0 | x0 x1 …",
+     "zero": "нули за краями сигнала"
+    }
+   }
+  ],
+  "title": "DWT"
+ },
+ {
+  "about": "Обратное DWT: собирает сигнал из полос aJ, dJ…d1",
+  "id": "idwt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Вейвлет синтеза: auto — тот же, что при разложении; иное имя должно с ним совпасть",
+    "choices": [],
+    "default": "auto",
+    "name": "wavelet",
+    "values": {}
+   },
+   {
+    "about": "Продолжение за краями: auto — как при разложении; иное значение должно совпасть",
+    "choices": [
+     "auto",
+     "symmetric",
+     "periodization",
+     "zero",
+     "constant",
+     "smooth",
+     "periodic",
+     "reflect",
+     "antisymmetric",
+     "antireflect"
+    ],
+    "default": "auto",
+    "name": "ext",
+    "values": {
+     "antireflect": "отражение относительно крайнего отсчёта: x[−n] = 2x0 − x[n]",
+     "antisymmetric": "зеркало со сменой знака: … −x1 −x0 | x0 x1 …",
+     "auto": "взять режим, сохранённый вместе с коэффициентами",
+     "constant": "повтор крайнего отсчёта",
+     "periodic": "периодический повтор сигнала, полосы удлиняются",
+     "periodization": "круговое без расширения: ⌈N/2⌉ коэффициентов на уровень",
+     "reflect": "зеркало без повтора края: … x2 x1 | x0 x1 x2 …",
+     "smooth": "линейное продолжение по двум крайним отсчётам",
+     "symmetric": "зеркало с повтором края: … x1 x0 | x0 x1 …",
+     "zero": "нули за краями сигнала"
+    }
+   }
+  ],
+  "title": "IDWT"
+ },
+ {
+  "about": "Стационарное вейвлет-преобразование без прореживания: полосы длины сигнала",
+  "id": "swt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Имя вейвлета (haar, db4, sym8, coif3, bior2.2, dmey…): задаёт банк фильтров",
+    "choices": [],
+    "default": "db2",
+    "name": "wavelet",
+    "values": {}
+   },
+   {
+    "about": "Число уровней J; 0 — автоматически; сигнал периодически дополняется до кратности 2^J",
+    "choices": [],
+    "default": "0",
+    "max": 32.0,
+    "min": 0.0,
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "Делить ли фильтры на √2, чтобы энергия полос равнялась энергии сигнала",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "norm",
+    "values": {
+     "no": "фильтры DWT как есть (как в pywt): энергия удваивается на каждом уровне",
+     "yes": "фильтры ×1/√2: суммарная энергия полос равна энергии сигнала"
+    }
+   }
+  ],
+  "title": "SWT"
+ },
+ {
+  "about": "Вейвлет 5/3 (LeGall, JPEG 2000) через лифтинг: многоуровневое разложение",
+  "id": "lift53",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Число уровней разложения; сигнал должен быть не короче 2^levels отсчётов",
+    "choices": [],
+    "default": "4",
+    "max": 30.0,
+    "min": 1.0,
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "Считать ли в целых числах — обратимый вариант JPEG 2000 без потерь",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "integer",
+    "values": {
+     "no": "вещественный лифтинг: ПВ с точностью до округления",
+     "yes": "отсчёты ×32768 в целые, целый лифтинг: 16-бит PCM восстанавливается точно"
+    }
+   }
+  ],
+  "title": "Лифтинг 5/3"
+ },
+ {
+  "about": "Обратный лифтинг 5/3: собирает сигнал из полос lift53, вещественных или целых",
+  "id": "ilift53",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Обратный лифтинг 5/3"
+ },
+ {
+  "about": "Обратное SWT: собирает сигнал из полос и обрезает его до исходной длины",
+  "id": "iswt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Вейвлет синтеза: auto — тот же, что у SWT; иное имя должно с ним совпасть",
+    "choices": [],
+    "default": "auto",
+    "name": "wavelet",
+    "values": {}
+   }
+  ],
+  "title": "ISWT"
+ },
+ {
+  "about": "Пороговая обработка вейвлет-коэффициентов: сжатие деталей по правилу",
+  "id": "threshold",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Правило выбора порога λ на каждом уровне; аппроксимация не трогается",
+    "choices": [
+     "bayes",
+     "visu",
+     "sure",
+     "minimax"
+    ],
+    "default": "bayes",
+    "name": "rule",
+    "values": {
+     "bayes": "BayesShrink: λ = σ²/σx на каждом уровне, подстраивается под сигнал",
+     "minimax": "минимаксный порог Донохо–Джонстона: мягче универсального",
+     "sure": "SureShrink: λ минимизирует несмещённую оценку риска Стейна на уровне",
+     "visu": "VisuShrink: λ = σ√(2 ln N), убирает почти весь шум, но сглаживает сигнал"
+    }
+   },
+   {
+    "about": "Функция сжатия: как меняются коэффициенты относительно порога λ",
+    "choices": [
+     "soft",
+     "hard",
+     "garrote"
+    ],
+    "default": "soft",
+    "name": "mode",
+    "values": {
+     "garrote": "неотрицательная гаррота: y − λ²/y при |y| > λ, между мягким и жёстким",
+     "hard": "жёсткий: |y| ≤ λ → 0, остальные без изменений; меньше смещение, больше шума",
+     "soft": "мягкий: |y| ≤ λ → 0, остальные уменьшаются на λ; гладко, но со смещением"
+    }
+   },
+   {
+    "about": "Какие уровни деталей обрабатывать: J или J1..J2; 1 — самый мелкий d1",
+    "choices": [],
+    "default": "1..64",
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "Уровень шума σ: mad_d1 — оценка медиана|d1|/0,6745, или число",
+    "choices": [],
+    "default": "mad_d1",
+    "name": "sigma",
+    "values": {}
+   }
+  ],
+  "title": "Порог"
+ },
+ {
+  "about": "Правит полосы разложения: отключает ненужные и меняет усиление остальных",
+  "id": "band_edit",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Какие полосы оставить, через запятую (a, d1, d3) или all; остальные обнуляются",
+    "choices": [],
+    "default": "all",
+    "name": "enabled",
+    "values": {}
+   },
+   {
+    "about": "Усиления полос в дБ через запятую, вида d2=-6, a=3; прочие полосы не меняются",
+    "choices": [],
+    "default": "",
+    "name": "gains_db",
+    "values": {}
+   }
+  ],
+  "title": "Правка полос"
+ },
+ {
+  "about": "Отчёт: доля энергии каждой полосы разложения по каналам",
+  "id": "band_energy",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [],
+  "title": "Энергия полос"
+ },
+ {
+  "about": "Огибающая: модуль аналитического сигнала (преобразование Гильберта)",
+  "id": "envelope",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Огибающая"
+ },
+ {
+  "about": "Мгновенная частота, Гц: производная фазы аналитического сигнала",
+  "id": "inst_freq",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Мгновенная частота"
+ },
+ {
+  "about": "Вещественный кепстр: обратное БПФ логарифма модуля спектра",
+  "id": "cepstrum",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Кепстр"
+ },
+ {
+  "about": "Дискретное косинусное преобразование DCT-II каждого канала",
+  "id": "dct",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "DCT-II"
+ },
+ {
+  "about": "Обратное DCT (DCT-III): возвращает сигнал из коэффициентов DCT-II",
+  "id": "idct",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Обратное DCT"
+ },
+ {
+  "about": "Взаимная корреляция сигналов a и b по каналам",
+  "id": "xcorr",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Какую часть корреляции выдать, как в numpy.correlate",
+    "choices": [
+     "full",
+     "same",
+     "valid"
+    ],
+    "default": "full",
+    "name": "mode",
+    "values": {
+     "full": "все сдвиги: длина Na + Nb − 1",
+     "same": "центральная часть длины входа a",
+     "valid": "только сдвиги с полным перекрытием: длина |Na − Nb| + 1"
+    }
+   },
+   {
+    "about": "Делить ли на √(Ea·Eb), чтобы значения лежали в [−1, 1]",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "normalize",
+    "values": {
+     "no": "сырые суммы произведений: масштаб зависит от уровня сигналов",
+     "yes": "коэффициент корреляции: 1 — та же форма при этом сдвиге"
+    }
+   }
+  ],
+  "title": "Корреляция"
+ },
+ {
+  "about": "Вейвлет-шумоподавление: DWT, порог по деталям, обратное DWT",
+  "id": "denoise",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Вейвлет разложения; длинные гладкие (sym8, db8) лучше для плавных сигналов",
+    "choices": [],
+    "default": "sym8",
+    "name": "wavelet",
+    "values": {}
+   },
+   {
+    "about": "Число уровней J; 0 — автоматически: максимум для этой длины минус 3, не меньше 1",
+    "choices": [],
+    "default": "0",
+    "max": 32.0,
+    "min": 0.0,
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "Правило выбора порога λ на каждом уровне; σ оценивается по MAD деталей d1",
+    "choices": [
+     "bayes",
+     "visu",
+     "sure",
+     "minimax"
+    ],
+    "default": "bayes",
+    "name": "rule",
+    "values": {
+     "bayes": "BayesShrink: λ = σ²/σx на каждом уровне, подстраивается под сигнал",
+     "minimax": "минимаксный порог Донохо–Джонстона: мягче универсального",
+     "sure": "SureShrink: λ минимизирует несмещённую оценку риска Стейна на уровне",
+     "visu": "VisuShrink: λ = σ√(2 ln N), убирает почти весь шум, но сглаживает сигнал"
+    }
+   },
+   {
+    "about": "Функция сжатия: как меняются коэффициенты относительно порога λ",
+    "choices": [
+     "soft",
+     "hard"
+    ],
+    "default": "soft",
+    "name": "mode",
+    "values": {
+     "hard": "жёсткий: |y| ≤ λ → 0, остальные без изменений; меньше смещение, больше шума",
+     "soft": "мягкий: |y| ≤ λ → 0, остальные уменьшаются на λ; гладко, но со смещением"
+    }
+   },
+   {
+    "about": "Число циклических сдвигов для усреднения: больше — меньше артефактов, но медленнее",
+    "choices": [],
+    "default": "1",
+    "max": 64.0,
+    "min": 1.0,
+    "name": "shifts",
+    "values": {}
+   }
+  ],
+  "title": "Шумоподавление"
+ },
+ {
+  "about": "Отчёт: основная частота и коэффициент гармонических искажений THD",
+  "id": "thd",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "До какой гармоники считать: входят 2-я…N-я, лежащие ниже частоты Найквиста",
+    "choices": [],
+    "default": "5",
+    "max": 20.0,
+    "min": 2.0,
+    "name": "harmonics",
+    "values": {}
+   }
+  ],
+  "title": "THD"
+ },
+ {
+  "about": "Отчёт: моменты атак (онсетов) по спектральному потоку, в секундах",
+  "id": "onsets",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Длина окна БПФ, отсч.: больше — точнее по частоте, грубее по времени",
+    "choices": [],
+    "default": "1024",
+    "max": 65536.0,
+    "min": 64.0,
+    "name": "n",
+    "values": {}
+   },
+   {
+    "about": "Шаг окна, отсч.: меньше — точнее моменты атак, но дольше расчёт",
+    "choices": [],
+    "default": "256",
+    "max": 65536.0,
+    "min": 1.0,
+    "name": "hop",
+    "values": {}
+   }
+  ],
+  "title": "Онсеты"
+ },
+ {
+  "about": "Сохраняет отсчёты в CSV или JSON и выдаёт отчёт о записи",
+  "id": "export",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Путь к файлу; относительный путь отсчитывается от папки конвейера",
+    "choices": [],
+    "default": "out.csv",
+    "name": "path",
+    "values": {}
+   },
+   {
+    "about": "Формат файла",
+    "choices": [
+     "csv",
+     "json"
+    ],
+    "default": "csv",
+    "name": "format",
+    "values": {
+     "csv": "таблица: столбец n и по столбцу ch0, ch1… на канал",
+     "json": "объект {rate, channels: [[…], …]}: частота и массивы каналов"
+    }
+   }
+  ],
+  "title": "Выгрузка CSV / JSON"
+ },
+ {
+  "about": "Сохраняет поля входного отчёта в CSV или JSON",
+  "id": "export_report",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Путь к файлу; относительный путь отсчитывается от папки конвейера",
+    "choices": [],
+    "default": "report.json",
+    "name": "path",
+    "values": {}
+   },
+   {
+    "about": "Формат файла",
+    "choices": [
+     "csv",
+     "json"
+    ],
+    "default": "json",
+    "name": "format",
+    "values": {
+     "csv": "две колонки field,value, по строке на поле",
+     "json": "объект с полями passed и fields (имя → значение)"
+    }
+   }
+  ],
+  "title": "Выгрузка отчёта"
+ },
+ {
+  "about": "Сравнивает сигнал с эталоном ref и сообщает, пройдена ли проверка",
+  "id": "check",
+  "inputs": [
+   {
+    "name": "ref",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Критерий прохождения; разное число каналов или короткий вход — всегда провал",
+    "choices": [
+     "pr",
+     "error",
+     "snr"
+    ],
+    "default": "pr",
+    "name": "kind",
+    "values": {
+     "error": "допустимая ошибка: max|x̂ − x| не больше tol, для приближённых схем",
+     "pr": "полное восстановление: max|x̂ − x| не больше tol",
+     "snr": "SNR восстановления в дБ не меньше tol"
+    }
+   },
+   {
+    "about": "Порог: для pr и error — допустимая max-ошибка, для snr — наименьший SNR в дБ",
+    "choices": [],
+    "default": "1e-12",
+    "name": "tol",
+    "values": {}
+   },
+   {
+    "about": "Отставание проверяемого сигнала от эталона, отсч., или auto — найти самому",
+    "choices": [],
+    "default": "0",
+    "name": "delay",
+    "values": {}
+   }
+  ],
+  "title": "Проверка"
+ },
+ {
+  "about": "Записывает сигнал в WAV-файл и сообщает число обрезанных отсчётов",
+  "id": "wav_out",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Путь к файлу; относительный путь отсчитывается от папки конвейера",
+    "choices": [],
+    "default": "out.wav",
+    "name": "path",
+    "values": {}
+   },
+   {
+    "about": "Формат отсчётов в файле",
+    "choices": [
+     "16",
+     "24",
+     "32",
+     "f32"
+    ],
+    "default": "24",
+    "name": "bits",
+    "values": {
+     "16": "16-бит целые PCM, как на CD",
+     "24": "24-бит целые PCM, студийный стандарт",
+     "32": "32-бит целые PCM",
+     "f32": "32-бит с плавающей точкой: значения за полной шкалой не обрезаются"
+    }
+   },
+   {
+    "about": "Дизеринг при округлении до целого формата; для f32 не действует",
+    "choices": [
+     "none",
+     "tpdf"
+    ],
+    "default": "tpdf",
+    "name": "dither",
+    "values": {
+     "none": "простое округление: ошибка следует за сигналом",
+     "tpdf": "треугольный шум ±1 МЗР перед округлением: ошибка становится ровным шумом"
+    }
+   },
+   {
+    "about": "Зерно генератора дизеринга: то же зерно — тот же файл",
+    "choices": [],
+    "default": "24301",
+    "name": "seed",
+    "values": {}
+   }
+  ],
+  "title": "Запись"
+ },
+ {
+  "about": "Точка прослушивания: подключённый сигнал можно проиграть из редактора",
+  "id": "listen",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [],
+  "params": [],
+  "title": "Прослушивание"
+ },
+ {
+  "about": "Дописывает нули до и после сигнала",
+  "id": "pad",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Сколько нулей вставить в начало: в отсч. или в секундах с суффиксом s (0.01s)",
+    "choices": [],
+    "default": "0",
+    "name": "before",
+    "values": {}
+   },
+   {
+    "about": "Сколько нулей дописать в конец: в отсч. или в секундах с суффиксом s (0.01s)",
+    "choices": [],
+    "default": "0",
+    "name": "after",
+    "values": {}
+   }
+  ],
+  "title": "Дополнение нулями"
+ },
+ {
+  "about": "Склеивает сигналы: b идёт сразу после a",
+  "id": "concat",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Склейка"
+ },
+ {
+  "about": "Поотсчётное произведение factor·a·b; без входа b — просто a·factor",
+  "id": "multiply",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": true,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Постоянный множитель; отрицательный меняет полярность",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "factor",
+    "values": {}
+   }
+  ],
+  "title": "Умножитель ⊗"
+ },
+ {
+  "about": "Умножает весь сигнал на оконную функцию той же длины",
+  "id": "window",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Форма окна: компромисс между шириной главного лепестка и уровнем боковых",
+    "choices": [
+     "hann",
+     "hamming",
+     "blackman",
+     "kaiser",
+     "tukey"
+    ],
+    "default": "hann",
+    "name": "kind",
+    "values": {
+     "blackman": "окно Блэкмана: боковые лепестки −58 дБ, главный шире",
+     "hamming": "окно Хэмминга: первый боковой лепесток −43 дБ, но медленный спад",
+     "hann": "окно Ханна: боковые лепестки −31 дБ, хороший универсальный выбор",
+     "kaiser": "окно Кайзера: форму задаёт параметр beta",
+     "tukey": "окно Тьюки: плоская середина и косинусные края, их доля — alpha"
+    }
+   },
+   {
+    "about": "Параметр окна Кайзера: больше — ниже боковые лепестки, шире главный; только kaiser",
+    "choices": [],
+    "default": "8.6",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "beta",
+    "values": {}
+   },
+   {
+    "about": "Доля длины под косинусные края окна Тьюки: 0 — прямоугольное, 1 — окно Ханна",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "alpha",
+    "values": {}
+   }
+  ],
+  "title": "Оконная функция"
+ },
+ {
+  "about": "Плавное нарастание в начале и затухание в конце сигнала",
+  "id": "fade",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Длительность нарастания в отсч. или в секундах с суффиксом s (0.01s); 0 — без него",
+    "choices": [],
+    "default": "0.01s",
+    "name": "fade_in",
+    "values": {}
+   },
+   {
+    "about": "Длительность затухания в отсч. или в секундах с суффиксом s (0.01s); 0 — без него",
+    "choices": [],
+    "default": "0.01s",
+    "name": "fade_out",
+    "values": {}
+   },
+   {
+    "about": "Форма кривой усиления",
+    "choices": [
+     "linear",
+     "cosine"
+    ],
+    "default": "linear",
+    "name": "curve",
+    "values": {
+     "cosine": "полуволна косинуса: мягкие начало и конец подъёма",
+     "linear": "линейный подъём от 0 до 1"
+    }
+   }
+  ],
+  "title": "Плавное нарастание и затухание"
+ },
+ {
+  "about": "Меняет знак всех отсчётов: x → −x",
+  "id": "invert",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Смена полярности"
+ },
+ {
+  "about": "Модуль каждого отсчёта |x|: двухполупериодное выпрямление",
+  "id": "abs",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Модуль |x|"
+ },
+ {
+  "about": "Квадрат каждого отсчёта x²: мгновенная мощность",
+  "id": "square",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Квадрат x²"
+ },
+ {
+  "about": "Первая разность y[n] = x[n] − x[n−1], где x[−1] = 0",
+  "id": "diff",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Первая разность"
+ },
+ {
+  "about": "Накопленная сумма y[n] = x[0] + … + x[n]: дискретный интеграл",
+  "id": "cumsum",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Накопленная сумма"
+ },
+ {
+  "about": "Мягкое ограничение y = tanh(drive·x): плавное насыщение в пределах ±1",
+  "id": "softclip",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Предусиление перед tanh: больше — сильнее насыщение и искажения",
+    "choices": [],
+    "default": "1",
+    "max": 1000.0,
+    "min": 0.01,
+    "name": "drive",
+    "values": {}
+   }
+  ],
+  "title": "Мягкое ограничение tanh"
+ },
+ {
+  "about": "Прибавляет к каждому отсчёту постоянную величину",
+  "id": "dc_offset",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Смещение в единицах отсчётов (1,0 — полная шкала)",
+    "choices": [],
+    "default": "0",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "value",
+    "values": {}
+   }
+  ],
+  "title": "Постоянное смещение"
+ },
+ {
+  "about": "Обрезает тишину в начале и в конце, общую для всех каналов",
+  "id": "trim_silence",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Порог тишины, дБ полной шкалы: края тише него во всех каналах срезаются",
+    "choices": [],
+    "default": "-60",
+    "max": 0.0,
+    "min": -200.0,
+    "name": "threshold_db",
+    "values": {}
+   }
+  ],
+  "title": "Обрезка тишины"
+ },
+ {
+  "about": "Добавляет к сигналу шум выбранного цвета с заданным SNR",
+  "id": "add_noise",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Цвет шума: наклон его спектра",
+    "choices": [
+     "white",
+     "pink",
+     "brown"
+    ],
+    "default": "white",
+    "name": "color",
+    "values": {
+     "brown": "коричневый 1/f²: −6 дБ на октаву, преобладают низкие",
+     "pink": "розовый 1/f: −3 дБ на октаву, равная мощность в каждой октаве",
+     "white": "белый: равная мощность на всех частотах"
+    }
+   },
+   {
+    "about": "Отношение сигнал/шум, дБ, по средней мощности всех каналов: меньше — громче шум",
+    "choices": [],
+    "default": "20",
+    "max": 200.0,
+    "min": -100.0,
+    "name": "snr_db",
+    "values": {}
+   },
+   {
+    "about": "Зерно генератора шума; канал c получает seed + c",
+    "choices": [],
+    "default": "1",
+    "max": 1e+15,
+    "min": 0.0,
+    "name": "seed",
+    "values": {}
+   }
+  ],
+  "title": "Добавить шум"
+ },
+ {
+  "about": "Чирп: синусоида, частота которой плавно идёт от f0 к f1",
+  "id": "chirp",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Закон изменения частоты во времени",
+    "choices": [
+     "linear",
+     "log"
+    ],
+    "default": "linear",
+    "name": "method",
+    "values": {
+     "linear": "линейный: равный прирост в Гц за равное время",
+     "log": "логарифмический: равные октавы за равное время; f0 и f1 больше 0"
+    }
+   },
+   {
+    "about": "Начальная частота, Гц",
+    "choices": [],
+    "default": "100",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "f0",
+    "values": {}
+   },
+   {
+    "about": "Конечная частота, Гц; ниже f0 — частота падает",
+    "choices": [],
+    "default": "8000",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "f1",
+    "values": {}
+   },
+   {
+    "about": "Амплитуда; отрицательная меняет полярность",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "amplitude",
+    "values": {}
+   },
+   {
+    "about": "Частота дискретизации, Гц; частоты выше её половины дадут наложение",
+    "choices": [],
+    "default": "44100",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "Длительность сигнала, с",
+    "choices": [],
+    "default": "1",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "duration",
+    "values": {}
+   }
+  ],
+  "title": "Чирп"
+ },
+ {
+  "about": "Периодические сигналы: меандр, пила, треугольник или серия импульсов",
+  "id": "osc",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Форма колебания",
+    "choices": [
+     "square",
+     "sawtooth",
+     "triangle",
+     "pulses"
+    ],
+    "default": "square",
+    "name": "kind",
+    "values": {
+     "pulses": "единичный импульс в начале каждого периода, между ними нули",
+     "sawtooth": "пила: подъём от −1 до 1 за долю периода width, затем спад",
+     "square": "прямоугольный ±1; доля периода со значением +1 — duty",
+     "triangle": "треугольник: пила с width = 0,5"
+    }
+   },
+   {
+    "about": "Частота повторения, Гц",
+    "choices": [],
+    "default": "440",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "freq",
+    "values": {}
+   },
+   {
+    "about": "Коэффициент заполнения: доля периода со значением +1; только square",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "duty",
+    "values": {}
+   },
+   {
+    "about": "Доля периода на подъём пилы: 1 — нарастающая, 0 — спадающая; только sawtooth",
+    "choices": [],
+    "default": "1",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "width",
+    "values": {}
+   },
+   {
+    "about": "Амплитуда; отрицательная меняет полярность",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "amplitude",
+    "values": {}
+   },
+   {
+    "about": "Частота дискретизации, Гц; частоты выше её половины дадут наложение",
+    "choices": [],
+    "default": "44100",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "Длительность сигнала, с",
+    "choices": [],
+    "default": "1",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "duration",
+    "values": {}
+   }
+  ],
+  "title": "Меандр, пила, треугольник"
+ },
+ {
+  "about": "БИХ-фильтр классических семейств, работает каскадом биквадратных звеньев",
+  "id": "iir",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Семейство фильтра: форма АЧХ и ФЧХ",
+    "choices": [
+     "butterworth",
+     "cheby1",
+     "cheby2",
+     "ellip",
+     "bessel"
+    ],
+    "default": "butterworth",
+    "name": "family",
+    "values": {
+     "bessel": "Бессель: почти постоянная групповая задержка, пологий спад",
+     "butterworth": "Баттерворт: максимально плоская полоса пропускания, без пульсаций",
+     "cheby1": "Чебышев I: пульсации rp в полосе пропускания, спад круче",
+     "cheby2": "Чебышев II: плоская полоса пропускания, подавление rs в полосе задерживания",
+     "ellip": "эллиптический: пульсации rp и rs, самый крутой спад при данном порядке"
+    }
+   },
+   {
+    "about": "Тип полосы",
+    "choices": [
+     "lowpass",
+     "highpass",
+     "bandpass",
+     "bandstop"
+    ],
+    "default": "lowpass",
+    "name": "type",
+    "values": {
+     "bandpass": "полосовой: пропускает между двумя частотами cutoff",
+     "bandstop": "режекторный: подавляет между двумя частотами cutoff",
+     "highpass": "ФВЧ: пропускает выше cutoff",
+     "lowpass": "ФНЧ: пропускает ниже cutoff"
+    }
+   },
+   {
+    "about": "Порядок фильтра: больше — круче спад, но дольше переходный процесс",
+    "choices": [],
+    "default": "4",
+    "max": 32.0,
+    "min": 1.0,
+    "name": "order",
+    "values": {}
+   },
+   {
+    "about": "Частота среза, Гц; для полосового и режекторного — две через пробел или запятую",
+    "choices": [],
+    "default": "1000",
+    "name": "cutoff",
+    "values": {}
+   },
+   {
+    "about": "Пульсации в полосе пропускания, дБ; для cheby1 и ellip",
+    "choices": [],
+    "default": "1",
+    "max": 30.0,
+    "min": 0.01,
+    "name": "rp",
+    "values": {}
+   },
+   {
+    "about": "Подавление в полосе задерживания, дБ; для cheby2 и ellip",
+    "choices": [],
+    "default": "40",
+    "max": 200.0,
+    "min": 1.0,
+    "name": "rs",
+    "values": {}
+   },
+   {
+    "about": "Фильтровать ли вперёд и назад (filtfilt), чтобы убрать фазовый сдвиг",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "zero_phase",
+    "values": {
+     "no": "обычная причинная фильтрация: есть задержка и фазовые искажения",
+     "yes": "вперёд и назад: нулевая фаза, АЧХ в квадрате, порядок удвоен"
+    }
+   }
+  ],
+  "title": "БИХ-фильтр"
+ },
+ {
+  "about": "КИХ-фильтр методом окна (как scipy firwin) с линейной фазой",
+  "id": "fir",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Число отводов N: больше — круче переход, но больше задержка (N−1)/2 отсчётов",
+    "choices": [],
+    "default": "101",
+    "max": 8191.0,
+    "min": 1.0,
+    "name": "numtaps",
+    "values": {}
+   },
+   {
+    "about": "Частоты среза, Гц, через пробел или запятую: одна — ФНЧ/ФВЧ, две и больше — полосы",
+    "choices": [],
+    "default": "1000",
+    "name": "cutoff",
+    "values": {}
+   },
+   {
+    "about": "Окно, которым усекается идеальная характеристика",
+    "choices": [
+     "hamming",
+     "hann",
+     "blackman",
+     "kaiser",
+     "boxcar"
+    ],
+    "default": "hamming",
+    "name": "window",
+    "values": {
+     "blackman": "Блэкман: подавление около 74 дБ, переход шире",
+     "boxcar": "прямоугольное: самый узкий переход, но подавление лишь около 21 дБ",
+     "hamming": "Хэмминг: подавление около 53 дБ, обычный выбор",
+     "hann": "Ханн: подавление около 44 дБ",
+     "kaiser": "Кайзер: подавление задаёт параметр beta"
+    }
+   },
+   {
+    "about": "Параметр окна Кайзера: больше — сильнее подавление и шире переход; только kaiser",
+    "choices": [],
+    "default": "8.6",
+    "max": 50.0,
+    "min": 0.0,
+    "name": "beta",
+    "values": {}
+   },
+   {
+    "about": "Пропускать ли нулевую частоту (постоянную составляющую)",
+    "choices": [
+     "yes",
+     "no"
+    ],
+    "default": "yes",
+    "name": "pass_zero",
+    "values": {
+     "no": "DC подавлен: одна частота — ФВЧ, две — полосовой",
+     "yes": "DC проходит: одна частота — ФНЧ, две — режекторный"
+    }
+   },
+   {
+    "about": "Убирать ли групповую задержку фильтра в (N−1)/2 отсчётов",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "compensate",
+    "values": {
+     "no": "выход отстаёт на (N−1)/2 отсч., как у настоящего причинного фильтра",
+     "yes": "выход сдвинут назад на (N−1)/2 и выровнен по времени со входом"
+    }
+   }
+  ],
+  "title": "КИХ-фильтр (метод окна)"
+ },
+ {
+  "about": "Медианный фильтр: отсчёт заменяется медианой окна; убирает щелчки",
+  "id": "median",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Длина окна, нечётная, отсч.: больше — убирает более широкие выбросы и сильнее сглаживает",
+    "choices": [],
+    "default": "5",
+    "max": 4095.0,
+    "min": 1.0,
+    "name": "kernel",
+    "values": {}
+   }
+  ],
+  "title": "Медианный фильтр"
+ },
+ {
+  "about": "Скользящее среднее по length отсчётам: простейший ФНЧ",
+  "id": "moving_average",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Длина окна усреднения, отсч.: больше — сильнее сглаживание",
+    "choices": [],
+    "default": "5",
+    "max": 65536.0,
+    "min": 1.0,
+    "name": "length",
+    "values": {}
+   },
+   {
+    "about": "Центрировать ли окно, убирая задержку (length−1)/2",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "centred",
+    "values": {
+     "no": "причинное окно по прошлым отсчётам: выход отстаёт на (length−1)/2",
+     "yes": "окно вокруг текущего отсчёта: без задержки"
+    }
+   }
+  ],
+  "title": "Скользящее среднее"
+ },
+ {
+  "about": "Предыскажение y[n] = x[n] − k·x[n−1]: подъём высоких частот",
+  "id": "preemphasis",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Коэффициент k: ближе к 1 — сильнее подъём высоких и спад низких",
+    "choices": [],
+    "default": "0.97",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "coeff",
+    "values": {}
+   }
+  ],
+  "title": "Предыскажение"
+ },
+ {
+  "about": "Снятие предыскажения y[n] = x[n] + k·y[n−1]: обращает preemphasis",
+  "id": "deemphasis",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Коэффициент k, тот же, что при предыскажении; ближе к 1 — длиннее память",
+    "choices": [],
+    "default": "0.97",
+    "max": 0.9999,
+    "min": 0.0,
+    "name": "coeff",
+    "values": {}
+   }
+  ],
+  "title": "Снятие предыскажения"
+ },
+ {
+  "about": "Вейвлет 9/7 (CDF, JPEG 2000) через лифтинг: многоуровневое разложение",
+  "id": "lift97",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Число уровней разложения; сигнал должен быть не короче 2^levels отсчётов",
+    "choices": [],
+    "default": "4",
+    "max": 30.0,
+    "min": 1.0,
+    "name": "levels",
+    "values": {}
+   }
+  ],
+  "title": "Лифтинг 9/7"
+ },
+ {
+  "about": "Обратный лифтинг 9/7: собирает сигнал из полос lift97",
+  "id": "ilift97",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Обратный лифтинг 9/7"
+ },
+ {
+  "about": "Компонента КМА: вклад одной полосы, возвращённый во временную область",
+  "id": "mra",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Какую полосу оставить: a (или aJ) — аппроксимация, dJ — детали уровня J",
+    "choices": [],
+    "default": "d1",
+    "name": "component",
+    "values": {}
+   }
+  ],
+  "title": "Компонента КМА"
+ },
+ {
+  "about": "Собирает многоканальный сигнал: сначала каналы l, затем каналы r",
+  "id": "merge",
+  "inputs": [
+   {
+    "name": "l",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "r",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Сборка стерео"
+ },
+ {
+  "about": "Меняет местами каналы 0 и 1 — левый и правый",
+  "id": "swap",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Обмен L↔R"
+ },
+ {
+  "about": "Панорама: сводит в моно и ставит его в стерео в точку position",
+  "id": "pan",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Положение: −1 — крайнее левое, 0 — центр, 1 — крайнее правое",
+    "choices": [],
+    "default": "0",
+    "max": 1.0,
+    "min": -1.0,
+    "name": "position",
+    "values": {}
+   },
+   {
+    "about": "Закон панорамирования: как уровень делится между L и R",
+    "choices": [
+     "constant_power",
+     "linear"
+    ],
+    "default": "constant_power",
+    "name": "law",
+    "values": {
+     "constant_power": "постоянная мощность: L = cos, R = sin; в центре оба −3 дБ",
+     "linear": "линейный: L = (1−p)/2, R = (1+p)/2; в центре оба −6 дБ"
+    }
+   }
+  ],
+  "title": "Панорама"
+ },
+ {
+  "about": "Размножает каналы по кругу до нужного числа",
+  "id": "duplicate",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Число каналов на выходе; входные каналы повторяются по кругу",
+    "choices": [],
+    "default": "2",
+    "max": 64.0,
+    "min": 1.0,
+    "name": "channels",
+    "values": {}
+   }
+  ],
+  "title": "Размножение каналов"
+ },
+ {
+  "about": "Отчёт: RMS, пик, пик-фактор, среднее, СКО, переходы через ноль, центроид",
+  "id": "stats",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [],
+  "title": "Статистика сигнала"
+ },
+ {
+  "about": "Отчёт: наибольший и средний RMS-уровень по скользящим окнам, дБ полной шкалы",
+  "id": "loudness",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Длина окна в отсч. или в секундах с суффиксом s (0.01s)",
+    "choices": [],
+    "default": "0.4s",
+    "name": "window",
+    "values": {}
+   },
+   {
+    "about": "Шаг окна в отсч. или в секундах с суффиксом s (0.01s); меньше — плотнее сетка",
+    "choices": [],
+    "default": "0.1s",
+    "name": "hop",
+    "values": {}
+   }
+  ],
+  "title": "Громкость (RMS по 400 мс)"
+ },
+ {
+  "about": "Адаптивный КИХ-фильтр LMS/NLMS: оценивает d по x, выдаёт ошибку e и оценку y",
+  "id": "lms",
+  "inputs": [
+   {
+    "name": "x",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "d",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "e",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "y",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Длина адаптивного фильтра, отсч.: больше — длиннее моделируемый путь, медленнее сходимость",
+    "choices": [],
+    "default": "32",
+    "max": 4096.0,
+    "min": 1.0,
+    "name": "taps",
+    "values": {}
+   },
+   {
+    "about": "Шаг адаптации: больше — быстрее сходимость, но шумнее; слишком большой у LMS расходится",
+    "choices": [],
+    "default": "0.1",
+    "max": 2.0,
+    "min": 1e-06,
+    "name": "mu",
+    "values": {}
+   },
+   {
+    "about": "Правило обновления весов",
+    "choices": [
+     "nlms",
+     "lms"
+    ],
+    "default": "nlms",
+    "name": "rule",
+    "values": {
+     "lms": "классический LMS: шаг не нормирован, зависит от уровня x",
+     "nlms": "нормированный LMS: шаг делится на энергию x, устойчив при mu < 2"
+    }
+   }
+  ],
+  "title": "Адаптивный фильтр LMS/NLMS"
+ },
+ {
+  "about": "Локальный винеровский фильтр: сглаживает там, где дисперсия близка к шуму",
+  "id": "wiener",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Окно оценки локальных среднего и дисперсии, отсч.: больше — сильнее сглаживание",
+    "choices": [],
+    "default": "5",
+    "max": 1001.0,
+    "min": 1.0,
+    "name": "size",
+    "values": {}
+   },
+   {
+    "about": "Дисперсия шума; 0 — оценить как среднюю локальную дисперсию",
+    "choices": [],
+    "default": "0",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "noise",
+    "values": {}
+   }
+  ],
+  "title": "Винеровский фильтр"
+ },
+ {
+  "about": "Спектральное вычитание: убирает оценку мощности шума из кадров STFT",
+  "id": "spectral_subtract",
+  "inputs": [
+   {
+    "name": "x",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "noise",
+    "optional": true,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Коэффициент перевычитания: больше — сильнее подавление шума, но больше искажений",
+    "choices": [],
+    "default": "2",
+    "max": 10.0,
+    "min": 0.0,
+    "name": "alpha",
+    "values": {}
+   },
+   {
+    "about": "Спектральный пол: доля мощности шума, ниже которой бин не опускается",
+    "choices": [],
+    "default": "0.01",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "beta",
+    "values": {}
+   },
+   {
+    "about": "Длина кадра БПФ, отсч., шаг n/4: больше — точнее по частоте, грубее по времени",
+    "choices": [],
+    "default": "512",
+    "max": 16384.0,
+    "min": 16.0,
+    "name": "n",
+    "values": {}
+   },
+   {
+    "about": "Если вход noise не подключён — сколько секунд начала сигнала считать шумом",
+    "choices": [],
+    "default": "0.25",
+    "max": 60.0,
+    "min": 0.001,
+    "name": "noise_s",
+    "values": {}
+   }
+  ],
+  "title": "Спектральное вычитание"
+ },
+ {
+  "about": "Винеровская деконволюция: восстанавливает x из y = h ∗ x при известном h",
+  "id": "deconvolve",
+  "inputs": [
+   {
+    "name": "y",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "h",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Ожидаемый SNR, дБ: больше — смелее обращение, но сильнее усиливается шум",
+    "choices": [],
+    "default": "30",
+    "max": 120.0,
+    "min": -20.0,
+    "name": "snr_db",
+    "values": {}
+   }
+  ],
+  "title": "Деконволюция"
+ }
+]

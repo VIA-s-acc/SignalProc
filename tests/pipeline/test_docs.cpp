@@ -1,5 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+
+#include <nlohmann/json.hpp>
+
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -45,4 +49,26 @@ TEST_CASE("m7a review: markdown cells escape pipes once", "[pipeline][docs]") {
 TEST_CASE("m7b: the English block reference has no Russian", "[pipeline][docs]") {
     const signals::LanguageScope en{signals::Language::en};
     CHECK(signals::pipeline::blocks_markdown().find_first_of("\xD0\xD1") == std::string::npos);
+}
+
+TEST_CASE("blocks_json describes every block with its explanations", "[pipeline][docs][vscode]") {
+    const auto j = nlohmann::json::parse(signals::pipeline::blocks_json());
+    REQUIRE(j.is_array());
+    const auto check = std::find_if(j.begin(), j.end(), [](const auto& b) { return b["id"] == "check"; });
+    REQUIRE(check != j.end());
+    CHECK((*check)["about"].get<std::string>().size() > 10);
+    const auto& params = (*check)["params"];
+    const auto kind = std::find_if(params.begin(), params.end(), [](const auto& p) { return p["name"] == "kind"; });
+    REQUIRE(kind != params.end());
+    CHECK((*kind)["default"] == "pr");
+    CHECK((*kind)["values"].contains("snr"));
+    CHECK((*check)["inputs"].size() == 2);
+}
+
+TEST_CASE("the VS Code extension data is the generated block list", "[pipeline][docs][vscode]") {
+    const std::filesystem::path dir = std::filesystem::path{SIGNALS_SOURCE_DIR} / "editors" / "vscode" / "data";
+    INFO("regenerate with: signals --lang ru blocks --json > editors/vscode/data/blocks.ru.json and signals --lang en blocks --json > editors/vscode/data/blocks.en.json");
+    CHECK(read(dir / "blocks.ru.json") == signals::pipeline::blocks_json());
+    const signals::LanguageScope en{signals::Language::en};
+    CHECK(read(dir / "blocks.en.json") == signals::pipeline::blocks_json());
 }

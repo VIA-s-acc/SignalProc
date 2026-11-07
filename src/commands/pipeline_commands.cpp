@@ -272,17 +272,18 @@ class BlocksCommand final : public Command {
 public:
     explicit BlocksCommand(CLI::App& app) : sub_{app.add_subcommand("blocks", tr("cli.blocks.description"))} {
         sub_->add_flag("--markdown", markdown_, tr("cli.blocks.markdown"));
+        sub_->add_flag("--json", json_, tr("cli.blocks.json"));
     }
     bool parsed() const override { return sub_->parsed(); }
 
     int run(std::ostream& out, std::ostream&) override {
-        out << (markdown_ ? pipeline::blocks_markdown() : pipeline::blocks_text());
+        out << (json_ ? pipeline::blocks_json() : markdown_ ? pipeline::blocks_markdown() : pipeline::blocks_text());
         return 0;
     }
 
 private:
     CLI::App* sub_;
-    bool markdown_ = false;
+    bool markdown_ = false, json_ = false;
 };
 
 }  // namespace

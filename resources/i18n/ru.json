@@ -1098,6 +1098,7 @@
   "docs.blocks.params_title": "Параметры блоков",
   "cli.blocks.description": "Список блоков конвейера с портами и параметрами",
   "cli.blocks.markdown": "Справочник в Markdown",
+  "cli.blocks.json": "Справочник в JSON — для редакторов",
   "cli.graph.ascii": "только ASCII-символы",
   "cli.dither": "дизеринг при записи: tpdf или none",
   "pipeline.cli.cannot_read": "не удалось прочитать {path}",

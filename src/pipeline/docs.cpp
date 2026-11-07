@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include <fmt/format.h>
+#include <nlohmann/json.hpp>
 
 #include "i18n/i18n.hpp"
 #include "pipeline/block.hpp"
@@ -73,6 +74,31 @@ std::string blocks_markdown() {
         }
     }
     return out;
+}
+
+std::string blocks_json() {
+    auto ports_json = [](const std::vector<PortSpec>& list) {
+        auto out = nlohmann::json::array();
+        for (const auto& p : list) out.push_back({{"name", p.name}, {"type", std::string{to_string(p.type)}}, {"optional", p.optional}});
+        return out;
+    };
+    auto out = nlohmann::json::array();
+    for (const auto& b : block_types()) {
+        auto params_json = nlohmann::json::array();
+        for (const auto& p : b.params) {
+            nlohmann::json param{{"name", p.name}, {"default", p.fallback}, {"about", tr_opt("pipeline.param." + b.id + "." + p.name).value_or("")}};
+            if (std::isfinite(p.min)) param["min"] = p.min;
+            if (std::isfinite(p.max)) param["max"] = p.max;
+            auto values = nlohmann::json::object();
+            for (const auto& v : p.choices) values[v] = tr_opt("pipeline.param." + b.id + "." + p.name + "." + v).value_or("");
+            param["choices"] = p.choices;
+            param["values"] = values;
+            params_json.push_back(std::move(param));
+        }
+        out.push_back({{"id", b.id}, {"title", block_title(b)}, {"about", tr_opt("pipeline.about." + b.id).value_or("")}, {"inputs", ports_json(b.inputs)},
+                       {"outputs", ports_json(b.outputs)}, {"params", std::move(params_json)}});
+    }
+    return out.dump(1) + "\n";
 }
 
 std::string blocks_text() {

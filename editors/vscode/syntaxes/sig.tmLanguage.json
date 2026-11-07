@@ -1,0 +1,113 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Signals pipeline",
+  "scopeName": "source.signals-sig",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#header" },
+    { "include": "#node" },
+    { "include": "#probe" },
+    { "include": "#wire" }
+  ],
+  "repository": {
+    "comment": {
+      "match": "#.*$",
+      "name": "comment.line.number-sign.signals-sig"
+    },
+    "string": {
+      "begin": "\"",
+      "end": "\"|$",
+      "name": "string.quoted.double.signals-sig",
+      "patterns": [
+        { "match": "\\\\[\"\\\\]", "name": "constant.character.escape.signals-sig" }
+      ]
+    },
+    "header": {
+      "match": "^\\s*(pipeline)\\s+(\"[^\"]*\")\\s+(v\\d+)",
+      "captures": {
+        "1": { "name": "keyword.control.pipeline.signals-sig" },
+        "2": { "name": "string.quoted.double.signals-sig" },
+        "3": { "name": "constant.numeric.version.signals-sig" }
+      }
+    },
+    "node": {
+      "begin": "^\\s*(node)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(=)\\s*([A-Za-z_][A-Za-z0-9_]*)",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.node.signals-sig" },
+        "2": { "name": "variable.other.node.signals-sig" },
+        "3": { "name": "keyword.operator.assignment.signals-sig" },
+        "4": { "name": "entity.name.function.block.signals-sig" }
+      },
+      "end": "$",
+      "patterns": [
+        { "include": "#params" },
+        { "match": "\\bbypass\\b", "name": "keyword.control.bypass.signals-sig" },
+        { "include": "#comment" }
+      ]
+    },
+    "params": {
+      "begin": "\\(",
+      "beginCaptures": { "0": { "name": "punctuation.section.parens.begin.signals-sig" } },
+      "end": "\\)",
+      "endCaptures": { "0": { "name": "punctuation.section.parens.end.signals-sig" } },
+      "patterns": [
+        { "include": "#string" },
+        {
+          "match": "([A-Za-z_][A-Za-z0-9_]*)\\s*(=)",
+          "captures": {
+            "1": { "name": "variable.parameter.signals-sig" },
+            "2": { "name": "keyword.operator.assignment.signals-sig" }
+          }
+        },
+        {
+          "match": "\\b[A-Za-z][A-Za-z0-9_]*\\.(h0|h1|f0|f1)\\b",
+          "name": "support.constant.filter.signals-sig"
+        },
+        {
+          "match": "-?\\d+\\.\\.-?\\d+",
+          "name": "constant.numeric.range.signals-sig"
+        },
+        {
+          "match": "-?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?s?\\b",
+          "name": "constant.numeric.signals-sig"
+        },
+        {
+          "match": "\\b(yes|no|auto|none|all)\\b",
+          "name": "constant.language.signals-sig"
+        },
+        {
+          "match": "[A-Za-z_][A-Za-z0-9_.\\-]*",
+          "name": "constant.other.value.signals-sig"
+        },
+        { "match": ",", "name": "punctuation.separator.signals-sig" }
+      ]
+    },
+    "probe": {
+      "match": "^\\s*(probe)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:(\\.)([A-Za-z0-9_]+))?(?:\\s+(as)\\s+(\"[^\"]*\"))?",
+      "captures": {
+        "1": { "name": "keyword.control.probe.signals-sig" },
+        "2": { "name": "variable.other.node.signals-sig" },
+        "3": { "name": "punctuation.accessor.signals-sig" },
+        "4": { "name": "variable.other.property.port.signals-sig" },
+        "5": { "name": "keyword.control.as.signals-sig" },
+        "6": { "name": "string.quoted.double.signals-sig" }
+      }
+    },
+    "wire": {
+      "begin": "^\\s*(?=[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z0-9_]+)?\\s*->)",
+      "end": "$",
+      "patterns": [
+        { "match": "->", "name": "keyword.operator.arrow.signals-sig" },
+        {
+          "match": "([A-Za-z_][A-Za-z0-9_]*)(?:(\\.)([A-Za-z0-9_]+))?",
+          "captures": {
+            "1": { "name": "variable.other.node.signals-sig" },
+            "2": { "name": "punctuation.accessor.signals-sig" },
+            "3": { "name": "variable.other.property.port.signals-sig" }
+          }
+        },
+        { "include": "#comment" }
+      ]
+    }
+  }
+}
