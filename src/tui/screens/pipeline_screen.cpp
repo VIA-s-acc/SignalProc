@@ -269,8 +269,11 @@ ftxui::Element PipelineScreen::add_panel() {
     Elements rows{hbox({text("/ " + query_) | fg(th.fg, ui_), text(ui_.caps.glyphs == GlyphMode::ascii ? "_" : "▏") | fg(th.accent, ui_), filler(),
                         text(std::to_string(found.size()) + " / " + std::to_string(all.size())) | fg(th.dim, ui_)}),
                   text(model_->selection.kind == Selection::Kind::wire ? tr("tui.pipeline.add_into_wire") : tr("tui.pipeline.add_free")) | fg(th.dim, ui_)};
+    add_rows_.assign(found.size(), {});
     for (std::size_t k = 0; k < found.size(); ++k) {
-        auto row = hbox({text((k == pick_ ? "▸ " : "  ") + found[k]->title) | fg(k == pick_ ? th.accent : th.fg, ui_), filler(), text(found[k]->id) | fg(th.dim, ui_)});
+        add_rows_[k].first = found[k]->id;
+        auto row = hbox({text((k == pick_ ? "▸ " : "  ") + found[k]->title) | fg(k == pick_ ? th.accent : th.fg, ui_), filler(), text(found[k]->id) | fg(th.dim, ui_)}) |
+                   reflect(add_rows_[k].second);
         rows.push_back(k == pick_ ? row | focus : row);
     }
     return frame_panel(kInspector, vbox(std::move(rows)) | yframe, {}, tr("tui.pipeline.add_title"));
@@ -282,6 +285,20 @@ bool PipelineScreen::on_add_key(const ftxui::Event& e) {
     for (const auto& t : pipeline::block_types()) all.push_back({t.id, block_name(t.id), {}});
     const auto found = filter_commands(all, query_);
     if (e == Event::Escape) return adding_ = false, true;
+    if (e.is_mouse()) {
+        auto copy = e;
+        const auto m = copy.mouse();
+        const auto& box = panel_boxes_[kInspector];
+        if ((m.button == ftxui::Mouse::WheelDown || m.button == ftxui::Mouse::WheelUp) && box.Contain(m.x, m.y)) {
+            if (m.button == ftxui::Mouse::WheelDown) pick_ = found.empty() ? 0 : std::min(pick_ + 1, found.size() - 1);
+            else pick_ = pick_ > 0 ? pick_ - 1 : 0;
+            return true;
+        }
+        if (m.button == ftxui::Mouse::Left && m.motion == ftxui::Mouse::Pressed && box.Contain(m.x, m.y))
+            for (const auto& [type, row] : add_rows_)
+                if (row.Contain(m.x, m.y)) return add_block(type), true;
+        return true;
+    }
     if (e == Event::ArrowDown) return pick_ = found.empty() ? 0 : std::min(pick_ + 1, found.size() - 1), true;
     if (e == Event::ArrowUp) return pick_ = pick_ > 0 ? pick_ - 1 : 0, true;
     if (e == Event::Backspace) {
@@ -291,12 +308,8 @@ bool PipelineScreen::on_add_key(const ftxui::Event& e) {
         return true;
     }
     if (e == Event::Return) {
-        adding_ = false;
-        if (found.empty()) return true;
-        const auto type = found[std::min(pick_, found.size() - 1)]->id;
-        if (model_->selection.kind == Selection::Kind::wire) report(model_->insert_into_wire(model_->selection.wire, type));
-        else if (const auto id = model_->add_node(type); !id.empty()) model_->selection = {Selection::Kind::node, id, {}};
-        follow_ = true;
+        if (found.empty()) return adding_ = false, true;
+        add_block(found[std::min(pick_, found.size() - 1)]->id);
         return true;
     }
     if (e.is_character()) {
@@ -307,12 +320,23 @@ bool PipelineScreen::on_add_key(const ftxui::Event& e) {
     return true;
 }
 
+void PipelineScreen::add_block(const std::string& type) {
+    adding_ = false;
+    if (model_->selection.kind == Selection::Kind::wire) report(model_->insert_into_wire(model_->selection.wire, type));
+    else if (const auto id = model_->add_node(type); !id.empty()) model_->selection = {Selection::Kind::node, id, {}};
+    follow_ = true;
+}
+
 std::vector<std::string> PipelineScreen::param_values(const pipeline::BlockType& type, const pipeline::ParamSpec& spec) const {
     (void)type;
     std::vector<std::string> out;
-    if (spec.name != "wavelet") return out;
-    if (spec.fallback == "auto") out.emplace_back("auto");
-    for (const auto name : core::wavelet_names()) out.emplace_back(name);
+    if (spec.name == "wavelet") {
+        if (spec.fallback == "auto") out.emplace_back("auto");
+        for (const auto name : core::wavelet_names()) out.emplace_back(name);
+    } else if (spec.name == "filter" && spec.fallback.find('.') != std::string::npos) {
+        for (const auto name : core::wavelet_names())
+            for (const char* role : {".h0", ".h1", ".f0", ".f1"}) out.push_back(std::string{name} + role);
+    }
     return out;
 }
 
@@ -615,6 +639,8 @@ ftxui::Box PipelineScreen::area(std::string_view id) const {
     };
     if (id == "graph") return graph_box_;
     if (id == "inspector") return panel_boxes_[kInspector];
+    for (const auto& [type, row] : add_rows_)
+        if (id == "add:" + type) return row;
     for (const auto& n : picture_.nodes)
         if (id == "node:" + n.id) return ftxui::Box{graph_box_.x_min + n.x - ox_, graph_box_.x_min + n.x - ox_ + n.w - 1, graph_box_.y_min + n.y - oy_, graph_box_.y_min + n.y - oy_ + n.h - 1};
     for (const auto& p : picture_.ports)

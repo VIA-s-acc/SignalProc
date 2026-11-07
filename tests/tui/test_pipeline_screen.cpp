@@ -522,3 +522,39 @@ TEST_CASE("the wheel scrolls the pipeline graph, shift scrolls it sideways", "[t
     const auto moved = f.box("node:gen");
     CHECK((moved.y_min < first.y_min || moved.x_max < moved.x_min));
 }
+
+TEST_CASE("the convolve filter is picked from a list of bank filters", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    const auto id = f.model->add_node("convolve");
+    f.model->selection = {Selection::Kind::node, id, {}};
+    f.h.frame();
+    const auto inspector = f.screen->area("inspector");
+    f.h.click(inspector.x_min + 2, inspector.y_min + 1);
+    f.h.send(ftxui::Event::Return);
+    const auto f1 = std::find_if(items.begin(), items.end(), [](const Command& c) { return c.title == "sym4.f1"; });
+    REQUIRE(f1 != items.end());
+    f1->run();
+    CHECK(f.model->doc().nodes.back().params.at("filter") == "sym4.f1");
+}
+
+TEST_CASE("the add-block list scrolls with the wheel and adds the clicked block", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    f.h.send(ftxui::Event::Character('a'));
+    f.h.frame();
+    const auto list = f.screen->area("inspector");
+    ftxui::Mouse m;
+    m.button = ftxui::Mouse::WheelDown;
+    m.motion = ftxui::Mouse::Pressed;
+    m.x = (list.x_min + list.x_max) / 2;
+    m.y = (list.y_min + list.y_max) / 2;
+    for (int k = 0; k < 30; ++k) f.h.send(ftxui::Event::Mouse("", m));
+    const auto frame = f.h.frame();
+    CHECK(frame.find("export_report") != std::string::npos);
+    const auto row = f.screen->area("add:wav_out");
+    REQUIRE(row.x_max >= row.x_min);
+    f.h.click(row.x_min + 1, row.y_min);
+    REQUIRE_FALSE(f.model->doc().nodes.empty());
+    CHECK(f.model->doc().nodes.back().type == "wav_out");
+}

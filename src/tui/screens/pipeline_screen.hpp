@@ -52,6 +52,7 @@ private:
     ftxui::Element graph_panel(int width, int height);
     ftxui::Element inspector_panel(int width);
     std::vector<std::string> param_values(const pipeline::BlockType& type, const pipeline::ParamSpec& spec) const;
+    void add_block(const std::string& type);
     ftxui::Element add_panel();
     bool on_add_key(const ftxui::Event& e);
     bool on_inspector_key(const ftxui::Event& e);
@@ -90,6 +91,7 @@ private:
         ftxui::Box box{};
     } drag_;
     std::string notice_;
+    std::vector<std::pair<std::string, ftxui::Box>> add_rows_;
     std::function<std::optional<std::filesystem::path>()> current_file_;
     bool seeded_ = false;
     struct ProbeData {
