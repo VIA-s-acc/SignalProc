@@ -38,6 +38,9 @@ struct ResampleView {
 inline constexpr std::size_t kResampleLength = 8192;
 inline constexpr std::size_t kMaxFactor = 16;
 
+enum class FilterPanel { none, before, after };
+FilterPanel filter_panel(const ResampleView& v);
+
 double folded_frequency(double f, double fs_out);
 std::vector<double> resample_source(const ResampleOptions& o, double fs, std::size_t n);
 core::Result<ResampleView> compute_resample(const ResampleOptions& o, std::span<const double> x, double fs);

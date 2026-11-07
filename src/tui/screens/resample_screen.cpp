@@ -144,7 +144,7 @@ ftxui::Element ResampleScreen::before_panel() {
     spec.y = {-140, 5};
     Trace in{v.psd_in_db, v.f_in, th.trace[0]};
     spec.traces.push_back(std::move(in));
-    if (v.down > 1 && v.up == 1 && !v.filter_f.empty()) {
+    if (filter_panel(v) == FilterPanel::before && !v.filter_f.empty()) {
         Trace h{v.filter_db, v.filter_f, th.trace[3], LineStyle::dashed};
         spec.traces.push_back(std::move(h));
     }
@@ -168,7 +168,7 @@ ftxui::Element ResampleScreen::after_panel() {
         Trace c{v.copies_db[k], v.f_out, th.trace[(1 + k) % th.trace.size()], LineStyle::dotted};
         spec.traces.push_back(std::move(c));
     }
-    if (v.up > 1 && !v.filter_f.empty()) {
+    if (filter_panel(v) == FilterPanel::after && !v.filter_f.empty()) {
         Trace h{v.filter_db, v.filter_f, th.trace[3], LineStyle::dashed};
         spec.traces.push_back(std::move(h));
     }

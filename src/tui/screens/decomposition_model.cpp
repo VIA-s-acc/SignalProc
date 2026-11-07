@@ -121,10 +121,12 @@ void DecompositionModel::set_options(DecompositionOptions o, JobRunner& jobs) {
 void DecompositionModel::cancel(JobRunner& jobs) {
     std::lock_guard lock{mutex_};
     if (!data_job_ && !recon_job_ && !packets_job_ && !scalogram_job_) return;
+    const bool decomposition = data_job_ || recon_job_;
     if (scalogram_job_) {
         jobs.cancel(*scalogram_job_);
         scalogram_error_ = tr("tui.decomposition.cancelled");
         scalogram_job_.reset();
+        scalogram_cancelled_ = true;
         ++scalogram_gen_;
     }
     if (data_job_) jobs.cancel(*data_job_);
@@ -132,6 +134,7 @@ void DecompositionModel::cancel(JobRunner& jobs) {
     if (packets_job_) {
         jobs.cancel(*packets_job_);
         packets_error_ = tr("tui.decomposition.cancelled");
+        packets_cancelled_ = true;
     }
     data_job_.reset();
     recon_job_.reset();
@@ -140,7 +143,24 @@ void DecompositionModel::cancel(JobRunner& jobs) {
     ++recon_gen_;
     ++packets_gen_;
     recon_pending_ = false;
-    cancelled_ = true;
+    if (decomposition) cancelled_ = true;
+}
+
+bool DecompositionModel::retry_cancelled(bool packets) {
+    std::lock_guard lock{mutex_};
+    if (packets && packets_cancelled_) {
+        packets_for_.reset();
+        packets_error_.reset();
+        packets_cancelled_ = false;
+        return true;
+    }
+    if (!packets && scalogram_cancelled_) {
+        scalogram_for_.reset();
+        scalogram_error_.reset();
+        scalogram_cancelled_ = false;
+        return true;
+    }
+    return false;
 }
 
 void DecompositionModel::recompute(JobRunner& jobs) {
@@ -510,6 +530,7 @@ void DecompositionModel::request_packets(JobRunner& jobs) {
         if (packets_job_) jobs.cancel(*packets_job_);
         packets_job_.reset();
         packets_error_.reset();
+        packets_cancelled_ = false;
         packets_for_ = d;
         gen = ++packets_gen_;
         const auto values = (d->options.levels + 1) * d->x.size();
@@ -733,6 +754,7 @@ void DecompositionModel::request_scalogram(JobRunner& jobs) {
         if (scalogram_job_) jobs.cancel(*scalogram_job_);
         scalogram_job_.reset();
         scalogram_error_.reset();
+        scalogram_cancelled_ = false;
         scalogram_for_ = s;
         scalogram_channel_ = d->options.channel;
         gen = ++scalogram_gen_;

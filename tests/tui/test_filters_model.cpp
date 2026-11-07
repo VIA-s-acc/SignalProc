@@ -10,6 +10,7 @@
 #include <thread>
 
 #include "core/design/families.hpp"
+#include "i18n/i18n.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/screens/filters_model.hpp"
 
@@ -470,4 +471,13 @@ TEST_CASE("window and frequency-sampling presets design like the core", "[tui][f
     CHECK(s->h.coeffs.size() == 33);
     CHECK(s->response.magnitude[64] == Catch::Approx(1).margin(2e-2));
     CHECK_FALSE(parse_classical("window/triangle/lowpass/31/0.25/rp1/rs40"));
+}
+
+TEST_CASE("m7c: a custom filter label counts taps in both languages", "[tui][filters][custom]") {
+    const auto one = custom_ref(signals::core::Laurent{{1.0}, 0}, "");
+    const auto three = custom_ref(signals::core::Laurent{{0.25, 0.5, 0.25}, 0}, "");
+    CHECK(three.label() == "свой фильтр, 3 отвода");
+    const signals::LanguageScope en{signals::Language::en};
+    CHECK(one.label() == "custom filter, 1 tap");
+    CHECK(three.label() == "custom filter, 3 taps");
 }

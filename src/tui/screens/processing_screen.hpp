@@ -40,6 +40,7 @@ public:
     ftxui::Box area(std::string_view id) const;
     View view() const { return view_; }
     std::size_t preset() const { return preset_; }
+    std::size_t active_preset() const;
 
 private:
     enum Panel { coeffs_panel, signal_panel, curve_panel, eq_panel, summary_panel, noise_panel, listen_panel, theory_panel, panel_count };
@@ -51,7 +52,7 @@ private:
 
     ftxui::Element frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title);
     ftxui::Element clickable(std::string id, ftxui::Element e, std::function<void()> action);
-    ftxui::Element toolbar(bool two_rows);
+    ftxui::Element toolbar(bool two_rows, int width);
     ftxui::Element coeffs_body(const ProcessingResult& r, int width, int rows);
     ftxui::Element signal_body(const ProcessingResult& r, int width, int height);
     ftxui::Element curve_body(const ProcessingResult& r, int width, int height);
@@ -59,8 +60,8 @@ private:
     ftxui::Element summary_body(const ProcessingResult& r);
     ftxui::Element noise_body(const ProcessingResult& r);
     ftxui::Element listen_body();
-    void change(const std::function<void(ProcessingOptions&)>& edit);
-    void set_scale(double s);
+    void change(const std::function<void(ProcessingOptions&)>& edit, bool new_step = true);
+    void set_scale(double s, bool new_step = true);
     void set_preset(std::size_t p);
     void play(View v);
 
@@ -76,8 +77,8 @@ private:
     std::size_t preset_ = 0;
     std::string notice_;
     struct Drag {
-        bool active = false;
-        int y = 0;
+        bool active = false, moved = false;
+        int y = 0, last_y = 0;
         double scale = 1;
     } drag_;
 };

@@ -98,3 +98,65 @@ TEST_CASE("rational resampling reports its output rate, also for M = L", "[tui][
     CHECK_FALSE(compute_resample(o, std::vector<double>{}, 48000));
     CHECK_FALSE(compute_resample(o, std::vector<double>(10, 1.0), 48000));
 }
+
+TEST_CASE("m7c: the aliasing copies of white noise add up to the decimated spectrum", "[tui][resample]") {
+    ResampleOptions o;
+    o.source = ResampleSource::file;
+    o.mode = ResampleMode::down;
+    o.m = 4;
+    o.filter = AntiAlias::bypass;
+    std::vector<double> x(8192);
+    std::uint32_t state = 7;
+    for (auto& v : x) {
+        state = state * 1664525u + 1013904223u;
+        v = static_cast<double>(state >> 8) / 16777216.0 - 0.5;
+    }
+    const auto v = compute_resample(o, x, 48000);
+    REQUIRE(v);
+    REQUIRE(v->copies_db.size() == 4);
+    std::vector<double> gap;
+    for (std::size_t b = v->f_out.size() / 8; b < v->f_out.size() * 7 / 8; ++b) {
+        double sum = 0;
+        for (const auto& c : v->copies_db) sum += std::pow(10.0, c[b] / 10);
+        gap.push_back(10 * std::log10(sum) - v->psd_out_db[b]);
+    }
+    std::nth_element(gap.begin(), gap.begin() + static_cast<std::ptrdiff_t>(gap.size() / 2), gap.end());
+    CHECK(std::abs(gap[gap.size() / 2]) < 1.5);
+}
+
+TEST_CASE("m7c: the filter is drawn on the panel where its cut lies", "[tui][resample]") {
+    ResampleView v;
+    v.down = 4;
+    CHECK(filter_panel(v) == FilterPanel::before);
+    v.up = 2;
+    v.down = 3;
+    CHECK(filter_panel(v) == FilterPanel::before);
+    v.up = 3;
+    v.down = 2;
+    CHECK(filter_panel(v) == FilterPanel::after);
+    v.up = 3;
+    v.down = 1;
+    CHECK(filter_panel(v) == FilterPanel::after);
+    v.up = v.down = 1;
+    CHECK(filter_panel(v) == FilterPanel::none);
+}
+
+TEST_CASE("m7c review: a tone's aliasing copy reaches the output peak it explains", "[tui][resample]") {
+    for (const std::size_t m : {2u, 4u, 8u}) {
+        INFO("M = " << m);
+        ResampleOptions o;
+        o.mode = ResampleMode::down;
+        o.m = m;
+        o.source = ResampleSource::tone;
+        o.tone_hz = 7000;
+        o.filter = AntiAlias::bypass;
+        const auto x = resample_source(o, 48000, 8192);
+        const auto v = compute_resample(o, x, 48000);
+        REQUIRE(v);
+        REQUIRE(v->copies_db.size() == m);
+        double copy_peak = -1e300;
+        for (const auto& c : v->copies_db) copy_peak = std::max(copy_peak, *std::max_element(c.begin(), c.end()));
+        const double out_peak = *std::max_element(v->psd_out_db.begin(), v->psd_out_db.end());
+        CHECK(std::abs(copy_peak - out_peak) < 1.0);
+    }
+}

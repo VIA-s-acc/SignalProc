@@ -76,7 +76,7 @@ public:
     explicit ProcessingModel(std::shared_ptr<SignalModel> source);
 
     void sync(JobRunner& jobs);
-    void set_options(ProcessingOptions o, JobRunner& jobs);
+    void set_options(ProcessingOptions o, JobRunner& jobs, bool new_step = true);
     ProcessingOptions options() const { return options_; }
     std::shared_ptr<const ProcessingResult> result() const;
     std::optional<std::string> error() const;

@@ -58,10 +58,15 @@ inline int display_width(const std::string& s) {
 
 inline std::string ellipsize(const std::string& s, int width, bool ascii) {
     if (width <= 0) return {};
-    const auto cps = split_codepoints(s);
-    if (static_cast<int>(cps.size()) <= width) return s;
+    if (display_width(s) <= width) return s;
     std::string out;
-    for (int i = 0; i + 1 < width; ++i) out += cps[static_cast<std::size_t>(i)];
+    int used = 0;
+    for (const auto& cp : split_codepoints(s)) {
+        const bool mark = is_combining_mark(cp);
+        if (!mark && used + 1 >= width) break;
+        out += cp;
+        if (!mark) ++used;
+    }
     return out + (ascii ? "~" : "…");
 }
 

@@ -145,7 +145,7 @@ void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
                               add_log(fmt::format(fmt::runtime(tr("tui.signal.log.opened")), fmt::arg("name", name)), LogLine::info);
                               if (d->full_scale_samples > 0)
                                   add_log(fmt::format(fmt::runtime(tr("tui.signal.log.clipped")),
-                                                      fmt::arg("count", format_number(static_cast<double>(d->full_scale_samples)))),
+                                                      fmt::arg("count", tr_count("unit.sample_short", static_cast<long long>(d->full_scale_samples), format_number(static_cast<double>(d->full_scale_samples))))),
                                           LogLine::warn);
                               publish(std::move(d));
                               } catch (const std::bad_alloc&) {

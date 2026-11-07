@@ -536,15 +536,17 @@ ftxui::Element DecompositionScreen::packets_energy(const PacketData& p, int max_
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto basis = model_->basis();
-    constexpr int kName = 9, kRange = 15, kPct = 9;
-    const int bar_width = std::clamp(width - kName - kRange - kPct, 3, 18);
-    Elements rows;
+    constexpr int kRange = 15, kPct = 9;
     const auto [first, shown] = list_window(energy_first_, basis.size(), std::max(2, max_rows - 2), 1, std::nullopt);
+    int name_width = 9;
+    for (std::size_t i = first; i < first + shown; ++i) name_width = std::max(name_width, display_width(node_name(basis[i])) + 1);
+    const int bar_width = std::clamp(width - name_width - kRange - kPct, 3, 18);
+    Elements rows;
     if (first > 0) rows.push_back(more_row(true, first));
     for (std::size_t i = first; i < first + shown; ++i) {
         const auto& info = p.info(basis[i]);
         const bool selected = basis[i].level == pk_level_ && core::freq_position(basis[i]) == pk_pos_;
-        rows.push_back(hbox({text(pad_right(node_name(basis[i]), kName)) | bold | fg(selected ? th.accent : th.trace[0], ui_),
+        rows.push_back(hbox({text(pad_right(node_name(basis[i]), name_width)) | bold | fg(selected ? th.accent : th.trace[0], ui_),
                              text(pad_right(hz_text(info.lo_hz) + "–" + hz_text(info.hi_hz), kRange)) | fg(th.dim, ui_),
                              text(bar(info.energy_pct / 100, bar_width, ui_.caps.glyphs)) | fg(th.trace[0], ui_),
                              text(pad_left(pct(info.energy_pct), kPct)) | fg(th.fg, ui_)}));
@@ -1033,6 +1035,9 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
         maximized_ = maximized_ ? std::nullopt : std::optional<Panel>{focus_};
         return true;
     }
+    if (e == Event::Character('r') && (view_ == View::packets || view_ == View::scalogram) && !model_->cancelled() &&
+        model_->retry_cancelled(view_ == View::packets))
+        return true;
     if (e == Event::Character('r') && !model_->job()) return model_->recompute(jobs), true;
     if (e == Event::Character('o') && ui_.ask_open) return ui_.ask_open(), true;
     if (!d) return false;

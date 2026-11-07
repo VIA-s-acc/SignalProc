@@ -790,7 +790,7 @@ ftxui::Element FiltersScreen::properties_panel() {
                                  fg(th.fg, ui_),
                              text(" · " + tr(a.stable.value_or(false) ? "tui.filters.stable" : "tui.filters.unstable")) | fg(th.fg, ui_), mark(a.stable.value_or(false))}));
     } else {
-        rows.push_back(text(fmt::format(fmt::runtime(tr("tui.filters.prop.fir")), fmt::arg("taps", a.h.coeffs.size()))) | fg(th.fg, ui_));
+        rows.push_back(text(fmt::format(fmt::runtime(tr("tui.filters.prop.fir")), fmt::arg("taps", tr_count("unit.tap", static_cast<long long>(a.h.coeffs.size()))))) | fg(th.fg, ui_));
     }
     const bool classical = a.ref.kind == FilterRef::Kind::classical || a.ref.kind == FilterRef::Kind::custom;
     Elements orth;

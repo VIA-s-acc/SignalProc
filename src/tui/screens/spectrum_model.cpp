@@ -108,7 +108,8 @@ double box_level_db(const SpectrogramData& s, double t0, double t1, double f0, d
             ++cells;
         }
     }
-    if (cells == 0 || !(s.peak > 0)) return -INFINITY;
+    if (!(s.peak > 0)) return -INFINITY;
+    if (cells == 0) return level_at_db(s, 0.5 * (t0 + t1), 0.5 * (f0 + f1));
     return 10 * std::log10(sum / static_cast<double>(cells) / s.peak + kTiny);
 }
 

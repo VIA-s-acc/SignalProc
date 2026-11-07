@@ -464,7 +464,7 @@ TEST_CASE("c types a custom filter, adds it and saves a named one", "[tui][filte
     h.send(ftxui::Event::Character("z: -1 -1"));
     h.send(ftxui::Event::Return);
     REQUIRE(f.set->entries().size() == 2);
-    CHECK(f.set->entries()[1].ref.label() == "свой фильтр, 3 отсч.");
+    CHECK(f.set->entries()[1].ref.label() == "свой фильтр, 3 отвода");
     CHECK(user_filters().size() == 2);
     set_user_filters({});
     std::filesystem::remove_all(dir);
