@@ -18,6 +18,7 @@
 #include "tui/shell/panel.hpp"
 #include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/screen_util.hpp"
 
 namespace signals::tui {
 
@@ -35,6 +36,8 @@ public:
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event e) override;
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<JumpTarget> jump_targets() const override;
+    std::optional<std::string> explain_at(int x, int y) const override;
 
     Panel focus() const { return focus_; }
     ftxui::Box area(std::string_view id) const;
@@ -47,13 +50,14 @@ public:
 
 private:
     struct Clickable {
+        std::string id;
         ftxui::Box box;
         std::function<void()> action;
     };
 
     void refresh();
-    ftxui::Element clickable(ftxui::Element e, std::function<void()> action);
-    ftxui::Element chip(const std::string& label, bool on, std::function<void()> action);
+    ftxui::Element clickable(std::string id, ftxui::Element e, std::function<void()> action);
+    ftxui::Element chip(std::string id, const std::string& label, bool on, std::function<void()> action);
     ftxui::Element frame(Panel p, std::string title, std::vector<Chip> chips, ftxui::Element body);
     ftxui::Element render_panel(Panel p);
     ftxui::Element controls();
@@ -73,6 +77,7 @@ private:
     std::shared_ptr<const ResampleView> view_;
     std::string notice_;
     std::deque<Clickable> clickables_;
+    Notes notes_{"resample"};
     PanelLayout layout_;
     Panel focus_ = controls_panel;
     std::optional<Panel> maximized_;

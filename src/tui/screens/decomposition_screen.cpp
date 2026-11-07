@@ -284,7 +284,9 @@ ftxui::Element DecompositionScreen::frame_panel(Panel p, ftxui::Element body, st
         chips.push_back({fmt::format(fmt::runtime(tr("tui.signal.chip.panel")), fmt::arg("index", static_cast<int>(p) + 1),
                                      fmt::arg("count", static_cast<int>(panel_count))),
                          false});
-    return panel(title, std::move(chips), std::move(body), focus_ == p, ui_) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
+    static constexpr const char* kTitles[]{"", "panel.energy", "panel.cursor", "panel.denoise", "panel.listen", "panel.summary"};
+    const std::string title_id = p == view_panel ? std::string{(view_ == View::subbands ? "view.subbands" : view_ == View::mra ? "view.mra" : view_ == View::tiles ? "view.tiles" : view_ == View::packets ? "view.packets" : "view.scalogram")} : kTitles[static_cast<std::size_t>(p)];
+    return panel(title, std::move(chips), std::move(body), focus_ == p, ui_, notes_.box(title_id)) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
 }
 
 ftxui::Element DecompositionScreen::clickable(std::string id, ftxui::Element e, std::function<void()> action) {
@@ -309,33 +311,33 @@ ftxui::Element DecompositionScreen::toolbar(bool two_rows, int cols) {
     const bool packets_view = view_ == View::packets;
     const auto o = model_->options();
     auto& jobs = *ui_.jobs;
-    Elements parts{text(tr("tui.decomposition.view") + " ") | fg(th.dim, ui_),
+    Elements parts{notes_.mark("view", text(tr("tui.decomposition.view") + " ") | fg(th.dim, ui_)),
                    chip("view_subbands", tr("tui.decomposition.view.subbands"), view_ == View::subbands, false, [this] { view_ = View::subbands; }),
                    chip("view_mra", "MRA", view_ == View::mra, false, [this] { view_ = View::mra; }),
                    chip("view_tiles", tr("tui.decomposition.view.tiles"), view_ == View::tiles, false, [this] { view_ = View::tiles; }),
                    chip("chip_packets", tr("tui.decomposition.view.packets"), view_ == View::packets, false, [this] { view_ = View::packets; }),
                    chip("chip_scalogram", tr("tui.decomposition.view.scalogram"), view_ == View::scalogram, false, [this] { view_ = View::scalogram; })};
-    Elements second{text((two_rows ? "" : " │ ") + tr("tui.decomposition.transform") + " ") | fg(th.dim, ui_),
+    Elements second{notes_.mark("transform", text((two_rows ? "" : " │ ") + tr("tui.decomposition.transform") + " ") | fg(th.dim, ui_)),
                     chip("chip_dwt", "DWT", o.transform == Transform::dwt, packets_view, [this, &jobs] { set_transform(Transform::dwt, jobs); }),
                     chip("chip_swt", "SWT", o.transform == Transform::swt, packets_view, [this, &jobs] { set_transform(Transform::swt, jobs); }),
                     chip("chip_modwt", "MODWT", o.transform == Transform::modwt, packets_view, [this, &jobs] { set_transform(Transform::modwt, jobs); }),
-                    text(" │ " + tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_),
+                    notes_.mark("wavelet", text(" │ " + tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_)),
                    clickable("wavelet", text(o.wavelet + " ▾") | fg(th.fg, ui_), [this] {
                        if (ui_.open_palette) ui_.open_palette(tr("tui.decomposition.cmd.wavelet"));
                    }),
-                   text(" │ J ") | fg(th.dim, ui_),
+                   notes_.mark("levels", text(" │ J ") | fg(th.dim, ui_)),
                    clickable("levels_less", text("◂ ") | fg(th.fg, ui_), [this, &jobs] {
                        auto k = model_->options();
                        if (k.levels > 1) --k.levels;
                        model_->set_options(k, jobs);
                    }),
-                   text(std::to_string(o.levels) + " ") | bold | fg(th.fg, ui_),
+                   notes_.mark("levels", text(std::to_string(o.levels) + " ") | bold | fg(th.fg, ui_)),
                    clickable("levels_more", text("▸") | fg(th.fg, ui_), [this, &jobs] {
                        auto k = model_->options();
                        ++k.levels;
                        model_->set_options(k, jobs);
                    }),
-                   text(" │ " + tr("tui.decomposition.edges") + " ") | fg(th.dim, ui_),
+                   notes_.mark("edges", text(" │ " + tr("tui.decomposition.edges") + " ") | fg(th.dim, ui_)),
                    clickable("edges", text(std::string{core::to_string(o.mode)} + " ▾") | fg(th.fg, ui_), [this, &jobs] {
                        auto k = model_->options();
                        auto it = std::find(kModes.begin(), kModes.end(), k.mode);
@@ -347,7 +349,7 @@ ftxui::Element DecompositionScreen::toolbar(bool two_rows, int cols) {
         measured->ComputeRequirement();
         if (measured->requirement().min_x <= cols) return vbox({hbox(std::move(parts)), hbox(std::move(second))});
         Elements transform(second.begin(), second.begin() + 4), settings(second.begin() + 5, second.end());
-        settings.insert(settings.begin(), text(tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_));
+        settings.insert(settings.begin(), notes_.mark("wavelet", text(tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_)));
         return vbox({hbox(std::move(parts)), hbox(std::move(transform)), hbox(std::move(settings))});
     }
     for (auto& e : second) parts.push_back(std::move(e));
@@ -705,7 +707,7 @@ ftxui::Element DecompositionScreen::cursor_body(const DecompositionData& d, cons
 ftxui::Element DecompositionScreen::denoise_panel(const DecompositionData& d, const Reconstruction* r) {
     using namespace ftxui;
     const auto& th = ui_.theme;
-    auto label = [&](const std::string& key) { return text(pad_right(tr(key), 9)) | fg(th.dim, ui_); };
+    auto label = [&](const std::string& key, std::string id) { return notes_.mark(std::move(id), text(pad_right(tr(key), 9)) | fg(th.dim, ui_)); };
     const auto rule = draft_.rule.value_or(core::ShrinkRule::bayes);
     Elements modes;
     for (auto [mode, name] : {std::pair{core::ThresholdMode::soft, "soft"}, std::pair{core::ThresholdMode::hard, "hard"},
@@ -722,25 +724,26 @@ ftxui::Element DecompositionScreen::denoise_panel(const DecompositionData& d, co
     if (r && r->processing.rule)
         for (double l : r->lambdas) lambdas += (lambdas.empty() ? "" : " ") + format_number(l, 2);
     Elements rows{
-        hbox({label("tui.decomposition.method"), clickable("rule", text(std::string{core::shrink_rule_name(rule)} + " ▾") | fg(th.fg, ui_), [this, rule] {
+        hbox({label("tui.decomposition.method", "rule"), clickable("rule", text(std::string{core::shrink_rule_name(rule)} + " ▾") | fg(th.fg, ui_), [this, rule] {
                   draft_.rule = rule == core::ShrinkRule::bayes  ? core::ShrinkRule::visu
                                 : rule == core::ShrinkRule::visu ? core::ShrinkRule::sure
                                 : rule == core::ShrinkRule::sure ? core::ShrinkRule::minimax
                                                                  : core::ShrinkRule::bayes;
               })}),
-        hbox({label("tui.decomposition.rule"), hbox(std::move(modes))}),
-        hbox({label("tui.decomposition.sigma"), text(format_number(d.sigma) + " ") | fg(th.fg, ui_), text("MAD(d₁)/" + format_fixed(0.6745, 4)) | fg(th.dim, ui_)}),
-        hbox({label("tui.decomposition.levels"), text("d₁ … d" + subscript_count(std::min(draft_.last_level, J)) + " ") | fg(th.fg, ui_),
+        hbox({label("tui.decomposition.rule", "mode"), hbox(std::move(modes))}),
+        notes_.mark("sigma", hbox({label("tui.decomposition.sigma", "sigma"), text(format_number(d.sigma) + " ") | fg(th.fg, ui_),
+                                   text("MAD(d₁)/" + format_fixed(0.6745, 4)) | fg(th.dim, ui_)})),
+        hbox({label("tui.decomposition.levels", "denoise.levels"), text("d₁ … d" + subscript_count(std::min(draft_.last_level, J)) + " ") | fg(th.fg, ui_),
               clickable("levels_down", text("◂") | fg(th.accent, ui_), [this] { draft_.last_level = std::max<std::size_t>(1, draft_.last_level - 1); }),
               clickable("levels_up", text(" ▸") | fg(th.accent, ui_), [this, J] { draft_.last_level = std::min(J, draft_.last_level + 1); })}),
-        text(tr(rule == core::ShrinkRule::bayes  ? "tui.decomposition.lambda_bayes"
+        notes_.mark("lambda", text(tr(rule == core::ShrinkRule::bayes  ? "tui.decomposition.lambda_bayes"
                 : rule == core::ShrinkRule::visu ? "tui.decomposition.lambda_visu"
                 : rule == core::ShrinkRule::sure ? "tui.decomposition.lambda_sure"
                                                  : "tui.decomposition.lambda_minimax")) |
-            fg(th.dim, ui_),
-        lambdas.empty() ? emptyElement() : text(ellipsize("λ: " + lambdas, kRightWidth - 4, ui_.caps.glyphs == GlyphMode::ascii)) | fg(th.dim, ui_),
+            fg(th.dim, ui_)),
+        lambdas.empty() ? emptyElement() : notes_.mark("lambda", text(ellipsize("λ: " + lambdas, kRightWidth - 4, ui_.caps.glyphs == GlyphMode::ascii)) | fg(th.dim, ui_)),
         separator() | fg(th.dim, ui_),
-        hbox({label("tui.decomposition.compress"), text(tr("tui.decomposition.keep") + " "),
+        hbox({label("tui.decomposition.compress", "keep"), text(tr("tui.decomposition.keep") + " "),
               clickable("keep", text(keep_text) | fg(th.fg, ui_), [this] {
                   const double now = draft_.keep_fraction.value_or(0);
                   auto it = std::find(kKeep.begin(), kKeep.end(), now);
@@ -748,7 +751,7 @@ ftxui::Element DecompositionScreen::denoise_panel(const DecompositionData& d, co
                   draft_.keep_fraction = next > 0 ? std::optional<double>{next} : std::nullopt;
               }),
               text(" " + tr("tui.decomposition.coefficients")) | fg(th.dim, ui_)}),
-        hbox({label("tui.decomposition.edit"), text(tr("tui.decomposition.gain") + " " + band_label(sel) + " ") | fg(th.fg, ui_),
+        hbox({label("tui.decomposition.edit", "gain"), text(tr("tui.decomposition.gain") + " " + band_label(sel) + " ") | fg(th.fg, ui_),
               text("[" + std::string{gain >= 0 ? "+" : "−"} + format_number(std::abs(gain)) + " " + tr("unit.db") + "] ") | fg(th.fg, ui_),
               clickable("gain_down", text("◂") | fg(th.accent, ui_), [this, sel] {
                   if (sel < draft_.gains_db.size()) draft_.gains_db[sel] -= 1;
@@ -788,7 +791,7 @@ ftxui::Element DecompositionScreen::listen_panel(const DecompositionData& d) {
                                ClipKind::band, "decomposition.band")}),
                   hbox({text(bar(d.duration() > 0 ? pos / d.duration() : 0, 22, ui_.caps.glyphs)) | fg(th.accent, ui_),
                         text(" " + format_fixed(pos, 2) + " " + tr("unit.s")) | fg(th.dim, ui_)}),
-                  text(tr("tui.decomposition.shared_cursor")) | fg(th.dim, ui_)};
+                  notes_.mark("play.cursor", text(tr("tui.decomposition.shared_cursor")) | fg(th.dim, ui_))};
     if (!notice_.empty()) rows.push_back(paragraph(notice_) | fg(th.warn, ui_));
     if (auto e = model_->error()) rows.push_back(text(*e) | fg(th.err, ui_));
     else if (model_->cancelled()) rows.push_back(text(tr("tui.decomposition.cancelled")) | fg(th.warn, ui_));
@@ -847,6 +850,7 @@ ftxui::Element DecompositionScreen::OnRender() {
     using namespace ftxui;
     panel_boxes_.fill(kNoBox);
     clickables_.clear();
+    notes_.clear();
     if (!ui_.jobs) return text("");
     model_->sync(*ui_.jobs);
     const auto d = model_->data();
@@ -894,7 +898,7 @@ ftxui::Element DecompositionScreen::OnRender() {
     auto chip_text = tr(chip_key);
     if (scalogram && scalogram->decimation > 1)
         chip_text += " · " + fmt::format(fmt::runtime(tr("tui.decomposition.chip.decimated")), fmt::arg("m", tr_count("unit.times", static_cast<long long>(scalogram->decimation))));
-    const std::vector<Chip> view_chips{{chip_text, false}};
+    const std::vector<Chip> view_chips{{chip_text, false, notes_.box(std::string{"legend."} + (chip_key + std::string_view{"tui.decomposition.chip."}.size()))}};
     const bool small = breakpoint_ <= Breakpoint::small || maximized_;
     const int main_width = small ? cols : cols - kRightWidth - 1;
     const bool two_rows = cols < 150;
@@ -1179,6 +1183,20 @@ std::vector<JumpTarget> DecompositionScreen::jump_targets() const {
     std::vector<JumpTarget> out;
     for (const auto& c : clickables_) out.push_back({c.box, c.id});
     return out;
+}
+
+std::optional<std::string> DecompositionScreen::explain_at(int x, int y) const {
+    for (const auto& c : clickables_) {
+        if (!valid(c.box) || !c.box.Contain(x, y)) continue;
+        std::string id = c.id;
+        if (id == "chip_packets" || id == "chip_scalogram") id = "view_" + id.substr(5);
+        else if (id.starts_with("chip_")) id = "transform_" + id.substr(5);
+        else if (id == "edges") id = "edges_" + std::string{core::to_string(model_->options().mode)};
+        else if (id == "rule") id = "rule_" + std::string{core::shrink_rule_name(draft_.rule.value_or(core::ShrinkRule::bayes))};
+        else if (id == "levels_down" || id == "levels_up") id = "denoise.levels";
+        return notes_.explain(id);
+    }
+    return notes_.at(x, y);
 }
 
 std::vector<Command> DecompositionScreen::commands() {

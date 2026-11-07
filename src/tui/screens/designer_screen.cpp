@@ -104,11 +104,14 @@ std::string DesignerScreen::context() const {
 }
 
 ftxui::Element DesignerScreen::frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title) {
+    static constexpr const char* kNames[]{"roots", "splits", "result", "magnitude", "phi", "phi_dual"};
+    const std::string name = kNames[static_cast<std::size_t>(p)];
+    for (auto& c : chips) c.box = notes_.box("legend." + name);
     if (breakpoint_ <= Breakpoint::small)
         chips.push_back({fmt::format(fmt::runtime(tr("tui.signal.chip.panel")), fmt::arg("index", static_cast<int>(p) + 1),
                                      fmt::arg("count", static_cast<int>(panel_count))),
                          false});
-    return panel(title, std::move(chips), std::move(body), focus_ == p, ui_) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
+    return panel(title, std::move(chips), std::move(body), focus_ == p, ui_, notes_.box("panel." + name)) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
 }
 
 ftxui::Element DesignerScreen::clickable(std::string id, ftxui::Element e, std::function<void()> action) {
@@ -158,12 +161,12 @@ ftxui::Element DesignerScreen::splits_panel(const DesignerData* d, int max_rows)
     auto& jobs = *ui_.jobs;
     Elements rows{text(fmt::format(fmt::runtime(tr("tui.designer.count")), fmt::arg("n", tr_count("unit.variant", static_cast<long long>(d->rows.size()))), fmt::arg("w", d->wavelet_rows))) |
                       fg(th.dim, ui_),
-                  text(tr("tui.designer.header")) | fg(th.dim, ui_)};
+                  notes_.mark("header", text(tr("tui.designer.header")) | fg(th.dim, ui_))};
     const std::string full = ascii ? "*" : "●", hollow = ascii ? "o" : "○";
     std::string dots_h, dots_f;
     for (int i = 0; i < s.zeros_h0; ++i) dots_h += full;
     for (int i = 0; i < 2 * d->p - s.zeros_h0; ++i) dots_f += hollow;
-    rows.push_back(hbox({text(pad_right("z = −1", 20) + pad_right(std::to_string(2 * d->p), 5)), text(pad_right(dots_h, 10)) | fg(th.trace[0], ui_),
+    rows.push_back(hbox({notes_.mark("zeros", text(pad_right("z = −1", 20) + pad_right(std::to_string(2 * d->p), 5))), text(pad_right(dots_h, 10)) | fg(th.trace[0], ui_),
                          text(pad_right(dots_f, 8)) | fg(f0_color, ui_),
                          clickable("zeros_less", text(" ◂ ") | fg(th.accent, ui_), [this, &jobs] { model_->zeros(-1, jobs); }),
                          clickable("zeros_more", text(" ▸ ") | fg(th.accent, ui_), [this, &jobs] { model_->zeros(1, jobs); })}));
@@ -196,7 +199,7 @@ ftxui::Element DesignerScreen::splits_panel(const DesignerData* d, int max_rows)
     std::string rule;
     for (int i = 0; i < 42; ++i) rule += glyph(Glyph::h, ui_.caps.glyphs);
     rows.push_back(text(rule) | fg(th.dim, ui_));
-    Elements presets{text(tr("tui.designer.presets") + " ")};
+    Elements presets{notes_.mark("preset", text(tr("tui.designer.presets") + " "))};
     const std::pair<Preset, const char*> all[]{{Preset::daubechies, "daubechies"}, {Preset::max_phase, "max_phase"},
                                                {Preset::cdf, "cdf"},               {Preset::degenerate, "degenerate"}};
     for (const auto& [preset, key] : all) {
@@ -207,7 +210,7 @@ ftxui::Element DesignerScreen::splits_panel(const DesignerData* d, int max_rows)
     }
     rows.push_back(hbox(std::move(presets)));
     const auto c = model_->constraints();
-    rows.push_back(text(on_box + tr("tui.designer.conjugates")) | fg(th.dim, ui_));
+    rows.push_back(notes_.mark("conjugates", text(on_box + tr("tui.designer.conjugates")) | fg(th.dim, ui_)));
     rows.push_back(hbox({clickable("linear_phase", text((c.linear_phase ? on_box : off_box) + tr("tui.designer.linear_phase")) | fg(th.fg, ui_),
                                    [this, &jobs] {
                                        auto k = model_->constraints();
@@ -255,7 +258,7 @@ ftxui::Element DesignerScreen::result_panel(const DesignerResult* r, int) {
                             fmt::arg("filter", converges(r->info.sobolev_h0) ? "F₀" : "H₀"));
     Elements rows{hbox({text("h₀ ") | fg(th.trace[0], ui_), paragraph(coefficients(h0)) | fg(th.fg, ui_) | flex}),
                   hbox({text("f₀ ") | fg(tint(th.trace[0], th.fg, 0.5), ui_), paragraph(coefficients(f0)) | fg(th.fg, ui_) | flex}),
-                  text(tr("tui.designer.convention")) | fg(th.dim, ui_), line(checks, ui_), text(note) | fg(th.dim, ui_)};
+                  notes_.mark("convention", text(tr("tui.designer.convention")) | fg(th.dim, ui_)), notes_.mark("checks", line(checks, ui_)), text(note) | fg(th.dim, ui_)};
     if (!notice_.empty()) rows.push_back(paragraph(notice_) | fg(th.accent, ui_));
     const auto chip = fmt::format(fmt::runtime(tr("tui.designer.lengths")), fmt::arg("delay", r->delay ? std::to_string(*r->delay) : "—"),
                                   fmt::arg("h", h0.coeffs.size()), fmt::arg("f", f0.coeffs.size()));
@@ -329,6 +332,7 @@ ftxui::Element DesignerScreen::OnRender() {
     using namespace ftxui;
     panel_boxes_.fill(kNoBox);
     clickables_.clear();
+    notes_.clear();
     roots_box_ = kNoBox;
     zoom_.begin_frame();
     if (ui_.jobs) model_->sync(*ui_.jobs);
@@ -513,6 +517,13 @@ std::vector<JumpTarget> DesignerScreen::jump_targets() const {
     std::vector<JumpTarget> out;
     for (const auto& c : clickables_) out.push_back({c.box, c.id});
     return out;
+}
+
+std::optional<std::string> DesignerScreen::explain_at(int x, int y) const {
+    for (const auto& c : clickables_)
+        if (valid(c.box) && c.box.Contain(x, y)) return notes_.explain(c.id);
+    if (valid(roots_box_) && roots_box_.Contain(x, y)) return notes_.explain("roots");
+    return notes_.at(x, y);
 }
 
 std::vector<Command> DesignerScreen::commands() {

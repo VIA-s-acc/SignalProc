@@ -743,6 +743,17 @@ std::vector<JumpTarget> TheoryScreen::jump_targets() const {
     return out;
 }
 
+std::optional<std::string> TheoryScreen::explain_at(int x, int y) const {
+    auto in = [&](const ftxui::Box& b) { return b.x_max >= b.x_min && b.y_max >= b.y_min && b.Contain(x, y); };
+    for (const auto& l : doc_.links)
+        if (in(l.box)) return explain_note("theory", "link");
+    if (in(references_box_)) return explain_note("theory", "references");
+    if (in(card_link_box_)) return explain_note("theory", "card");
+    for (const auto& [b, id] : block_boxes_)
+        if (in(b)) return explain_note("theory", "block");
+    return std::nullopt;
+}
+
 std::vector<MenuItem> TheoryScreen::context_menu(int x, int y) {
     for (const auto& f : doc_.formulas)
         if (f.box.Contain(x, y)) {

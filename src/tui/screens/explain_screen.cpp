@@ -151,11 +151,15 @@ void ExplainScreen::open_with(const NavArgs& args) {
 }
 
 ftxui::Element ExplainScreen::frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title) {
+    static constexpr const char* kNames[]{"scheme", "steps", "story", "matrix", "freq", "p0"};
+    const std::string name = kNames[static_cast<std::size_t>(p)];
+    for (auto& c : chips)
+        if (!c.box) c.box = notes_.box("legend." + name);
     if (breakpoint_ <= Breakpoint::small)
         chips.push_back({fmt::format(fmt::runtime(tr("tui.signal.chip.panel")), fmt::arg("index", static_cast<int>(p) + 1),
                                      fmt::arg("count", static_cast<int>(panel_count))),
                          false});
-    return panel(title, std::move(chips), std::move(body), focus_ == p, ui_) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
+    return panel(title, std::move(chips), std::move(body), focus_ == p, ui_, notes_.box("panel." + name)) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
 }
 
 ftxui::Element ExplainScreen::rows_table(const Walkthrough& w, int width) {
@@ -446,6 +450,7 @@ ftxui::Element ExplainScreen::p0_panel(const Walkthrough& w) {
 ftxui::Element ExplainScreen::OnRender() {
     using namespace ftxui;
     panel_boxes_.fill(kNoBox);
+    notes_.clear();
     zoom_.begin_frame();
     step_boxes_.fill(kNoBox);
     bank_boxes_.fill(kNoBox);
@@ -599,6 +604,19 @@ std::vector<JumpTarget> ExplainScreen::jump_targets() const {
     out.push_back({auto_box_, "auto"});
     for (const auto& b : bank_boxes_) out.push_back({b, "bank"});
     return out;
+}
+
+std::optional<std::string> ExplainScreen::explain_at(int x, int y) const {
+    auto in = [&](const ftxui::Box& b) { return valid(b) && b.Contain(x, y); };
+    for (const auto& b : step_boxes_)
+        if (in(b)) return notes_.explain("step");
+    if (in(prev_box_)) return notes_.explain("prev");
+    if (in(next_box_)) return notes_.explain("next");
+    if (in(auto_box_)) return notes_.explain("auto");
+    static constexpr const char* kBanks[]{"bank.haar", "bank.db2", "bank.legall53", "bank.user"};
+    for (std::size_t i = 0; i < bank_boxes_.size(); ++i)
+        if (in(bank_boxes_[i])) return notes_.explain(kBanks[i]);
+    return notes_.at(x, y);
 }
 
 std::vector<Command> ExplainScreen::commands() {

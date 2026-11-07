@@ -17,6 +17,7 @@
 #include "tui/shell/panel.hpp"
 #include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/screen_util.hpp"
 #include "tui/widgets/scroll.hpp"
 
 namespace signals::tui {
@@ -40,6 +41,7 @@ public:
     std::vector<MenuItem> context_menu(int x, int y) override;
     std::optional<std::pair<int, int>> menu_anchor() const override;
     std::vector<JumpTarget> jump_targets() const override;
+    std::optional<std::string> explain_at(int x, int y) const override;
     std::optional<double> playhead() const;
 
 private:
@@ -92,6 +94,7 @@ private:
     std::size_t log_seen_ = 0;
     DragMode drag_mode_ = DragMode::pan;
     ftxui::Box drag_chip_{};
+    Notes notes_{"signal"};
     bool audio_warned_ = false;
     bool arrows_move_b_ = false;
     Panel last_title_ = panel_count;

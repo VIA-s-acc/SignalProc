@@ -141,10 +141,13 @@ std::string SpectrumScreen::context() const {
 }
 
 ftxui::Element SpectrumScreen::frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title) {
+    static constexpr const char* kNames[]{"spectrogram", "selection", "cursor", "window", "measure", "list", "theory"};
+    const std::string name = kNames[static_cast<std::size_t>(p)];
+    for (auto& c : chips) c.box = notes_.box("legend." + name);
     if (breakpoint_ <= Breakpoint::small)
         chips.push_back({fmt::format(fmt::runtime(tr("tui.signal.chip.panel")), fmt::arg("index", static_cast<int>(p) + 1), fmt::arg("count", static_cast<int>(panel_count))),
                          false});
-    return panel(title, std::move(chips), std::move(body), focus_ == p, ui_) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
+    return panel(title, std::move(chips), std::move(body), focus_ == p, ui_, notes_.box("panel." + name)) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
 }
 
 ftxui::Element SpectrumScreen::clickable(std::string id, ftxui::Element e, std::function<void()> action) {
@@ -175,18 +178,18 @@ ftxui::Element SpectrumScreen::toolbar(bool two_rows) {
     };
     const auto o = model_->options();
     const auto overlap = format_fixed(100.0 * (1.0 - 1.0 / static_cast<double>(o.hop_divisor)), o.hop_divisor == 8 ? 1 : 0);
-    Elements parts{text(tr("tui.spectrum.window") + " ") | fg(th.dim, ui_),
+    Elements parts{notes_.mark("window", text(tr("tui.spectrum.window") + " ") | fg(th.dim, ui_)),
                    chip("preset_wide", tr("tui.spectrum.wide") + " · N 512", o.n == 512, [this] { set_n(512); }),
                    chip("preset_narrow", tr("tui.spectrum.narrow") + " · N 4096", o.n == 4096, [this] { set_n(4096); }),
-                   text(" │ " + tr("tui.spectrum.hann") + " · " + overlap + " %") | fg(th.fg, ui_),
-                   text(" │ " + tr("tui.spectrum.axis") + " ") | fg(th.dim, ui_),
+                   notes_.mark("hann", text(" │ " + tr("tui.spectrum.hann") + " · " + overlap + " %") | fg(th.fg, ui_)),
+                   notes_.mark("axis", text(" │ " + tr("tui.spectrum.axis") + " ") | fg(th.dim, ui_)),
                    chip("axis_log", tr("tui.spectrum.log"), log_, [this] { log_ = true; }),
                    chip("axis_lin", tr("tui.spectrum.lin"), !log_, [this] { log_ = false; })};
     Elements second{text((two_rows ? "" : " │ ")) | fg(th.dim, ui_), chip("harmonics", tr("tui.spectrum.harmonics"), harmonics_, [this] { harmonics_ = !harmonics_; }),
-                    text(" │ " + tr("tui.spectrum.fold") + " ") | fg(th.dim, ui_)};
+                    notes_.mark("fold", text(" │ " + tr("tui.spectrum.fold") + " ") | fg(th.dim, ui_))};
     for (const std::size_t m : {std::size_t{0}, std::size_t{2}, std::size_t{4}})
         second.push_back(chip("fold_" + std::to_string(m), m ? "↓" + std::to_string(m) : tr("tui.spectrum.fold_none"), fold_ == m, [this, m] { fold_ = m; }));
-    second.push_back(text(" │ " + tr("tui.spectrum.floor") + " " + format_fixed(floor_db_, 0) + " " + tr("unit.db")) | fg(th.fg, ui_));
+    second.push_back(notes_.mark("floor", text(" │ " + tr("tui.spectrum.floor") + " " + format_fixed(floor_db_, 0) + " " + tr("unit.db")) | fg(th.fg, ui_)));
     if (two_rows) return vbox({hbox(std::move(parts)), hbox(std::move(second))});
     for (auto& e : second) parts.push_back(std::move(e));
     return hbox(std::move(parts));
@@ -485,6 +488,7 @@ ftxui::Element SpectrumScreen::OnRender() {
     using namespace ftxui;
     panel_boxes_.fill(kNoBox);
     clickables_.clear();
+    notes_.clear();
     zoom_.begin_frame();
     if (!ui_.jobs) return text("");
     model_->sync(*ui_.jobs);
@@ -666,6 +670,18 @@ ftxui::Box SpectrumScreen::area(std::string_view id) const {
     for (const auto& c : clickables_)
         if (c.id == id) return c.box;
     return kNoBox;
+}
+
+std::vector<JumpTarget> SpectrumScreen::jump_targets() const {
+    std::vector<JumpTarget> out;
+    for (const auto& c : clickables_) out.push_back({c.box, c.id});
+    return out;
+}
+
+std::optional<std::string> SpectrumScreen::explain_at(int x, int y) const {
+    for (const auto& c : clickables_)
+        if (valid(c.box) && c.box.Contain(x, y)) return notes_.explain(c.id);
+    return notes_.at(x, y);
 }
 
 std::optional<std::pair<int, int>> SpectrumScreen::menu_anchor() const {

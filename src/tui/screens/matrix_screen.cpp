@@ -95,11 +95,14 @@ void MatrixScreen::apply(MatrixOptions o) {
 int MatrixScreen::max_numbers_n(int width) const { return std::max(2, (width - 8) / kNumberWidth); }
 
 ftxui::Element MatrixScreen::frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title) {
+    for (auto& c : chips) c.box = notes_.box(p == main ? "chip.legend" : "chip.origin");
     if (breakpoint_ <= Breakpoint::small)
         chips.push_back({fmt::format(fmt::runtime(tr("tui.signal.chip.panel")), fmt::arg("index", static_cast<int>(p) + 1),
                                      fmt::arg("count", static_cast<int>(panel_count))),
                          false});
-    return panel(title, std::move(chips), std::move(body), focus_ == p, ui_) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
+    static constexpr const char* kTitles[]{"panel.controls", "panel.checks", "panel.main", "panel.origin"};
+    auto* title_box = notes_.box(p == main && spectrum_ ? "panel.sigma" : kTitles[static_cast<std::size_t>(p)]);
+    return panel(title, std::move(chips), std::move(body), focus_ == p, ui_, title_box) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
 }
 
 ftxui::Element MatrixScreen::clickable(std::string id, ftxui::Element e, std::function<void()> action) {
@@ -115,10 +118,10 @@ ftxui::Element MatrixScreen::controls_panel() {
         return clickable(std::move(id), text(on ? "[" + label + "]" : " " + label + " ") | fg(on ? th.accent : th.fg, ui_) | (on ? bold : nothing),
                          std::move(action));
     };
-    Elements rows{hbox({text(pad_right(tr("tui.matrix.filter"), 9)) | fg(th.dim, ui_), clickable("filter", text(o.wavelet + " ▾") | fg(th.fg, ui_), [this] {
+    Elements rows{hbox({notes_.mark("filter", text(pad_right(tr("tui.matrix.filter"), 9)) | fg(th.dim, ui_)), clickable("filter", text(o.wavelet + " ▾") | fg(th.fg, ui_), [this] {
                             if (ui_.open_palette) ui_.open_palette(tr("tui.matrix.cmd.filter"));
                         })}),
-                  text(tr("tui.matrix.operation")) | fg(th.dim, ui_)};
+                  notes_.mark("op", text(tr("tui.matrix.operation")) | fg(th.dim, ui_))};
     const std::pair<MatrixOp, const char*> ops[]{{MatrixOp::analysis, "analysis"},
                                                  {MatrixOp::multilevel, "multilevel"},
                                                  {MatrixOp::convolution, "convolution"},
@@ -131,7 +134,7 @@ ftxui::Element MatrixScreen::controls_panel() {
                                  k.op = op;
                                  apply(k);
                              })}));
-    rows.push_back(text(tr("tui.matrix.edges")) | fg(th.dim, ui_));
+    rows.push_back(notes_.mark("mode", text(tr("tui.matrix.edges")) | fg(th.dim, ui_)));
     Elements modes{text(" ")};
     const std::pair<core::Extension, const char*> labels[]{{core::Extension::zero, "zero"}, {core::Extension::periodization, "period."},
                                                            {core::Extension::symmetric, "symm."}};
@@ -142,7 +145,7 @@ ftxui::Element MatrixScreen::controls_panel() {
             apply(k);
         }));
     rows.push_back(hbox(std::move(modes)));
-    rows.push_back(text(tr("tui.matrix.order")) | fg(th.dim, ui_));
+    rows.push_back(notes_.mark("order", text(tr("tui.matrix.order")) | fg(th.dim, ui_)));
     rows.push_back(hbox({text(" "), chip("order_blocks", "L; B", o.order == RowOrder::blocks, [this] {
                              auto k = model_->options();
                              k.order = RowOrder::blocks;
@@ -153,7 +156,7 @@ ftxui::Element MatrixScreen::controls_panel() {
                              k.order = RowOrder::interleaved;
                              apply(k);
                          })}));
-    rows.push_back(hbox({text(pad_right("N", 9)) | fg(th.dim, ui_), text(std::to_string(o.n) + " ") | fg(th.fg, ui_),
+    rows.push_back(hbox({notes_.mark("n", text(pad_right("N", 9)) | fg(th.dim, ui_)), text(std::to_string(o.n) + " ") | fg(th.fg, ui_),
                          clickable("n_less", text("◂") | fg(th.accent, ui_), [this] {
                              auto k = model_->options();
                              k.n = k.n > 2 ? k.n - 2 : 2;
@@ -164,10 +167,10 @@ ftxui::Element MatrixScreen::controls_panel() {
                              k.n += 2;
                              apply(k);
                          })}));
-    rows.push_back(hbox({text(pad_right(tr("tui.matrix.cell"), 9)) | fg(th.dim, ui_),
+    rows.push_back(hbox({notes_.mark("cell", text(pad_right(tr("tui.matrix.cell"), 9)) | fg(th.dim, ui_)),
                          clickable("cell_mode", text(numbers_ ? tr("tui.matrix.cell_numbers") : tr("tui.matrix.cell_colour")) | fg(th.fg, ui_),
                                    [this] { numbers_ = !numbers_; })}));
-    rows.push_back(text(fmt::format(fmt::runtime(tr("tui.matrix.numbers_limit")), fmt::arg("n", max_numbers_n(main_width_)))) | fg(th.dim, ui_));
+    rows.push_back(notes_.mark("cell", text(fmt::format(fmt::runtime(tr("tui.matrix.numbers_limit")), fmt::arg("n", max_numbers_n(main_width_)))) | fg(th.dim, ui_)));
     return frame_panel(controls, vbox(std::move(rows)), {}, tr("tui.matrix.controls"));
 }
 
@@ -185,23 +188,28 @@ ftxui::Element MatrixScreen::checks_panel(const MatrixData* d) {
         const bool ok = v && *v <= tol;
         return text(" " + std::string{glyph(ok ? Glyph::check : Glyph::cross, ui_.caps.glyphs)}) | fg(ok ? th.ok : th.err, ui_);
     };
-    if (d->orth_error) rows.push_back(hbox({paragraph("‖AᵀA − I‖max = " + check_value(d->orth_error)) | flex, mark(d->orth_error, 1e-12)}));
+    if (d->orth_error) rows.push_back(notes_.mark("check.orth", hbox({paragraph("‖AᵀA − I‖max = " + check_value(d->orth_error)) | flex, mark(d->orth_error, 1e-12)})));
     if (d->transpose_error) {
-        if (*d->transpose_error < 1e-12) rows.push_back(paragraph("S = Aᵀ " + tr("tui.matrix.orthogonal_bank")) | fg(th.fg, ui_));
-        else rows.push_back(paragraph("‖S − Aᵀ‖ = " + check_value(d->transpose_error)) | fg(th.fg, ui_));
+        if (*d->transpose_error < 1e-12) rows.push_back(notes_.mark("check.transpose", paragraph("S = Aᵀ " + tr("tui.matrix.orthogonal_bank")) | fg(th.fg, ui_)));
+        else rows.push_back(notes_.mark("check.transpose", paragraph("‖S − Aᵀ‖ = " + check_value(d->transpose_error)) | fg(th.fg, ui_)));
     }
-    if (d->left_inverse_error) rows.push_back(hbox({paragraph("‖S·A·x − x‖ = " + check_value(d->left_inverse_error)) | flex, mark(d->left_inverse_error, 1e-12)}));
-    if (d->dct_error) rows.push_back(hbox({paragraph(fmt::format(fmt::runtime(tr("tui.matrix.dct_check")), fmt::arg("value", check_value(d->dct_error)))) | flex, mark(d->dct_error, 1e-12)}));
+    if (d->left_inverse_error)
+        rows.push_back(notes_.mark("check.inverse", hbox({paragraph("‖S·A·x − x‖ = " + check_value(d->left_inverse_error)) | flex, mark(d->left_inverse_error, 1e-12)})));
+    if (d->dct_error)
+        rows.push_back(notes_.mark("check.dct", hbox({paragraph(fmt::format(fmt::runtime(tr("tui.matrix.dct_check")), fmt::arg("value", check_value(d->dct_error)))) | flex,
+                                                     mark(d->dct_error, 1e-12)})));
     if (d->levinson_error)
-        rows.push_back(hbox({paragraph(fmt::format(fmt::runtime(tr("tui.matrix.levinson_check")), fmt::arg("value", check_value(d->levinson_error)))) | flex, mark(d->levinson_error, 1e-10)}));
+        rows.push_back(notes_.mark("check.levinson", hbox({paragraph(fmt::format(fmt::runtime(tr("tui.matrix.levinson_check")), fmt::arg("value", check_value(d->levinson_error)))) | flex,
+                                                          mark(d->levinson_error, 1e-10)})));
     if (d->gohberg_error)
-        rows.push_back(hbox({paragraph(fmt::format(fmt::runtime(tr("tui.matrix.gohberg_check")), fmt::arg("value", check_value(d->gohberg_error)))) | flex, mark(d->gohberg_error, 1e-8)}));
+        rows.push_back(notes_.mark("check.gohberg", hbox({paragraph(fmt::format(fmt::runtime(tr("tui.matrix.gohberg_check")), fmt::arg("value", check_value(d->gohberg_error)))) | flex,
+                                                         mark(d->gohberg_error, 1e-8)})));
     else if (d->gohberg_refusal)
         rows.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.matrix.gohberg_refused")), fmt::arg("reason", *d->gohberg_refusal))) | fg(th.warn, ui_));
     if (!d->singular.empty())
-        rows.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.matrix.singular")), fmt::arg("hi", format_number(d->singular.front())),
-                                        fmt::arg("lo", format_number(d->singular.back())), fmt::arg("cond", format_number(d->cond)))) |
-                       fg(th.fg, ui_));
+        rows.push_back(notes_.mark("check.singular", paragraph(fmt::format(fmt::runtime(tr("tui.matrix.singular")), fmt::arg("hi", format_number(d->singular.front())),
+                                                                          fmt::arg("lo", format_number(d->singular.back())), fmt::arg("cond", format_number(d->cond)))) |
+                                                         fg(th.fg, ui_)));
     rows.push_back(separator() | fg(th.dim, ui_));
     if (!d->square && (d->options.op == MatrixOp::analysis || d->options.op == MatrixOp::multilevel)) {
         rows.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.matrix.nonsquare_head")), fmt::arg("mode", core::to_string(d->options.mode)),
@@ -407,6 +415,7 @@ ftxui::Element MatrixScreen::OnRender() {
     using namespace ftxui;
     panel_boxes_.fill(kNoBox);
     clickables_.clear();
+    notes_.clear();
     matrix_box_ = kNoBox;
     sigma_zoom_.begin_frame();
     if (!ui_.jobs) return text("");
@@ -647,6 +656,12 @@ std::vector<JumpTarget> MatrixScreen::jump_targets() const {
     std::vector<JumpTarget> out;
     for (const auto& c : clickables_) out.push_back({c.box, c.id});
     return out;
+}
+
+std::optional<std::string> MatrixScreen::explain_at(int x, int y) const {
+    for (const auto& c : clickables_)
+        if (valid(c.box) && c.box.Contain(x, y)) return notes_.explain(c.id);
+    return notes_.at(x, y);
 }
 
 std::vector<Command> MatrixScreen::commands() {
