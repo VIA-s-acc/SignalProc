@@ -130,10 +130,13 @@ core::Result<ResampleView> compute_resample(const ResampleOptions& o, std::span<
     for (double p : in->second) v.psd_in_db.push_back(db(p, ref));
     for (double p : out->second) v.psd_out_db.push_back(db(p, ref));
     if (o.mode == ResampleMode::down && o.filter == AntiAlias::bypass && v.down > 1) {
+        // Power per bin keeps a line's height under ↓M but spreads broadband power over the M copies, so a tone's
+        // copies keep their height and the copies of a sweep or a file fragment get 1/M each.
+        const double scale = o.source == ResampleSource::tone ? 1.0 : 1.0 / static_cast<double>(v.down);
         for (std::size_t k = 0; k < v.down; ++k) {
             std::vector<double> copy;
             for (const double f : v.f_out)
-                copy.push_back(db(at_frequency(v.f_in, in->second, folded_frequency(f + static_cast<double>(k) * v.fs_out, fs)) / static_cast<double>(v.down), ref));
+                copy.push_back(db(at_frequency(v.f_in, in->second, folded_frequency(f + static_cast<double>(k) * v.fs_out, fs)) * scale, ref));
             v.copies_db.push_back(std::move(copy));
         }
     }

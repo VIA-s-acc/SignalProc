@@ -137,7 +137,7 @@ public:
     void undo(JobRunner& jobs);
     void cancel(JobRunner& jobs);
     void recompute(JobRunner& jobs);
-    bool retry_cancelled();
+    bool retry_cancelled(bool packets);
     bool cancelled() const;
     std::vector<bool> enabled() const { return enabled_; }
     Processing processing() const { return processing_; }

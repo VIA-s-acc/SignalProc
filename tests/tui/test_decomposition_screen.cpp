@@ -835,3 +835,46 @@ TEST_CASE("m7c: deep packet node names keep a gap before the frequency column", 
     REQUIRE(at != std::string::npos);
     CHECK(frame[at + name.size()] == ' ');
 }
+
+TEST_CASE("m7c review: r after cancelling both the decomposition and packets rebuilds the decomposition", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    const auto old_levels = f.model->data()->options.levels;
+    JobRunner background{[] {}, 0ms};
+    std::promise<void> release;
+    auto gate = release.get_future().share();
+    background.submit("gate", {}, [gate](JobContext&) { gate.wait(); });
+    f.model->request_packets(background);
+    auto o = f.model->options();
+    o.levels = old_levels - 1;
+    f.model->set_options(o, background);
+    f.model->cancel(background);
+    release.set_value();
+    for (int k = 0; k < 200 && background.queued() > 0; ++k) std::this_thread::sleep_for(10ms);
+    REQUIRE(f.model->cancelled());
+    f.click("chip_packets");
+    f.h.frame();
+    f.h.send(ftxui::Event::Character('r'));
+    f.h.frame();
+    REQUIRE(f.model->data());
+    CHECK(f.model->data()->options.levels == old_levels - 1);
+    CHECK_FALSE(f.model->cancelled());
+}
+
+TEST_CASE("m7c review: a cancelled scalogram does not swallow r in the packets view", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    f.click("chip_scalogram");
+    JobRunner background{[] {}, 0ms};
+    std::promise<void> release;
+    auto gate = release.get_future().share();
+    background.submit("gate", {}, [gate](JobContext&) { gate.wait(); });
+    f.model->request_scalogram(background);
+    f.model->cancel(background);
+    release.set_value();
+    for (int k = 0; k < 200 && background.queued() > 0; ++k) std::this_thread::sleep_for(10ms);
+    f.click("chip_packets");
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    const auto before = f.model->data();
+    f.h.send(ftxui::Event::Character('r'));
+    CHECK(f.model->data() != before);
+}

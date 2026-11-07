@@ -146,19 +146,21 @@ void DecompositionModel::cancel(JobRunner& jobs) {
     if (decomposition) cancelled_ = true;
 }
 
-bool DecompositionModel::retry_cancelled() {
+bool DecompositionModel::retry_cancelled(bool packets) {
     std::lock_guard lock{mutex_};
-    const bool any = packets_cancelled_ || scalogram_cancelled_;
-    if (packets_cancelled_) {
+    if (packets && packets_cancelled_) {
         packets_for_.reset();
         packets_error_.reset();
+        packets_cancelled_ = false;
+        return true;
     }
-    if (scalogram_cancelled_) {
+    if (!packets && scalogram_cancelled_) {
         scalogram_for_.reset();
         scalogram_error_.reset();
+        scalogram_cancelled_ = false;
+        return true;
     }
-    packets_cancelled_ = scalogram_cancelled_ = false;
-    return any;
+    return false;
 }
 
 void DecompositionModel::recompute(JobRunner& jobs) {

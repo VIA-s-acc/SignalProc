@@ -1035,7 +1035,9 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
         maximized_ = maximized_ ? std::nullopt : std::optional<Panel>{focus_};
         return true;
     }
-    if (e == Event::Character('r') && (view_ == View::packets || view_ == View::scalogram) && model_->retry_cancelled()) return true;
+    if (e == Event::Character('r') && (view_ == View::packets || view_ == View::scalogram) && !model_->cancelled() &&
+        model_->retry_cancelled(view_ == View::packets))
+        return true;
     if (e == Event::Character('r') && !model_->job()) return model_->recompute(jobs), true;
     if (e == Event::Character('o') && ui_.ask_open) return ui_.ask_open(), true;
     if (!d) return false;
