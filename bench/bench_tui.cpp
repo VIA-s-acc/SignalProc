@@ -22,6 +22,8 @@
 #include "tui/screens/decomposition_screen.hpp"
 #include "tui/screens/spectrum_screen.hpp"
 #include "tui/screens/designer_screen.hpp"
+#include "tui/screens/diagram_screen.hpp"
+#include "tui/screens/processing_screen.hpp"
 #include "tui/screens/explain_screen.hpp"
 #include "tui/screens/matrix_screen.hpp"
 #include "tui/screens/pipeline_model.hpp"
@@ -122,12 +124,25 @@ void bench_tui(const std::filesystem::path& ten_minutes) {
     auto filters_shell = make_shell(*ui, {filters}, [] {});
     draw(filters_shell);
     b.run("frame «Фильтры» with four traces", [&] { draw(filters_shell); });
+    (void)set->add(FilterRef{FilterRef::Kind::scaling, "db4", FilterRole::f0});
+    set->request(inline_jobs, FiltersScreen::kPoints);
+    draw(filters_shell);
+    b.run("frame «Фильтры» with Φ db4 on 0…8π", [&] { draw(filters_shell); });
 
     auto designer_model = std::make_shared<DesignerModel>();
     designer_model->set_p(3, inline_jobs);
     auto designer_shell = make_shell(*ui, {std::make_shared<DesignerScreen>(*ui, designer_model)}, [] {});
     draw(designer_shell);
     b.run("frame «Конструктор», p = 3", [&] { draw(designer_shell); });
+    auto diagram = std::make_shared<DiagramScreen>(*ui, designer_model, model);
+    auto diagram_shell = make_shell(*ui, {diagram}, [] {});
+    draw(diagram_shell);
+    b.run("frame «Блок-схема», designer bank", [&] { draw(diagram_shell); });
+    diagram->OnEvent(ftxui::Event::Character('P'));
+    diagram->OnEvent(ftxui::Event::Character('v'));
+    for (int k = 0; k < 4; ++k) diagram->OnEvent(ftxui::Event::Character('+'));
+    draw(diagram_shell);
+    b.run("frame «Блок-схема», polyphase, spectrum probe, N = 1024", [&] { draw(diagram_shell); });
 
     auto explain = std::make_shared<ExplainScreen>(*ui, [] { return std::optional<signals::core::FilterBank>{}; });
     explain->open_with(NavArgs{.step = 4});
@@ -142,6 +157,11 @@ void bench_tui(const std::filesystem::path& ten_minutes) {
     auto spectrum_shell = make_shell(*ui, {spectrum}, [] {});
     draw(spectrum_shell);
     b.run("frame «Спектр» with test.wav, N = 4096", [&] { draw(spectrum_shell); });
+    auto processing_model = std::make_shared<ProcessingModel>(model);
+    auto processing_shell = make_shell(*ui, {std::make_shared<ProcessingScreen>(*ui, processing_model)}, [] {});
+    draw(processing_shell);
+    draw(processing_shell);
+    b.run("frame «Обработка» with test.wav", [&] { draw(processing_shell); });
     auto decomposition_model = std::make_shared<DecompositionModel>(model);
     auto decomposition = std::make_shared<DecompositionScreen>(*ui, decomposition_model);
     auto decomposition_shell = make_shell(*ui, {decomposition}, [] {});
