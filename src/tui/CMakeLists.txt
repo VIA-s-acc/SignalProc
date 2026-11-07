@@ -7,6 +7,7 @@ signals_embed_text(${PROJECT_SOURCE_DIR}/resources/theory/explain/haar.en.toml $
 add_library(signals_tui STATIC
   run.cpp
   app_screens.cpp
+  docs.cpp
   widgets/format.cpp
   widgets/list_window.cpp
   widgets/screen_util.cpp
