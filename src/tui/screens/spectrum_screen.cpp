@@ -308,7 +308,7 @@ ftxui::Element SpectrumScreen::spectrogram_body(const SpectrogramData& s, const 
         put(x0, y1, ascii ? "+" : "└", colour);
         put(x1, y1, ascii ? "+" : "┘", colour);
     };
-    if (measure_) {
+    if (measure_ && measure_->t1 >= begin_ && measure_->t0 <= end_) {
         const auto x0 = col_of(std::clamp(measure_->t0, begin_, end_)), x1 = col_of(std::clamp(measure_->t1, begin_, end_));
         const auto y0 = row_of(std::clamp(measure_->f1, log_view() ? kFmin : 1e-9, nyq)), y1 = row_of(std::clamp(measure_->f0, log_view() ? kFmin : 1e-9, nyq));
         if (x0 && x1 && y0 && y1) outline(*x0, *y0, *x1, *y1, th.fg);
@@ -567,7 +567,10 @@ bool SpectrumScreen::OnEvent(ftxui::Event e) {
             const int y = valid(plot_box_) ? std::clamp(m.y, plot_box_.y_min, plot_box_.y_max) : m.y;
             if (x != drag_.x || y != drag_.y) drag_.moved = true;
             if (drag_.moved) {
-                const double t0 = time_at(drag_.x), t1 = time_at(x), f0 = freq_at(drag_.y), f1 = freq_at(y);
+                const bool box = valid(plot_box_);
+                const double t1 = box && m.x > plot_box_.x_max ? end_ : box && m.x < plot_box_.x_min ? begin_ : time_at(x);
+                const double f1 = box && m.y < plot_box_.y_min ? nyquist() : box && m.y > plot_box_.y_max ? (log_view() ? kFmin : 0.0) : freq_at(y);
+                const double t0 = time_at(drag_.x), f0 = freq_at(drag_.y);
                 if (drag_.select) model_->set_selection(std::min(t0, t1), std::max(t0, t1), jobs);
                 else measure_ = Measure{std::min(t0, t1), std::max(t0, t1), std::min(f0, f1), std::max(f0, f1)};
             }

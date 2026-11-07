@@ -199,3 +199,15 @@ TEST_CASE("m7b review: after Esc a new window size restarts the selection spectr
     CHECK(f.model->spectrogram());
     CHECK(f.model->selection());
 }
+
+TEST_CASE("m7c: a box smaller than one cell reads the nearest bin", "[tui][spectrum]") {
+    SpectrumFixture f;
+    f.model->sync(f.jobs);
+    const auto s = f.model->spectrogram();
+    REQUIRE(s);
+    REQUIRE(s->cols > 20);
+    const double t = 0.5 * (s->col_time[10] + s->col_time[11]);
+    const double level = box_level_db(*s, t, t + 1e-5, 1000.1, 1000.2);
+    CHECK(std::isfinite(level));
+    CHECK(level == level_at_db(*s, t + 0.5e-5, 1000.15));
+}

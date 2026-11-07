@@ -181,3 +181,38 @@ TEST_CASE("Esc after a selection restores the whole file", "[tui][spectrum][revi
     REQUIRE(f.model->selection());
     CHECK(f.model->selection()->t0 == 0);
 }
+
+TEST_CASE("m7c: dragging past the plot reaches the end of the view and fs/2", "[tui][spectrum]") {
+    SpectrumFixture f;
+    const auto s = f.model->spectrogram();
+    REQUIRE(s);
+    const auto b = f.screen->area("spectrogram");
+    const auto [x0, y0] = f.point(0.5, 0.5);
+    f.h.drag(x0, y0, b.x_max + 4, b.y_min - 2);
+    auto m = f.screen->measurement();
+    REQUIRE(m);
+    CHECK(m->t1 == f.screen->time_view().second);
+    CHECK(m->f1 == s->fs / 2);
+    f.h.drag(x0, y0, b.x_min - 4, b.y_max + 2);
+    m = f.screen->measurement();
+    REQUIRE(m);
+    CHECK(m->t0 == f.screen->time_view().first);
+    CHECK(m->f0 == (f.screen->log_axis() ? 30.0 : 0.0));
+}
+
+TEST_CASE("m7c: a box outside the view is not drawn at the plot edge", "[tui][spectrum]") {
+    SpectrumFixture f;
+    const auto [x0, y0] = f.point(0.05, 0.3);
+    const auto [x1, y1] = f.point(0.15, 0.6);
+    f.h.drag(x0, y0, x1, y1);
+    REQUIRE(f.screen->measurement());
+    CHECK(f.h.frame().find("┘") != std::string::npos);
+    const auto [cx, cy] = f.point(0.95, 0.5);
+    f.h.click(cx, cy);
+    for (int k = 0; k < 8; ++k) f.h.send(ftxui::Event::Character('+'));
+    REQUIRE(f.screen->measurement());
+    REQUIRE(f.screen->time_view().first > f.screen->measurement()->t1);
+    const auto frame = f.h.frame();
+    CHECK(frame.find("┘") == std::string::npos);
+    CHECK(frame.find("┐") == std::string::npos);
+}
