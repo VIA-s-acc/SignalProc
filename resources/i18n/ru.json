@@ -959,6 +959,7 @@
   "tui.matrix.op.toeplitz_hankel": "Тёплиц + Ганкель",
   "tui.matrix.dct_check": "C(T+H)Cᵀ вне диагонали = {value}",
   "tui.matrix.levinson_check": "Левинсон–Дурбин: ‖T(r)·x − e₁‖ / (‖T‖·‖x‖) = {value}",
+  "tui.matrix.gohberg_check": "T⁻¹ по Гохбергу–Семенцулу: max|T·T⁻¹ − I| = {value}",
   "tui.matrix.spectrum_title": "Сингулярные числа σᵢ · {name} · {count} шт.",
   "tui.matrix.hint.spectrum": "спектр σ",
   "tui.matrix.edges": "края",
@@ -1330,5 +1331,9 @@
   "tui.pipeline.example.dwt_levels": "DWT db4 на 3 уровня со щупами на полосах",
   "tui.pipeline.example.denoise": "Шумоподавление файла: DWT, порог, IDWT",
   "tui.pipeline.example.effects_chain": "Цепочка: чирп, модуляция, БИХ и КИХ, измерения, лифтинг 9/7",
-  "pipeline.error.rates": "{block}: у входов разная частота дискретизации — {a} и {b} Гц; приведите их к одной блоком resample"
+  "pipeline.error.rates": "{block}: у входов разная частота дискретизации — {a} и {b} Гц; приведите их к одной блоком resample",
+  "pipeline.block.lms": "Адаптивный фильтр LMS/NLMS",
+  "pipeline.block.wiener": "Винеровский фильтр",
+  "pipeline.block.spectral_subtract": "Спектральное вычитание",
+  "pipeline.block.deconvolve": "Деконволюция"
 }

@@ -14,6 +14,7 @@ add_library(signals_pipeline STATIC
   blocks_wavelet.cpp
   blocks_channels.cpp
   blocks_measure.cpp
+  blocks_restore.cpp
   sig.cpp
   graph.cpp
   cache.cpp

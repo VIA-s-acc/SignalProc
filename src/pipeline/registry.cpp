@@ -24,6 +24,7 @@ const std::vector<BlockType>& registry() {
         register_wavelet_blocks(out);
         register_channel_blocks(out);
         register_measure_blocks(out);
+        register_restore_blocks(out);
         return out;
     }();
     return all;

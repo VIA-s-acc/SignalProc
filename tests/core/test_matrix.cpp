@@ -184,3 +184,24 @@ TEST_CASE("levinson-durbin matches scipy solve_toeplitz", "[matrix][levinson][go
     CHECK_FALSE(levinson_solve(std::vector<double>{1.0, 1.0}, std::vector<double>{1.0, 2.0}));
     CHECK_FALSE(levinson_solve(std::vector<double>{1.0, 0.5}, std::vector<double>{1.0}));
 }
+
+TEST_CASE("Gohberg-Semencul inverse matches numpy on symmetric Toeplitz matrices", "[matrix][toeplitz][golden]") {
+    const auto g = signals::test::load_golden("toeplitz.json");
+    for (const auto& c : g["cases"]) {
+        const auto r = c["r"].get<std::vector<double>>();
+        const auto expected = c["inverse"].get<std::vector<std::vector<double>>>();
+        const auto inv = toeplitz_inverse(r);
+        REQUIRE(inv);
+        REQUIRE(inv->rows() == static_cast<Eigen::Index>(r.size()));
+        double scale = 0;
+        for (const auto& row : expected)
+            for (double v : row) scale = std::max(scale, std::abs(v));
+        for (std::size_t i = 0; i < r.size(); ++i)
+            for (std::size_t j = 0; j < r.size(); ++j) CHECK(std::abs((*inv)(i, j) - expected[i][j]) < 1e-10 * std::max(1.0, scale));
+    }
+    CHECK_FALSE(toeplitz_inverse(std::vector<double>{1.0, 1.0, 1.0}));
+    CHECK_FALSE(toeplitz_inverse(std::vector<double>{}));
+    const auto one = toeplitz_inverse(std::vector<double>{4.0});
+    REQUIRE(one);
+    CHECK((*one)(0, 0) == 0.25);
+}

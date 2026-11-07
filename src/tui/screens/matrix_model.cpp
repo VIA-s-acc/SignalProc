@@ -184,6 +184,12 @@ void MatrixModel::set(MatrixOptions o, JobRunner& jobs) {
                 }
                 d->levinson_error = norm_t > 0 && norm_x > 0 ? worst / (norm_t * norm_x) : worst;
             }
+            if (const auto inv = core::toeplitz_inverse(r)) {
+                Eigen::MatrixXd t(o.n, o.n);
+                for (std::size_t i = 0; i < o.n; ++i)
+                    for (std::size_t j = 0; j < o.n; ++j) t(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(j)) = r[i > j ? i - j : j - i];
+                d->gohberg_error = (t * *inv - Eigen::MatrixXd::Identity(t.rows(), t.cols())).cwiseAbs().maxCoeff();
+            }
             for (Eigen::Index k = 0; k < a.rows(); ++k) {
                 d->row_names.push_back("y" + sub(static_cast<std::size_t>(k)));
                 d->outputs.push_back("y" + sub(static_cast<std::size_t>(k)));

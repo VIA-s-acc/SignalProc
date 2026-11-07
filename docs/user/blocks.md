@@ -78,3 +78,7 @@
 | `duplicate` | Размножение каналов | `in`: signal | `out`: signal | `channels` = 2 (1…64) |
 | `stats` | Статистика сигнала | `in`: signal | `report`: report | — |
 | `loudness` | Громкость (RMS по 400 мс) | `in`: signal | `report`: report | `window` = 0.4s; `hop` = 0.1s |
+| `lms` | Адаптивный фильтр LMS/NLMS | `x`: signal; `d`: signal | `e`: signal; `y`: signal | `taps` = 32 (1…4096); `mu` = 0.1 (1e-06…2); `rule` = nlms (nlms, lms) |
+| `wiener` | Винеровский фильтр | `in`: signal | `out`: signal | `size` = 5 (1…1001); `noise` = 0 (0…1e+06) |
+| `spectral_subtract` | Спектральное вычитание | `x`: signal; `noise`: signal (необязательный) | `out`: signal | `alpha` = 2 (0…10); `beta` = 0.01 (0…1); `n` = 512 (16…16384); `noise_s` = 0.25 (0.001…60) |
+| `deconvolve` | Деконволюция | `y`: signal; `h`: signal | `out`: signal | `snr_db` = 30 (-20…120) |

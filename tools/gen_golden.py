@@ -671,6 +671,87 @@ def blocks_json():
             "cumsum": floats(np.cumsum(x)), "diff": floats(np.diff(x, prepend=0.0)), "softclip": floats(np.tanh(2.0 * x)),
             "mra_dwt": [floats(v[:n]) for v in mra_dwt], "mra_swt": [floats(v) for v in mra_swt], "stats": stats}
 
+def adaptive_filter(x, d, taps, mu, rule, eps=1e-8):
+    w = np.zeros(taps)
+    y = np.zeros(len(x))
+    e = np.zeros(len(x))
+    padded = np.concatenate([np.zeros(taps - 1), x])
+    for n in range(len(x)):
+        u = padded[n:n + taps][::-1]
+        y[n] = w @ u
+        e[n] = d[n] - y[n]
+        step = mu * e[n] * u
+        w = w + (step / (eps + u @ u) if rule == "nlms" else step)
+    return y, e, w
+
+
+def adaptive_json():
+    rng = np.random.default_rng(23)
+    x = rng.standard_normal(300)
+    h = np.array([0.6, -0.3, 0.2, 0.1, -0.05])
+    d = np.convolve(x, h)[:len(x)] + 0.01 * rng.standard_normal(len(x))
+    t = np.arange(400)
+    tone = np.sin(2 * np.pi * 0.01 * t)
+    hum = rng.standard_normal(400)
+    noisy = tone + np.convolve(hum, [0.8, 0.4, -0.2])[:400]
+    scenarios = []
+    for name, xs, ds, taps in [("identify", x, d, 8), ("cancel", hum, noisy, 6)]:
+        runs = []
+        for rule, step in [("lms", 0.02), ("nlms", 0.5)]:
+            y, e, w = adaptive_filter(xs, ds, taps, step, rule)
+            runs.append({"rule": rule, "mu": step, "y": floats(y), "e": floats(e), "w": floats(w)})
+        scenarios.append({"name": name, "taps": taps, "x": floats(xs), "d": floats(ds), "runs": runs})
+    return {"scenarios": scenarios, "system": floats(h)}
+
+
+def spectral_subtract(x, noise, alpha, beta, n, hop):
+    _, _, zn = scipy.signal.stft(noise, nperseg=n, noverlap=n - hop, window="hann")
+    level = np.mean(np.abs(zn) ** 2, axis=1)
+    _, _, z = scipy.signal.stft(x, nperseg=n, noverlap=n - hop, window="hann")
+    power = np.maximum(np.abs(z) ** 2 - alpha * level[:, None], beta * level[:, None])
+    _, out = scipy.signal.istft(np.sqrt(power) * np.exp(1j * np.angle(z)), nperseg=n, noverlap=n - hop, window="hann")
+    return out[:len(x)]
+
+
+def restoration_json():
+    rng = np.random.default_rng(29)
+    t = np.arange(400)
+    clean = np.sin(2 * np.pi * 0.033 * t) * np.exp(-((t - 200) / 110.0) ** 2)
+    noise = 0.2 * rng.standard_normal(400)
+    x = clean + noise
+    wiener = []
+    for size, level in [(5, None), (11, None), (3, 0.04), (21, 0.01)]:
+        wiener.append({"size": size, "noise": level, "out": floats(scipy.signal.wiener(x, size, level))})
+    lead = 0.2 * rng.standard_normal(300)
+    subtract = []
+    for alpha, beta, n, hop in [(2.0, 0.01, 64, 16), (1.0, 0.05, 32, 8), (4.0, 0.001, 128, 64)]:
+        subtract.append({"alpha": alpha, "beta": beta, "n": n, "hop": hop, "out": floats(spectral_subtract(x, lead, alpha, beta, n, hop))})
+    h = np.array([1.0, 0.5, -0.25, 0.125])
+    blurred = np.real(np.fft.ifft(np.fft.fft(clean) * np.fft.fft(h, len(clean))))
+    deconv = []
+    for snr in [20.0, 40.0, 80.0]:
+        Y = np.fft.fft(blurred)
+        H = np.fft.fft(h, len(blurred))
+        X = Y * np.conj(H) / (np.abs(H) ** 2 + 10 ** (-snr / 10))
+        deconv.append({"snr_db": snr, "out": floats(np.real(np.fft.ifft(X)))})
+    return {"x": floats(x), "clean": floats(clean), "noise": floats(lead), "blurred": floats(blurred), "h": floats(h),
+            "wiener": wiener, "subtract": subtract, "deconvolve": deconv}
+
+
+def toeplitz_json():
+    import scipy.linalg
+    rng = np.random.default_rng(31)
+    h0 = np.array(pywt.Wavelet("db4").dec_lo)
+    auto = np.correlate(h0, h0, mode="full")[len(h0) - 1:]
+    cases = []
+    for r in [np.concatenate([auto, np.zeros(4)]), np.array([4.0, 1.0, 0.5, 0.25, 0.125]), None]:
+        if r is None:
+            a = rng.standard_normal(12)
+            r = np.correlate(a, a, mode="full")[len(a) - 1:][:9] + np.eye(1, 9)[0] * 0.5
+        inv = np.linalg.inv(scipy.linalg.toeplitz(r))
+        cases.append({"r": floats(r), "inverse": [floats(row) for row in inv]})
+    return {"cases": cases}
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -692,7 +773,7 @@ def main():
                                ("packets.json", packets_json), ("cwt.json", cwt_json),
                                ("processing.json", lambda: processing_json(sample_wav)),
                                ("iir.json", iir_json), ("fir.json", fir_json), ("ops.json", ops_json), ("analysis.json", analysis_json),
-                               ("blocks.json", blocks_json)]:
+                               ("blocks.json", blocks_json), ("adaptive.json", adaptive_json), ("restoration.json", restoration_json), ("toeplitz.json", toeplitz_json)]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)

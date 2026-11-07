@@ -1005,6 +1005,7 @@
   "tui.matrix.op.toeplitz_hankel": "Toeplitz + Hankel",
   "tui.matrix.dct_check": "C(T+H)Cᵀ off the diagonal = {value}",
   "tui.matrix.levinson_check": "Levinson–Durbin: ‖T(r)·x − e₁‖ / (‖T‖·‖x‖) = {value}",
+  "tui.matrix.gohberg_check": "T⁻¹ by Gohberg–Semencul: max|T·T⁻¹ − I| = {value}",
   "tui.matrix.spectrum_title": "Singular values σᵢ · {name} · {count}",
   "tui.matrix.hint.spectrum": "σ spectrum",
   "tui.matrix.edges": "edges",
@@ -1330,5 +1331,9 @@
   "tui.pipeline.example.dwt_levels": "db4 DWT on 3 levels with a probe on every band",
   "tui.pipeline.example.denoise": "Denoise a file: DWT, threshold, IDWT",
   "tui.pipeline.example.effects_chain": "Chain: chirp, modulation, IIR and FIR, measurements, 9/7 lifting",
-  "pipeline.error.rates": "{block}: the inputs have different sample rates — {a} and {b} Hz; bring them to one with the resample block"
+  "pipeline.error.rates": "{block}: the inputs have different sample rates — {a} and {b} Hz; bring them to one with the resample block",
+  "pipeline.block.lms": "Adaptive LMS/NLMS filter",
+  "pipeline.block.wiener": "Wiener filter",
+  "pipeline.block.spectral_subtract": "Spectral subtraction",
+  "pipeline.block.deconvolve": "Deconvolution"
 }
