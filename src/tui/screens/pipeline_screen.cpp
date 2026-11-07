@@ -24,7 +24,7 @@ namespace {
 
 constexpr int kRightWidth = 44, kBottomHeight = 12, kTextWidth = 46, kRunHeight = 16;
 
-std::filesystem::path utf8_file(const std::string& text) { return pipeline::utf8_path(text); }
+std::filesystem::path utf8_file(const std::string& text) { return expand_path(text); }
 
 pipeline::PortRef short_ref(const std::string& node, const std::string& port, std::size_t ports) { return {node, ports == 1 ? std::string{} : port, 0, 0}; }
 
@@ -329,6 +329,7 @@ ftxui::Element PipelineScreen::run_panel() {
         else if (run.error) title += " · " + tr("tui.pipeline.failed");
         else title += " · " + format_si(run.seconds, tr("unit.s"));
         rows.push_back(text(title) | fg(run.error ? th.err : th.fg, ui_));
+        if (run.error) rows.push_back(paragraph(*run.error) | fg(th.err, ui_));
         if (const auto* g = model_->graph())
             for (const auto i : g->order) {
                 const auto it = run.nodes.find(g->nodes[i].id);
@@ -355,6 +356,10 @@ ftxui::Element PipelineScreen::run_panel() {
     std::vector<std::string> parts{"$ signals run " + (model_->path() ? model_->path()->filename().string() : tr("tui.pipeline.untitled"))};
     for (const auto& set : run.sets) parts.push_back("--set " + set);
     rows.push_back(filler());
+    if (run.structure_changed || !model_->path()) {
+        rows.push_back(paragraph(tr("tui.pipeline.save_for_cli")) | fg(th.dim, ui_));
+        parts.clear();
+    }
     std::string line;
     for (const auto& part : parts) {
         if (!line.empty() && display_width(line) + 1 + display_width(part) > kRightWidth - 4) {
@@ -363,7 +368,7 @@ ftxui::Element PipelineScreen::run_panel() {
         }
         line += (line.empty() || line == "  " ? "" : " ") + part;
     }
-    rows.push_back(text(line) | fg(th.dim, ui_));
+    if (!line.empty()) rows.push_back(text(line) | fg(th.dim, ui_));
     rows.push_back(hbox({key_label(" r ", ui_), text(" " + tr("tui.pipeline.hint.run") + "  ") | fg(th.dim, ui_), key_label(" Esc ", ui_),
                          text(" " + tr("tui.pipeline.hint.cancel")) | fg(th.dim, ui_)}));
     return frame_panel(kRun, vbox(std::move(rows)), {}, tr("tui.pipeline.run"));
@@ -383,7 +388,7 @@ void PipelineScreen::refresh_probe(const RunView& run) {
         probe_ = {};
         probe_.run = run.number;
         probe_.name = name;
-        const auto* audio = std::get_if<core::AudioBuffer>(&run.probes.at(name));
+        const auto* audio = std::get_if<core::AudioBuffer>(run.probes.at(name).get());
         if (!audio || audio->channels.empty()) return;
         auto samples = std::make_shared<std::vector<std::vector<float>>>();
         for (const auto& c : audio->channels) samples->emplace_back(c.begin(), c.end());
@@ -393,7 +398,7 @@ void PipelineScreen::refresh_probe(const RunView& run) {
         probe_.frames = audio->frames();
     }
     if (spectrum_ && probe_.db.empty() && probe_.samples) {
-        const auto* audio = std::get_if<core::AudioBuffer>(&run.probes.at(name));
+        const auto* audio = std::get_if<core::AudioBuffer>(run.probes.at(name).get());
         std::size_t segment = 4096;
         while (segment > 16 && segment > audio->frames()) segment /= 2;
         if (auto psd = core::welch_psd(audio->channels.front(), audio->sample_rate, segment, segment / 2)) {
@@ -406,7 +411,7 @@ void PipelineScreen::refresh_probe(const RunView& run) {
 std::optional<double> PipelineScreen::playhead() const {
     if (!ui_.player || ui_.player->state() != audio::PlayState::playing || !ui_.player->tag().starts_with("pipeline")) return std::nullopt;
     const auto run = model_->run_view();
-    const auto* input = run.input ? std::get_if<core::AudioBuffer>(&*run.input) : nullptr;
+    const auto* input = run.input ? std::get_if<core::AudioBuffer>(run.input.get()) : nullptr;
     const double rate = last_input_ && input ? input->sample_rate : probe_.rate;
     return rate > 0 ? std::optional{static_cast<double>(ui_.player->position()) / rate} : std::nullopt;
 }
@@ -416,8 +421,8 @@ void PipelineScreen::play(bool input) {
     const auto run = model_->run_view();
     refresh_probe(run);
     const core::AudioBuffer* source = nullptr;
-    if (input && run.input) source = std::get_if<core::AudioBuffer>(&*run.input);
-    if (!input && !probe_.name.empty()) source = std::get_if<core::AudioBuffer>(&run.probes.at(probe_.name));
+    if (input && run.input) source = std::get_if<core::AudioBuffer>(run.input.get());
+    if (!input && !probe_.name.empty() && run.probes.contains(probe_.name)) source = std::get_if<core::AudioBuffer>(run.probes.at(probe_.name).get());
     if (!source || source->channels.empty()) {
         notice_ = tr("tui.pipeline.nothing_to_play");
         return;
@@ -458,7 +463,7 @@ ftxui::Element PipelineScreen::probe_panel(int height) {
     }
     rows.push_back(hbox(std::move(head)));
     const int plot_rows = std::max(2, height - 3);
-    const auto& value = run.probes.at(probe_.name.empty() ? run.probes.begin()->first : probe_.name);
+    const auto& value = *run.probes.at(probe_.name.empty() || !run.probes.contains(probe_.name) ? run.probes.begin()->first : probe_.name);
     if (probe_.samples && !spectrum_) {
         PlotSpec spec;
         spec.x = {0, static_cast<double>(probe_.frames) / std::max(1.0, probe_.rate)};
@@ -711,9 +716,41 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
         model_->selection = {};
         return true;
     }
+    if (e == Event::Character('c')) {
+        if (const auto* n = selected_node(); n && !n->type->outputs.empty()) {
+            std::size_t k = 0;
+            if (connecting_ && connecting_->node == n->id)
+                for (std::size_t i = 0; i < n->type->outputs.size(); ++i)
+                    if (n->type->outputs[i].name == connecting_->port || (connecting_->port.empty() && i == 0)) k = (i + 1) % n->type->outputs.size();
+            connecting_ = short_ref(n->id, n->type->outputs[k].name, n->type->outputs.size());
+            notice_ = fmt::format(fmt::runtime(tr("tui.pipeline.connect_from")), fmt::arg("node", connecting_->port.empty() ? n->id : n->id + "." + connecting_->port));
+        }
+        return true;
+    }
+    if (connecting_ && e == Event::Escape) {
+        connecting_.reset();
+        notice_.clear();
+        return true;
+    }
+    if (connecting_ && e == Event::Return) {
+        const auto from = *connecting_;
+        connecting_.reset();
+        notice_.clear();
+        if (const auto* n = selected_node(); n && !n->type->inputs.empty()) {
+            std::size_t k = 0;
+            for (std::size_t i = 0; i < n->inputs.size(); ++i)
+                if (!n->inputs[i]) {
+                    k = i;
+                    break;
+                }
+            report(model_->connect(from, short_ref(n->id, n->type->inputs[k].name, n->type->inputs.size())));
+        }
+        return true;
+    }
     if (focus_ == kInspector && on_inspector_key(e)) return true;
     if (e == Event::Return && selected_node()) {
         focus_ = kInspector;
+        if (breakpoint_ <= Breakpoint::small) layout_.show_panel(kInspector);
         param_ = 0;
         return true;
     }
@@ -730,7 +767,10 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (e == Event::Escape) {
-        if (focus_ == kInspector) focus_ = kGraph;
+        if (focus_ == kInspector) {
+            focus_ = kGraph;
+            if (breakpoint_ <= Breakpoint::small) layout_.show_panel(kGraph);
+        }
         else if (maximized_) maximized_.reset();
         else if (model_->selection.kind != Selection::Kind::none) model_->selection = {};
         else return false;

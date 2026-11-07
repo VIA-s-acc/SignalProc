@@ -927,5 +927,8 @@
   "tui.pipeline.cmd.example": "Конвейер: открыть пример denoise.sig",
   "tui.pipeline.cmd.run": "Конвейер: запустить",
   "tui.pipeline.cmd.save": "Конвейер: сохранить",
-  "tui.pipeline.cmd.open": "Конвейер: открыть .sig"
+  "tui.pipeline.cmd.open": "Конвейер: открыть .sig",
+  "tui.pipeline.cannot_write": "не удалось записать {path}",
+  "tui.pipeline.save_for_cli": "граф изменён не только параметрами — сохраните его (Ctrl+S), чтобы повторить в CLI",
+  "tui.pipeline.connect_from": "соединение от {node}: выберите узел-приёмник стрелками и нажмите Enter, Esc — отмена"
 }

@@ -1,6 +1,7 @@
 #include "tui/screens/pipeline_model.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <fstream>
 #include <iterator>
@@ -55,11 +56,23 @@ void PipelineModel::rebuild() {
         if (auto full = pipeline::build_graph(doc_, base_dir()); !full) problem_ = full.error();
 }
 
-core::Result<void> PipelineModel::commit(pipeline::PipelineDoc next) {
-    if (auto check = pipeline::build_graph(next, base_dir(), {.partial = true}); !check) return core::make_error(core::Errc::invalid_argument, check.error().message);
-    undo_.push_back(std::move(doc_));
+void PipelineModel::remember() {
+    undo_.push_back(snapshot());
     if (undo_.size() > kUndoLimit) undo_.erase(undo_.begin());
     redo_.clear();
+}
+
+void PipelineModel::restore(Snapshot s) {
+    doc_ = std::move(s.doc);
+    path_ = std::move(s.path);
+    saved_ = std::move(s.saved);
+    dirty_ = true;
+    rebuild();
+}
+
+core::Result<void> PipelineModel::commit(pipeline::PipelineDoc next) {
+    if (auto check = pipeline::build_graph(next, base_dir(), {.partial = true}); !check) return core::make_error(core::Errc::invalid_argument, check.error().message);
+    remember();
     doc_ = std::move(next);
     dirty_ = true;
     rebuild();
@@ -72,9 +85,7 @@ core::Result<void> PipelineModel::load(const std::filesystem::path& file) {
     const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
     auto doc = pipeline::parse_sig(text);
     if (!doc) return std::unexpected{sig_failure(file, doc.error())};
-    undo_.push_back(std::move(doc_));
-    if (undo_.size() > kUndoLimit) undo_.erase(undo_.begin());
-    redo_.clear();
+    remember();
     doc_ = std::move(*doc);
     saved_ = doc_;
     path_ = file;
@@ -85,30 +96,34 @@ core::Result<void> PipelineModel::load(const std::filesystem::path& file) {
 }
 
 core::Result<void> PipelineModel::save(const std::filesystem::path& file) {
-    const auto from = base_dir();
-    const auto to = std::filesystem::absolute(file).parent_path();
     std::error_code ec;
-    std::filesystem::create_directories(to, ec);
-    for (auto& n : doc_.nodes) {
-        const auto* type = pipeline::find_block_type(n.type);
-        if (!type) continue;
-        for (const auto& spec : type->params) {
-            if (spec.kind != pipeline::ParamSpec::Kind::path) continue;
-            const auto it = n.params.find(spec.name);
-            if (it == n.params.end()) continue;
-            const auto value = pipeline::utf8_path(it->second);
-            if (value.is_absolute()) continue;
-            const auto target = std::filesystem::weakly_canonical(from / value, ec);
-            const auto moved = std::filesystem::relative(target, std::filesystem::weakly_canonical(to, ec), ec);
-            if (!ec && !moved.empty()) {
+    const auto from = std::filesystem::weakly_canonical(std::filesystem::absolute(base_dir()), ec);
+    const auto to = std::filesystem::weakly_canonical(std::filesystem::absolute(file).parent_path(), ec);
+    auto next = doc_;
+    if (from != to)
+        for (auto& n : next.nodes) {
+            const auto* type = pipeline::find_block_type(n.type);
+            if (!type) continue;
+            for (const auto& spec : type->params) {
+                if (spec.kind != pipeline::ParamSpec::Kind::path) continue;
+                const auto it = n.params.find(spec.name);
+                if (it == n.params.end()) continue;
+                const auto value = pipeline::utf8_path(it->second);
+                if (value.is_absolute()) continue;
+                const auto target = std::filesystem::weakly_canonical(from / value, ec);
+                auto moved = target.lexically_relative(to);
+                if (moved.empty()) moved = target;
                 const auto text = moved.generic_u8string();
                 it->second.assign(reinterpret_cast<const char*>(text.data()), text.size());
             }
         }
+    std::filesystem::create_directories(std::filesystem::absolute(file).parent_path(), ec);
+    {
+        std::ofstream out{file, std::ios::binary};
+        out << pipeline::write_sig(next);
+        if (!out) return core::make_error(core::Errc::io_error, fmt::format(fmt::runtime(tr("tui.pipeline.cannot_write")), fmt::arg("path", file.string())));
     }
-    std::ofstream out{file, std::ios::binary};
-    out << pipeline::write_sig(doc_);
-    if (!out) return core::make_error(core::Errc::io_error, "cannot write " + file.string());
+    doc_ = std::move(next);
     path_ = file;
     saved_ = doc_;
     dirty_ = false;
@@ -192,21 +207,19 @@ void PipelineModel::toggle_probe(const pipeline::PortRef& at) {
 
 bool PipelineModel::undo() {
     if (undo_.empty()) return false;
-    redo_.push_back(std::move(doc_));
-    doc_ = std::move(undo_.back());
+    redo_.push_back(snapshot());
+    auto s = std::move(undo_.back());
     undo_.pop_back();
-    dirty_ = true;
-    rebuild();
+    restore(std::move(s));
     return true;
 }
 
 bool PipelineModel::redo() {
     if (redo_.empty()) return false;
-    undo_.push_back(std::move(doc_));
-    doc_ = std::move(redo_.back());
+    undo_.push_back(snapshot());
+    auto s = std::move(redo_.back());
     redo_.pop_back();
-    dirty_ = true;
-    rebuild();
+    restore(std::move(s));
     return true;
 }
 
@@ -216,19 +229,27 @@ void PipelineModel::run(JobRunner& jobs) {
         run_->view.error = problem_ ? problem_->message : tr("tui.pipeline.empty");
         return;
     }
-    if (run_->job) cancel(jobs);
+    bool busy = false;
+    {
+        std::lock_guard lock{run_->mutex};
+        busy = run_->job.has_value();
+    }
+    if (busy) cancel(jobs);
     auto copy = *graph_;
-    for (std::size_t i = 0; i < copy.nodes.size(); ++i)
-        if (copy.nodes[i].type->inputs.empty() && !copy.nodes[i].type->outputs.empty() && copy.nodes[i].type->outputs.front().type == pipeline::PortType::signal) {
-            copy.probes.push_back({std::string{kInputProbe}, {copy.nodes[i].id, {}, 0, 0}, {i, 0, {}}});
-            break;
-        }
+    std::optional<std::size_t> source;
+    for (std::size_t i = 0; i < copy.nodes.size() && !source; ++i)
+        if (copy.nodes[i].type->id == "wav") source = i;
+    for (std::size_t i = 0; i < copy.nodes.size() && !source; ++i)
+        if (copy.nodes[i].type->inputs.empty() && !copy.nodes[i].type->outputs.empty() && copy.nodes[i].type->outputs.front().type == pipeline::PortType::signal)
+            source = i;
+    if (source) copy.probes.push_back({std::string{kInputProbe}, {copy.nodes[*source].id, {}, 0, 0}, {*source, 0, {}}});
     auto graph = std::make_shared<const pipeline::Graph>(std::move(copy));
     auto token = std::make_shared<core::CancelToken>();
+    std::uint64_t number = 0;
     {
         std::lock_guard lock{run_->mutex};
         auto& v = run_->view;
-        ++v.number;
+        number = ++v.number;
         v.running = true;
         v.cancelled = false;
         v.error.reset();
@@ -242,13 +263,14 @@ void PipelineModel::run(JobRunner& jobs) {
     auto state = run_;
     auto cache = cache_;
     auto listener = run_listener;
-    const auto id = jobs.submit(tr("tui.pipeline.job"), {tr("tui.pipeline.job")}, [state, cache, graph, token, listener](JobContext& ctx) {
+    const auto id = jobs.submit(tr("tui.pipeline.job"), {tr("tui.pipeline.job")}, [state, cache, graph, token, listener, number](JobContext& ctx) {
         ctx.begin(0);
         const auto started = std::chrono::steady_clock::now();
         const pipeline::RunEvents events{[&](const pipeline::NodeStatus& s) {
             double done = 0;
             {
                 std::lock_guard lock{state->mutex};
+                if (state->view.number != number) return;
                 state->view.nodes[s.id].status = s;
                 for (const auto& [name, n] : state->view.nodes) done += n.status.fraction;
                 done /= static_cast<double>(std::max<std::size_t>(1, state->view.nodes.size()));
@@ -259,6 +281,10 @@ void PipelineModel::run(JobRunner& jobs) {
         auto result = pipeline::run_graph(*graph, *cache, events, *token);
         std::lock_guard lock{state->mutex};
         auto& v = state->view;
+        if (v.number != number) {
+            ctx.finish();
+            return;
+        }
         v.running = false;
         v.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
         state->job.reset();
@@ -269,10 +295,10 @@ void PipelineModel::run(JobRunner& jobs) {
             return;
         }
         for (const auto& s : result->nodes) v.nodes[s.id].status = s;
-        v.probes = std::move(result->probes);
-        if (const auto it = v.probes.find(kInputProbe); it != v.probes.end()) {
-            v.input = std::move(it->second);
-            v.probes.erase(it);
+        for (auto& [name, value] : result->probes) {
+            auto shared = std::make_shared<const pipeline::Value>(std::move(value));
+            if (name == kInputProbe) v.input = std::move(shared);
+            else v.probes.emplace(name, std::move(shared));
         }
         v.reports = std::move(result->reports);
         if (v.seconds > 0.05) {
@@ -288,7 +314,7 @@ void PipelineModel::run(JobRunner& jobs) {
         ctx.finish();
     });
     std::lock_guard lock{run_->mutex};
-    if (run_->view.running) run_->job = id;
+    if (run_->view.running && run_->view.number == number) run_->job = id;
 }
 
 void PipelineModel::cancel(JobRunner& jobs) {
@@ -310,12 +336,27 @@ RunView PipelineModel::run_view() const {
     std::erase_if(v.nodes, [&](const auto& entry) {
         return std::none_of(doc_.nodes.begin(), doc_.nodes.end(), [&](const auto& n) { return n.id == entry.first; });
     });
+    const auto shape = [](const pipeline::PipelineDoc& d) {
+        std::string out;
+        for (const auto& n : d.nodes) out += n.id + ":" + n.type + (n.bypass ? "!" : "") + ";";
+        for (const auto& e : d.edges) out += e.from.node + "." + e.from.port + ">" + e.to.node + "." + e.to.port + ";";
+        for (const auto& p : d.probes) out += p.at.node + "." + p.at.port + "@" + p.name + ";";
+        return out;
+    };
+    v.structure_changed = shape(doc_) != shape(saved_);
+    const auto quoted = [](const std::string& text) {
+        if (std::all_of(text.begin(), text.end(), [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || std::string_view{"._-=/,:+"}.find(c) != std::string_view::npos; }))
+            return text;
+        std::string out = "'";
+        for (const char c : text) out += c == '\'' ? std::string{"'\\''"} : std::string(1, c);
+        return out + "'";
+    };
     for (const auto& n : doc_.nodes) {
         const auto before = std::find_if(saved_.nodes.begin(), saved_.nodes.end(), [&](const auto& s) { return s.id == n.id; });
         if (before == saved_.nodes.end()) continue;
         for (const auto& [key, value] : n.params) {
             const auto old = before->params.find(key);
-            if (old == before->params.end() || old->second != value) v.sets.push_back(n.id + "." + key + "=" + value);
+            if (old == before->params.end() || old->second != value) v.sets.push_back(quoted(n.id + "." + key + "=" + value));
         }
     }
     return v;

@@ -275,3 +275,72 @@ TEST_CASE("cancel stops a long editor run", "[tui][pipeline_model]") {
     CHECK(v.cancelled);
     CHECK(v.nodes.at("dwt").status.state != pipeline::NodeState::done);
 }
+
+TEST_CASE("undoing an open restores the previous file too", "[tui][pipeline_model][review]") {
+    const auto dir = fresh_dir("pipeline-undo-open");
+    PipelineModel m;
+    m.add_node("gen");
+    REQUIRE(m.save(dir / "mine.sig"));
+    m.add_node("gain");
+    const auto mine = pipeline::write_sig(m.doc());
+    REQUIRE(m.load(std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples" / "denoise.sig"));
+    REQUIRE(m.undo());
+    CHECK(pipeline::write_sig(m.doc()) == mine);
+    REQUIRE(m.path());
+    CHECK(m.path()->filename() == "mine.sig");
+    CHECK(m.dirty());
+}
+
+TEST_CASE("a failed save changes nothing in memory", "[tui][pipeline_model][review]") {
+    PipelineModel m;
+    REQUIRE(m.load(std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples" / "denoise.sig"));
+    const auto before = pipeline::write_sig(m.doc());
+    const auto blocked = fresh_dir("pipeline-save-blocked");
+    std::filesystem::create_directories(blocked / "taken.sig");
+    CHECK_FALSE(m.save(blocked / "taken.sig"));
+    CHECK(pipeline::write_sig(m.doc()) == before);
+    CHECK(m.path()->filename() == "denoise.sig");
+    REQUIRE(m.save(*m.path()));
+    CHECK(pipeline::write_sig(m.doc()) == before);
+}
+
+TEST_CASE("a run started during a run owns the view", "[tui][pipeline_model][review]") {
+    PipelineModel m;
+    m.add_node("gen");
+    REQUIRE(m.set_param("gen", "duration", "600"));
+    m.add_node("dwt");
+    REQUIRE(m.connect(port("gen"), port("dwt")));
+    JobRunner jobs{[] {}, std::chrono::milliseconds{0}};
+    m.run(jobs);
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    REQUIRE(m.set_param("gen", "duration", "0.1"));
+    m.run(jobs);
+    for (int i = 0; i < 1000 && m.run_view().running; ++i) std::this_thread::sleep_for(std::chrono::milliseconds{5});
+    std::this_thread::sleep_for(std::chrono::milliseconds{100});
+    const auto v = m.run_view();
+    CHECK(v.number == 2);
+    CHECK_FALSE(v.running);
+    CHECK_FALSE(v.cancelled);
+    CHECK(v.nodes.at("dwt").status.state == pipeline::NodeState::done);
+}
+
+TEST_CASE("run views share probe data instead of copying it", "[tui][pipeline_model][review]") {
+    auto m = denoise_model("model-share");
+    auto jobs = inline_jobs();
+    m.run(jobs);
+    const auto a = m.run_view(), b = m.run_view();
+    REQUIRE(a.probes.contains("d1"));
+    CHECK(a.probes.at("d1").get() == b.probes.at("d1").get());
+    REQUIRE(a.input);
+    CHECK(a.input.get() == b.input.get());
+}
+
+TEST_CASE("the CLI line is withheld when the graph structure changed", "[tui][pipeline_model][review]") {
+    auto m = denoise_model("model-structure");
+    REQUIRE(m.set_param("thr", "mode", "hard"));
+    CHECK_FALSE(m.run_view().structure_changed);
+    REQUIRE(m.set_param("out", "path", "with space.wav"));
+    CHECK(std::find(m.run_view().sets.begin(), m.run_view().sets.end(), "'out.path=with space.wav'") != m.run_view().sets.end());
+    REQUIRE(m.toggle_bypass("thr"));
+    CHECK(m.run_view().structure_changed);
+}

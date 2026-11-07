@@ -379,3 +379,50 @@ TEST_CASE("a pipeline built in the editor writes what the CLI writes", "[tui][pi
     REQUIRE(cli::run_cli(args2, out2, err2) == 0);
     CHECK(bytes(dir / "tui.wav") == bytes(cli2));
 }
+
+TEST_CASE("c connects two ports from the keyboard", "[tui][pipeline_screen][review]") {
+    PipelineFixture f{150, 44, false};
+    f.model->add_node("gen");
+    f.model->add_node("dwt");
+    f.model->add_node("idwt");
+    REQUIRE(f.model->connect(port("gen"), port("dwt")));
+    f.model->selection = {Selection::Kind::node, "dwt", {}};
+    f.h.frame();
+    f.h.send(ftxui::Event::Character('c'));
+    f.h.send(ftxui::Event::ArrowLeft);
+    f.h.send(ftxui::Event::ArrowDown);
+    CHECK(f.model->selection.node == "idwt");
+    f.h.send(ftxui::Event::Return);
+    CHECK(f.model->doc().edges.size() == 2);
+}
+
+TEST_CASE("save and open prompts expand quoted paths", "[tui][pipeline_screen][review]") {
+    PipelineFixture f{150, 44, false};
+    f.model->add_node("gen");
+    const auto path = signals::test::temp_path("pipeline quoted") / "q.sig";
+    std::filesystem::remove_all(path.parent_path());
+    std::filesystem::create_directories(path.parent_path());
+    f.ui->ask_text = [&](std::string, std::string, std::function<void(std::string)> done) { done("'" + path.string() + "'"); };
+    f.h.send(ftxui::Event::CtrlS);
+    CHECK(std::filesystem::exists(path));
+}
+
+TEST_CASE("a failed run says why", "[tui][pipeline_screen][review]") {
+    PipelineFixture f{150, 44, false};
+    f.model->add_node("wav");
+    REQUIRE(f.model->set_param("wav", "path", "no-such.wav"));
+    f.h.send(ftxui::Event::Character('r'));
+    CHECK(f.h.frame().find("no-such.wav") != std::string::npos);
+}
+
+TEST_CASE("Enter opens the inspector in a narrow window too", "[tui][pipeline_screen][review]") {
+    PipelineFixture f{80, 24};
+    f.model->selection = {Selection::Kind::node, "thr", {}};
+    f.h.frame();
+    f.h.send(ftxui::Event::Return);
+    f.h.frame();
+    f.h.send(ftxui::Event::ArrowDown);
+    f.h.send(ftxui::Event::ArrowRight);
+    const auto& thr = *std::find_if(f.model->doc().nodes.begin(), f.model->doc().nodes.end(), [](const auto& n) { return n.id == "thr"; });
+    CHECK(thr.params.at("mode") == "hard");
+}

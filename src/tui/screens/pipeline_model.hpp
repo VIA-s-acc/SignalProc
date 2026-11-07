@@ -38,11 +38,12 @@ struct RunView {
     bool running = false, cancelled = false;
     std::optional<std::string> error;
     std::map<std::string, NodeRun, std::less<>> nodes;
-    std::map<std::string, pipeline::Value, std::less<>> probes;
+    std::map<std::string, std::shared_ptr<const pipeline::Value>, std::less<>> probes;
     std::vector<pipeline::NodeReport> reports;
     std::vector<std::string> sets;
     double seconds = 0;
-    std::optional<pipeline::Value> input;
+    std::shared_ptr<const pipeline::Value> input;
+    bool structure_changed = false;
 };
 
 class PipelineModel {
@@ -85,7 +86,15 @@ private:
     pipeline::PipelineDoc doc_;
     std::optional<std::filesystem::path> path_;
     bool dirty_ = false;
-    std::vector<pipeline::PipelineDoc> undo_, redo_;
+    struct Snapshot {
+        pipeline::PipelineDoc doc;
+        std::optional<std::filesystem::path> path;
+        pipeline::PipelineDoc saved;
+    };
+    Snapshot snapshot() const { return {doc_, path_, saved_}; }
+    void restore(Snapshot s);
+    void remember();
+    std::vector<Snapshot> undo_, redo_;
     std::optional<pipeline::Graph> graph_;
     std::optional<pipeline::SigError> problem_;
     pipeline::PipelineDoc saved_;

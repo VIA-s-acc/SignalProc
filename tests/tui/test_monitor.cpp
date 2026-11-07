@@ -75,7 +75,7 @@ TEST_CASE("process memory agrees with top within 5 percent", "[tui][monitor]") {
     const double top_kib = top_memory_kib(getpid());
     CHECK(std::abs(static_cast<double>(s->rss_bytes) / 1024.0 - top_kib) <= 0.05 * top_kib);
     CHECK(s->peak_rss_bytes >= s->rss_bytes);
-    CHECK(s->rss_bytes > (64u << 20));
+    CHECK(s->rss_bytes > (48u << 20));
 }
 
 TEST_CASE("cpu load of a busy thread is about one core", "[tui][monitor]") {

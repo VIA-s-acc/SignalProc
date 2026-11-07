@@ -102,6 +102,7 @@ private:
     std::size_t probe_index_ = 0;
     bool spectrum_ = false, last_input_ = false;
     bool adding_ = false;
+    std::optional<pipeline::PortRef> connecting_;
     std::string query_;
     std::size_t pick_ = 0, param_ = 0;
 };
