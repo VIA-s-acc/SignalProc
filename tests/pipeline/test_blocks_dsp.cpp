@@ -254,3 +254,22 @@ TEST_CASE("swt refuses an output above the length cap", "[pipeline][swt][review]
     CHECK(r.error().code == core::Errc::invalid_argument);
 }
 
+
+TEST_CASE("lift53 and ilift53 reconstruct, and the integer mode is lossless on 16-bit audio", "[pipeline][lifting]") {
+    const auto x = test_wav();
+    for (const char* integer : {"no", "yes"}) {
+        INFO(integer);
+        const auto c = run("lift53", {x}, {{"levels", "5"}, {"integer", integer}});
+        const auto& coeffs = std::get<Coeffs>(c[0]);
+        CHECK(coeffs.levels() == 5);
+        const auto d1 = band_port(coeffs, "d1");
+        REQUIRE(d1);
+        CHECK(std::get<core::AudioBuffer>(*d1).sample_rate == x.sample_rate / 2);
+        const auto y = audio(run("ilift53", {c[0]})[0]);
+        REQUIRE(y.channels[0].size() == x.channels[0].size());
+        if (std::string_view{integer} == "yes") CHECK(y.channels[0] == x.channels[0]);
+        else CHECK(core::max_abs_error(x.channels[0], y.channels[0]) < 1e-12);
+        const auto* idwt = find_block_type("idwt");
+        CHECK_FALSE(idwt->run(RunContext{}, c, *resolve_params(*idwt, {})));
+    }
+}

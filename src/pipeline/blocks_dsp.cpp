@@ -13,6 +13,7 @@
 #include "core/multirate.hpp"
 #include "core/process/shrink.hpp"
 #include "core/process/threshold.hpp"
+#include "core/lifting.hpp"
 #include "core/swt.hpp"
 #include "core/wavedec.hpp"
 #include "i18n/i18n.hpp"
@@ -224,6 +225,74 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                            c.lengths.push_back(ch.size());
                        }
                        return std::vector<Value>{std::move(c)};
+                   }});
+    out.push_back({"lift53",
+                   kSignalIn,
+                   kCoeffsOut,
+                   {{"levels", Kind::integer, "4", {}, 1, 30}, {"integer", Kind::choice, "no", {"no", "yes"}}},
+                   [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                       const auto& a = in_audio(in);
+                       const auto levels = static_cast<std::size_t>(param_int(p, "levels"));
+                       const bool integer = param_text(p, "integer") == "yes";
+                       Coeffs c;
+                       c.wavelet = "lift53";
+                       c.mode = core::Extension::symmetric;
+                       c.rate = a.sample_rate;
+                       c.transform = integer ? "lift53i" : "lift53";
+                       for (const auto& ch : a.channels) {
+                           if (ch.size() < (std::size_t{1} << levels))
+                               return core::make_error(core::Errc::level_out_of_range, fmt::format(fmt::runtime(tr("pipeline.error.lift_levels")), fmt::arg("levels", levels), fmt::arg("n", ch.size())));
+                           core::BasicCoeffs<double> bands;
+                           bands.original_length = ch.size();
+                           if (integer) {
+                               std::vector<std::int32_t> pcm(ch.size());
+                               for (std::size_t i = 0; i < ch.size(); ++i) pcm[i] = static_cast<std::int32_t>(std::clamp(std::lround(ch[i] * 32768.0), -2147483647L, 2147483647L));
+                               auto r = core::lift53_int_levels(pcm, levels);
+                               if (!r) return std::unexpected{r.error()};
+                               for (const auto& b : r->bands) bands.bands.emplace_back(b.begin(), b.end());
+                           } else {
+                               std::vector<double> approx(ch.begin(), ch.end());
+                               std::vector<std::vector<double>> details;
+                               for (std::size_t j = 0; j < levels; ++j) {
+                                   auto l = core::lift53(approx);
+                                   details.push_back(std::move(l.d));
+                                   approx = std::move(l.s);
+                               }
+                               bands.bands.push_back(std::move(approx));
+                               for (auto it = details.rbegin(); it != details.rend(); ++it) bands.bands.push_back(std::move(*it));
+                           }
+                           c.channels.push_back(std::move(bands));
+                           c.lengths.push_back(ch.size());
+                       }
+                       return std::vector<Value>{std::move(c)};
+                   }});
+    out.push_back({"ilift53",
+                   kCoeffsIn,
+                   kSignalOut,
+                   {},
+                   [](const RunContext&, std::span<const Value> in, const Params&) -> Out {
+                       const auto& c = in_coeffs(in);
+                       if (c.transform != "lift53" && c.transform != "lift53i")
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", "ilift53")));
+                       core::AudioBuffer result;
+                       result.sample_rate = c.rate;
+                       for (const auto& ch : c.channels) {
+                           std::vector<double> y;
+                           if (c.transform == "lift53i") {
+                               core::IntLiftPyramid p;
+                               for (const auto& b : ch.bands) {
+                                   std::vector<std::int64_t> v(b.size());
+                                   for (std::size_t i = 0; i < b.size(); ++i) v[i] = std::llround(b[i]);
+                                   p.bands.push_back(std::move(v));
+                               }
+                               for (const auto v : core::unlift53_int_levels(p)) y.push_back(static_cast<double>(v) / 32768.0);
+                           } else {
+                               y = ch.bands.front();
+                               for (std::size_t b = 1; b < ch.bands.size(); ++b) y = core::unlift53({std::move(y), ch.bands[b]});
+                           }
+                           result.channels.push_back(std::move(y));
+                       }
+                       return std::vector<Value>{std::move(result)};
                    }});
     out.push_back({"iswt",
                    kCoeffsIn,

@@ -16,6 +16,7 @@ add_library(signals_core STATIC
   bank.cpp
   wavedec.cpp
   swt.cpp
+  lifting.cpp
   packets.cpp
   cwt.cpp
   design/maxflat.cpp

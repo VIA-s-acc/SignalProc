@@ -1086,5 +1086,8 @@
   "pipeline.block.swt": "SWT",
   "pipeline.block.iswt": "ISWT",
   "tui.decomposition.hint.transform": "DWT, SWT или MODWT",
-  "pipeline.error.swt_levels": "swt: уровней {levels} больше, чем позволяет длина {n} — нужно 2^уровни ≤ длины"
+  "pipeline.error.swt_levels": "swt: уровней {levels} больше, чем позволяет длина {n} — нужно 2^уровни ≤ длины",
+  "pipeline.error.lift_levels": "lift53: {levels} уровней не помещаются в {n} отсчётов",
+  "pipeline.block.lift53": "Лифтинг 5/3",
+  "pipeline.block.ilift53": "Обратный лифтинг 5/3"
 }
