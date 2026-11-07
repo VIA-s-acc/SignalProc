@@ -200,3 +200,12 @@ TEST_CASE("m7b: istft refuses a hop that breaks NOLA", "[analysis]") {
     REQUIRE(ok);
     CHECK(istft(*ok));
 }
+
+TEST_CASE("m7b review: onsets never fall before the signal start", "[analysis]") {
+    constexpr double fs = 44100;
+    std::vector<double> x(44100);
+    for (std::size_t i = 0; i < x.size(); ++i) x[i] = 0.5 * std::sin(2 * std::numbers::pi * 440 * static_cast<double>(i) / fs);
+    const auto found = onsets(x, fs, 256, 2048);
+    REQUIRE_FALSE(found.empty());
+    for (const double t : found) CHECK(t >= 0);
+}

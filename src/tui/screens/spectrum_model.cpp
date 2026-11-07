@@ -140,8 +140,7 @@ void SpectrumModel::set_options(SpectrumOptions o, JobRunner& jobs) {
     options_ = o;
     if (!seen_) return;
     compute(jobs);
-    if (!channel) return;
-    selection_for_.reset();
+    if (channel) selection_for_.reset();
     compute_selection(jobs);
 }
 
@@ -202,6 +201,7 @@ void SpectrumModel::cancel(JobRunner& jobs) {
     if (selection_job_) jobs.cancel(*selection_job_);
     job_.reset();
     selection_job_.reset();
+    selection_for_.reset();
     ++gen_;
     ++selection_gen_;
 }

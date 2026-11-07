@@ -183,7 +183,8 @@ private:
     std::shared_ptr<const PacketData> packets_;
     std::vector<core::PacketNode> basis_;
     std::optional<double> basis_pr_;
-    std::uint64_t basis_gen_ = 0;
+    std::uint64_t basis_gen_ = 0, basis_done_ = 0;
+    std::optional<std::uint64_t> basis_job_;
     std::optional<std::string> packets_error_;
     std::weak_ptr<const DecompositionData> packets_for_;
     std::optional<std::uint64_t> packets_job_;

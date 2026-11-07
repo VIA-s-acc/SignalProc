@@ -602,14 +602,21 @@ bool DecompositionModel::set_basis(std::vector<core::PacketNode> b, JobRunner& j
         basis_ = b;
         basis_pr_.reset();
         gen = ++basis_gen_;
+        if (basis_job_) jobs.cancel(*basis_job_);
+        basis_job_.reset();
     }
-    jobs.submit(tr("tui.decomposition.job_basis"), {tr("tui.decomposition.stage.basis")}, [this, p, d, b = std::move(b), gen](JobContext& ctx) {
+    const auto id = jobs.submit(tr("tui.decomposition.job_basis"), {tr("tui.decomposition.stage.basis")}, [this, p, d, b = std::move(b), gen](JobContext& ctx) {
         ctx.begin(0);
         const double pr = reconstruction_error(*p, b, *d);
         ctx.finish();
         std::lock_guard lock{mutex_};
-        if (gen == basis_gen_) basis_pr_ = pr;
+        if (gen != basis_gen_) return;
+        basis_pr_ = pr;
+        basis_job_.reset();
+        basis_done_ = gen;
     });
+    std::lock_guard lock{mutex_};
+    if (basis_done_ != gen && basis_gen_ == gen) basis_job_ = id;
     return true;
 }
 

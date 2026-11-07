@@ -311,7 +311,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        c.transform = integer ? "lift53i" : "lift53";
                        for (const auto& ch : a.channels) {
                            if (ch.size() < (std::size_t{1} << levels))
-                               return core::make_error(core::Errc::level_out_of_range, fmt::format(fmt::runtime(tr("pipeline.error.lift_levels")), fmt::arg("levels", levels), fmt::arg("n", ch.size())));
+                               return core::make_error(core::Errc::level_out_of_range, fmt::format(fmt::runtime(tr("pipeline.error.lift_levels")), fmt::arg("levels", tr_count("unit.level", levels)), fmt::arg("n", tr_count("unit.sample", static_cast<long long>(ch.size())))));
                            core::BasicCoeffs<double> bands;
                            bands.original_length = ch.size();
                            if (integer) {

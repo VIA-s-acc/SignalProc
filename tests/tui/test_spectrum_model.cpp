@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <fstream>
+#include <future>
 #include <memory>
 #include <numbers>
 #include <thread>
@@ -180,4 +181,21 @@ TEST_CASE("m7b: a new window size keeps the selection spectrum, a new channel re
     const auto other = f.model->selection();
     REQUIRE(other);
     CHECK(other != before);
+}
+
+TEST_CASE("m7b review: after Esc a new window size restarts the selection spectrum", "[tui][spectrum]") {
+    SpectrumFixture f;
+    JobRunner background{[] {}, 0ms};
+    std::promise<void> release;
+    auto gate = release.get_future().share();
+    background.submit("gate", {}, [gate](JobContext&) { gate.wait(); });
+    f.model->sync(background);
+    f.model->cancel(background);
+    release.set_value();
+    auto o = f.model->options();
+    o.n = 2048;
+    f.model->set_options(o, background);
+    for (int k = 0; k < 1000 && (f.model->job() || background.queued() > 0); ++k) std::this_thread::sleep_for(10ms);
+    CHECK(f.model->spectrogram());
+    CHECK(f.model->selection());
 }

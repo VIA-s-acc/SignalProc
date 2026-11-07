@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <cmath>
 #include <memory>
 #include <numbers>
@@ -490,4 +491,23 @@ TEST_CASE("m6h review: a custom filter in focus keeps the wavelet groups, and c 
     CHECK(h.frame().find("свой фильтр: abc") != std::string::npos);
     h.send(ftxui::Event::Return);
     CHECK(h.frame().find("Не число") != std::string::npos);
+}
+
+TEST_CASE("m7b review: a failed save is reported even when the comparison is full", "[tui][filters][custom]") {
+    Fixture f;
+    const auto blocker = std::filesystem::temp_directory_path() / "signals-custom-blocker";
+    std::filesystem::remove_all(blocker);
+    { std::ofstream{blocker} << "not a directory"; }
+    f.ui->user_filters = blocker / "filters";
+    set_user_filters({});
+    for (const char* w : {"db2", "db4", "haar", "sym4", "coif1"}) REQUIRE(f.set->add({Kind::bank, w, FilterRole::h0}));
+    Harness h{f.screen, 150, 44};
+    h.frame();
+    h.send(ftxui::Event::Character('c'));
+    h.send(ftxui::Event::Character("тест = 0.5 0.5"));
+    h.send(ftxui::Event::Return);
+    CHECK(h.frame().find("Ошибка: не удалось") != std::string::npos);
+    CHECK(f.set->entries().size() == 5);
+    set_user_filters({});
+    std::filesystem::remove_all(blocker);
 }

@@ -167,3 +167,21 @@ TEST_CASE("m7b: upsampling without the filter speaks of images and F1 follows th
     REQUIRE(f.screen->options().l > f.screen->options().m);
     CHECK(f.screen->theory_link()->id == "upsample");
 }
+
+TEST_CASE("m7b review: rational L/1 without the filter speaks of images", "[tui][resample]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    h.frame();
+    h.send(ftxui::Event::Character('m'));
+    h.send(ftxui::Event::Character('m'));
+    REQUIRE(f.screen->options().mode == ResampleMode::rational);
+    for (int k = 0; k < 8 && f.screen->options().m > 1; ++k) h.send(ftxui::Event::Character('-'));
+    REQUIRE(f.screen->options().m == 1);
+    for (int k = 0; k < 8 && f.screen->options().l < 2; ++k) h.send(ftxui::Event::Character('>'));
+    REQUIRE(f.screen->options().l > 1);
+    h.send(ftxui::Event::Character('a'));
+    h.frame();
+    const auto frame = h.frame();
+    CHECK(frame.find("копии накладываются") == std::string::npos);
+    CHECK(frame.find("изображения") != std::string::npos);
+}

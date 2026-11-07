@@ -211,7 +211,7 @@ ftxui::Element ResampleScreen::readouts() {
     if (options_.filter == AntiAlias::on && v.taps > 1)
         rows.push_back(text(fmt::format(fmt::runtime(tr("tui.resample.filter_line")), fmt::arg("taps", tr_count("unit.tap", static_cast<long long>(v.taps))), fmt::arg("db", format_fixed(v.aa_attenuation_db, 1)))) | fg(th.fg, ui_));
     else
-        rows.push_back(text(tr(options_.mode == ResampleMode::up ? "tui.resample.filter_off_line_up" : "tui.resample.filter_off_line")) | fg(th.warn, ui_));
+        rows.push_back(text(tr(v.up > 1 && v.down == 1 ? "tui.resample.filter_off_line_up" : "tui.resample.filter_off_line")) | fg(th.warn, ui_));
     rows.push_back(text(v.up > 1 && v.down == 1 ? "Y(ω) = X(Lω) — L − 1 " + tr("tui.resample.images") : "Y(ω) = (1/M) Σₖ X((ω − 2πk)/M)") | fg(th.dim, ui_));
     return panel(tr("tui.resample.readouts"), {}, vbox(std::move(rows)), false, ui_);
 }

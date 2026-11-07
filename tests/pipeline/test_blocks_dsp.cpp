@@ -12,6 +12,7 @@
 #include <nlohmann/json.hpp>
 
 #include "core/analysis.hpp"
+#include "i18n/i18n.hpp"
 #include "core/check.hpp"
 #include "core/conv.hpp"
 #include "core/design/families.hpp"
@@ -447,4 +448,25 @@ TEST_CASE("m7b: xcorr refuses inputs with different sample rates", "[pipeline]")
     const auto r = block->run(RunContext{}, in, *resolve_params(*block, {}));
     REQUIRE_FALSE(r);
     CHECK(r.error().message.find("8000") != std::string::npos);
+}
+
+TEST_CASE("m7b review: swt and lift53 level errors name each unit once", "[pipeline][review]") {
+    const auto x = test_wav();
+    for (const auto language : {signals::Language::ru, signals::Language::en}) {
+        const signals::LanguageScope scope{language};
+        const bool ru = language == signals::Language::ru;
+        for (const char* name : {"swt", "lift53"}) {
+            const auto* block = find_block_type(name);
+            const auto params = resolve_params(*block, {{"levels", "30"}});
+            REQUIRE(params);
+            const std::vector<Value> in{x};
+            const auto r = block->run(RunContext{}, in, *params);
+            REQUIRE_FALSE(r);
+            const auto& m = r.error().message;
+            INFO(m);
+            CHECK(m.find(ru ? "30 уровней" : "30 levels") != std::string::npos);
+            CHECK(m.find(ru ? "отсчётов" : "samples") != std::string::npos);
+            CHECK(m.find(ru ? "уровней 30" : "levels levels") == std::string::npos);
+        }
+    }
 }

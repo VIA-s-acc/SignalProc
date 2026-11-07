@@ -772,3 +772,24 @@ TEST_CASE("m7b: a packet click changes the basis at once and checks reconstructi
     CHECK(*f.model->basis_pr_error() < 1e-9);
     CHECK(f.model->basis() == signals::core::dwt_basis(J));
 }
+
+TEST_CASE("m7b review: a new basis drops the queued check of the previous one", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    f.click("chip_packets");
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    JobRunner background{[] {}, 0ms};
+    std::promise<void> release;
+    auto gate = release.get_future().share();
+    background.submit("gate", {}, [gate](JobContext&) { gate.wait(); });
+    for (int k = 0; k < 50 && background.queued() > 0; ++k) std::this_thread::sleep_for(10ms);
+    f.model->make_leaf({1, 0}, background);
+    f.model->make_leaf({2, 3}, background);
+    const auto J = f.model->options().levels;
+    f.model->set_basis(signals::core::dwt_basis(J), background);
+    CHECK(background.queued() == 1);
+    release.set_value();
+    for (int k = 0; k < 500 && (!f.model->basis_pr_error() || background.queued() > 0); ++k) std::this_thread::sleep_for(10ms);
+    REQUIRE(f.model->basis_pr_error());
+    CHECK(*f.model->basis_pr_error() < 1e-9);
+}

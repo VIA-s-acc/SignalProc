@@ -28,6 +28,18 @@
 namespace signals::tui {
 namespace {
 
+std::vector<std::string> split_lines(const std::string& text) {
+    std::vector<std::string> out;
+    if (text.empty()) return out;
+    std::size_t at = 0;
+    for (auto next = text.find('\n'); next != std::string::npos; next = text.find('\n', at)) {
+        out.push_back(text.substr(at, next - at));
+        at = next + 1;
+    }
+    out.push_back(text.substr(at));
+    return out;
+}
+
 constexpr double kPi = std::numbers::pi;
 constexpr double kMinSpan = 16.0 / FiltersScreen::kPoints;
 constexpr double kLogFloor = 1e-3;
@@ -439,7 +451,8 @@ ftxui::Element FiltersScreen::library_panel(int width) {
         for (const auto& c : n.children) count(c);
     };
     count(library_);
-    if (!custom_ && !notice_.empty() && breakpoint_ <= Breakpoint::small) rows.push_back(text(notice_) | fg(th.warn, ui_));
+    if (!custom_ && !notice_.empty() && breakpoint_ <= Breakpoint::small)
+        for (const auto& line : split_lines(notice_)) rows.push_back(text(line) | fg(th.warn, ui_));
     if (custom_) {
         rows.push_back(hbox({text(tr("tui.filters.custom.prompt") + " " + query_) | fg(th.fg, ui_),
                              text(ui_.caps.glyphs == GlyphMode::ascii ? "_" : "▏") | fg(th.accent, ui_)}));
@@ -533,7 +546,7 @@ ftxui::Element FiltersScreen::comparison_panel(int width) {
         rows.push_back(hbox(std::move(line)) | reflect(row_boxes_[i]));
     }
     if (entries_.empty()) rows.push_back(text(tr("tui.filters.empty_set")) | fg(th.dim, ui_));
-    if (!notice_.empty()) rows.push_back(text(notice_) | fg(th.warn, ui_));
+    for (const auto& line : split_lines(notice_)) rows.push_back(text(line) | fg(th.warn, ui_));
     rows.push_back(filler());
     
     return frame_panel(comparison, vbox(std::move(rows)), {},
@@ -1152,11 +1165,13 @@ bool FiltersScreen::on_custom(ftxui::Event e) {
             return true;
         }
         std::string saved_notice;
+        bool save_failed = false;
         if (!parsed->name.empty()) {
             UserFilter f{parsed->name, parsed->h, ""};
             const auto dir = ui_.user_filters.empty() ? user_filters_dir(process_env()) : ui_.user_filters;
             if (auto saved = save_user_filter(dir, f); !saved) {
                 saved_notice = error_text(saved.error());
+                save_failed = true;
             } else {
                 set_user_filters(load_user_banks(dir).filters);
                 library_wavelet_.clear();
@@ -1166,6 +1181,7 @@ bool FiltersScreen::on_custom(ftxui::Event e) {
         }
         add(custom_ref(parsed->h, parsed->name));
         if (notice_.empty()) notice_ = std::move(saved_notice);
+        else if (save_failed) notice_ = saved_notice + "\n" + notice_;
         return true;
     }
     if (e.is_character()) query_ += e.character();

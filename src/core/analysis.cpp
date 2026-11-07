@@ -262,7 +262,7 @@ std::vector<double> onsets(std::span<const double> x, double fs, std::size_t n, 
         if (flux[m] <= threshold || (last && m - *last < gap)) continue;
                 // The flux of frame m is w(p) − w(p + hop) for a click p samples into the frame; it peaks where the Hann
         // slope is steepest, p + hop/2 = 3n/4, so the click started 3n/4 − hop/2 after the frame start.
-        out.push_back((static_cast<double>(m * hop) + 0.75 * static_cast<double>(n) - 0.5 * static_cast<double>(hop)) / fs);
+        out.push_back(std::max(0.0, static_cast<double>(m * hop) + 0.75 * static_cast<double>(n) - 0.5 * static_cast<double>(hop)) / fs);
         last = m;
     }
     return out;
