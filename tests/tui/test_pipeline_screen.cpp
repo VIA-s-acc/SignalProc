@@ -503,3 +503,22 @@ TEST_CASE("the wavelet parameter is picked from a list, and arrows step through 
     f.h.send(ftxui::Event::ArrowRight);
     CHECK(f.model->doc().nodes.back().params.at("wavelet") != "sym8");
 }
+
+TEST_CASE("the wheel scrolls the pipeline graph, shift scrolls it sideways", "[tui][pipeline_screen]") {
+    PipelineFixture f{80, 24, false};
+    f.model->add_node("gen");
+    for (int k = 0; k < 8; ++k) f.model->add_node("gain");
+    f.h.frame();
+    const auto graph = f.screen->area("graph");
+    REQUIRE(graph.x_max > graph.x_min);
+    const auto first = f.box("node:gen");
+    ftxui::Mouse m;
+    m.button = ftxui::Mouse::WheelDown;
+    m.motion = ftxui::Mouse::Pressed;
+    m.x = (graph.x_min + graph.x_max) / 2;
+    m.y = (graph.y_min + graph.y_max) / 2;
+    f.h.send(ftxui::Event::Mouse("", m));
+    f.h.send(ftxui::Event::Mouse("", m));
+    const auto moved = f.box("node:gen");
+    CHECK((moved.y_min < first.y_min || moved.x_max < moved.x_min));
+}

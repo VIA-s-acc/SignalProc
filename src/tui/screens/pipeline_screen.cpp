@@ -662,6 +662,13 @@ void PipelineScreen::cycle_wires() {
 
 bool PipelineScreen::on_mouse(const ftxui::Mouse& m) {
     using ftxui::Mouse;
+    if ((m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) && valid(graph_box_) && graph_box_.Contain(m.x, m.y)) {
+        const int step = m.button == Mouse::WheelDown ? 3 : -3;
+        if (m.shift) ox_ += 2 * step;
+        else oy_ += step;
+        clamp_view();
+        return true;
+    }
     if (m.button == Mouse::Left && m.motion == Mouse::Pressed) {
         for (int p = 0; p < panel_count; ++p)
             if (panel_boxes_[static_cast<std::size_t>(p)].Contain(m.x, m.y)) focus_ = static_cast<Panel>(p);
