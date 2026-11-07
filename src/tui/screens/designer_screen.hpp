@@ -17,6 +17,7 @@
 #include "tui/shell/layout.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/screen_util.hpp"
 #include "tui/shell/plot_zoom.hpp"
 #include "tui/widgets/zplane.hpp"
 
@@ -35,6 +36,7 @@ public:
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event e) override;
     std::vector<JumpTarget> jump_targets() const override;
+    std::optional<std::string> explain_at(int x, int y) const override;
     std::vector<Command> commands() override;
     std::vector<MenuItem> context_menu(int x, int y) override;
     std::optional<std::pair<int, int>> menu_anchor() const override;
@@ -70,6 +72,7 @@ private:
     Panel focus_ = roots;
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::deque<Clickable> clickables_;
+    Notes notes_{"designer"};
     std::shared_ptr<std::vector<ZHit>> hits_ = std::make_shared<std::vector<ZHit>>();
     ftxui::Box roots_box_{};
     std::string notice_;

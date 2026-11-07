@@ -10,9 +10,9 @@
 
 using namespace signals::theory;
 
-TEST_CASE("the theory book splits into 132 sections", "[theory][sections]") {
+TEST_CASE("the theory book splits into 139 sections", "[theory][sections]") {
     const auto& s = sections();
-    CHECK(s.size() == 132);
+    CHECK(s.size() == 139);
     const auto* dwt = find_section("dwt-mallat");
     REQUIRE(dwt);
     CHECK(dwt->number == "11.1");
@@ -83,4 +83,21 @@ TEST_CASE("the English book has the same sections in the same order", "[theory][
     CHECK(dwt->title.starts_with("DWT"));
     CHECK(dwt->tier == "core");
     CHECK(find_section("haar-walkthrough")->body.find("x=[4,6,10,12,8,6,5,5]") != std::string::npos);
+}
+
+TEST_CASE("the .sig format reference is the last chapter in both languages", "[theory][sections][sig]") {
+    for (const auto lang : {signals::Language::ru, signals::Language::en}) {
+        const signals::LanguageScope scope{lang};
+        const auto* format = find_section("sig-format");
+        REQUIRE(format);
+        CHECK(format->level == 2);
+        for (const char* id : {"sig-lines", "sig-ports", "sig-values", "sig-checks", "sig-cli", "sig-blocks"}) {
+            INFO(id);
+            const auto* s = find_section(id);
+            REQUIRE(s);
+            REQUIRE(s->parent);
+            CHECK(sections()[*s->parent].id == "sig-format");
+        }
+        CHECK(find_section("sig-values")->body.find("db4.f1") != std::string::npos);
+    }
 }

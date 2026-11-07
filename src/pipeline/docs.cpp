@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include <fmt/format.h>
+#include <nlohmann/json.hpp>
 
 #include "i18n/i18n.hpp"
 #include "pipeline/block.hpp"
@@ -58,17 +59,51 @@ std::string markdown_cell(std::string_view text) {
 
 std::string blocks_markdown() {
     std::string out = "# " + tr("docs.blocks.title") + "\n\n" + tr("docs.blocks.generated") + "\n\n";
-    out += "| " + tr("docs.blocks.col.block") + " | " + tr("docs.blocks.col.name") + " | " + tr("docs.blocks.col.inputs") + " | " +
-           tr("docs.blocks.col.outputs") + " | " + tr("docs.blocks.col.params") + " |\n|---|---|---|---|---|\n";
+    out += "| " + tr("docs.blocks.col.block") + " | " + tr("docs.blocks.col.name") + " | " + tr("docs.blocks.col.about") + " | " + tr("docs.blocks.col.inputs") +
+           " | " + tr("docs.blocks.col.outputs") + " | " + tr("docs.blocks.col.params") + " |\n|---|---|---|---|---|---|\n";
     for (const auto& b : block_types())
-        out += "| `" + markdown_cell(b.id) + "` | " + markdown_cell(block_title(b)) + " | " + markdown_cell(ports(b.inputs)) + " | " +
-               markdown_cell(ports(b.outputs)) + " | " + markdown_cell(params(b)) + " |\n";
+        out += "| `" + markdown_cell(b.id) + "` | " + markdown_cell(block_title(b)) + " | " + markdown_cell(tr_opt("pipeline.about." + b.id).value_or("—")) + " | " +
+               markdown_cell(ports(b.inputs)) + " | " + markdown_cell(ports(b.outputs)) + " | " + markdown_cell(params(b)) + " |\n";
+    out += "\n## " + tr("docs.blocks.params_title") + "\n";
+    for (const auto& b : block_types()) {
+        if (b.params.empty()) continue;
+        out += "\n### `" + b.id + "` — " + block_title(b) + "\n\n";
+        for (const auto& p : b.params) {
+            out += "- `" + p.name + "` — " + tr_opt("pipeline.param." + b.id + "." + p.name).value_or("—") + "\n";
+            for (const auto& v : p.choices) out += "  - `" + v + "` — " + tr_opt("pipeline.param." + b.id + "." + p.name + "." + v).value_or("—") + "\n";
+        }
+    }
     return out;
+}
+
+std::string blocks_json() {
+    auto ports_json = [](const std::vector<PortSpec>& list) {
+        auto out = nlohmann::json::array();
+        for (const auto& p : list) out.push_back({{"name", p.name}, {"type", std::string{to_string(p.type)}}, {"optional", p.optional}});
+        return out;
+    };
+    auto out = nlohmann::json::array();
+    for (const auto& b : block_types()) {
+        auto params_json = nlohmann::json::array();
+        for (const auto& p : b.params) {
+            nlohmann::json param{{"name", p.name}, {"default", p.fallback}, {"about", tr_opt("pipeline.param." + b.id + "." + p.name).value_or("")}};
+            if (std::isfinite(p.min)) param["min"] = p.min;
+            if (std::isfinite(p.max)) param["max"] = p.max;
+            auto values = nlohmann::json::object();
+            for (const auto& v : p.choices) values[v] = tr_opt("pipeline.param." + b.id + "." + p.name + "." + v).value_or("");
+            param["choices"] = p.choices;
+            param["values"] = values;
+            params_json.push_back(std::move(param));
+        }
+        out.push_back({{"id", b.id}, {"title", block_title(b)}, {"about", tr_opt("pipeline.about." + b.id).value_or("")}, {"inputs", ports_json(b.inputs)},
+                       {"outputs", ports_json(b.outputs)}, {"params", std::move(params_json)}});
+    }
+    return out.dump(1) + "\n";
 }
 
 std::string blocks_text() {
     std::string out;
-    for (const auto& b : block_types()) out += fmt::format("{:<14} {}\n", b.id, block_title(b));
+    for (const auto& b : block_types()) out += fmt::format("{:<18} {} — {}\n", b.id, block_title(b), tr_opt("pipeline.about." + b.id).value_or(""));
     return out;
 }
 

@@ -79,6 +79,21 @@ inline const Samples* channel_or_last(const core::AudioBuffer& a, std::size_t ch
     return a.channels.empty() ? nullptr : &a.channels[std::min(ch, a.channels.size() - 1)];
 }
 
+Out pairwise(std::string_view block, const core::AudioBuffer& a, const core::AudioBuffer& b, auto&& combine) {
+    if (auto e = same_rate(block, a, b)) return std::unexpected{*e};
+    core::AudioBuffer out;
+    out.sample_rate = a.sample_rate;
+    for (std::size_t ch = 0; ch < std::max(a.channels.size(), b.channels.size()); ++ch) {
+        static const Samples none;
+        const auto* x = channel_or_last(a, ch);
+        const auto* y = channel_or_last(b, ch);
+        auto r = combine(x ? *x : none, y ? *y : none);
+        if (!r) return std::unexpected{r.error()};
+        out.channels.push_back(std::move(*r));
+    }
+    return one(std::move(out));
+}
+
 inline core::Result<std::vector<double>> parse_numbers(std::string_view block, const std::string& name, const std::string& text) {
     std::string spaced = text;
     std::ranges::replace(spaced, ',', ' ');
@@ -101,6 +116,7 @@ inline std::string_view inverse_of(std::string_view transform) {
     if (transform == "swt") return "iswt";
     if (transform == "lift53" || transform == "lift53i") return "ilift53";
     if (transform == "lift97") return "ilift97";
+    if (transform == "wpt") return "iwpt";
     return "idwt";
 }
 

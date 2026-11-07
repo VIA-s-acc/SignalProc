@@ -1,6 +1,7 @@
 #include "tui/screens/diagram_screen.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <array>
 #include <cmath>
 #include <complex>
@@ -41,6 +42,8 @@ double energy(const std::vector<double>& v) {
     return e;
 }
 
+std::string part_id(const std::string& id) { return (std::isupper(static_cast<unsigned char>(id.front())) ? "block_" : "wire_") + id; }
+
 }  // namespace
 
 DiagramScreen::DiagramScreen(UiContext& ui, std::shared_ptr<DesignerModel> designer, std::shared_ptr<SignalModel> signal)
@@ -72,6 +75,8 @@ ftxui::Box DiagramScreen::area(std::string_view id) const {
     if (id == "more_banks") return more_banks_box_;
     if (id == "probe_time_plot") return zoom_.box("probe_time");
     if (id == "probe_spectrum_plot") return zoom_.box("probe_spectrum");
+    for (const auto& c : clickables_)
+        if (c.id == id) return c.box;
     ftxui::Box out{0, -1, 0, -1};
     bool any = false;
     for (const auto& [name, b] : hits_) {
@@ -180,8 +185,8 @@ std::vector<Command> DiagramScreen::commands() {
     return out;
 }
 
-ftxui::Element DiagramScreen::clickable(ftxui::Element e, std::function<void()> action) {
-    clickables_.push_back({ftxui::Box{0, -1, 0, -1}, std::move(action)});
+ftxui::Element DiagramScreen::clickable(std::string id, ftxui::Element e, std::function<void()> action) {
+    clickables_.push_back({std::move(id), ftxui::Box{0, -1, 0, -1}, std::move(action)});
     return std::move(e) | ftxui::reflect(clickables_.back().box);
 }
 
@@ -192,7 +197,7 @@ ftxui::Element DiagramScreen::chips(std::vector<Item> items) {
     for (auto& item : items) {
         auto t = text(item.label);
         t = item.on ? t | bold | fg(th.bg, ui_) | bg(th.trace[0], ui_) : t | fg(th.fg, ui_);
-        row.push_back(clickable(t, std::move(item.action)));
+        row.push_back(clickable(std::move(item.id), t, std::move(item.action)));
         row.push_back(text(" "));
     }
     return hbox(std::move(row));
@@ -234,37 +239,40 @@ ftxui::Element DiagramScreen::diagram_panel(int width) {
     if (!notice_.empty()) body.push_back(paragraph(notice_) | fg(th.warn, ui_));
     std::vector<Item> banks;
     for (const auto* name : kBanks)
-        banks.push_back({std::string_view{name} == "designer" ? tr("tui.diagram.designer") : std::string{name}, [this, n = std::string{name}] { bank_choice_ = n; }, bank_choice_ == name});
-    if (std::find(kBanks.begin(), kBanks.end(), bank_choice_) == kBanks.end()) banks.push_back({bank_choice_, [] {}, true});
-    body.push_back(hbox({text(tr("tui.diagram.bank") + " ") | fg(th.dim, ui_), chips(std::move(banks)),
-                         clickable(text(tr("tui.diagram.more_banks")) | fg(th.accent, ui_), [this] {
+        banks.push_back({std::string_view{name} == "designer" ? tr("tui.diagram.designer") : std::string{name}, [this, n = std::string{name}] { bank_choice_ = n; }, bank_choice_ == name, "bank"});
+    if (std::find(kBanks.begin(), kBanks.end(), bank_choice_) == kBanks.end()) banks.push_back({bank_choice_, [] {}, true, "bank"});
+    body.push_back(hbox({notes_.mark("bank", text(tr("tui.diagram.bank") + " ") | fg(th.dim, ui_)), chips(std::move(banks)),
+                         clickable("more_banks", text(tr("tui.diagram.more_banks")) | fg(th.accent, ui_), [this] {
                              if (ui_.open_palette) ui_.open_palette(tr("tui.diagram.cmd.bank"));
                          }) | reflect(more_banks_box_),
                          text(" (w)") | fg(th.dim, ui_)}));
-    std::vector<Item> inputs{{tr("tui.diagram.input.impulse"), [this] { file_ = false; }, !file_}, {tr("tui.diagram.input.file"), [this] { file_ = true; }, file_}};
+    std::vector<Item> inputs{{tr("tui.diagram.input.impulse"), [this] { file_ = false; }, !file_, "input_impulse"},
+                             {tr("tui.diagram.input.file"), [this] { file_ = true; }, file_, "input_file"}};
     std::vector<Item> lengths;
-    for (std::size_t i = 0; i < kLengths.size(); ++i) lengths.push_back({std::to_string(kLengths[i]), [this, i] { length_ = i; }, length_ == i});
-    std::vector<Item> modes{{tr("tui.diagram.direct"), [this] { polyphase_ = false; select(probe_); }, !polyphase_},
-                            {tr("tui.diagram.polyphase"), [this] { polyphase_ = true; select(probe_); }, polyphase_}};
-    body.push_back(hbox({text(tr("tui.diagram.input") + " ") | fg(th.dim, ui_), chips(std::move(inputs)), text("N ") | fg(th.dim, ui_),
+    for (std::size_t i = 0; i < kLengths.size(); ++i) lengths.push_back({std::to_string(kLengths[i]), [this, i] { length_ = i; }, length_ == i, "length"});
+    std::vector<Item> modes{{tr("tui.diagram.direct"), [this] { polyphase_ = false; select(probe_); }, !polyphase_, "mode_direct"},
+                            {tr("tui.diagram.polyphase"), [this] { polyphase_ = true; select(probe_); }, polyphase_, "mode_polyphase"}};
+    body.push_back(hbox({notes_.mark("input", text(tr("tui.diagram.input") + " ") | fg(th.dim, ui_)), chips(std::move(inputs)), notes_.mark("length", text("N ") | fg(th.dim, ui_)),
                          chips(std::move(lengths)), chips(std::move(modes)), text("(P)") | fg(th.dim, ui_)}));
     const auto title = fmt::format(fmt::runtime(tr("tui.diagram.title")), fmt::arg("bank", bank_name_),
                                    fmt::arg("view", tr(polyphase_ ? "tui.diagram.polyphase" : "tui.diagram.direct")));
     std::vector<Chip> chips;
     if (breakpoint_ <= Breakpoint::small && !maximized_) chips.push_back({fmt::format(fmt::runtime(tr("tui.signal.chip.panel")), fmt::arg("index", 1), fmt::arg("count", 2)), false});
-    return panel(title, std::move(chips), vbox(std::move(body)), focus_ == diagram_panel_id, ui_) | ftxui::reflect(panel_boxes_[diagram_panel_id]);
+    return panel(title, std::move(chips), vbox(std::move(body)), focus_ == diagram_panel_id, ui_, notes_.box(polyphase_ ? "mode.polyphase" : "mode.direct")) |
+           ftxui::reflect(panel_boxes_[diagram_panel_id]);
 }
 
 ftxui::Element DiagramScreen::probe_panel(int width, int height) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto* w = result_ ? result_->wire(probe_, polyphase_) : nullptr;
-    std::vector<Chip> views{{tr("tui.diagram.view.time"), view_ == ProbeView::time},
-                            {tr("tui.diagram.view.spectrum"), view_ == ProbeView::spectrum},
-                            {tr("tui.diagram.view.numbers"), view_ == ProbeView::numbers}};
+    std::vector<Chip> views{{tr("tui.diagram.view.time"), view_ == ProbeView::time, notes_.box("view.time")},
+                            {tr("tui.diagram.view.spectrum"), view_ == ProbeView::spectrum, notes_.box("view.spectrum")},
+                            {tr("tui.diagram.view.numbers"), view_ == ProbeView::numbers, notes_.box("view.numbers")}};
     if (breakpoint_ <= Breakpoint::small && !maximized_) views.push_back({fmt::format(fmt::runtime(tr("tui.signal.chip.panel")), fmt::arg("index", 2), fmt::arg("count", 2)), false});
     if (!w || w->values.empty())
-        return panel(tr("tui.diagram.probe_empty"), std::move(views), text("—") | fg(th.dim, ui_), focus_ == probe_panel_id, ui_) | reflect(panel_boxes_[probe_panel_id]);
+        return panel(tr("tui.diagram.probe_empty"), std::move(views), text("—") | fg(th.dim, ui_), focus_ == probe_panel_id, ui_, notes_.box("panel.probe")) |
+               reflect(panel_boxes_[probe_panel_id]);
     const auto& v = w->values;
     const auto title = fmt::format(fmt::runtime(tr("tui.diagram.probe")), fmt::arg("wire", wire_label(probe_)), fmt::arg("count", v.size()),
                                    fmt::arg("energy", format_number(energy(v), 4)));
@@ -329,12 +337,13 @@ ftxui::Element DiagramScreen::probe_panel(int width, int height) {
         auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
         body = zoom_.track("probe_time", std::move(spec), std::move(drawn));
     }
-    return panel(title, std::move(views), body, focus_ == probe_panel_id, ui_) | reflect(panel_boxes_[probe_panel_id]);
+    return panel(title, std::move(views), body, focus_ == probe_panel_id, ui_, notes_.box("panel.probe")) | reflect(panel_boxes_[probe_panel_id]);
 }
 
 ftxui::Element DiagramScreen::OnRender() {
     using namespace ftxui;
     clickables_.clear();
+    notes_.clear();
     more_banks_box_ = ftxui::Box{0, -1, 0, -1};
     hits_.clear();
     panel_boxes_.fill(kNoBox);
@@ -445,6 +454,21 @@ bool DiagramScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     return false;
+}
+
+std::vector<JumpTarget> DiagramScreen::jump_targets() const {
+    std::vector<JumpTarget> out;
+    for (const auto& c : clickables_) out.push_back({c.box, c.id});
+    for (const auto& [id, b] : hits_) out.push_back({b, part_id(id)});
+    return out;
+}
+
+std::optional<std::string> DiagramScreen::explain_at(int x, int y) const {
+    for (const auto& c : clickables_)
+        if (valid(c.box) && c.box.Contain(x, y)) return notes_.explain(c.id);
+    for (const auto& [id, b] : hits_)
+        if (valid(b) && b.Contain(x, y)) return notes_.explain(part_id(id));
+    return notes_.at(x, y);
 }
 
 std::vector<MenuItem> DiagramScreen::context_menu(int x, int y) {

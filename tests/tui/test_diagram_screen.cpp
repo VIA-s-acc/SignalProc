@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <optional>
+
 #include <ftxui/component/event.hpp>
 #include <ftxui/screen/string.hpp>
 
@@ -277,4 +279,24 @@ TEST_CASE("the diagram bank comes from a list with every wavelet and the user ba
     h.click(more.x_min, more.y_min);
     CHECK(filter == signals::tr("tui.diagram.cmd.bank"));
     signals::core::set_user_wavelets({}, {});
+}
+
+TEST_CASE("hovering the diagram explains blocks, wires and modes", "[tui][diagram][explain]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    auto at = [&](std::string_view id) {
+        const auto b = f.screen->area(id);
+        return f.screen->explain_at((b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2);
+    };
+    auto over = [&](const std::string& frame, const std::string& needle) -> std::optional<std::string> {
+        const auto p = signals::test::locate(frame, needle);
+        return p ? f.screen->explain_at(p->first, p->second) : std::nullopt;
+    };
+    const auto frame = h.frame();
+    CHECK(at("mode_polyphase") == signals::tr("tui.explain.diagram.mode.polyphase"));
+    CHECK(at("input_impulse") == signals::tr("tui.explain.diagram.input.impulse"));
+    CHECK(at("D0") == signals::tr("tui.explain.diagram.block.d0"));
+    CHECK(at("U1") == signals::tr("tui.explain.diagram.block.u1"));
+    CHECK(at("y1") == signals::tr("tui.explain.diagram.wire.y1"));
+    CHECK(over(frame, signals::tr("tui.diagram.view.numbers")) == signals::tr("tui.explain.diagram.view.numbers"));
 }

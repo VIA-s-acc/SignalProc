@@ -86,6 +86,9 @@ public:
         tabs.push_back(text("  "));
         tabs.push_back(key_label(" ? ", ui_) | reflect(help_box_));
         Elements hints;
+        if (const auto about = hover_ ? screen.explain_at(hover_->first, hover_->second) : std::nullopt) {
+            hints.push_back(text(ellipsize(std::string{ascii ? "i " : "ⓘ "} + *about, w, ascii)) | fg(ui_.theme.accent, ui_));
+        }
         auto all = screen.hints();
         const auto globals = global_hints();
         auto hint_width = [](const Hint& hint) {
@@ -110,10 +113,11 @@ public:
             row.push_back(hint);
         }
         for (const auto& g : visible) row.push_back(g);
-        for (const auto& hint : row) {
-            hints.push_back(key_label(" " + hint.key + " ", ui_));
-            hints.push_back(text(" " + hint.label + "  ") | fg(ui_.theme.dim, ui_));
-        }
+        if (hints.empty())
+            for (const auto& hint : row) {
+                hints.push_back(key_label(" " + hint.key + " ", ui_));
+                hints.push_back(text(" " + hint.label + "  ") | fg(ui_.theme.dim, ui_));
+            }
         auto resources = ui_.resources ? ui_.resources() : ResourceSnapshot{};
         auto base = vbox({hbox(std::move(tabs)), screen.Render() | flex, hbox(std::move(hints)),
                           status_line(ui_, resources, w) | reflect(status_box_)});
@@ -127,6 +131,7 @@ public:
     }
 
     bool OnEvent(ftxui::Event e) override {
+        if (!e.is_mouse() && e != ftxui::Event::Custom) hover_.reset();
         if (palette_.is_open()) return palette_.on_event(e);
         if (check_.is_open()) return check_.on_event(e, ui_);
         if (resources_open_) {
@@ -157,6 +162,7 @@ public:
         if (screen.capturing_text()) return screen.OnEvent(e);
         if (e.is_mouse()) {
             const auto& m = e.mouse();
+            hover_ = std::pair{m.x, m.y};
             if (m.button == ftxui::Mouse::Right && m.motion == ftxui::Mouse::Pressed) {
                 auto items = screen.context_menu(m.x, m.y);
                 if (!items.empty()) {
@@ -354,6 +360,7 @@ private:
     int active_ = 0;
     bool help_open_ = false;
     bool resources_open_ = false;
+    std::optional<std::pair<int, int>> hover_;
     std::string help_filter_;
     std::size_t help_scroll_ = 0;
     float resources_scroll_ = 0;

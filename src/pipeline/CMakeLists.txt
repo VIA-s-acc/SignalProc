@@ -15,6 +15,13 @@ add_library(signals_pipeline STATIC
   blocks_channels.cpp
   blocks_measure.cpp
   blocks_restore.cpp
+  blocks_fx.cpp
+  blocks_util.cpp
+  blocks_design.cpp
+  blocks_coeffs.cpp
+  blocks_effects.cpp
+  blocks_spectral.cpp
+  blocks_analysis.cpp
   sig.cpp
   graph.cpp
   cache.cpp
@@ -22,5 +29,5 @@ add_library(signals_pipeline STATIC
   layout.cpp
 )
 target_include_directories(signals_pipeline PUBLIC ${PROJECT_SOURCE_DIR}/src)
-target_link_libraries(signals_pipeline PUBLIC signals_core signals_io PRIVATE signals_i18n signals_taskflow fmt::fmt)
+target_link_libraries(signals_pipeline PUBLIC signals_core signals_io PRIVATE signals_i18n signals_taskflow fmt::fmt nlohmann_json::nlohmann_json)
 signals_configure_target(signals_pipeline)

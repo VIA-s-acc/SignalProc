@@ -18,6 +18,7 @@
 #include "tui/shell/layout.hpp"
 #include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/screen_util.hpp"
 #include "tui/widgets/scroll.hpp"
 #include "tui/widgets/bank_diagram.hpp"
 
@@ -48,11 +49,14 @@ public:
     ftxui::Box area(std::string_view id) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
     std::vector<Command> commands() override;
+    std::vector<JumpTarget> jump_targets() const override;
+    std::optional<std::string> explain_at(int x, int y) const override;
     Panel focus() const { return focus_; }
     std::optional<Axis> plot_view(std::string_view id) const { return zoom_.view(id); }
 
 private:
     struct Clickable {
+        std::string id;
         ftxui::Box box;
         std::function<void()> action;
     };
@@ -60,10 +64,11 @@ private:
         std::string label;
         std::function<void()> action;
         bool on = false;
+        std::string id = {};
     };
 
     void refresh();
-    ftxui::Element clickable(ftxui::Element e, std::function<void()> action);
+    ftxui::Element clickable(std::string id, ftxui::Element e, std::function<void()> action);
     ftxui::Element chips(std::vector<Item> items);
     std::vector<std::string> quick_banks() const;
     ftxui::Element diagram_panel(int width);
@@ -96,6 +101,7 @@ private:
     bool spectrum_polyphase_ = false;
     std::vector<double> spectrum_db_;
     DiagramHits hits_;
+    Notes notes_{"diagram"};
     std::deque<Clickable> clickables_;
 };
 

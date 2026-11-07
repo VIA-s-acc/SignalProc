@@ -62,6 +62,7 @@ public:
     }
     bool capturing_text() const override { return child().capturing_text(); }
     std::vector<MenuItem> context_menu(int x, int y) override { return child().context_menu(x, y); }
+    std::optional<std::string> explain_at(int x, int y) const override { return child().explain_at(x, y); }
     std::optional<std::pair<int, int>> menu_anchor() const override { return child().menu_anchor(); }
     std::optional<TheoryLink> theory_link() const override { return child().theory_link(); }
     void publish(theory::LiveValues& v) const override { child().publish(v); }

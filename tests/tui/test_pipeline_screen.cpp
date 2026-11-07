@@ -30,6 +30,7 @@
 #include "tui/harness.hpp"
 #include "tui/screens/pipeline_model.hpp"
 #include "tui/screens/pipeline_canvas.hpp"
+#include "tui/widgets/text_util.hpp"
 #include "tui/screens/pipeline_screen.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/ui_fixture.hpp"
@@ -330,7 +331,8 @@ TEST_CASE("Esc during a run interrupts it", "[tui][pipeline_screen]") {
 
 TEST_CASE("F1 on a node opens the card of its block", "[tui][pipeline_screen][theory]") {
     PipelineFixture f;
-    CHECK_FALSE(f.screen->theory_link());
+    REQUIRE(f.screen->theory_link());
+    CHECK(f.screen->theory_link()->id == "sig-format");
     f.model->selection = {Selection::Kind::node, "thr", {}};
     auto link = f.screen->theory_link();
     REQUIRE(link);
@@ -856,4 +858,85 @@ TEST_CASE("probes switch by click and arrows, and a report probe shows its numbe
     f.h.send(ftxui::Event::ArrowRight);
     CHECK(f.h.frame().find("Щуп · pr") != std::string::npos);
     CHECK(frame.find("←→") != std::string::npos);
+}
+
+TEST_CASE("the inspector explains the picked parameter and its value, and the picker explains each value", "[tui][pipeline_screen][explain]") {
+    PipelineFixture f{150, 44, false};
+    const auto id = f.model->add_node("check");
+    f.model->selection = {Selection::Kind::node, id, {}};
+    f.h.frame();
+    f.h.send(ftxui::Event::Return);
+    const auto start = [](const std::string& s) {
+        const auto cps = signals::tui::split_codepoints(s);
+        std::string out;
+        for (std::size_t k = 0; k < std::min<std::size_t>(cps.size(), 12); ++k) out += cps[k];
+        return out;
+    };
+    auto frame = f.h.frame();
+    CHECK(frame.find(start(signals::tr("pipeline.param.check.kind"))) != std::string::npos);
+    CHECK(frame.find(start(signals::tr("pipeline.param.check.kind.pr"))) != std::string::npos);
+    f.h.send(ftxui::Event::ArrowRight);
+    frame = f.h.frame();
+    CHECK(frame.find(start(signals::tr("pipeline.param.check.kind.error"))) != std::string::npos);
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    f.h.send(ftxui::Event::ArrowDown);
+    f.h.send(ftxui::Event::ArrowDown);
+    f.h.send(ftxui::Event::Return);
+    const auto it = std::find_if(items.begin(), items.end(), [](const Command& c) { return c.title == "auto"; });
+    REQUIRE(it != items.end());
+    CHECK(it->note == signals::tr("pipeline.param.check.delay.auto"));
+    const auto row = f.screen->area("inspector");
+    CHECK(f.screen->explain_at(row.x_min + 2, row.y_min + 2).has_value());
+}
+
+TEST_CASE("every block, parameter and choice value has an explanation in both languages", "[pipeline][explain]") {
+    for (const auto lang : {signals::Language::ru, signals::Language::en}) {
+        signals::LanguageScope scope{lang};
+        for (const auto& t : signals::pipeline::block_types()) {
+            INFO(t.id);
+            CHECK(signals::tr_opt("pipeline.about." + t.id));
+            for (const auto& p : t.params) {
+                INFO(p.name);
+                CHECK(signals::tr_opt("pipeline.param." + t.id + "." + p.name));
+                for (const auto& v : p.choices) {
+                    INFO(v);
+                    CHECK(signals::tr_opt("pipeline.param." + t.id + "." + p.name + "." + v));
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("F1 without a selected node opens the .sig format chapter", "[tui][pipeline_screen][sig]") {
+    PipelineFixture f{150, 44, true};
+    f.model->selection = {};
+    const auto link = f.screen->theory_link();
+    REQUIRE(link);
+    CHECK(link->kind == TheoryLink::Kind::section);
+    CHECK(link->id == "sig-format");
+    std::optional<TheoryPage> opened;
+    f.ui->open_theory = [&](TheoryPage page) { opened = std::move(page); };
+    const auto commands = f.screen->commands();
+    const auto help = std::find_if(commands.begin(), commands.end(), [](const Command& c) { return c.id == "pipeline.format"; });
+    REQUIRE(help != commands.end());
+    help->run();
+    REQUIRE(opened);
+    CHECK(opened->link.id == "sig-format");
+}
+
+TEST_CASE("a hidden inspector does not explain the graph cells under its old rows", "[tui][pipeline_screen][explain]") {
+    PipelineFixture f{150, 44, true};
+    f.model->selection = {Selection::Kind::node, "thr", {}};
+    f.h.frame();
+    const auto inspector = f.screen->area("inspector");
+    const int x = inspector.x_min + 3, y = inspector.y_min + 2;
+    REQUIRE(f.screen->explain_at(x, y));
+    const auto param_text = *f.screen->explain_at(x, y);
+    const auto graph = f.screen->area("graph");
+    f.h.click(graph.x_min + 1, graph.y_max);
+    f.h.send(ftxui::Event::Character('z'));
+    f.h.frame();
+    const auto again = f.screen->explain_at(x, y);
+    CHECK((!again || *again != param_text));
 }

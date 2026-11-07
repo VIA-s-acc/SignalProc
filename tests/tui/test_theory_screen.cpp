@@ -64,7 +64,7 @@ TEST_CASE("search narrows the contents and enter opens the first hit", "[tui][th
     f.type("малла");
     const auto expected = signals::theory::search_sections("малла").size();
     auto frame = f.h.frame();
-    CHECK(frame.find(std::to_string(expected) + " из 132") != std::string::npos);
+    CHECK(frame.find(std::to_string(expected) + " из 139") != std::string::npos);
     f.h.send(ftxui::Event::Return);
     CHECK_FALSE(f.screen->capturing_text());
     REQUIRE(f.nav->current());
@@ -77,7 +77,7 @@ TEST_CASE("search with no hits shows zero and keeps the selection valid", "[tui]
     f.type("нетакогослова");
     f.h.send(ftxui::Event::ArrowDown);
     f.h.send(ftxui::Event::ArrowUp);
-    CHECK(f.h.frame().find("0 из 132") != std::string::npos);
+    CHECK(f.h.frame().find("0 из 139") != std::string::npos);
     f.h.send(ftxui::Event::Return);
     f.h.send(ftxui::Event::Escape);
     CHECK_FALSE(f.screen->capturing_text());
@@ -574,4 +574,14 @@ TEST_CASE("Tab walks the links, then the contents panel, then back to the first 
     f.h.send(ftxui::Event::TabReverse);
     CHECK_FALSE(f.screen->focused_link());
     CHECK(f.screen->hints().front().key == "↑↓");
+}
+
+TEST_CASE("hovering a tutorial link explains what it does", "[tui][theory][explain]") {
+    TheoryFixture f{TheoryScreen::Mode::tutorial};
+    f.h.frame();
+    const auto targets = f.screen->jump_targets();
+    REQUIRE_FALSE(targets.empty());
+    const auto& b = targets.front().box;
+    CHECK(f.screen->explain_at(b.x_min, b.y_min) == signals::tr("tui.explain.theory.link"));
+    CHECK_FALSE(f.screen->explain_at(0, 0).has_value());
 }

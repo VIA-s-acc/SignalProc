@@ -1,0 +1,51 @@
+{
+  "name": "signals-sig",
+  "displayName": "Signals .sig",
+  "description": "Syntax highlighting, hovers, completion and snippets for Signals pipeline files (.sig)",
+  "version": "0.1.0",
+  "publisher": "via-s-acc",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VIA-s-acc/SignalProc"
+  },
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:signals-sig"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "signals-sig",
+        "aliases": [
+          "Signals pipeline",
+          "sig"
+        ],
+        "extensions": [
+          ".sig"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "signals-sig",
+        "scopeName": "source.signals-sig",
+        "path": "./syntaxes/sig.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "signals-sig",
+        "path": "./snippets/sig.json"
+      }
+    ]
+  }
+}

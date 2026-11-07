@@ -43,6 +43,7 @@ public:
     bool OnEvent(ftxui::Event e) override;
 
     ftxui::Box area(std::string_view id) const;
+    std::optional<std::string> explain_at(int x, int y) const override;
     std::optional<Axis> plot_view(std::string_view id) const;
     int graph_zoom() const { return graph_zoom_; }
     std::vector<MenuItem> context_menu(int x, int y) override;

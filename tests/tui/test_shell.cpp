@@ -434,3 +434,53 @@ TEST_CASE("the palette and the context menu stay inside an 80-column screen", "[
     CHECK(row.find("…") != std::string::npos);
     CHECK(row.find("Shift+клик") != std::string::npos);
 }
+
+namespace {
+
+class ExplainingScreen : public TabScreen {
+public:
+    std::string tab_label() const override { return "X"; }
+    std::vector<Hint> hints() const override { return {{"a", "first hint"}}; }
+    void set_breakpoint(Breakpoint) override {}
+    std::optional<std::string> explain_at(int x, int y) const override {
+        if (x < 10 && y == 2) return std::string{"symmetric — mirror the edge sample"};
+        return std::nullopt;
+    }
+    ftxui::Element OnRender() override { return ftxui::text("body"); }
+};
+
+}  // namespace
+
+TEST_CASE("hovering a control shows its explanation in the hint row", "[tui][shell][explain]") {
+    auto ui = signals::test::make_ui(150, 44);
+    std::vector<std::shared_ptr<TabScreen>> screens{std::make_shared<ExplainingScreen>()};
+    Harness h{make_shell(*ui, screens, [] {}), 150, 44};
+    CHECK(h.frame().find("first hint") != std::string::npos);
+    ftxui::Mouse m;
+    m.button = ftxui::Mouse::None;
+    m.motion = ftxui::Mouse::Moved;
+    m.x = 3;
+    m.y = 2;
+    h.send(ftxui::Event::Mouse("", m));
+    auto frame = h.frame();
+    CHECK(frame.find("symmetric — mirror the edge sample") != std::string::npos);
+    CHECK(frame.find("first hint") == std::string::npos);
+    m.x = 40;
+    h.send(ftxui::Event::Mouse("", m));
+    CHECK(h.frame().find("first hint") != std::string::npos);
+}
+
+TEST_CASE("a key press brings the key hints back after a hover", "[tui][shell][explain]") {
+    auto ui = signals::test::make_ui(150, 44);
+    std::vector<std::shared_ptr<TabScreen>> screens{std::make_shared<ExplainingScreen>()};
+    Harness h{make_shell(*ui, screens, [] {}), 150, 44};
+    ftxui::Mouse m;
+    m.button = ftxui::Mouse::None;
+    m.motion = ftxui::Mouse::Moved;
+    m.x = 3;
+    m.y = 2;
+    h.send(ftxui::Event::Mouse("", m));
+    REQUIRE(h.frame().find("first hint") == std::string::npos);
+    h.send(ftxui::Event::ArrowDown);
+    CHECK(h.frame().find("first hint") != std::string::npos);
+}

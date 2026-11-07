@@ -18,6 +18,7 @@
 #include "tui/shell/panel.hpp"
 #include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/screen_util.hpp"
 #include "tui/widgets/scroll.hpp"
 
 namespace signals::tui {
@@ -31,6 +32,8 @@ public:
     std::string tab_label() const override;
     std::vector<Hint> hints() const override;
     std::vector<Command> commands() override;
+    std::vector<JumpTarget> jump_targets() const override;
+    std::optional<std::string> explain_at(int x, int y) const override;
     std::optional<TheoryLink> theory_link() const override;
     void publish(theory::LiveValues& v) const override;
     std::string context() const override;
@@ -83,6 +86,7 @@ private:
     ftxui::Box coeff_plot_box_{};
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::deque<Clickable> clickables_;
+    Notes notes_{"processing"};
     View view_ = View::a;
     std::size_t preset_ = 0;
     std::string notice_;

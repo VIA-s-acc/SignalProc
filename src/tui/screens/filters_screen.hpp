@@ -19,6 +19,7 @@
 #include "tui/shell/layout.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/screen_util.hpp"
 #include "tui/shell/plot_zoom.hpp"
 #include "tui/widgets/plot.hpp"
 #include "tui/widgets/zplane.hpp"
@@ -54,12 +55,14 @@ public:
     std::vector<MenuItem> context_menu(int x, int y) override;
     std::optional<std::pair<int, int>> menu_anchor() const override;
     std::vector<JumpTarget> jump_targets() const override;
+    std::optional<std::string> explain_at(int x, int y) const override;
 
 private:
     enum Panel { magnitude, phase, delay, impulse, zeros, properties, measures, library, comparison, panel_count };
     enum class Plot { magnitude, phase, delay };
 
     struct Clickable {
+        std::string id;
         ftxui::Box box;
         std::function<void()> action;
     };
@@ -93,11 +96,12 @@ private:
     ftxui::Element measures_panel(int width);
     ftxui::Element library_panel(int width, int height);
     ftxui::Element comparison_panel(int width);
-    ftxui::Element clickable(ftxui::Element e, std::function<void()> action);
+    ftxui::Element clickable(std::string id, ftxui::Element e, std::function<void()> action);
     struct Item {
         std::string label;
         std::function<void()> action;
         bool on = false;
+        std::string id = {};
     };
     ftxui::Element chip_rows(std::vector<Item> items, int width, int indent);
     std::vector<ftxui::Element> chip_lines(std::vector<Item> items, int width, int indent, std::optional<std::size_t>* on_line = nullptr);
@@ -141,6 +145,7 @@ private:
     std::array<ftxui::Box, panel_count> title_boxes_{};
     std::array<ftxui::Box, 3> plot_boxes_{};
     std::deque<Clickable> clickables_;
+    Notes notes_{"filters"};
     Scroll library_scroll_, roots_scroll_;
     std::size_t match_follow_ = static_cast<std::size_t>(-1);
     std::string follow_query_;

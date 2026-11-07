@@ -13,6 +13,7 @@
 #include "core/dwt.hpp"
 #include "core/wavedec.hpp"
 #include "core/extension.hpp"
+#include "core/packets.hpp"
 
 namespace signals::pipeline {
 
@@ -26,6 +27,7 @@ struct Coeffs {
     double rate = 0;
     std::string transform = "dwt";
     bool norm = false;
+    std::vector<core::PacketNode> basis;
     std::size_t levels() const { return channels.empty() ? 0 : channels.front().bands.size() - 1; }
 };
 
@@ -42,5 +44,6 @@ std::uint64_t value_key(const Value& v);
 std::size_t value_bytes(const Value& v);
 std::optional<std::size_t> band_index(const Coeffs& c, std::string_view name);
 std::optional<Value> band_port(const Coeffs& c, std::string_view name);
+std::string band_label(const Coeffs& c, std::size_t band);
 
 }  // namespace signals::pipeline

@@ -118,10 +118,13 @@ std::string ProcessingScreen::context() const {
 }
 
 ftxui::Element ProcessingScreen::frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title) {
+    static constexpr const char* kNames[]{"coeffs", "signal", "curve", "eq", "summary", "noise", "listen", "theory"};
+    const std::string name = kNames[static_cast<std::size_t>(p)];
+    for (auto& c : chips) c.box = notes_.box("legend." + name);
     if (breakpoint_ <= Breakpoint::small)
         chips.push_back({fmt::format(fmt::runtime(tr("tui.signal.chip.panel")), fmt::arg("index", static_cast<int>(p) + 1), fmt::arg("count", static_cast<int>(panel_count))),
                          false});
-    return panel(title, std::move(chips), std::move(body), focus_ == p, ui_) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
+    return panel(title, std::move(chips), std::move(body), focus_ == p, ui_, notes_.box("panel." + name)) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
 }
 
 ftxui::Element ProcessingScreen::clickable(std::string id, ftxui::Element e, std::function<void()> action) {
@@ -176,7 +179,7 @@ ftxui::Element ProcessingScreen::toolbar(bool two_rows, int width) {
         return clickable(std::move(id), e, std::move(action));
     };
     const auto o = model_->options();
-    Elements parts{text(tr("tui.processing.threshold") + " ") | fg(th.dim, ui_)};
+    Elements parts{notes_.mark("rule", text(tr("tui.processing.threshold") + " ") | fg(th.dim, ui_))};
     for (const auto rule : {core::ShrinkRule::bayes, core::ShrinkRule::visu, core::ShrinkRule::sure, core::ShrinkRule::minimax})
         parts.push_back(chip("rule_" + std::string{core::shrink_rule_name(rule)}, std::string{core::shrink_rule_name(rule)}, o.rule == rule,
                              [this, rule] { change([rule](ProcessingOptions& p) { p.rule = rule; }); }));
@@ -184,8 +187,9 @@ ftxui::Element ProcessingScreen::toolbar(bool two_rows, int width) {
     for (const auto& [mode, name] : {std::pair{core::ThresholdMode::soft, "soft"}, std::pair{core::ThresholdMode::hard, "hard"}})
         parts.push_back(chip(std::string{"mode_"} + name, name, o.threshold == mode, [this, mode] { change([mode](ProcessingOptions& p) { p.threshold = mode; }); }));
     const auto wavelet_part = [&](bool lead) {
-        return Elements{text((lead ? " │ " : "") + tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_),
-                        clickable("wavelet", text(o.wavelet + " ▾") | fg(th.fg, ui_), [this] { pick_wavelet(); }), text(" J " + std::to_string(o.levels)) | fg(th.dim, ui_)};
+        return Elements{notes_.mark("wavelet", text((lead ? " │ " : "") + tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_)),
+                        clickable("wavelet", text(o.wavelet + " ▾") | fg(th.fg, ui_), [this] { pick_wavelet(); }),
+                        notes_.mark("levels", text(" J " + std::to_string(o.levels)) | fg(th.dim, ui_))};
     };
     const int first_width = [&] {
         auto probe = hbox(parts);
@@ -198,18 +202,18 @@ ftxui::Element ProcessingScreen::toolbar(bool two_rows, int width) {
         for (auto& e : wavelet_part(true)) parts.push_back(std::move(e));
     const std::string lead = (two_rows ? "" : " │ ") + std::string{"λ ×"};
     used = display_width(lead);
-    Elements second{text(lead) | fg(th.dim, ui_)};
+    Elements second{notes_.mark("scale", text(lead) | fg(th.dim, ui_))};
     for (const double s : kScales)
         second.push_back(chip("scale_" + format_fixed(s, 2), format_number(s, 2), std::abs(o.scale - s) < 1e-9, [this, s] { set_scale(s); }));
     const std::string view_label = " │ " + tr("tui.processing.view") + " ";
     used += display_width(view_label);
-    second.push_back(text(view_label) | fg(th.dim, ui_));
+    second.push_back(notes_.mark("view", text(view_label) | fg(th.dim, ui_)));
     for (const auto& [v, key, id] : {std::tuple{View::a, "tui.processing.view.a", "view_a"}, std::tuple{View::b, "tui.processing.view.b", "view_b"},
                                     std::tuple{View::x, "tui.processing.view.x", "view_x"}})
         second.push_back(chip(id, tr(key), view_ == v, [this, v] { view_ = v; }));
     auto edges = " │ " + tr("tui.decomposition.edges") + " " + std::string{core::to_string(o.mode)};
     if (two_rows && used + display_width(edges) > width) edges = ellipsize(edges, std::max(0, width - used), ui_.caps.glyphs == GlyphMode::ascii);
-    second.push_back(text(edges) | fg(th.dim, ui_));
+    second.push_back(notes_.mark("edges_" + std::string{core::to_string(o.mode)}, text(edges) | fg(th.dim, ui_)));
     if (own_row) return vbox({hbox(std::move(parts)), hbox(std::move(second)), hbox(wavelet_part(false))});
     if (two_rows) return vbox({hbox(std::move(parts)), hbox(std::move(second))});
     for (auto& e : second) parts.push_back(std::move(e));
@@ -342,7 +346,7 @@ ftxui::Element ProcessingScreen::listen_body() {
     for (const auto& [v, key, id] : {std::tuple{View::a, "tui.processing.play.a", "play_a"}, std::tuple{View::b, "tui.processing.play.b", "play_b"},
                                     std::tuple{View::x, "tui.processing.play.x", "play_x"}})
         buttons.push_back(clickable(id, text("▶ " + tr(key) + " ") | fg(view_ == v ? th.accent : th.fg, ui_), [this, v] { play(v); }));
-    Elements rows{hbox(std::move(buttons)), text(tr("tui.processing.seamless")) | fg(th.dim, ui_)};
+    Elements rows{hbox(std::move(buttons)), notes_.mark("play.seamless", text(tr("tui.processing.seamless")) | fg(th.dim, ui_))};
     if (const auto r = model_->result(); r && r->fs > 0) {
         const double from = static_cast<double>(r->listen_start) / r->fs, span = static_cast<double>(r->audio_noisy.size()) / r->fs;
         rows.push_back(text(fmt::format(fmt::runtime(tr("tui.processing.heard")), fmt::arg("span", format_fixed(span, 2)), fmt::arg("from", format_fixed(from, 2)),
@@ -357,6 +361,7 @@ ftxui::Element ProcessingScreen::OnRender() {
     using namespace ftxui;
     panel_boxes_.fill(kNoBox);
     clickables_.clear();
+    notes_.clear();
     zoom_.begin_frame();
     coeff_plot_box_ = kNoBox;
     if (!ui_.jobs) return text("");
@@ -563,6 +568,24 @@ void ProcessingScreen::open_with(const NavArgs& args) {
         if (!args.wavelet.empty()) o.wavelet = args.wavelet;
         if (args.n) o.levels = std::clamp<std::size_t>(*args.n, 1, 10);
     });
+}
+
+std::vector<JumpTarget> ProcessingScreen::jump_targets() const {
+    std::vector<JumpTarget> out;
+    for (const auto& c : clickables_) out.push_back({c.box, c.id});
+    return out;
+}
+
+std::optional<std::string> ProcessingScreen::explain_at(int x, int y) const {
+    for (const auto& c : clickables_) {
+        if (!valid(c.box) || !c.box.Contain(x, y)) continue;
+        if (c.id.starts_with("eq_")) {
+            const auto p = static_cast<std::size_t>(std::stoul(c.id.substr(3)));
+            if (p < kPresets.size()) return notes_.explain("eq." + std::string{kPresets[p]}.substr(std::string_view{"tui.processing.eq."}.size()));
+        }
+        return notes_.explain(c.id);
+    }
+    return notes_.at(x, y);
 }
 
 std::optional<std::pair<int, int>> ProcessingScreen::menu_anchor() const {

@@ -1,6 +1,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <optional>
+
 #include <chrono>
 #include <cmath>
 #include <future>
@@ -916,4 +918,28 @@ TEST_CASE("the right-click menu resets the decomposition time zoom", "[tui][deco
     REQUIRE(menu.size() == 1);
     menu.front().action();
     CHECK(f.screen->time_view() == full);
+}
+
+TEST_CASE("hovering decomposition controls explains the transform, view, edges and thresholds", "[tui][decomposition][explain]") {
+    DecompositionFixture f;
+    auto at = [&](std::string_view id) {
+        const auto b = f.screen->area(id);
+        return f.screen->explain_at((b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2);
+    };
+    auto over = [&](const std::string& frame, const std::string& needle) -> std::optional<std::string> {
+        const auto p = signals::test::locate(frame, needle);
+        return p ? f.screen->explain_at(p->first, p->second) : std::nullopt;
+    };
+    const auto frame = f.h.frame();
+    CHECK(at("chip_swt") == signals::tr("tui.explain.decomposition.transform.swt"));
+    CHECK(at("chip_modwt") == signals::tr("tui.explain.decomposition.transform.modwt"));
+    CHECK(at("view_mra") == signals::tr("tui.explain.decomposition.view.mra"));
+    CHECK(at("chip_packets") == signals::tr("tui.explain.decomposition.view.packets"));
+    CHECK(at("edges") == signals::tr("tui.explain.common.edges." + std::string{signals::core::to_string(f.model->options().mode)}));
+    CHECK(at("rule") == signals::tr("tui.explain.common.rule.bayesshrink"));
+    CHECK(at("mode_garrote") == signals::tr("tui.explain.common.mode.garrote"));
+    CHECK(at("levels_up") == signals::tr("tui.explain.decomposition.denoise.levels"));
+    CHECK(at("levels_more") == signals::tr("tui.explain.decomposition.levels"));
+    CHECK(at("check_0") == signals::tr("tui.explain.decomposition.check"));
+    CHECK(over(frame, signals::tr("tui.decomposition.transform")) == signals::tr("tui.explain.decomposition.transform"));
 }

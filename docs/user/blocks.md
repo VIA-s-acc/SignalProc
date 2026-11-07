@@ -2,83 +2,907 @@
 
 Сгенерировано командой `signals blocks --markdown`. Не правьте вручную: тест сверяет файл с кодом.
 
-| Блок | Название | Входы | Выходы | Параметры |
-|---|---|---|---|---|
-| `wav` | WAV | — | `out`: signal | `path` = — |
-| `samples` | Отсчёты | — | `out`: signal | `values` = 4 6 10 12 8 6 5 5; `rate` = 8 (1…768000) |
-| `add` | Сумматор ⊕ | `a`: signal; `b`: signal | `out`: signal | `op` = add (add, sub) |
-| `gen` | Генератор | — | `out`: signal | `kind` = sine (sine, sweep, impulse, step, white, pink, harmonics, doppler, blocks, bumps, heavisine); `freq` = 440; `f1` = 8000; `amplitude` = 1; `rate` = 44100 (1…768000); `duration` = 1 (0…3600); `seed` = 1 |
-| `gain` | Усиление | `in`: signal | `out`: signal | `db` = 0 |
-| `normalize` | Нормировка | `in`: signal | `out`: signal | `kind` = peak (peak, rms); `target_dbfs` = -1 |
-| `remove_dc` | Без DC | `in`: signal | `out`: signal | — |
-| `clip` | Ограничение | `in`: signal | `out`: signal | `limit` = 1 (0…1e+06) |
-| `quantize` | Квантование | `in`: signal | `out`: signal | `bits` = 16 (1…32); `dither` = yes (yes, no); `seed` = 24301 |
-| `mulaw` | μ-закон | `in`: signal | `out`: signal | `direction` = encode (encode, decode); `mu` = 255 (1…65535) |
-| `split` | Каналы | `in`: signal | `l`: signal; `r`: signal (необязательный) | `mode` = lr (lr, channel); `channel` = 0 |
-| `mixdown` | В моно | `in`: signal | `out`: signal | — |
-| `mid_side` | M/S | `in`: signal | `out`: signal | `direction` = encode (encode, decode) |
-| `delay` | Задержка | `in`: signal | `out`: signal | `samples` = 0 |
-| `reverse` | Разворот | `in`: signal | `out`: signal | — |
-| `cut` | Вырезка | `in`: signal | `out`: signal | `begin` = 0; `end` = 0 |
-| `downsample` | Прореживание ↓M | `in`: signal | `out`: signal | `m` = 2 (1…1024); `attenuation_db` = 80 (10…200); `anti_alias` = yes (yes, no); `phase` = 0 (0…1023) |
-| `upsample` | Растяжение ↑M | `in`: signal | `out`: signal | `m` = 2 (1…1024); `attenuation_db` = 80 (10…200); `anti_image` = yes (yes, no) |
-| `resample` | Ресемплинг L/M | `in`: signal | `out`: signal | `l` = 1 (1…1024); `m` = 1 (1…1024); `attenuation_db` = 80 (10…200) |
-| `convolve` | Свёртка | `in`: signal | `out`: signal | `filter` = db2.h0; `method` = auto (auto, direct, fft) |
-| `dwt` | DWT | `in`: signal | `coeffs`: coeffs | `wavelet` = db2; `levels` = 0 (0…64); `ext` = symmetric (symmetric, periodization, zero, constant, smooth, periodic, reflect, antisymmetric, antireflect) |
-| `idwt` | IDWT | `in`: coeffs | `out`: signal | `wavelet` = auto; `ext` = auto (auto, symmetric, periodization, zero, constant, smooth, periodic, reflect, antisymmetric, antireflect) |
-| `swt` | SWT | `in`: signal | `coeffs`: coeffs | `wavelet` = db2; `levels` = 0 (0…32); `norm` = no (no, yes) |
-| `lift53` | Лифтинг 5/3 | `in`: signal | `coeffs`: coeffs | `levels` = 4 (1…30); `integer` = no (no, yes) |
-| `ilift53` | Обратный лифтинг 5/3 | `in`: coeffs | `out`: signal | — |
-| `iswt` | ISWT | `in`: coeffs | `out`: signal | `wavelet` = auto |
-| `threshold` | Порог | `in`: coeffs | `coeffs`: coeffs | `rule` = bayes (bayes, visu, sure, minimax); `mode` = soft (soft, hard, garrote); `levels` = 1..64; `sigma` = mad_d1 |
-| `band_edit` | Правка полос | `in`: coeffs | `coeffs`: coeffs | `enabled` = all; `gains_db` = — |
-| `band_energy` | Энергия полос | `in`: coeffs | `report`: report | — |
-| `envelope` | Огибающая | `in`: signal | `out`: signal | — |
-| `inst_freq` | Мгновенная частота | `in`: signal | `out`: signal | — |
-| `cepstrum` | Кепстр | `in`: signal | `out`: signal | — |
-| `dct` | DCT-II | `in`: signal | `out`: signal | — |
-| `idct` | Обратное DCT | `in`: signal | `out`: signal | — |
-| `xcorr` | Корреляция | `a`: signal; `b`: signal | `out`: signal | `mode` = full (full, same, valid); `normalize` = no (no, yes) |
-| `denoise` | Шумоподавление | `in`: signal | `out`: signal | `wavelet` = sym8; `levels` = 0 (0…32); `rule` = bayes (bayes, visu, sure, minimax); `mode` = soft (soft, hard); `shifts` = 1 (1…64) |
-| `thd` | THD | `in`: signal | `report`: report | `harmonics` = 5 (2…20) |
-| `onsets` | Онсеты | `in`: signal | `report`: report | `n` = 1024 (64…65536); `hop` = 256 (1…65536) |
-| `export` | Выгрузка CSV / JSON | `in`: signal | `report`: report | `path` = out.csv; `format` = csv (csv, json) |
-| `export_report` | Выгрузка отчёта | `in`: report | `report`: report | `path` = report.json; `format` = json (csv, json) |
-| `check` | Проверка | `ref`: signal; `in`: signal | `report`: report | `kind` = pr (pr, error, snr); `tol` = 1e-12; `delay` = 0 |
-| `wav_out` | Запись | `in`: signal | `report`: report | `path` = out.wav; `bits` = 24 (16, 24, 32, f32); `dither` = tpdf (none, tpdf); `seed` = 24301 |
-| `listen` | Прослушивание | `in`: signal | — | — |
-| `pad` | Дополнение нулями | `in`: signal | `out`: signal | `before` = 0; `after` = 0 |
-| `concat` | Склейка | `a`: signal; `b`: signal | `out`: signal | — |
-| `multiply` | Умножитель ⊗ | `a`: signal; `b`: signal (необязательный) | `out`: signal | `factor` = 1 (-1e+06…1e+06) |
-| `window` | Оконная функция | `in`: signal | `out`: signal | `kind` = hann (hann, hamming, blackman, kaiser, tukey); `beta` = 8.6 (0…100); `alpha` = 0.5 (0…1) |
-| `fade` | Плавное нарастание и затухание | `in`: signal | `out`: signal | `fade_in` = 0.01s; `fade_out` = 0.01s; `curve` = linear (linear, cosine) |
-| `invert` | Смена полярности | `in`: signal | `out`: signal | — |
-| `abs` | Модуль \|x\| | `in`: signal | `out`: signal | — |
-| `square` | Квадрат x² | `in`: signal | `out`: signal | — |
-| `diff` | Первая разность | `in`: signal | `out`: signal | — |
-| `cumsum` | Накопленная сумма | `in`: signal | `out`: signal | — |
-| `softclip` | Мягкое ограничение tanh | `in`: signal | `out`: signal | `drive` = 1 (0.01…1000) |
-| `dc_offset` | Постоянное смещение | `in`: signal | `out`: signal | `value` = 0 (-1e+06…1e+06) |
-| `trim_silence` | Обрезка тишины | `in`: signal | `out`: signal | `threshold_db` = -60 (-200…0) |
-| `add_noise` | Добавить шум | `in`: signal | `out`: signal | `color` = white (white, pink, brown); `snr_db` = 20 (-100…200); `seed` = 1 (0…1e+15) |
-| `chirp` | Чирп | — | `out`: signal | `method` = linear (linear, log); `f0` = 100 (0…1e+06); `f1` = 8000 (0…1e+06); `amplitude` = 1 (-1e+06…1e+06); `rate` = 44100 (1…768000); `duration` = 1 (0…3600) |
-| `osc` | Меандр, пила, треугольник | — | `out`: signal | `kind` = square (square, sawtooth, triangle, pulses); `freq` = 440 (0…1e+06); `duty` = 0.5 (0…1); `width` = 1 (0…1); `amplitude` = 1 (-1e+06…1e+06); `rate` = 44100 (1…768000); `duration` = 1 (0…3600) |
-| `iir` | БИХ-фильтр | `in`: signal | `out`: signal | `family` = butterworth (butterworth, cheby1, cheby2, ellip, bessel); `type` = lowpass (lowpass, highpass, bandpass, bandstop); `order` = 4 (1…32); `cutoff` = 1000; `rp` = 1 (0.01…30); `rs` = 40 (1…200); `zero_phase` = no (no, yes) |
-| `fir` | КИХ-фильтр (метод окна) | `in`: signal | `out`: signal | `numtaps` = 101 (1…8191); `cutoff` = 1000; `window` = hamming (hamming, hann, blackman, kaiser, boxcar); `beta` = 8.6 (0…50); `pass_zero` = yes (yes, no); `compensate` = no (no, yes) |
-| `median` | Медианный фильтр | `in`: signal | `out`: signal | `kernel` = 5 (1…4095) |
-| `moving_average` | Скользящее среднее | `in`: signal | `out`: signal | `length` = 5 (1…65536); `centred` = no (no, yes) |
-| `preemphasis` | Предыскажение | `in`: signal | `out`: signal | `coeff` = 0.97 (0…1) |
-| `deemphasis` | Снятие предыскажения | `in`: signal | `out`: signal | `coeff` = 0.97 (0…0.9999) |
-| `lift97` | Лифтинг 9/7 | `in`: signal | `coeffs`: coeffs | `levels` = 4 (1…30) |
-| `ilift97` | Обратный лифтинг 9/7 | `in`: coeffs | `out`: signal | — |
-| `mra` | Компонента КМА | `in`: coeffs | `out`: signal | `component` = d1 |
-| `merge` | Сборка стерео | `l`: signal; `r`: signal | `out`: signal | — |
-| `swap` | Обмен L↔R | `in`: signal | `out`: signal | — |
-| `pan` | Панорама | `in`: signal | `out`: signal | `position` = 0 (-1…1); `law` = constant_power (constant_power, linear) |
-| `duplicate` | Размножение каналов | `in`: signal | `out`: signal | `channels` = 2 (1…64) |
-| `stats` | Статистика сигнала | `in`: signal | `report`: report | — |
-| `loudness` | Громкость (RMS по 400 мс) | `in`: signal | `report`: report | `window` = 0.4s; `hop` = 0.1s |
-| `lms` | Адаптивный фильтр LMS/NLMS | `x`: signal; `d`: signal | `e`: signal; `y`: signal | `taps` = 32 (1…4096); `mu` = 0.1 (1e-06…2); `rule` = nlms (nlms, lms) |
-| `wiener` | Винеровский фильтр | `in`: signal | `out`: signal | `size` = 5 (1…1001); `noise` = 0 (0…1e+06) |
-| `spectral_subtract` | Спектральное вычитание | `x`: signal; `noise`: signal (необязательный) | `out`: signal | `alpha` = 2 (0…10); `beta` = 0.01 (0…1); `n` = 512 (16…16384); `noise_s` = 0.25 (0.001…60) |
-| `deconvolve` | Деконволюция | `y`: signal; `h`: signal | `out`: signal | `snr_db` = 30 (-20…120) |
+| Блок | Название | Что делает | Входы | Выходы | Параметры |
+|---|---|---|---|---|---|
+| `wav` | WAV | Читает WAV-файл со всеми каналами и его частотой дискретизации | — | `out`: signal | `path` = — |
+| `samples` | Отсчёты | Одноканальный сигнал из списка чисел, введённых вручную | — | `out`: signal | `values` = 4 6 10 12 8 6 5 5; `rate` = 8 (1…768000) |
+| `add` | Сумматор ⊕ | Складывает или вычитает два сигнала поотсчётно; короткий дополняется нулями | `a`: signal; `b`: signal | `out`: signal | `op` = add (add, sub) |
+| `gen` | Генератор | Тестовые сигналы: тон, свип, импульс, шум, сигналы Донохо–Джонстона | — | `out`: signal | `kind` = sine (sine, sweep, impulse, step, white, pink, harmonics, doppler, blocks, bumps, heavisine); `freq` = 440; `f1` = 8000; `amplitude` = 1; `rate` = 44100 (1…768000); `duration` = 1 (0…3600); `seed` = 1 |
+| `gain` | Усиление | Умножает сигнал на постоянный множитель, заданный в децибелах | `in`: signal | `out`: signal | `db` = 0 |
+| `normalize` | Нормировка | Масштабирует каждый канал до заданного пикового или RMS-уровня | `in`: signal | `out`: signal | `kind` = peak (peak, rms); `target_dbfs` = -1 |
+| `remove_dc` | Без DC | Вычитает из каждого канала его среднее, убирая постоянную составляющую | `in`: signal | `out`: signal | — |
+| `clip` | Ограничение | Жёстко ограничивает отсчёты уровнем ±limit | `in`: signal | `out`: signal | `limit` = 1 (0…1e+06) |
+| `quantize` | Квантование | Квантует сигнал до заданной разрядности, по желанию с дизерингом | `in`: signal | `out`: signal | `bits` = 16 (1…32); `dither` = yes (yes, no); `seed` = 24301 |
+| `mulaw` | μ-закон | Компандирование по μ-закону: сжатие или обратное расширение динамики | `in`: signal | `out`: signal | `direction` = encode (encode, decode); `mu` = 255 (1…65535) |
+| `split` | Каналы | Делит сигнал на левый и правый каналы или выделяет один канал | `in`: signal | `l`: signal; `r`: signal (необязательный) | `mode` = lr (lr, channel); `channel` = 0 |
+| `mixdown` | В моно | Сводит все каналы в один, усредняя их | `in`: signal | `out`: signal | — |
+| `mid_side` | M/S | Поворот стерео L/R ↔ M/S: M = (L + R)/√2, S = (L − R)/√2 | `in`: signal | `out`: signal | `direction` = encode (encode, decode) |
+| `delay` | Задержка | Задерживает сигнал, вставляя нули в начало | `in`: signal | `out`: signal | `samples` = 0 |
+| `reverse` | Разворот | Разворачивает сигнал во времени: последний отсчёт становится первым | `in`: signal | `out`: signal | — |
+| `cut` | Вырезка | Оставляет участок сигнала [begin, end) | `in`: signal | `out`: signal | `begin` = 0; `end` = 0 |
+| `downsample` | Прореживание ↓M | Прореживание ↓M: оставляет каждый M-й отсчёт, по желанию подавив наложение | `in`: signal | `out`: signal | `m` = 2 (1…1024); `attenuation_db` = 80 (10…200); `anti_alias` = yes (yes, no); `phase` = 0 (0…1023) |
+| `upsample` | Растяжение ↑M | Растяжение ↑M: вставляет M−1 нулей между отсчётами, по желанию убирая изображения | `in`: signal | `out`: signal | `m` = 2 (1…1024); `attenuation_db` = 80 (10…200); `anti_image` = yes (yes, no) |
+| `resample` | Ресемплинг L/M | Смена частоты в L/M раз: растяжение ↑L, ФНЧ, прореживание ↓M | `in`: signal | `out`: signal | `l` = 1 (1…1024); `m` = 1 (1…1024); `attenuation_db` = 80 (10…200) |
+| `convolve` | Свёртка | Полная свёртка с фильтром банка или библиотеки: длина выхода N + L − 1 | `in`: signal | `out`: signal | `filter` = db2.h0; `method` = auto (auto, direct, fft) |
+| `dwt` | DWT | Дискретное вейвлет-преобразование: многоуровневое разложение на полосы aJ, dJ…d1 | `in`: signal | `coeffs`: coeffs | `wavelet` = db2; `levels` = 0 (0…64); `ext` = symmetric (symmetric, periodization, zero, constant, smooth, periodic, reflect, antisymmetric, antireflect) |
+| `idwt` | IDWT | Обратное DWT: собирает сигнал из полос aJ, dJ…d1 | `in`: coeffs | `out`: signal | `wavelet` = auto; `ext` = auto (auto, symmetric, periodization, zero, constant, smooth, periodic, reflect, antisymmetric, antireflect) |
+| `swt` | SWT | Стационарное вейвлет-преобразование без прореживания: полосы длины сигнала | `in`: signal | `coeffs`: coeffs | `wavelet` = db2; `levels` = 0 (0…32); `norm` = no (no, yes) |
+| `lift53` | Лифтинг 5/3 | Вейвлет 5/3 (LeGall, JPEG 2000) через лифтинг: многоуровневое разложение | `in`: signal | `coeffs`: coeffs | `levels` = 4 (1…30); `integer` = no (no, yes) |
+| `ilift53` | Обратный лифтинг 5/3 | Обратный лифтинг 5/3: собирает сигнал из полос lift53, вещественных или целых | `in`: coeffs | `out`: signal | — |
+| `iswt` | ISWT | Обратное SWT: собирает сигнал из полос и обрезает его до исходной длины | `in`: coeffs | `out`: signal | `wavelet` = auto |
+| `threshold` | Порог | Пороговая обработка вейвлет-коэффициентов: сжатие деталей по правилу | `in`: coeffs | `coeffs`: coeffs | `rule` = bayes (bayes, visu, sure, minimax); `mode` = soft (soft, hard, garrote); `levels` = 1..64; `sigma` = mad_d1 |
+| `band_edit` | Правка полос | Правит полосы разложения: отключает ненужные и меняет усиление остальных | `in`: coeffs | `coeffs`: coeffs | `enabled` = all; `gains_db` = — |
+| `band_energy` | Энергия полос | Отчёт: доля энергии каждой полосы разложения по каналам | `in`: coeffs | `report`: report | — |
+| `envelope` | Огибающая | Огибающая: модуль аналитического сигнала (преобразование Гильберта) | `in`: signal | `out`: signal | — |
+| `inst_freq` | Мгновенная частота | Мгновенная частота, Гц: производная фазы аналитического сигнала | `in`: signal | `out`: signal | — |
+| `cepstrum` | Кепстр | Вещественный кепстр: обратное БПФ логарифма модуля спектра | `in`: signal | `out`: signal | — |
+| `dct` | DCT-II | Дискретное косинусное преобразование DCT-II каждого канала | `in`: signal | `out`: signal | — |
+| `idct` | Обратное DCT | Обратное DCT (DCT-III): возвращает сигнал из коэффициентов DCT-II | `in`: signal | `out`: signal | — |
+| `xcorr` | Корреляция | Взаимная корреляция сигналов a и b по каналам | `a`: signal; `b`: signal | `out`: signal | `mode` = full (full, same, valid); `normalize` = no (no, yes) |
+| `denoise` | Шумоподавление | Вейвлет-шумоподавление: DWT, порог по деталям, обратное DWT | `in`: signal | `out`: signal | `wavelet` = sym8; `levels` = 0 (0…32); `rule` = bayes (bayes, visu, sure, minimax); `mode` = soft (soft, hard); `shifts` = 1 (1…64) |
+| `thd` | THD | Отчёт: основная частота и коэффициент гармонических искажений THD | `in`: signal | `report`: report | `harmonics` = 5 (2…20) |
+| `onsets` | Онсеты | Отчёт: моменты атак (онсетов) по спектральному потоку, в секундах | `in`: signal | `report`: report | `n` = 1024 (64…65536); `hop` = 256 (1…65536) |
+| `export` | Выгрузка CSV / JSON | Сохраняет отсчёты в CSV или JSON и выдаёт отчёт о записи | `in`: signal | `report`: report | `path` = out.csv; `format` = csv (csv, json) |
+| `export_report` | Выгрузка отчёта | Сохраняет поля входного отчёта в CSV или JSON | `in`: report | `report`: report | `path` = report.json; `format` = json (csv, json) |
+| `check` | Проверка | Сравнивает сигнал с эталоном ref и сообщает, пройдена ли проверка | `ref`: signal; `in`: signal | `report`: report | `kind` = pr (pr, error, snr); `tol` = 1e-12; `delay` = 0 |
+| `wav_out` | Запись | Записывает сигнал в WAV-файл и сообщает число обрезанных отсчётов | `in`: signal | `report`: report | `path` = out.wav; `bits` = 24 (16, 24, 32, f32); `dither` = tpdf (none, tpdf); `seed` = 24301 |
+| `listen` | Прослушивание | Точка прослушивания: подключённый сигнал можно проиграть из редактора | `in`: signal | — | — |
+| `pad` | Дополнение нулями | Дописывает нули до и после сигнала | `in`: signal | `out`: signal | `before` = 0; `after` = 0 |
+| `concat` | Склейка | Склеивает сигналы: b идёт сразу после a | `a`: signal; `b`: signal | `out`: signal | — |
+| `multiply` | Умножитель ⊗ | Поотсчётное произведение factor·a·b; без входа b — просто a·factor | `a`: signal; `b`: signal (необязательный) | `out`: signal | `factor` = 1 (-1e+06…1e+06) |
+| `window` | Оконная функция | Умножает весь сигнал на оконную функцию той же длины | `in`: signal | `out`: signal | `kind` = hann (hann, hamming, blackman, kaiser, tukey); `beta` = 8.6 (0…100); `alpha` = 0.5 (0…1) |
+| `fade` | Плавное нарастание и затухание | Плавное нарастание в начале и затухание в конце сигнала | `in`: signal | `out`: signal | `fade_in` = 0.01s; `fade_out` = 0.01s; `curve` = linear (linear, cosine) |
+| `invert` | Смена полярности | Меняет знак всех отсчётов: x → −x | `in`: signal | `out`: signal | — |
+| `abs` | Модуль \|x\| | Модуль каждого отсчёта \|x\|: двухполупериодное выпрямление | `in`: signal | `out`: signal | — |
+| `square` | Квадрат x² | Квадрат каждого отсчёта x²: мгновенная мощность | `in`: signal | `out`: signal | — |
+| `diff` | Первая разность | Первая разность y[n] = x[n] − x[n−1], где x[−1] = 0 | `in`: signal | `out`: signal | — |
+| `cumsum` | Накопленная сумма | Накопленная сумма y[n] = x[0] + … + x[n]: дискретный интеграл | `in`: signal | `out`: signal | — |
+| `softclip` | Мягкое ограничение tanh | Мягкое ограничение y = tanh(drive·x): плавное насыщение в пределах ±1 | `in`: signal | `out`: signal | `drive` = 1 (0.01…1000) |
+| `dc_offset` | Постоянное смещение | Прибавляет к каждому отсчёту постоянную величину | `in`: signal | `out`: signal | `value` = 0 (-1e+06…1e+06) |
+| `trim_silence` | Обрезка тишины | Обрезает тишину в начале и в конце, общую для всех каналов | `in`: signal | `out`: signal | `threshold_db` = -60 (-200…0) |
+| `add_noise` | Добавить шум | Добавляет к сигналу шум выбранного цвета с заданным SNR | `in`: signal | `out`: signal | `color` = white (white, pink, brown); `snr_db` = 20 (-100…200); `seed` = 1 (0…1e+15) |
+| `chirp` | Чирп | Чирп: синусоида, частота которой плавно идёт от f0 к f1 | — | `out`: signal | `method` = linear (linear, log); `f0` = 100 (0…1e+06); `f1` = 8000 (0…1e+06); `amplitude` = 1 (-1e+06…1e+06); `rate` = 44100 (1…768000); `duration` = 1 (0…3600) |
+| `osc` | Меандр, пила, треугольник | Периодические сигналы: меандр, пила, треугольник или серия импульсов | — | `out`: signal | `kind` = square (square, sawtooth, triangle, pulses); `freq` = 440 (0…1e+06); `duty` = 0.5 (0…1); `width` = 1 (0…1); `amplitude` = 1 (-1e+06…1e+06); `rate` = 44100 (1…768000); `duration` = 1 (0…3600) |
+| `iir` | БИХ-фильтр | БИХ-фильтр классических семейств, работает каскадом биквадратных звеньев | `in`: signal | `out`: signal | `family` = butterworth (butterworth, cheby1, cheby2, ellip, bessel); `type` = lowpass (lowpass, highpass, bandpass, bandstop); `order` = 4 (1…32); `cutoff` = 1000; `rp` = 1 (0.01…30); `rs` = 40 (1…200); `zero_phase` = no (no, yes) |
+| `fir` | КИХ-фильтр (метод окна) | КИХ-фильтр методом окна (как scipy firwin) с линейной фазой | `in`: signal | `out`: signal | `numtaps` = 101 (1…8191); `cutoff` = 1000; `window` = hamming (hamming, hann, blackman, kaiser, boxcar); `beta` = 8.6 (0…50); `pass_zero` = yes (yes, no); `compensate` = no (no, yes) |
+| `median` | Медианный фильтр | Медианный фильтр: отсчёт заменяется медианой окна; убирает щелчки | `in`: signal | `out`: signal | `kernel` = 5 (1…4095) |
+| `moving_average` | Скользящее среднее | Скользящее среднее по length отсчётам: простейший ФНЧ | `in`: signal | `out`: signal | `length` = 5 (1…65536); `centred` = no (no, yes) |
+| `preemphasis` | Предыскажение | Предыскажение y[n] = x[n] − k·x[n−1]: подъём высоких частот | `in`: signal | `out`: signal | `coeff` = 0.97 (0…1) |
+| `deemphasis` | Снятие предыскажения | Снятие предыскажения y[n] = x[n] + k·y[n−1]: обращает preemphasis | `in`: signal | `out`: signal | `coeff` = 0.97 (0…0.9999) |
+| `lift97` | Лифтинг 9/7 | Вейвлет 9/7 (CDF, JPEG 2000) через лифтинг: многоуровневое разложение | `in`: signal | `coeffs`: coeffs | `levels` = 4 (1…30) |
+| `ilift97` | Обратный лифтинг 9/7 | Обратный лифтинг 9/7: собирает сигнал из полос lift97 | `in`: coeffs | `out`: signal | — |
+| `mra` | Компонента КМА | Компонента КМА: вклад одной полосы, возвращённый во временную область | `in`: coeffs | `out`: signal | `component` = d1 |
+| `merge` | Сборка стерео | Собирает многоканальный сигнал: сначала каналы l, затем каналы r | `l`: signal; `r`: signal | `out`: signal | — |
+| `swap` | Обмен L↔R | Меняет местами каналы 0 и 1 — левый и правый | `in`: signal | `out`: signal | — |
+| `pan` | Панорама | Панорама: сводит в моно и ставит его в стерео в точку position | `in`: signal | `out`: signal | `position` = 0 (-1…1); `law` = constant_power (constant_power, linear) |
+| `duplicate` | Размножение каналов | Размножает каналы по кругу до нужного числа | `in`: signal | `out`: signal | `channels` = 2 (1…64) |
+| `stats` | Статистика сигнала | Отчёт: RMS, пик, пик-фактор, среднее, СКО, переходы через ноль, центроид | `in`: signal | `report`: report | — |
+| `loudness` | Громкость (RMS по 400 мс) | Отчёт: наибольший и средний RMS-уровень по скользящим окнам, дБ полной шкалы | `in`: signal | `report`: report | `window` = 0.4s; `hop` = 0.1s |
+| `lms` | Адаптивный фильтр LMS/NLMS | Адаптивный КИХ-фильтр LMS/NLMS: оценивает d по x, выдаёт ошибку e и оценку y | `x`: signal; `d`: signal | `e`: signal; `y`: signal | `taps` = 32 (1…4096); `mu` = 0.1 (1e-06…2); `rule` = nlms (nlms, lms) |
+| `wiener` | Винеровский фильтр | Локальный винеровский фильтр: сглаживает там, где дисперсия близка к шуму | `in`: signal | `out`: signal | `size` = 5 (1…1001); `noise` = 0 (0…1e+06) |
+| `spectral_subtract` | Спектральное вычитание | Спектральное вычитание: убирает оценку мощности шума из кадров STFT | `x`: signal; `noise`: signal (необязательный) | `out`: signal | `alpha` = 2 (0…10); `beta` = 0.01 (0…1); `n` = 512 (16…16384); `noise_s` = 0.25 (0.001…60) |
+| `deconvolve` | Деконволюция | Винеровская деконволюция: восстанавливает x из y = h ∗ x при известном h | `y`: signal; `h`: signal | `out`: signal | `snr_db` = 30 (-20…120) |
+| `tremolo` | Тремоло | Тремоло: периодически меняет громкость с частотой rate_hz | `in`: signal | `out`: signal | `rate_hz` = 5 (0…20000); `depth` = 0.5 (0…1); `shape` = sine (sine, triangle, square) |
+| `modulated_delay` | Модулированная задержка | Хорус, флэнджер или вибрато: задержка, которую качает LFO | `in`: signal | `out`: signal | `mode` = chorus (chorus, flanger, vibrato); `rate_hz` = 0.8 (0…100); `depth_ms` = 3 (0…100); `base_ms` = 12 (0…1000); `feedback` = 0.5 (-0.99…0.99); `mix` = 0.5 (0…1) |
+| `phaser` | Фэйзер | Фэйзер: цепочка фазовых звеньев, LFO двигает провалы по спектру | `in`: signal | `out`: signal | `stages` = 4 (2…12); `rate_hz` = 0.5 (0…100); `min_hz` = 200 (1…1e+06); `max_hz` = 2000 (1…1e+06); `feedback` = 0.5 (-0.99…0.99); `mix` = 0.5 (0…1) |
+| `reverb` | Реверберация | Реверберация Freeverb: гребенчатые фильтры с затуханием и фазовые звенья | `in`: signal | `out`: signal | `room_size` = 0.5 (0…1); `damping` = 0.5 (0…1); `wet` = 0.33 (0…1); `dry` = 0.7 (0…1) |
+| `wavefold` | Складывание волны | Складывание волны: всё, что выходит за ±1, отражается обратно | `in`: signal | `out`: signal | `drive` = 2 (0.01…1000); `shape` = triangle (triangle, sine) |
+| `am` | Амплитудная модуляция | АМ: y = (1 + depth·x)·cos(2π·carrier_hz·t); вход — модулирующий сигнал | `in`: signal | `out`: signal | `carrier_hz` = 1000 (0…1e+06); `depth` = 0.5 (0…100) |
+| `fm` | Частотная модуляция | ЧМ: мгновенная частота carrier_hz + deviation_hz·x; вход — модулирующий сигнал | `in`: signal | `out`: signal | `carrier_hz` = 1000 (0…1e+06); `deviation_hz` = 100 (0…1e+06) |
+| `gausspulse` | Гауссов импульс | Гауссов радиоимпульс: косинус под гауссовой огибающей, как scipy gausspulse | — | `out`: signal | `fc` = 1000 (0.001…1e+06); `bw` = 0.5 (0.001…100); `bwr` = -6 (-200…-0.001); `amplitude` = 1 (-1e+06…1e+06); `rate` = 44100 (1…768000); `duration` = 0.01 (0…3600) |
+| `impulse_train` | Серия импульсов | Единичные импульсы через каждые period отсчётов, между ними нули | — | `out`: signal | `period` = 100; `offset` = 0; `amplitude` = 1 (-1e+06…1e+06); `rate` = 44100 (1…768000); `duration` = 1 (0…3600) |
+| `affine` | Масштаб и сдвиг | y = scale·x + offset: масштаб и сдвиг за один шаг | `in`: signal | `out`: signal | `scale` = 1 (-1e+06…1e+06); `offset` = 0 (-1e+06…1e+06) |
+| `math` | Функция | Функция от каждого отсчёта: логарифм, экспонента, корень, степень, знак, 1/x | `in`: signal | `out`: signal | `op` = log (log, log10, exp, sqrt, pow, sign, reciprocal); `p` = 2 (-1000…1000) |
+| `binary` | Операция над двумя | Операция над отсчётами a и b: деление, минимум, максимум, степень, гипотенуза | `a`: signal; `b`: signal | `out`: signal | `op` = divide (divide, min, max, pow, hypot) |
+| `repeat` | Повтор | Повторяет весь сигнал подряд: в выходе times копий | `in`: signal | `out`: signal | `times` = 2 (1…100000) |
+| `select_channel` | Выбор канала | Оставляет один канал с номером index | `in`: signal | `out`: signal | `index` = 0 (0…1023) |
+| `channel_delay` | Задержка каналов | Сдвигает каждый канал на своё число отсчётов; длина сохраняется | `in`: signal | `out`: signal | `delays` = 0 |
+| `stereo_width` | Ширина стерео | Ширина стереобазы через сумму и разность: разностный сигнал умножается на width | `in`: signal | `out`: signal | `width` = 1.5 (0…2) |
+| `balance` | Баланс | Баланс стерео с постоянной мощностью: L·√(1−p), R·√(1+p) | `in`: signal | `out`: signal | `position` = 0 (-1…1) |
+| `sample_hold` | Выборка-хранение | Выборка-хранение: каждый hold-й отсчёт держится до следующего; длина сохраняется | `in`: signal | `out`: signal | `hold` = 4 |
+| `dc_block` | Блокировка DC | ФВЧ первого порядка y[n] = x[n] − x[n−1] + r·y[n−1]: убирает постоянную | `in`: signal | `out`: signal | `r` = 0.995 (0…0.999999) |
+| `lfilter` | Фильтр по коэффициентам b, a | Фильтр с любыми b, a, как scipy lfilter; полюса вне единичного круга запрещены | `in`: signal | `out`: signal | `b` = 1; `a` = 1 |
+| `fir_taps` | КИХ-фильтр по отводам | Свёртка с заданными отводами, как numpy convolve, обрезанная до длины входа | `in`: signal | `out`: signal | `taps` = 1; `compensate` = no (no, yes) |
+| `savgol` | Сглаживание Савицкого — Голея | Полином по методу наименьших квадратов в скользящем окне, как scipy savgol_filter | `in`: signal | `out`: signal | `window` = 11 (1…4095); `polyorder` = 3 (0…20); `deriv` = 0 (0…20); `mode` = interp (interp, mirror, nearest, constant, wrap) |
+| `hilbert` | Преобразование Гильберта | Мнимая часть или фаза аналитического сигнала, как scipy hilbert | `in`: signal | `out`: signal | `output` = imag (imag, phase, unwrapped) |
+| `remez` | Равноволновой КИХ-фильтр (Ремез) | Синтез минимаксного КИХ-фильтра (Паркс — Макклеллан), как scipy remez, и фильтрация | `in`: signal | `out`: signal | `numtaps` = 63 (3…4095); `bands` = 0 1000 1500 nyquist; `desired` = 1 0; `weight` = —; `type` = bandpass (bandpass, differentiator, hilbert); `compensate` = no (no, yes) |
+| `firls` | КИХ-фильтр по методу наименьших квадратов | Синтез КИХ-фильтра методом наименьших квадратов, как scipy firls, и фильтрация | `in`: signal | `out`: signal | `numtaps` = 63 (1…4095); `bands` = 0 1000 1500 nyquist; `desired` = 1 1 0 0; `weight` = —; `compensate` = no (no, yes) |
+| `polyphase` | Полифазное разложение | Делит сигнал на полифазные компоненты x[2n] и x[2n+1] с вдвое меньшей частотой | `in`: signal | `even`: signal; `odd`: signal | — |
+| `ipolyphase` | Полифазная сборка | Чередует even и odd обратно в один сигнал с вдвое большей частотой | `even`: signal; `odd`: signal | `out`: signal | — |
+| `wpt` | Пакеты вейвлетов | Разложение на пакеты вейвлетов: делятся и детали, на выходе выбранный базис | `in`: signal | `coeffs`: coeffs | `wavelet` = db2; `levels` = 3 (1…16); `basis` = best (best, full, dwt); `ext` = symmetric (symmetric, periodization, zero, constant, smooth, periodic, reflect, antisymmetric, antireflect) |
+| `iwpt` | Обратные пакеты вейвлетов | Восстанавливает сигнал из полос wpt по базису, который они несут | `in`: coeffs | `out`: signal | — |
+| `keep_largest` | Крупнейшие коэффициенты | Оставляет K крупнейших по модулю коэффициентов деталей, остальные обнуляет | `in`: coeffs | `coeffs`: coeffs | `mode` = percent (percent, count); `amount` = 10 (0…1e+09); `keep_approx` = yes (yes, no) |
+| `coeff_quantize` | Квантование коэффициентов | Равномерное квантование деталей с нулевым уровнем: c → Δ·round(c/Δ) | `in`: coeffs | `coeffs`: coeffs | `mode` = bits (bits, step); `bits` = 8 (2…32); `step` = 0.01 (1e-12…1e+06) |
+| `shift` | Сдвиг | Сдвигает сигнал во времени на целое число отсчётов; длина не меняется | `in`: signal | `out`: signal | `samples` = 0 (-2.68435e+08…2.68435e+08); `mode` = zero (zero, circular) |
+| `biquad` | Биквадратный фильтр (RBJ) | Звено второго порядка по формулам RBJ Audio EQ Cookbook | `in`: signal | `out`: signal | `type` = lowpass (lowpass, highpass, bandpass, notch, peaking, lowshelf, highshelf, allpass); `f0` = 1000 (0…1e+06); `q` = 0.7071 (0.01…1000); `gain_db` = 0 (-60…60) |
+| `compressor` | Компрессор | Компрессор с прямой связью: уровень выше порога уменьшается в ratio раз | `in`: signal | `out`: signal | `detector` = peak (peak, rms); `threshold_db` = -20 (-120…0); `ratio` = 4 (1…100); `knee_db` = 0 (0…48); `attack_ms` = 10 (0…1000); `release_ms` = 100 (0…5000); `makeup_db` = 0 (-60…60); `rms_ms` = 10 (0.01…1000) |
+| `limiter` | Лимитер | Пиковый лимитер: компрессор с бесконечной степенью сжатия и жёстким коленом | `in`: signal | `out`: signal | `threshold_db` = -1 (-120…0); `attack_ms` = 0 (0…100); `release_ms` = 50 (0…5000) |
+| `gate` | Шумовой гейт | Шумовой гейт: ослабляет сигнал, пока его пик ниже порога | `in`: signal | `out`: signal | `threshold_db` = -50 (-200…0); `range_db` = 80 (0…200); `attack_ms` = 1 (0…1000); `release_ms` = 100 (0…5000) |
+| `echo` | Эхо | Эхо с обратной связью: повтор через delay_ms, каждый тише в feedback раз | `in`: signal | `out`: signal | `delay_ms` = 250 (0…10000); `feedback` = 0.4 (-0.999…0.999); `mix` = 0.5 (0…1) |
+| `comb` | Гребенчатый фильтр | Гребенчатый фильтр: сигнал плюс gain, умноженный на него же с задержкой delay | `in`: signal | `out`: signal | `kind` = feedback (feedback, feedforward); `delay` = 100; `gain` = 0.7 (-1…1) |
+| `mix` | Микшер | Смешивает сигналы a и b с их усилениями или плавно переходит от a к b | `a`: signal; `b`: signal | `out`: signal | `gain_a_db` = 0 (-120…24); `gain_b_db` = 0 (-120…24); `mode` = sum (sum, crossfade); `at` = 0 (0…3600); `crossfade_ms` = 10 (0…60000) |
+| `lpc` | Линейное предсказание (LPC) | Линейное предсказание: автокорреляционный метод и алгоритм Левинсона–Дурбина | `in`: signal | `residual`: signal; `report`: report | `order` = 12 (1…64) |
+| `lpc_synth` | Синтез по LPC | Синтез полюсным фильтром 1/A(z): восстанавливает сигнал из остатка и отчёта | `residual`: signal; `report`: report | `out`: signal | — |
+| `spectrum_peaks` | Пики спектра | Отчёт: сильнейшие пики спектра Уэлча, Гц и дБ | `in`: signal | `report`: report | `count` = 5 (1…64); `segment` = 4096 (16…65536); `prominence_db` = 6 (0…200) |
+| `band_power` | Мощность по октавам | Отчёт: доля мощности в каждой октавной или третьоктавной полосе | `in`: signal | `report`: report | `bands` = octave (octave, third); `segment` = 4096 (16…65536) |
+| `pitch` | Основной тон (YIN) | Основная частота по кадрам методом YIN; отчёт с медианой и долей кадров с тоном | `in`: signal | `report`: report; `f0`: signal | `fmin` = 60 (1…20000); `fmax` = 1000 (1…100000); `frame` = 2048 (32…65536); `hop` = 512 (1…65536); `threshold` = 0.1 (0.001…1) |
+| `mfcc` | Мел-кепстральные коэффициенты | Средние мел-кепстральные коэффициенты: мел-фильтры HTK, дБ, ортонормированное DCT-II | `in`: signal | `report`: report | `n_mfcc` = 13 (1…128); `n_mels` = 40 (1…256); `frame` = 2048 (16…65536); `hop` = 512 (1…65536) |
+| `spectral_features` | Спектральные признаки | Средние центроид, разброс, спад, плоскостность и поток спектра по кадрам Ханна | `in`: signal | `report`: report | `frame` = 2048 (16…65536); `hop` = 512 (1…65536); `rolloff_pct` = 85 (1…99) |
+| `histogram` | Гистограмма | Счёт отсчётов в равных интервалах, как numpy histogram; последний включает правый край | `in`: signal | `report`: report | `bins` = 10 (1…1024); `range` = auto |
+| `delay_estimate` | Оценка задержки | Отставание b от a по пику взаимной корреляции с уточнением между отсчётами | `a`: signal; `b`: signal | `report`: report | — |
+| `correlation` | Корреляция | Коэффициенты Пирсона, Спирмена и косинусная близость a и b на общей длине | `a`: signal; `b`: signal | `report`: report | — |
+| `coeff_stats` | Статистика коэффициентов | По полосам: доля энергии, энтропия Шеннона в битах, доля почти нулевых коэффициентов | `in`: coeffs | `report`: report | `tol` = 0.01 (0…1) |
+
+## Параметры блоков
+
+### `wav` — WAV
+
+- `path` — Путь к файлу; относительный путь отсчитывается от папки конвейера
+
+### `samples` — Отсчёты
+
+- `values` — Значения отсчётов через пробел, запятую или точку с запятой
+- `rate` — Частота дискретизации, Гц: сколько отсчётов приходится на секунду
+
+### `add` — Сумматор ⊕
+
+- `op` — Действие над входами: a + b или a − b
+  - `add` — сумма a + b
+  - `sub` — разность a − b
+
+### `gen` — Генератор
+
+- `kind` — Вид сигнала; от него зависит, какие из остальных параметров действуют
+  - `sine` — синусоида частоты freq с амплитудой amplitude
+  - `sweep` — логарифмический свип от freq до f1 с амплитудой 1
+  - `impulse` — единичный импульс в первом отсчёте, дальше нули
+  - `step` — единичная ступенька: единицы с первого отсчёта
+  - `white` — белый гауссов шум; amplitude — его среднеквадратичное значение, реализацию задаёт seed
+  - `pink` — розовый шум 1/f; amplitude — его среднеквадратичное значение, реализацию задаёт seed
+  - `harmonics` — тон freq и обертоны 2f, 3f, 4f с амплитудами a, a/2, a/4, a/8
+  - `doppler` — Doppler Донохо–Джонстона: колебание с растущим периодом
+  - `blocks` — Blocks Донохо–Джонстона: кусочно-постоянный сигнал со скачками
+  - `bumps` — Bumps Донохо–Джонстона: острые пики на нулевом фоне
+  - `heavisine` — HeaviSine Донохо–Джонстона: синусоида с двумя скачками
+- `freq` — Частота, Гц: тона и основного тона гармоник, начало свипа
+- `f1` — Конечная частота свипа, Гц; другим видам не нужна
+- `amplitude` — Амплитуда (у шума — среднеквадратичное значение); у свипа, импульса и ступеньки не действует
+- `rate` — Частота дискретизации, Гц; частоты выше её половины дадут наложение
+- `duration` — Длительность сигнала, с
+- `seed` — Зерно генератора шума: то же зерно — тот же шум; только для white и pink
+
+### `gain` — Усиление
+
+- `db` — Усиление, дБ: +6 — амплитуда примерно вдвое больше, отрицательное — тише
+
+### `normalize` — Нормировка
+
+- `kind` — По какому уровню нормировать: по пику или по среднеквадратичному значению
+  - `peak` — max|x| становится равным target_dbfs
+  - `rms` — среднеквадратичное значение становится равным target_dbfs
+- `target_dbfs` — Целевой уровень, дБ относительно полной шкалы (0 дБ — амплитуда 1,0)
+
+### `clip` — Ограничение
+
+- `limit` — Порог ограничения: всё, что выходит за ±limit, срезается до него
+
+### `quantize` — Квантование
+
+- `bits` — Число разрядов: меньше — грубее шаг и громче шум квантования
+- `dither` — Добавлять ли перед округлением треугольный шум (TPDF)
+  - `yes` — с TPDF-дизерингом: ошибка становится ровным шумом, не связанным с сигналом
+  - `no` — простое округление: ошибка следует за сигналом и звучит как искажение
+- `seed` — Зерно генератора дизеринга; канал c получает seed + c
+
+### `mulaw` — μ-закон
+
+- `direction` — Направление: сжатие (кодирование) или расширение (декодирование)
+  - `encode` — сжатие: y = sign(x)·ln(1 + μ|x|)/ln(1 + μ), вход обрезается до ±1
+  - `decode` — расширение: обратное отображение, возвращает исходную шкалу
+- `mu` — Параметр μ: больше — сильнее сжаты громкие отсчёты относительно тихих
+
+### `split` — Каналы
+
+- `mode` — Что подать на выходы l и r
+  - `lr` — l — канал 0, r — канал 1 (у моно оба получают канал 0)
+  - `channel` — оба выхода получают канал с номером channel
+- `channel` — Номер канала с нуля для режима channel
+
+### `mid_side` — M/S
+
+- `direction` — Направление; поворот ортогонален, поэтому обратим без потерь
+  - `encode` — L/R → M/S: канал 0 становится средним, канал 1 — разностным
+  - `decode` — M/S → L/R: возвращает левый и правый каналы
+
+### `delay` — Задержка
+
+- `samples` — Задержка в отсч. или в секундах с суффиксом s (0.01s)
+
+### `cut` — Вырезка
+
+- `begin` — Начало участка, включительно: в отсч. или в секундах с суффиксом s (0.01s)
+- `end` — Конец участка, не включается; 0 — до конца сигнала. В отсч. или в секундах с суффиксом s (0.01s)
+
+### `downsample` — Прореживание ↓M
+
+- `m` — Коэффициент прореживания M: частота дискретизации делится на M
+- `attenuation_db` — Подавление наложения фильтром Кайзера, дБ: больше — чище, но длиннее фильтр
+- `anti_alias` — Пропускать ли сигнал перед прореживанием через ФНЧ со срезом fs/(2M)
+  - `yes` — сначала ФНЧ Кайзера, затем каждый M-й отсчёт: без наложения спектров
+  - `no` — просто каждый M-й отсчёт: частоты выше fs/(2M) наложатся на низкие
+- `phase` — Сдвиг прореживания: p оставляет x[p], x[p+M], …; должен быть меньше M
+
+### `upsample` — Растяжение ↑M
+
+- `m` — Коэффициент растяжения M: частота дискретизации умножается на M
+- `attenuation_db` — Подавление изображений спектра фильтром Кайзера, дБ: больше — чище, но длиннее фильтр
+- `anti_image` — Пропускать ли растянутый сигнал через ФНЧ, убирающий изображения спектра
+  - `yes` — ФНЧ Кайзера с усилением M: гладкая интерполяция исходного сигнала
+  - `no` — только вставка нулей: в спектре остаются M−1 изображений
+
+### `resample` — Ресемплинг L/M
+
+- `l` — Коэффициент растяжения L — числитель отношения частот
+- `m` — Коэффициент прореживания M — знаменатель: новая частота fs·L/M
+- `attenuation_db` — Подавление изображений и наложения фильтрами Кайзера, дБ: больше — чище, но длиннее
+
+### `convolve` — Свёртка
+
+- `filter` — Фильтр вида вейвлет.роль: h0/h1 — анализ ФНЧ/ФВЧ, f0/f1 — синтез; или имя из библиотеки
+- `method` — Способ вычисления; результат одинаков с точностью до округления
+  - `auto` — БПФ, если оба операнда не короче 160 отсч., иначе прямая сумма
+  - `direct` — прямая сумма произведений, O(N·L): быстрее для коротких фильтров
+  - `fft` — через БПФ, O((N+L) log(N+L)): быстрее для длинных фильтров
+
+### `dwt` — DWT
+
+- `wavelet` — Имя вейвлета (haar, db4, sym8, coif3, bior2.2, dmey…): задаёт банк фильтров
+- `levels` — Число уровней J; 0 — автоматически: максимум для этой длины минус 3, не меньше 1
+- `ext` — Как продолжать сигнал за краями при свёртке; от этого зависят длины полос
+  - `symmetric` — зеркало с повтором края: … x1 x0 | x0 x1 …
+  - `periodization` — круговое без расширения: ⌈N/2⌉ коэффициентов на уровень
+  - `zero` — нули за краями сигнала
+  - `constant` — повтор крайнего отсчёта
+  - `smooth` — линейное продолжение по двум крайним отсчётам
+  - `periodic` — периодический повтор сигнала, полосы удлиняются
+  - `reflect` — зеркало без повтора края: … x2 x1 | x0 x1 x2 …
+  - `antisymmetric` — зеркало со сменой знака: … −x1 −x0 | x0 x1 …
+  - `antireflect` — отражение относительно крайнего отсчёта: x[−n] = 2x0 − x[n]
+
+### `idwt` — IDWT
+
+- `wavelet` — Вейвлет синтеза: auto — тот же, что при разложении; иное имя должно с ним совпасть
+- `ext` — Продолжение за краями: auto — как при разложении; иное значение должно совпасть
+  - `auto` — взять режим, сохранённый вместе с коэффициентами
+  - `symmetric` — зеркало с повтором края: … x1 x0 | x0 x1 …
+  - `periodization` — круговое без расширения: ⌈N/2⌉ коэффициентов на уровень
+  - `zero` — нули за краями сигнала
+  - `constant` — повтор крайнего отсчёта
+  - `smooth` — линейное продолжение по двум крайним отсчётам
+  - `periodic` — периодический повтор сигнала, полосы удлиняются
+  - `reflect` — зеркало без повтора края: … x2 x1 | x0 x1 x2 …
+  - `antisymmetric` — зеркало со сменой знака: … −x1 −x0 | x0 x1 …
+  - `antireflect` — отражение относительно крайнего отсчёта: x[−n] = 2x0 − x[n]
+
+### `swt` — SWT
+
+- `wavelet` — Имя вейвлета (haar, db4, sym8, coif3, bior2.2, dmey…): задаёт банк фильтров
+- `levels` — Число уровней J; 0 — автоматически; сигнал периодически дополняется до кратности 2^J
+- `norm` — Делить ли фильтры на √2, чтобы энергия полос равнялась энергии сигнала
+  - `no` — фильтры DWT как есть (как в pywt): энергия удваивается на каждом уровне
+  - `yes` — фильтры ×1/√2: суммарная энергия полос равна энергии сигнала
+
+### `lift53` — Лифтинг 5/3
+
+- `levels` — Число уровней разложения; сигнал должен быть не короче 2^levels отсчётов
+- `integer` — Считать ли в целых числах — обратимый вариант JPEG 2000 без потерь
+  - `no` — вещественный лифтинг: ПВ с точностью до округления
+  - `yes` — отсчёты ×32768 в целые, целый лифтинг: 16-бит PCM восстанавливается точно
+
+### `iswt` — ISWT
+
+- `wavelet` — Вейвлет синтеза: auto — тот же, что у SWT; иное имя должно с ним совпасть
+
+### `threshold` — Порог
+
+- `rule` — Правило выбора порога λ на каждом уровне; аппроксимация не трогается
+  - `bayes` — BayesShrink: λ = σ²/σx на каждом уровне, подстраивается под сигнал
+  - `visu` — VisuShrink: λ = σ√(2 ln N), убирает почти весь шум, но сглаживает сигнал
+  - `sure` — SureShrink: λ минимизирует несмещённую оценку риска Стейна на уровне
+  - `minimax` — минимаксный порог Донохо–Джонстона: мягче универсального
+- `mode` — Функция сжатия: как меняются коэффициенты относительно порога λ
+  - `soft` — мягкий: |y| ≤ λ → 0, остальные уменьшаются на λ; гладко, но со смещением
+  - `hard` — жёсткий: |y| ≤ λ → 0, остальные без изменений; меньше смещение, больше шума
+  - `garrote` — неотрицательная гаррота: y − λ²/y при |y| > λ, между мягким и жёстким
+- `levels` — Какие уровни деталей обрабатывать: J или J1..J2; 1 — самый мелкий d1
+- `sigma` — Уровень шума σ: mad_d1 — оценка медиана|d1|/0,6745, или число
+
+### `band_edit` — Правка полос
+
+- `enabled` — Какие полосы оставить, через запятую (a, d1, d3) или all; остальные обнуляются
+- `gains_db` — Усиления полос в дБ через запятую, вида d2=-6, a=3; прочие полосы не меняются
+
+### `xcorr` — Корреляция
+
+- `mode` — Какую часть корреляции выдать, как в numpy.correlate
+  - `full` — все сдвиги: длина Na + Nb − 1
+  - `same` — центральная часть длины входа a
+  - `valid` — только сдвиги с полным перекрытием: длина |Na − Nb| + 1
+- `normalize` — Делить ли на √(Ea·Eb), чтобы значения лежали в [−1, 1]
+  - `no` — сырые суммы произведений: масштаб зависит от уровня сигналов
+  - `yes` — коэффициент корреляции: 1 — та же форма при этом сдвиге
+
+### `denoise` — Шумоподавление
+
+- `wavelet` — Вейвлет разложения; длинные гладкие (sym8, db8) лучше для плавных сигналов
+- `levels` — Число уровней J; 0 — автоматически: максимум для этой длины минус 3, не меньше 1
+- `rule` — Правило выбора порога λ на каждом уровне; σ оценивается по MAD деталей d1
+  - `bayes` — BayesShrink: λ = σ²/σx на каждом уровне, подстраивается под сигнал
+  - `visu` — VisuShrink: λ = σ√(2 ln N), убирает почти весь шум, но сглаживает сигнал
+  - `sure` — SureShrink: λ минимизирует несмещённую оценку риска Стейна на уровне
+  - `minimax` — минимаксный порог Донохо–Джонстона: мягче универсального
+- `mode` — Функция сжатия: как меняются коэффициенты относительно порога λ
+  - `soft` — мягкий: |y| ≤ λ → 0, остальные уменьшаются на λ; гладко, но со смещением
+  - `hard` — жёсткий: |y| ≤ λ → 0, остальные без изменений; меньше смещение, больше шума
+- `shifts` — Число циклических сдвигов для усреднения: больше — меньше артефактов, но медленнее
+
+### `thd` — THD
+
+- `harmonics` — До какой гармоники считать: входят 2-я…N-я, лежащие ниже частоты Найквиста
+
+### `onsets` — Онсеты
+
+- `n` — Длина окна БПФ, отсч.: больше — точнее по частоте, грубее по времени
+- `hop` — Шаг окна, отсч.: меньше — точнее моменты атак, но дольше расчёт
+
+### `export` — Выгрузка CSV / JSON
+
+- `path` — Путь к файлу; относительный путь отсчитывается от папки конвейера
+- `format` — Формат файла
+  - `csv` — таблица: столбец n и по столбцу ch0, ch1… на канал
+  - `json` — объект {rate, channels: [[…], …]}: частота и массивы каналов
+
+### `export_report` — Выгрузка отчёта
+
+- `path` — Путь к файлу; относительный путь отсчитывается от папки конвейера
+- `format` — Формат файла
+  - `csv` — две колонки field,value, по строке на поле
+  - `json` — объект с полями passed и fields (имя → значение)
+
+### `check` — Проверка
+
+- `kind` — Критерий прохождения; разное число каналов или короткий вход — всегда провал
+  - `pr` — полное восстановление: max|x̂ − x| не больше tol
+  - `error` — допустимая ошибка: max|x̂ − x| не больше tol, для приближённых схем
+  - `snr` — SNR восстановления в дБ не меньше tol
+- `tol` — Порог: для pr и error — допустимая max-ошибка, для snr — наименьший SNR в дБ
+- `delay` — Отставание проверяемого сигнала от эталона, отсч., или auto — найти самому
+
+### `wav_out` — Запись
+
+- `path` — Путь к файлу; относительный путь отсчитывается от папки конвейера
+- `bits` — Формат отсчётов в файле
+  - `16` — 16-бит целые PCM, как на CD
+  - `24` — 24-бит целые PCM, студийный стандарт
+  - `32` — 32-бит целые PCM
+  - `f32` — 32-бит с плавающей точкой: значения за полной шкалой не обрезаются
+- `dither` — Дизеринг при округлении до целого формата; для f32 не действует
+  - `none` — простое округление: ошибка следует за сигналом
+  - `tpdf` — треугольный шум ±1 МЗР перед округлением: ошибка становится ровным шумом
+- `seed` — Зерно генератора дизеринга: то же зерно — тот же файл
+
+### `pad` — Дополнение нулями
+
+- `before` — Сколько нулей вставить в начало: в отсч. или в секундах с суффиксом s (0.01s)
+- `after` — Сколько нулей дописать в конец: в отсч. или в секундах с суффиксом s (0.01s)
+
+### `multiply` — Умножитель ⊗
+
+- `factor` — Постоянный множитель; отрицательный меняет полярность
+
+### `window` — Оконная функция
+
+- `kind` — Форма окна: компромисс между шириной главного лепестка и уровнем боковых
+  - `hann` — окно Ханна: боковые лепестки −31 дБ, хороший универсальный выбор
+  - `hamming` — окно Хэмминга: первый боковой лепесток −43 дБ, но медленный спад
+  - `blackman` — окно Блэкмана: боковые лепестки −58 дБ, главный шире
+  - `kaiser` — окно Кайзера: форму задаёт параметр beta
+  - `tukey` — окно Тьюки: плоская середина и косинусные края, их доля — alpha
+- `beta` — Параметр окна Кайзера: больше — ниже боковые лепестки, шире главный; только kaiser
+- `alpha` — Доля длины под косинусные края окна Тьюки: 0 — прямоугольное, 1 — окно Ханна
+
+### `fade` — Плавное нарастание и затухание
+
+- `fade_in` — Длительность нарастания в отсч. или в секундах с суффиксом s (0.01s); 0 — без него
+- `fade_out` — Длительность затухания в отсч. или в секундах с суффиксом s (0.01s); 0 — без него
+- `curve` — Форма кривой усиления
+  - `linear` — линейный подъём от 0 до 1
+  - `cosine` — полуволна косинуса: мягкие начало и конец подъёма
+
+### `softclip` — Мягкое ограничение tanh
+
+- `drive` — Предусиление перед tanh: больше — сильнее насыщение и искажения
+
+### `dc_offset` — Постоянное смещение
+
+- `value` — Смещение в единицах отсчётов (1,0 — полная шкала)
+
+### `trim_silence` — Обрезка тишины
+
+- `threshold_db` — Порог тишины, дБ полной шкалы: края тише него во всех каналах срезаются
+
+### `add_noise` — Добавить шум
+
+- `color` — Цвет шума: наклон его спектра
+  - `white` — белый: равная мощность на всех частотах
+  - `pink` — розовый 1/f: −3 дБ на октаву, равная мощность в каждой октаве
+  - `brown` — коричневый 1/f²: −6 дБ на октаву, преобладают низкие
+- `snr_db` — Отношение сигнал/шум, дБ, по средней мощности всех каналов: меньше — громче шум
+- `seed` — Зерно генератора шума; канал c получает seed + c
+
+### `chirp` — Чирп
+
+- `method` — Закон изменения частоты во времени
+  - `linear` — линейный: равный прирост в Гц за равное время
+  - `log` — логарифмический: равные октавы за равное время; f0 и f1 больше 0
+- `f0` — Начальная частота, Гц
+- `f1` — Конечная частота, Гц; ниже f0 — частота падает
+- `amplitude` — Амплитуда; отрицательная меняет полярность
+- `rate` — Частота дискретизации, Гц; частоты выше её половины дадут наложение
+- `duration` — Длительность сигнала, с
+
+### `osc` — Меандр, пила, треугольник
+
+- `kind` — Форма колебания
+  - `square` — прямоугольный ±1; доля периода со значением +1 — duty
+  - `sawtooth` — пила: подъём от −1 до 1 за долю периода width, затем спад
+  - `triangle` — треугольник: пила с width = 0,5
+  - `pulses` — единичный импульс в начале каждого периода, между ними нули
+- `freq` — Частота повторения, Гц
+- `duty` — Коэффициент заполнения: доля периода со значением +1; только square
+- `width` — Доля периода на подъём пилы: 1 — нарастающая, 0 — спадающая; только sawtooth
+- `amplitude` — Амплитуда; отрицательная меняет полярность
+- `rate` — Частота дискретизации, Гц; частоты выше её половины дадут наложение
+- `duration` — Длительность сигнала, с
+
+### `iir` — БИХ-фильтр
+
+- `family` — Семейство фильтра: форма АЧХ и ФЧХ
+  - `butterworth` — Баттерворт: максимально плоская полоса пропускания, без пульсаций
+  - `cheby1` — Чебышев I: пульсации rp в полосе пропускания, спад круче
+  - `cheby2` — Чебышев II: плоская полоса пропускания, подавление rs в полосе задерживания
+  - `ellip` — эллиптический: пульсации rp и rs, самый крутой спад при данном порядке
+  - `bessel` — Бессель: почти постоянная групповая задержка, пологий спад
+- `type` — Тип полосы
+  - `lowpass` — ФНЧ: пропускает ниже cutoff
+  - `highpass` — ФВЧ: пропускает выше cutoff
+  - `bandpass` — полосовой: пропускает между двумя частотами cutoff
+  - `bandstop` — режекторный: подавляет между двумя частотами cutoff
+- `order` — Порядок фильтра: больше — круче спад, но дольше переходный процесс
+- `cutoff` — Частота среза, Гц; для полосового и режекторного — две через пробел или запятую
+- `rp` — Пульсации в полосе пропускания, дБ; для cheby1 и ellip
+- `rs` — Подавление в полосе задерживания, дБ; для cheby2 и ellip
+- `zero_phase` — Фильтровать ли вперёд и назад (filtfilt), чтобы убрать фазовый сдвиг
+  - `no` — обычная причинная фильтрация: есть задержка и фазовые искажения
+  - `yes` — вперёд и назад: нулевая фаза, АЧХ в квадрате, порядок удвоен
+
+### `fir` — КИХ-фильтр (метод окна)
+
+- `numtaps` — Число отводов N: больше — круче переход, но больше задержка (N−1)/2 отсчётов
+- `cutoff` — Частоты среза, Гц, через пробел или запятую: одна — ФНЧ/ФВЧ, две и больше — полосы
+- `window` — Окно, которым усекается идеальная характеристика
+  - `hamming` — Хэмминг: подавление около 53 дБ, обычный выбор
+  - `hann` — Ханн: подавление около 44 дБ
+  - `blackman` — Блэкман: подавление около 74 дБ, переход шире
+  - `kaiser` — Кайзер: подавление задаёт параметр beta
+  - `boxcar` — прямоугольное: самый узкий переход, но подавление лишь около 21 дБ
+- `beta` — Параметр окна Кайзера: больше — сильнее подавление и шире переход; только kaiser
+- `pass_zero` — Пропускать ли нулевую частоту (постоянную составляющую)
+  - `yes` — DC проходит: одна частота — ФНЧ, две — режекторный
+  - `no` — DC подавлен: одна частота — ФВЧ, две — полосовой
+- `compensate` — Убирать ли групповую задержку фильтра в (N−1)/2 отсчётов
+  - `no` — выход отстаёт на (N−1)/2 отсч., как у настоящего причинного фильтра
+  - `yes` — выход сдвинут назад на (N−1)/2 и выровнен по времени со входом
+
+### `median` — Медианный фильтр
+
+- `kernel` — Длина окна, нечётная, отсч.: больше — убирает более широкие выбросы и сильнее сглаживает
+
+### `moving_average` — Скользящее среднее
+
+- `length` — Длина окна усреднения, отсч.: больше — сильнее сглаживание
+- `centred` — Центрировать ли окно, убирая задержку (length−1)/2
+  - `no` — причинное окно по прошлым отсчётам: выход отстаёт на (length−1)/2
+  - `yes` — окно вокруг текущего отсчёта: без задержки
+
+### `preemphasis` — Предыскажение
+
+- `coeff` — Коэффициент k: ближе к 1 — сильнее подъём высоких и спад низких
+
+### `deemphasis` — Снятие предыскажения
+
+- `coeff` — Коэффициент k, тот же, что при предыскажении; ближе к 1 — длиннее память
+
+### `lift97` — Лифтинг 9/7
+
+- `levels` — Число уровней разложения; сигнал должен быть не короче 2^levels отсчётов
+
+### `mra` — Компонента КМА
+
+- `component` — Какую полосу оставить: a (или aJ) — аппроксимация, dJ — детали уровня J
+
+### `pan` — Панорама
+
+- `position` — Положение: −1 — крайнее левое, 0 — центр, 1 — крайнее правое
+- `law` — Закон панорамирования: как уровень делится между L и R
+  - `constant_power` — постоянная мощность: L = cos, R = sin; в центре оба −3 дБ
+  - `linear` — линейный: L = (1−p)/2, R = (1+p)/2; в центре оба −6 дБ
+
+### `duplicate` — Размножение каналов
+
+- `channels` — Число каналов на выходе; входные каналы повторяются по кругу
+
+### `loudness` — Громкость (RMS по 400 мс)
+
+- `window` — Длина окна в отсч. или в секундах с суффиксом s (0.01s)
+- `hop` — Шаг окна в отсч. или в секундах с суффиксом s (0.01s); меньше — плотнее сетка
+
+### `lms` — Адаптивный фильтр LMS/NLMS
+
+- `taps` — Длина адаптивного фильтра, отсч.: больше — длиннее моделируемый путь, медленнее сходимость
+- `mu` — Шаг адаптации: больше — быстрее сходимость, но шумнее; слишком большой у LMS расходится
+- `rule` — Правило обновления весов
+  - `nlms` — нормированный LMS: шаг делится на энергию x, устойчив при mu < 2
+  - `lms` — классический LMS: шаг не нормирован, зависит от уровня x
+
+### `wiener` — Винеровский фильтр
+
+- `size` — Окно оценки локальных среднего и дисперсии, отсч.: больше — сильнее сглаживание
+- `noise` — Дисперсия шума; 0 — оценить как среднюю локальную дисперсию
+
+### `spectral_subtract` — Спектральное вычитание
+
+- `alpha` — Коэффициент перевычитания: больше — сильнее подавление шума, но больше искажений
+- `beta` — Спектральный пол: доля мощности шума, ниже которой бин не опускается
+- `n` — Длина кадра БПФ, отсч., шаг n/4: больше — точнее по частоте, грубее по времени
+- `noise_s` — Если вход noise не подключён — сколько секунд начала сигнала считать шумом
+
+### `deconvolve` — Деконволюция
+
+- `snr_db` — Ожидаемый SNR, дБ: больше — смелее обращение, но сильнее усиливается шум
+
+### `tremolo` — Тремоло
+
+- `rate_hz` — Частота модуляции громкости, Гц: 2–10 Гц — классическое тремоло
+- `depth` — Глубина: 0 — без эффекта, 1 — громкость опускается до нуля
+- `shape` — Форма низкочастотного генератора (LFO), задающего громкость
+  - `sine` — синус: плавное покачивание
+  - `triangle` — треугольник: линейные подъём и спад
+  - `square` — меандр: резкое переключение между полной и пониженной громкостью
+
+### `modulated_delay` — Модулированная задержка
+
+- `mode` — Эффект: как смешиваются задержанный и исходный сигналы
+  - `chorus` — хорус: задержка 10–30 мс вместе с исходным, без обратной связи
+  - `flanger` — флэнджер: задержка 0–5 мс с обратной связью, гребёнка бегущих провалов
+  - `vibrato` — вибрато: только задержанный сигнал — колеблется высота тона
+- `rate_hz` — Частота LFO, Гц: как быстро качается задержка
+- `depth_ms` — Размах качания, мс: задержка ходит от base_ms до base_ms + depth_ms
+- `base_ms` — Наименьшая задержка, мс; короче одного отсчёта она не становится
+- `feedback` — Доля задержанного сигнала, подаваемая обратно на вход задержки; только flanger
+- `mix` — Доля задержанного сигнала в выходе: 0 — только исходный; у vibrato всегда 1
+
+### `phaser` — Фэйзер
+
+- `stages` — Число фазовых звеньев первого порядка: каждые два дают один провал АЧХ
+- `rate_hz` — Частота LFO, Гц: как быстро движутся провалы
+- `min_hz` — Нижний край качания частоты излома звеньев, Гц; ниже частоты Найквиста
+- `max_hz` — Верхний край качания, Гц; ниже частоты Найквиста; качание идёт по октавам
+- `feedback` — Доля выхода цепочки, подаваемая обратно на вход: острее провалы, сильнее резонанс
+- `mix` — Доля обработанного сигнала в выходе: 0,5 даёт самые глубокие провалы
+
+### `reverb` — Реверберация
+
+- `room_size` — Размер комнаты: больше — длиннее хвост (обратная связь гребёнок 0,7…0,98)
+- `damping` — Затухание высоких частот в хвосте: больше — темнее звук
+- `wet` — Уровень реверберации; длина входа сохраняется — чтобы услышать хвост, добавьте pad
+- `dry` — Уровень исходного сигнала в выходе
+
+### `wavefold` — Складывание волны
+
+- `drive` — Усиление перед складыванием: больше — больше складок и обертонов
+- `shape` — Как складывается сигнал
+  - `triangle` — отражение от уровней ±1: треугольная передаточная характеристика
+  - `sine` — y = sin(π/2·drive·x): плавные складки
+
+### `am` — Амплитудная модуляция
+
+- `carrier_hz` — Частота несущей, Гц; выше половины частоты дискретизации даёт наложение
+- `depth` — Индекс модуляции: где |depth·x| > 1, огибающая переходит через ноль (перемодуляция)
+
+### `fm` — Частотная модуляция
+
+- `carrier_hz` — Частота несущей, Гц; выше половины частоты дискретизации даёт наложение
+- `deviation_hz` — Девиация частоты на единицу входа, Гц: насколько далеко уходит частота
+
+### `gausspulse` — Гауссов импульс
+
+- `fc` — Центральная частота, Гц
+- `bw` — Относительная ширина полосы по уровню bwr, доля fc: меньше — длиннее импульс
+- `bwr` — Уровень, на котором измеряется ширина полосы, дБ; отрицательный
+- `amplitude` — Пиковая амплитуда; отрицательная меняет полярность
+- `rate` — Частота дискретизации, Гц; частоты выше её половины дадут наложение
+- `duration` — Длительность сигнала, с; импульс стоит в середине
+
+### `impulse_train` — Серия импульсов
+
+- `period` — Период в отсчётах или в секундах с суффиксом s (0.01s)
+- `offset` — Положение первого импульса: отсчёты или секунды с суффиксом s
+- `amplitude` — Высота импульсов; отрицательная меняет полярность
+- `rate` — Частота дискретизации, Гц
+- `duration` — Длительность сигнала, с
+
+### `affine` — Масштаб и сдвиг
+
+- `scale` — Множитель; отрицательный меняет полярность
+- `offset` — Постоянная, прибавляемая после умножения
+
+### `math` — Функция
+
+- `op` — Функция; вне области определения блок останавливается с ошибкой, а не выдаёт NaN
+  - `log` — натуральный логарифм ln x; нужно x > 0
+  - `log10` — десятичный логарифм; нужно x > 0; 20·log10 от модуля — уровень в дБ
+  - `exp` — экспонента eˣ; при x > 709 переполнение
+  - `sqrt` — квадратный корень; нужно x ≥ 0
+  - `pow` — степень xᵖ; при x < 0 p должно быть целым, при x = 0 — неотрицательным
+  - `sign` — знак: −1, 0 или 1
+  - `reciprocal` — обратная величина 1/x; нужно x ≠ 0
+- `p` — Показатель степени; только pow
+
+### `binary` — Операция над двумя
+
+- `op` — Операция; более короткий вход дополняется нулями, как в add
+  - `divide` — a / b; ноль в b, в том числе в дополнении, — ошибка
+  - `min` — меньшее из a и b
+  - `max` — большее из a и b
+  - `pow` — aᵇ; при a < 0 b должно быть целым, при a = 0 — неотрицательным
+  - `hypot` — √(a² + b²) без переполнения: модуль по двум составляющим
+
+### `repeat` — Повтор
+
+- `times` — Сколько копий в выходе; 1 оставляет сигнал как есть
+
+### `select_channel` — Выбор канала
+
+- `index` — Номер канала с нуля: 0 — левый, 1 — правый
+
+### `channel_delay` — Задержка каналов
+
+- `delays` — Задержки каналов в отсчётах через пробел или запятую: 0 12; последняя повторяется, отрицательная опережает
+
+### `stereo_width` — Ширина стерео
+
+- `width` — Множитель разностного сигнала: 0 — моно, 1 — без изменений, 2 — вдвое шире
+
+### `balance` — Баланс
+
+- `position` — Положение p: −1 — только левый (+3 дБ), 0 — без изменений, 1 — только правый
+
+### `sample_hold` — Выборка-хранение
+
+- `hold` — Шаг удержания: отсчёты или секунды с суффиксом s; частота отсчётов падает до fs/hold
+
+### `dc_block` — Блокировка DC
+
+- `r` — Полюс: ближе к 1 — ниже частота среза, около (1−r)·fs/2π, и дольше установление
+
+### `lfilter` — Фильтр по коэффициентам b, a
+
+- `b` — Коэффициенты числителя b0 b1 … через пробел или запятую; делятся на a0
+- `a` — Коэффициенты знаменателя a0 a1 …; a0 не ноль, одна 1 даёт КИХ-фильтр
+
+### `fir_taps` — КИХ-фильтр по отводам
+
+- `taps` — Импульсная характеристика h0 h1 … через пробел или запятую
+- `compensate` — Убирать ли задержку в (N−1)/2 отсчётов у фильтра из N отводов
+  - `no` — выход отстаёт на (N−1)/2 отсч., как у настоящего причинного фильтра
+  - `yes` — выход сдвинут назад на (N−1)/2 и выровнен по времени со входом
+
+### `savgol` — Сглаживание Савицкого — Голея
+
+- `window` — Длина окна в отсчётах, нечётная: длиннее — сильнее сглаживание
+- `polyorder` — Степень полинома, меньше окна: выше — пики острее, но сглаживание слабее
+- `deriv` — Порядок производной: 0 — сглаживание, 1 — наклон за секунду, 2 — кривизна
+- `mode` — Чем окно дополняется за краями сигнала
+  - `interp` — у краёв полином подгоняется по первому и последнему окну
+  - `mirror` — отражение относительно крайних отсчётов без их повтора
+  - `nearest` — повтор крайних отсчётов
+  - `constant` — дополнение нулями
+  - `wrap` — периодическое продолжение с другого конца
+
+### `hilbert` — Преобразование Гильберта
+
+- `output` — Что выдавать; модуль даёт блок envelope, скорость фазы — inst_freq
+  - `imag` — само преобразование Гильберта: сигнал, сдвинутый на 90°
+  - `phase` — мгновенная фаза в радианах, свёрнутая в −π…π
+  - `unwrapped` — мгновенная фаза без скачков на 2π, как numpy unwrap
+
+### `remez` — Равноволновой КИХ-фильтр (Ремез)
+
+- `numtaps` — Число отводов N: больше — круче переход, но больше задержка (N−1)/2 отсчётов
+- `bands` — Края полос в Гц парами, от 0 до nyquist, например 0 1000 1500 nyquist
+- `desired` — Желаемое усиление в каждой полосе, по одному числу на пару краёв
+- `weight` — Вес ошибки для каждой полосы, пусто — поровну; больше — эта полоса ровнее
+- `type` — Тип синтезируемого фильтра
+  - `bandpass` — обычный фильтр: ФНЧ, ФВЧ, полосовой или режекторный по полосам
+  - `differentiator` — усиление растёт с частотой: производная в заданных полосах
+  - `hilbert` — фазовращатель на 90°, КИХ-преобразователь Гильберта
+- `compensate` — Убирать ли задержку в (N−1)/2 отсчётов у фильтра из N отводов
+  - `no` — выход отстаёт на (N−1)/2 отсч., как у настоящего причинного фильтра
+  - `yes` — выход сдвинут назад на (N−1)/2 и выровнен по времени со входом
+
+### `firls` — КИХ-фильтр по методу наименьших квадратов
+
+- `numtaps` — Число отводов N, нечётное: больше — круче переход, но задержка (N−1)/2 отсчётов
+- `bands` — Края полос в Гц парами, от 0 до nyquist, например 0 1000 1500 nyquist
+- `desired` — Желаемое усиление на каждом краю полосы; между краями — линейно
+- `weight` — Вес ошибки для каждой полосы, пусто — поровну; больше — точнее в этой полосе
+- `compensate` — Убирать ли задержку в (N−1)/2 отсчётов у фильтра из N отводов
+  - `no` — выход отстаёт на (N−1)/2 отсч., как у настоящего причинного фильтра
+  - `yes` — выход сдвинут назад на (N−1)/2 и выровнен по времени со входом
+
+### `wpt` — Пакеты вейвлетов
+
+- `wavelet` — Вейвлет каждого деления; ортогональный сохраняет энергию и подходит для лучшего базиса
+- `levels` — Глубина J полного дерева; в сигнале должно быть не меньше 2^J отсчётов
+- `basis` — Какие листья дерева выдать, в частотном порядке
+  - `best` — лучший базис Коифмана–Уикерхаузера по энтропии Шеннона, общий для всех каналов
+  - `full` — все 2^J узлов нижнего уровня: равные полосы
+  - `dwt` — aJ и dJ…d1: то же разбиение, что у обычного DWT
+- `ext` — Продолжение сигнала за краями, как в pywt
+  - `symmetric` — зеркало с повтором края: … x1 x0 | x0 x1 …
+  - `periodization` — круговое без расширения: ⌈N/2⌉ коэффициентов на уровень
+  - `zero` — нули за краями сигнала
+  - `constant` — повтор крайнего отсчёта
+  - `smooth` — линейное продолжение по двум крайним отсчётам
+  - `periodic` — периодический повтор сигнала, полосы удлиняются
+  - `reflect` — зеркало без повтора края: … x2 x1 | x0 x1 x2 …
+  - `antisymmetric` — зеркало со сменой знака: … −x1 −x0 | x0 x1 …
+  - `antireflect` — отражение относительно крайнего отсчёта: x[−n] = 2x0 − x[n]
+
+### `keep_largest` — Крупнейшие коэффициенты
+
+- `mode` — Как amount задаёт K: долей коэффициентов или их числом
+  - `percent` — K — amount процентов от коэффициентов, участвующих в отборе
+  - `count` — K — само amount, округлённое до целого
+- `amount` — Процент или число коэффициентов, остающихся в каждом канале
+- `keep_approx` — Оставлять ли аппроксимацию целиком, не включая её в отбор
+  - `yes` — аппроксимация остаётся целиком, K выбирается среди деталей
+  - `no` — аппроксимация соревнуется с деталями за K мест
+
+### `coeff_quantize` — Квантование коэффициентов
+
+- `mode` — Как задаётся шаг Δ
+  - `bits` — в каждой полосе Δ = max|c| / (2^(bits−1) − 1)
+  - `step` — один шаг Δ = step для всех полос деталей
+- `bits` — Бит на коэффициент вместе со знаком: меньше бит — грубее шаг
+- `step` — Шаг квантования Δ в единицах коэффициентов; значения меньше Δ/2 обнуляются
+
+### `shift` — Сдвиг
+
+- `samples` — Сдвиг в отсчётах: положительный задерживает сигнал, отрицательный опережает
+- `mode` — Чем заполняются освободившиеся отсчёты
+  - `zero` — входят нули, вытолкнутые за край отсчёты теряются
+  - `circular` — круговой сдвиг: ушедшие с одного конца отсчёты возвращаются с другого
+
+### `biquad` — Биквадратный фильтр (RBJ)
+
+- `type` — Тип фильтра: формула для b и a из сборника
+  - `lowpass` — ФНЧ: −3 дБ на f0 при q = 0,7071
+  - `highpass` — ФВЧ: −3 дБ на f0 при q = 0,7071
+  - `bandpass` — полосовой с 0 дБ на f0; q задаёт ширину
+  - `notch` — режекторный: нулевое усиление на f0, q задаёт ширину
+  - `peaking` — пиковый эквалайзер: gain_db на f0, 0 дБ вдали от неё
+  - `lowshelf` — НЧ-полка: gain_db ниже f0
+  - `highshelf` — ВЧ-полка: gain_db выше f0
+  - `allpass` — фазовый: АЧХ ровная, фаза поворачивается на 360° вокруг f0
+- `f0` — Центральная или граничная частота, Гц; строго между 0 и частотой Найквиста
+- `q` — Добротность: больше — уже полоса и сильнее резонанс
+- `gain_db` — Усиление на f0 или на полке, дБ; только для peaking, lowshelf и highshelf
+
+### `compressor` — Компрессор
+
+- `detector` — Как измеряется уровень; каналы связаны одним усилением
+  - `peak` — мгновенный пик |x| по всем каналам
+  - `rms` — средний квадрат по всем каналам, усреднённый за rms_ms
+- `threshold_db` — Порог, дБ полной шкалы: уровень, выше которого начинается сжатие
+- `ratio` — Степень сжатия: при 4 превышение порога на 4 дБ становится 1 дБ
+- `knee_db` — Ширина колена, дБ: 0 — жёсткое колено, больше — плавное начало сжатия
+- `attack_ms` — Постоянная атаки, мс: как быстро падает усиление при росте уровня
+- `release_ms` — Постоянная восстановления, мс: как быстро усиление возвращается при спаде уровня
+- `makeup_db` — Компенсирующее усиление после сжатия, дБ
+- `rms_ms` — Время усреднения RMS-детектора, мс; только для rms
+
+### `limiter` — Лимитер
+
+- `threshold_db` — Потолок, дБ полной шкалы: при attack 0 ни один отсчёт его не превысит
+- `attack_ms` — Постоянная атаки, мс: больше 0 — короткие пики проскакивают выше потолка
+- `release_ms` — Постоянная восстановления, мс: как быстро усиление возвращается после пика
+
+### `gate` — Шумовой гейт
+
+- `threshold_db` — Порог, дБ полной шкалы: ниже него гейт закрывается
+- `range_db` — Ослабление закрытого гейта, дБ: 80 — почти тишина
+- `attack_ms` — Постоянная открытия, мс: как быстро гейт открывается на громком звуке
+- `release_ms` — Постоянная закрытия, мс: как быстро гейт закрывается после него
+
+### `echo` — Эхо
+
+- `delay_ms` — Время между повторами, мс
+- `feedback` — Доля повтора, возвращаемая в задержку: 0 — одно эхо, ближе к 1 — длинный хвост
+- `mix` — Доля обработанного: 0 — только исходный сигнал, 1 — только повторы
+
+### `comb` — Гребенчатый фильтр
+
+- `kind` — Что задерживается
+  - `feedback` — y[n] = x[n] + g·y[n−D]: резонансные пики, БИХ-фильтр
+  - `feedforward` — y[n] = x[n] + g·x[n−D]: равноотстоящие провалы, КИХ-фильтр
+- `delay` — Задержка D в отсч. или в секундах с суффиксом s (0.01s); не меньше одного отсчёта
+- `gain` — Усиление g задержанной ветви; для feedback нужно |g| < 1
+
+### `mix` — Микшер
+
+- `gain_a_db` — Усиление входа a, дБ
+- `gain_b_db` — Усиление входа b, дБ
+- `mode` — Как объединяются входы; короткий дополняется нулями
+  - `sum` — сумма обоих входов в каждом отсчёте
+  - `crossfade` — a до момента at, линейный переход за crossfade_ms, затем b
+- `at` — Начало перехода, с; только для crossfade
+- `crossfade_ms` — Длина перехода, мс; 0 — мгновенное переключение; только для crossfade
+
+### `lpc` — Линейное предсказание (LPC)
+
+- `order` — Порядок предсказателя p: сколько прошлых отсчётов предсказывают следующий
+
+### `spectrum_peaks` — Пики спектра
+
+- `count` — Сколько сильнейших пиков вывести
+- `segment` — Сегмент Уэлча, отсч., перекрытие 50 %: длиннее — различаются более близкие пики
+- `prominence_db` — Наименьшая выраженность, дБ: насколько пик должен подниматься над окрестностью
+
+### `band_power` — Мощность по октавам
+
+- `bands` — Ширина полос; центры — десятичный ряд IEC 61260 вокруг 1 кГц
+  - `octave` — октавные полосы от 31,5 Гц до 16 кГц
+  - `third` — третьоктавные полосы от 25 Гц до 20 кГц
+- `segment` — Сегмент Уэлча, отсч., перекрытие 50 %: длиннее — точнее нижние полосы
+
+### `pitch` — Основной тон (YIN)
+
+- `fmin` — Самая низкая искомая частота, Гц: ниже — нужен кадр длиннее
+- `fmax` — Самая высокая искомая частота, Гц
+- `frame` — Длина кадра в отсчётах; первая половина — окно сравнения
+- `hop` — Шаг между кадрами в отсчётах; выход f0 идёт с частотой rate/hop
+- `threshold` — Порог нормированной разности: ниже — строже, больше кадров без тона
+
+### `mfcc` — Мел-кепстральные коэффициенты
+
+- `n_mfcc` — Сколько коэффициентов выдать, начиная с c0 — общего уровня
+- `n_mels` — Число треугольных мел-фильтров от 0 Гц до частоты Найквиста
+- `frame` — Длина кадра в отсчётах, окно Ханна
+- `hop` — Шаг между кадрами в отсчётах
+
+### `spectral_features` — Спектральные признаки
+
+- `frame` — Длина кадра в отсчётах, окно Ханна: длиннее — точнее по частоте
+- `hop` — Шаг между кадрами в отсчётах
+- `rolloff_pct` — Спад — частота, ниже которой лежит этот процент суммы амплитуд
+
+### `histogram` — Гистограмма
+
+- `bins` — Число интервалов одинаковой ширины
+- `range` — auto — от минимума до максимума сигнала, или два числа lo hi
+
+### `coeff_stats` — Статистика коэффициентов
+
+- `tol` — Коэффициент почти нулевой, если его модуль меньше tol × наибольшего модуля в канале

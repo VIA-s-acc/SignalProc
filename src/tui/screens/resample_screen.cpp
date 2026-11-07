@@ -93,20 +93,23 @@ void ResampleScreen::refresh() {
     view_ = std::make_shared<const ResampleView>(std::move(*v));
 }
 
-ftxui::Element ResampleScreen::clickable(ftxui::Element e, std::function<void()> action) {
-    clickables_.push_back({ftxui::Box{0, -1, 0, -1}, std::move(action)});
+ftxui::Element ResampleScreen::clickable(std::string id, ftxui::Element e, std::function<void()> action) {
+    clickables_.push_back({std::move(id), ftxui::Box{0, -1, 0, -1}, std::move(action)});
     return std::move(e) | ftxui::reflect(clickables_.back().box);
 }
 
-ftxui::Element ResampleScreen::chip(const std::string& label, bool on, std::function<void()> action) {
+ftxui::Element ResampleScreen::chip(std::string id, const std::string& label, bool on, std::function<void()> action) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     auto t = text(label);
     t = on ? t | bold | fg(th.bg, ui_) | bg(th.trace[0], ui_) : t | fg(th.fg, ui_);
-    return hbox({clickable(t, std::move(action)), text(" ")});
+    return hbox({clickable(std::move(id), t, std::move(action)), text(" ")});
 }
 
 ftxui::Element ResampleScreen::frame(Panel p, std::string title, std::vector<Chip> chips, ftxui::Element body) {
+    static constexpr const char* kNames[]{"controls", "before", "after", "readouts", "time"};
+    const std::string name = kNames[static_cast<std::size_t>(p)];
+    for (auto& c : chips) c.box = notes_.box("legend." + name);
     if (breakpoint_ <= Breakpoint::small && !maximized_ && p != controls_panel) {
         const auto it = std::find(small_panels_.begin(), small_panels_.end(), p);
         if (it != small_panels_.end())
@@ -114,7 +117,8 @@ ftxui::Element ResampleScreen::frame(Panel p, std::string title, std::vector<Chi
                                          fmt::arg("count", static_cast<int>(small_panels_.size()))),
                              false});
     }
-    return panel(std::move(title), std::move(chips), std::move(body), focus_ == p, ui_) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
+    return panel(std::move(title), std::move(chips), std::move(body), focus_ == p, ui_, notes_.box("panel." + name)) |
+           ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
 }
 
 ftxui::Element ResampleScreen::controls() {
@@ -122,24 +126,24 @@ ftxui::Element ResampleScreen::controls() {
     const auto& th = ui_.theme;
     const auto& o = options_;
     auto set = [this](auto f) { return [this, f] { f(options_); }; };
-    Elements first{text(tr("tui.resample.mode") + " ") | fg(th.dim, ui_)};
-    first.push_back(chip("↓M", o.mode == ResampleMode::down, set([](ResampleOptions& p) { p.mode = ResampleMode::down; })));
-    first.push_back(chip("↑L", o.mode == ResampleMode::up, set([](ResampleOptions& p) { p.mode = ResampleMode::up; })));
-    first.push_back(chip("L/M", o.mode == ResampleMode::rational, set([](ResampleOptions& p) { p.mode = ResampleMode::rational; })));
-    first.push_back(text(" M = " + std::to_string(o.m) + " ") | fg(th.fg, ui_));
-    first.push_back(chip("−", false, set([](ResampleOptions& p) { p.m = p.m > 1 ? p.m - 1 : 1; })));
-    first.push_back(chip("+", false, set([](ResampleOptions& p) { p.m = std::min(kMaxFactor, p.m + 1); })));
-    first.push_back(text(" L = " + std::to_string(o.l) + " ") | fg(th.fg, ui_));
-    first.push_back(chip("<", false, set([](ResampleOptions& p) { p.l = p.l > 1 ? p.l - 1 : 1; })));
-    first.push_back(chip(">", false, set([](ResampleOptions& p) { p.l = std::min(kMaxFactor, p.l + 1); })));
-    Elements second{text(tr("tui.resample.filter") + " ") | fg(th.dim, ui_)};
-    second.push_back(chip(tr("tui.resample.filter.on"), o.filter == AntiAlias::on, set([](ResampleOptions& p) { p.filter = AntiAlias::on; })));
-    second.push_back(chip(tr("tui.resample.filter.bypass"), o.filter == AntiAlias::bypass, set([](ResampleOptions& p) { p.filter = AntiAlias::bypass; })));
-    second.push_back(text(" " + tr("tui.resample.cutoff") + " ×" + format_fixed(o.cutoff, 2) + "  ") | fg(th.fg, ui_));
-    second.push_back(text(tr("tui.resample.source") + " ") | fg(th.dim, ui_));
-    second.push_back(chip(tr("tui.resample.source.tone") + " " + hz(o.tone_hz), o.source == ResampleSource::tone, set([](ResampleOptions& p) { p.source = ResampleSource::tone; })));
-    second.push_back(chip(tr("tui.resample.source.sweep"), o.source == ResampleSource::sweep, set([](ResampleOptions& p) { p.source = ResampleSource::sweep; })));
-    second.push_back(chip(tr("tui.resample.source.file"), o.source == ResampleSource::file, set([](ResampleOptions& p) { p.source = ResampleSource::file; })));
+    Elements first{notes_.mark("mode", text(tr("tui.resample.mode") + " ") | fg(th.dim, ui_))};
+    first.push_back(chip("mode_down", "↓M", o.mode == ResampleMode::down, set([](ResampleOptions& p) { p.mode = ResampleMode::down; })));
+    first.push_back(chip("mode_up", "↑L", o.mode == ResampleMode::up, set([](ResampleOptions& p) { p.mode = ResampleMode::up; })));
+    first.push_back(chip("mode_rational", "L/M", o.mode == ResampleMode::rational, set([](ResampleOptions& p) { p.mode = ResampleMode::rational; })));
+    first.push_back(notes_.mark("m", text(" M = " + std::to_string(o.m) + " ") | fg(th.fg, ui_)));
+    first.push_back(chip("m_less", "−", false, set([](ResampleOptions& p) { p.m = p.m > 1 ? p.m - 1 : 1; })));
+    first.push_back(chip("m_more", "+", false, set([](ResampleOptions& p) { p.m = std::min(kMaxFactor, p.m + 1); })));
+    first.push_back(notes_.mark("l", text(" L = " + std::to_string(o.l) + " ") | fg(th.fg, ui_)));
+    first.push_back(chip("l_less", "<", false, set([](ResampleOptions& p) { p.l = p.l > 1 ? p.l - 1 : 1; })));
+    first.push_back(chip("l_more", ">", false, set([](ResampleOptions& p) { p.l = std::min(kMaxFactor, p.l + 1); })));
+    Elements second{notes_.mark("filter", text(tr("tui.resample.filter") + " ") | fg(th.dim, ui_))};
+    second.push_back(chip("filter_on", tr("tui.resample.filter.on"), o.filter == AntiAlias::on, set([](ResampleOptions& p) { p.filter = AntiAlias::on; })));
+    second.push_back(chip("filter_bypass", tr("tui.resample.filter.bypass"), o.filter == AntiAlias::bypass, set([](ResampleOptions& p) { p.filter = AntiAlias::bypass; })));
+    second.push_back(notes_.mark("cutoff", text(" " + tr("tui.resample.cutoff") + " ×" + format_fixed(o.cutoff, 2) + "  ") | fg(th.fg, ui_)));
+    second.push_back(notes_.mark("source", text(tr("tui.resample.source") + " ") | fg(th.dim, ui_)));
+    second.push_back(chip("source_tone", tr("tui.resample.source.tone") + " " + hz(o.tone_hz), o.source == ResampleSource::tone, set([](ResampleOptions& p) { p.source = ResampleSource::tone; })));
+    second.push_back(chip("source_sweep", tr("tui.resample.source.sweep"), o.source == ResampleSource::sweep, set([](ResampleOptions& p) { p.source = ResampleSource::sweep; })));
+    second.push_back(chip("source_file", tr("tui.resample.source.file"), o.source == ResampleSource::file, set([](ResampleOptions& p) { p.source = ResampleSource::file; })));
     Elements body{hbox(std::move(first)) | xflex, hbox(std::move(second)) | xflex};
     if (!notice_.empty()) body.push_back(paragraph(notice_) | fg(th.warn, ui_));
     std::string title = tr("tui.resample.title");
@@ -283,6 +287,7 @@ ftxui::Element ResampleScreen::render_panel(Panel p) {
 ftxui::Element ResampleScreen::OnRender() {
     using namespace ftxui;
     clickables_.clear();
+    notes_.clear();
     panel_boxes_.fill(kNoBox);
     zoom_.begin_frame();
     refresh();
@@ -313,6 +318,18 @@ std::vector<MenuItem> ResampleScreen::context_menu(int x, int y) {
     return {};
 }
 
+std::vector<JumpTarget> ResampleScreen::jump_targets() const {
+    std::vector<JumpTarget> out;
+    for (const auto& c : clickables_) out.push_back({c.box, c.id});
+    return out;
+}
+
+std::optional<std::string> ResampleScreen::explain_at(int x, int y) const {
+    for (const auto& c : clickables_)
+        if (valid(c.box) && c.box.Contain(x, y)) return notes_.explain(c.id);
+    return notes_.at(x, y);
+}
+
 ftxui::Box ResampleScreen::area(std::string_view id) const {
     if (id == "before_plot") return zoom_.box("before");
     if (id == "after_plot") return zoom_.box("after");
@@ -322,6 +339,8 @@ ftxui::Box ResampleScreen::area(std::string_view id) const {
     if (id == "after_panel") return panel_boxes_[after_panel];
     if (id == "readouts_panel") return panel_boxes_[readouts_panel];
     if (id == "time_panel") return panel_boxes_[time_panel];
+    for (const auto& c : clickables_)
+        if (c.id == id) return c.box;
     return kNoBox;
 }
 

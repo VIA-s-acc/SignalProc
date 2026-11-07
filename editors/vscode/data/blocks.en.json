@@ -1,0 +1,5435 @@
+[
+ {
+  "about": "Reads a WAV file with all its channels and its sample rate",
+  "id": "wav",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "File path; a relative path is resolved against the pipeline's folder",
+    "choices": [],
+    "default": "",
+    "name": "path",
+    "values": {}
+   }
+  ],
+  "title": "WAV"
+ },
+ {
+  "about": "A single-channel signal typed in as a list of numbers",
+  "id": "samples",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Sample values separated by spaces, commas or semicolons",
+    "choices": [],
+    "default": "4 6 10 12 8 6 5 5",
+    "name": "values",
+    "values": {}
+   },
+   {
+    "about": "Sample rate, Hz: how many samples make one second",
+    "choices": [],
+    "default": "8",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   }
+  ],
+  "title": "Samples"
+ },
+ {
+  "about": "Adds or subtracts two signals sample by sample; the shorter is zero-padded",
+  "id": "add",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Operation on the inputs: a + b or a − b",
+    "choices": [
+     "add",
+     "sub"
+    ],
+    "default": "add",
+    "name": "op",
+    "values": {
+     "add": "sum a + b",
+     "sub": "difference a − b"
+    }
+   }
+  ],
+  "title": "Adder ⊕"
+ },
+ {
+  "about": "Test signals: tone, sweep, impulse, noise, Donoho–Johnstone signals",
+  "id": "gen",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Which signal to make; it decides which of the other parameters apply",
+    "choices": [
+     "sine",
+     "sweep",
+     "impulse",
+     "step",
+     "white",
+     "pink",
+     "harmonics",
+     "doppler",
+     "blocks",
+     "bumps",
+     "heavisine"
+    ],
+    "default": "sine",
+    "name": "kind",
+    "values": {
+     "blocks": "Donoho–Johnstone Blocks: piecewise constant with jumps",
+     "bumps": "Donoho–Johnstone Bumps: sharp peaks on a zero baseline",
+     "doppler": "Donoho–Johnstone Doppler: an oscillation whose period grows",
+     "harmonics": "tone at freq plus overtones 2f, 3f, 4f at a, a/2, a/4, a/8",
+     "heavisine": "Donoho–Johnstone HeaviSine: a sine with two jumps",
+     "impulse": "unit impulse at the first sample, zeros after it",
+     "pink": "pink 1/f noise; amplitude is its RMS, seed picks the draw",
+     "sine": "sine at freq with peak amplitude",
+     "step": "unit step: ones from the first sample on",
+     "sweep": "logarithmic sweep from freq to f1 at amplitude 1",
+     "white": "white Gaussian noise; amplitude is its RMS, seed picks the draw"
+    }
+   },
+   {
+    "about": "Frequency, Hz: of the tone and the harmonics' fundamental, start of the sweep",
+    "choices": [],
+    "default": "440",
+    "name": "freq",
+    "values": {}
+   },
+   {
+    "about": "End frequency of the sweep, Hz; the other kinds ignore it",
+    "choices": [],
+    "default": "8000",
+    "name": "f1",
+    "values": {}
+   },
+   {
+    "about": "Amplitude (RMS for noise); sweep, impulse and step ignore it",
+    "choices": [],
+    "default": "1",
+    "name": "amplitude",
+    "values": {}
+   },
+   {
+    "about": "Sample rate, Hz; frequencies above half of it alias",
+    "choices": [],
+    "default": "44100",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "Signal length, s",
+    "choices": [],
+    "default": "1",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "duration",
+    "values": {}
+   },
+   {
+    "about": "Noise generator seed: the same seed gives the same noise; white and pink only",
+    "choices": [],
+    "default": "1",
+    "name": "seed",
+    "values": {}
+   }
+  ],
+  "title": "Generator"
+ },
+ {
+  "about": "Scales the signal by a constant factor given in decibels",
+  "id": "gain",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Gain, dB: +6 roughly doubles the amplitude, negative values attenuate",
+    "choices": [],
+    "default": "0",
+    "name": "db",
+    "values": {}
+   }
+  ],
+  "title": "Gain"
+ },
+ {
+  "about": "Scales each channel to a target peak or RMS level",
+  "id": "normalize",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Which level to match: the peak or the RMS",
+    "choices": [
+     "peak",
+     "rms"
+    ],
+    "default": "peak",
+    "name": "kind",
+    "values": {
+     "peak": "max |x| is set to target_dbfs",
+     "rms": "the RMS value is set to target_dbfs"
+    }
+   },
+   {
+    "about": "Target level in dB relative to full scale (0 dBFS is amplitude 1.0)",
+    "choices": [],
+    "default": "-1",
+    "name": "target_dbfs",
+    "values": {}
+   }
+  ],
+  "title": "Normalize"
+ },
+ {
+  "about": "Subtracts each channel's mean, removing the DC component",
+  "id": "remove_dc",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Remove DC"
+ },
+ {
+  "about": "Hard-clips samples to ±limit",
+  "id": "clip",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Clipping level: anything beyond ±limit is cut to it",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "limit",
+    "values": {}
+   }
+  ],
+  "title": "Clip"
+ },
+ {
+  "about": "Quantises the signal to a given bit depth, optionally with dither",
+  "id": "quantize",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Bit depth: fewer bits mean a coarser step and louder quantisation noise",
+    "choices": [],
+    "default": "16",
+    "max": 32.0,
+    "min": 1.0,
+    "name": "bits",
+    "values": {}
+   },
+   {
+    "about": "Whether to add triangular (TPDF) noise before rounding",
+    "choices": [
+     "yes",
+     "no"
+    ],
+    "default": "yes",
+    "name": "dither",
+    "values": {
+     "no": "plain rounding: the error follows the signal and sounds like distortion",
+     "yes": "TPDF dither: the error becomes steady noise unrelated to the signal"
+    }
+   },
+   {
+    "about": "Dither generator seed; channel c uses seed + c",
+    "choices": [],
+    "default": "24301",
+    "name": "seed",
+    "values": {}
+   }
+  ],
+  "title": "Quantize"
+ },
+ {
+  "about": "μ-law companding: compresses or expands the dynamic range",
+  "id": "mulaw",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Direction: compress (encode) or expand (decode)",
+    "choices": [
+     "encode",
+     "decode"
+    ],
+    "default": "encode",
+    "name": "direction",
+    "values": {
+     "decode": "expand: the inverse map, restoring the original scale",
+     "encode": "compress: y = sign(x)·ln(1 + μ|x|)/ln(1 + μ), input clipped to ±1"
+    }
+   },
+   {
+    "about": "The μ parameter: larger values squeeze loud samples harder relative to quiet ones",
+    "choices": [],
+    "default": "255",
+    "max": 65535.0,
+    "min": 1.0,
+    "name": "mu",
+    "values": {}
+   }
+  ],
+  "title": "μ-law"
+ },
+ {
+  "about": "Splits a signal into left and right, or picks out one channel",
+  "id": "split",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "l",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "r",
+    "optional": true,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "What goes to outputs l and r",
+    "choices": [
+     "lr",
+     "channel"
+    ],
+    "default": "lr",
+    "name": "mode",
+    "values": {
+     "channel": "both outputs get the channel numbered channel",
+     "lr": "l gets channel 0, r channel 1 (mono feeds channel 0 to both)"
+    }
+   },
+   {
+    "about": "Zero-based channel number for mode channel",
+    "choices": [],
+    "default": "0",
+    "name": "channel",
+    "values": {}
+   }
+  ],
+  "title": "Channels"
+ },
+ {
+  "about": "Mixes all channels into one by averaging them",
+  "id": "mixdown",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "To mono"
+ },
+ {
+  "about": "Rotates stereo between L/R and M/S: M = (L + R)/√2, S = (L − R)/√2",
+  "id": "mid_side",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Direction; the rotation is orthogonal, hence lossless",
+    "choices": [
+     "encode",
+     "decode"
+    ],
+    "default": "encode",
+    "name": "direction",
+    "values": {
+     "decode": "M/S → L/R: recovers left and right",
+     "encode": "L/R → M/S: channel 0 becomes mid, channel 1 side"
+    }
+   }
+  ],
+  "title": "M/S"
+ },
+ {
+  "about": "Delays the signal by prepending zeros",
+  "id": "delay",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Delay in samples, or seconds with an s suffix (0.01s)",
+    "choices": [],
+    "default": "0",
+    "name": "samples",
+    "values": {}
+   }
+  ],
+  "title": "Delay"
+ },
+ {
+  "about": "Reverses the signal in time: the last sample comes first",
+  "id": "reverse",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Reverse"
+ },
+ {
+  "about": "Keeps the part of the signal in [begin, end)",
+  "id": "cut",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Start of the part, inclusive: samples, or seconds with an s suffix (0.01s)",
+    "choices": [],
+    "default": "0",
+    "name": "begin",
+    "values": {}
+   },
+   {
+    "about": "End of the piece, excluded; 0 means to the end of the signal. Samples or seconds with s (0.01s)",
+    "choices": [],
+    "default": "0",
+    "name": "end",
+    "values": {}
+   }
+  ],
+  "title": "Cut"
+ },
+ {
+  "about": "Downsampling ↓M: keeps every M-th sample, optionally removing aliasing first",
+  "id": "downsample",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Downsampling factor M: the sample rate is divided by M",
+    "choices": [],
+    "default": "2",
+    "max": 1024.0,
+    "min": 1.0,
+    "name": "m",
+    "values": {}
+   },
+   {
+    "about": "Alias suppression of the Kaiser filter, dB: more is cleaner but the filter is longer",
+    "choices": [],
+    "default": "80",
+    "max": 200.0,
+    "min": 10.0,
+    "name": "attenuation_db",
+    "values": {}
+   },
+   {
+    "about": "Whether to low-pass at fs/(2M) before dropping samples",
+    "choices": [
+     "yes",
+     "no"
+    ],
+    "default": "yes",
+    "name": "anti_alias",
+    "values": {
+     "no": "just every M-th sample: content above fs/(2M) folds onto low frequencies",
+     "yes": "Kaiser low-pass first, then every M-th sample: no aliasing"
+    }
+   },
+   {
+    "about": "Downsampling offset: p keeps x[p], x[p+M], …; must be below M",
+    "choices": [],
+    "default": "0",
+    "max": 1023.0,
+    "min": 0.0,
+    "name": "phase",
+    "values": {}
+   }
+  ],
+  "title": "Downsample ↓M"
+ },
+ {
+  "about": "Upsampling ↑M: inserts M−1 zeros between samples, optionally removing images",
+  "id": "upsample",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Upsampling factor M: the sample rate is multiplied by M",
+    "choices": [],
+    "default": "2",
+    "max": 1024.0,
+    "min": 1.0,
+    "name": "m",
+    "values": {}
+   },
+   {
+    "about": "Image suppression of the Kaiser filter, dB: more is cleaner but the filter is longer",
+    "choices": [],
+    "default": "80",
+    "max": 200.0,
+    "min": 10.0,
+    "name": "attenuation_db",
+    "values": {}
+   },
+   {
+    "about": "Whether to low-pass the zero-stuffed signal to remove spectral images",
+    "choices": [
+     "yes",
+     "no"
+    ],
+    "default": "yes",
+    "name": "anti_image",
+    "values": {
+     "no": "zero stuffing only: the spectrum keeps M−1 images",
+     "yes": "Kaiser low-pass with gain M: a smooth interpolation of the input"
+    }
+   }
+  ],
+  "title": "Upsample ↑M"
+ },
+ {
+  "about": "Changes the rate by L/M: upsample ↑L, low-pass, downsample ↓M",
+  "id": "resample",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Upsampling factor L, the numerator of the rate ratio",
+    "choices": [],
+    "default": "1",
+    "max": 1024.0,
+    "min": 1.0,
+    "name": "l",
+    "values": {}
+   },
+   {
+    "about": "Downsampling factor M, the denominator: the new rate is fs·L/M",
+    "choices": [],
+    "default": "1",
+    "max": 1024.0,
+    "min": 1.0,
+    "name": "m",
+    "values": {}
+   },
+   {
+    "about": "Image and alias suppression of the Kaiser filters, dB: more is cleaner but longer",
+    "choices": [],
+    "default": "80",
+    "max": 200.0,
+    "min": 10.0,
+    "name": "attenuation_db",
+    "values": {}
+   }
+  ],
+  "title": "Resample L/M"
+ },
+ {
+  "about": "Full convolution with a bank or library filter: output length N + L − 1",
+  "id": "convolve",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Filter as wavelet.role: h0/h1 analysis low/high-pass, f0/f1 synthesis; or a library name",
+    "choices": [],
+    "default": "db2.h0",
+    "name": "filter",
+    "values": {}
+   },
+   {
+    "about": "How to compute it; results match up to rounding",
+    "choices": [
+     "auto",
+     "direct",
+     "fft"
+    ],
+    "default": "auto",
+    "name": "method",
+    "values": {
+     "auto": "FFT when both operands are at least 160 samples long, else direct",
+     "direct": "direct sum of products, O(N·L): faster for short filters",
+     "fft": "via FFT, O((N+L) log(N+L)): faster for long filters"
+    }
+   }
+  ],
+  "title": "Convolution"
+ },
+ {
+  "about": "Discrete wavelet transform: multilevel split into bands aJ, dJ…d1",
+  "id": "dwt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Wavelet name (haar, db4, sym8, coif3, bior2.2, dmey…): sets the filter bank",
+    "choices": [],
+    "default": "db2",
+    "name": "wavelet",
+    "values": {}
+   },
+   {
+    "about": "Number of levels J; 0 picks the maximum for this length minus 3, at least 1",
+    "choices": [],
+    "default": "0",
+    "max": 64.0,
+    "min": 0.0,
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "How the signal is extended beyond its edges; this sets the band lengths",
+    "choices": [
+     "symmetric",
+     "periodization",
+     "zero",
+     "constant",
+     "smooth",
+     "periodic",
+     "reflect",
+     "antisymmetric",
+     "antireflect"
+    ],
+    "default": "symmetric",
+    "name": "ext",
+    "values": {
+     "antireflect": "point reflection about the edge sample: x[−n] = 2x0 − x[n]",
+     "antisymmetric": "mirror with a sign flip: … −x1 −x0 | x0 x1 …",
+     "constant": "repeats the edge sample",
+     "periodic": "periodic repetition, bands get longer",
+     "periodization": "circular, non-expansive: ⌈N/2⌉ coefficients per level",
+     "reflect": "mirror without repeating the edge: … x2 x1 | x0 x1 x2 …",
+     "smooth": "linear extrapolation from the two edge samples",
+     "symmetric": "mirror repeating the edge: … x1 x0 | x0 x1 …",
+     "zero": "zeros beyond the edges"
+    }
+   }
+  ],
+  "title": "DWT"
+ },
+ {
+  "about": "Inverse DWT: rebuilds the signal from bands aJ, dJ…d1",
+  "id": "idwt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Synthesis wavelet: auto reuses the analysis one; any other name must match it",
+    "choices": [],
+    "default": "auto",
+    "name": "wavelet",
+    "values": {}
+   },
+   {
+    "about": "Edge extension: auto reuses the analysis mode; any other value must match it",
+    "choices": [
+     "auto",
+     "symmetric",
+     "periodization",
+     "zero",
+     "constant",
+     "smooth",
+     "periodic",
+     "reflect",
+     "antisymmetric",
+     "antireflect"
+    ],
+    "default": "auto",
+    "name": "ext",
+    "values": {
+     "antireflect": "point reflection about the edge sample: x[−n] = 2x0 − x[n]",
+     "antisymmetric": "mirror with a sign flip: … −x1 −x0 | x0 x1 …",
+     "auto": "use the mode stored with the coefficients",
+     "constant": "repeats the edge sample",
+     "periodic": "periodic repetition, bands get longer",
+     "periodization": "circular, non-expansive: ⌈N/2⌉ coefficients per level",
+     "reflect": "mirror without repeating the edge: … x2 x1 | x0 x1 x2 …",
+     "smooth": "linear extrapolation from the two edge samples",
+     "symmetric": "mirror repeating the edge: … x1 x0 | x0 x1 …",
+     "zero": "zeros beyond the edges"
+    }
+   }
+  ],
+  "title": "IDWT"
+ },
+ {
+  "about": "Stationary (undecimated) wavelet transform: every band keeps the signal length",
+  "id": "swt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Wavelet name (haar, db4, sym8, coif3, bior2.2, dmey…): sets the filter bank",
+    "choices": [],
+    "default": "db2",
+    "name": "wavelet",
+    "values": {}
+   },
+   {
+    "about": "Number of levels J; 0 picks it; the signal is periodically padded to a multiple of 2^J",
+    "choices": [],
+    "default": "0",
+    "max": 32.0,
+    "min": 0.0,
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "Whether to divide the filters by √2 so band energy equals signal energy",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "norm",
+    "values": {
+     "no": "DWT filters as is (as in pywt): energy doubles at every level",
+     "yes": "filters ×1/√2: the total band energy equals the signal energy"
+    }
+   }
+  ],
+  "title": "SWT"
+ },
+ {
+  "about": "5/3 (LeGall, JPEG 2000) wavelet via lifting: multilevel decomposition",
+  "id": "lift53",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Number of levels; the signal needs at least 2^levels samples",
+    "choices": [],
+    "default": "4",
+    "max": 30.0,
+    "min": 1.0,
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "Whether to compute in integers, the reversible lossless JPEG 2000 variant",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "integer",
+    "values": {
+     "no": "floating-point lifting: perfect reconstruction up to rounding",
+     "yes": "samples ×32768 to integers, integer lifting: 16-bit PCM comes back exactly"
+    }
+   }
+  ],
+  "title": "Lifting 5/3"
+ },
+ {
+  "about": "Inverse 5/3 lifting: rebuilds the signal from lift53 bands, real or integer",
+  "id": "ilift53",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Inverse lifting 5/3"
+ },
+ {
+  "about": "Inverse SWT: rebuilds the signal from the bands, trimmed to the input length",
+  "id": "iswt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Synthesis wavelet: auto reuses the SWT one; any other name must match it",
+    "choices": [],
+    "default": "auto",
+    "name": "wavelet",
+    "values": {}
+   }
+  ],
+  "title": "ISWT"
+ },
+ {
+  "about": "Thresholds wavelet coefficients: shrinks the details by a rule",
+  "id": "threshold",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "How the threshold λ is chosen per level; the approximation is left alone",
+    "choices": [
+     "bayes",
+     "visu",
+     "sure",
+     "minimax"
+    ],
+    "default": "bayes",
+    "name": "rule",
+    "values": {
+     "bayes": "BayesShrink: λ = σ²/σx per level, adapts to the signal",
+     "minimax": "Donoho–Johnstone minimax threshold: milder than the universal one",
+     "sure": "SureShrink: λ minimises Stein's unbiased risk estimate per level",
+     "visu": "VisuShrink: λ = σ√(2 ln N), removes nearly all noise but oversmooths"
+    }
+   },
+   {
+    "about": "Shrinkage function: how coefficients change relative to λ",
+    "choices": [
+     "soft",
+     "hard",
+     "garrote"
+    ],
+    "default": "soft",
+    "name": "mode",
+    "values": {
+     "garrote": "non-negative garrote: y − λ²/y when |y| > λ, between soft and hard",
+     "hard": "hard: |y| ≤ λ → 0, the rest kept; less bias, more residual noise",
+     "soft": "soft: |y| ≤ λ → 0, the rest shrink by λ; smooth but biased"
+    }
+   },
+   {
+    "about": "Which detail levels to process: J or J1..J2; 1 is the finest, d1",
+    "choices": [],
+    "default": "1..64",
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "Noise level σ: mad_d1 estimates it as median|d1|/0.6745, or give a number",
+    "choices": [],
+    "default": "mad_d1",
+    "name": "sigma",
+    "values": {}
+   }
+  ],
+  "title": "Threshold"
+ },
+ {
+  "about": "Edits decomposition bands: mutes some and changes the gain of the rest",
+  "id": "band_edit",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Bands to keep, comma-separated (a, d1, d3) or all; the others are zeroed",
+    "choices": [],
+    "default": "all",
+    "name": "enabled",
+    "values": {}
+   },
+   {
+    "about": "Band gains in dB, comma-separated, like d2=-6, a=3; other bands stay as is",
+    "choices": [],
+    "default": "",
+    "name": "gains_db",
+    "values": {}
+   }
+  ],
+  "title": "Band edit"
+ },
+ {
+  "about": "Report: the share of energy in each band, per channel",
+  "id": "band_energy",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [],
+  "title": "Band energy"
+ },
+ {
+  "about": "Envelope: magnitude of the analytic signal (Hilbert transform)",
+  "id": "envelope",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Envelope"
+ },
+ {
+  "about": "Instantaneous frequency, Hz: derivative of the analytic signal's phase",
+  "id": "inst_freq",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Instantaneous frequency"
+ },
+ {
+  "about": "Real cepstrum: inverse FFT of the log magnitude spectrum",
+  "id": "cepstrum",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Cepstrum"
+ },
+ {
+  "about": "Type-II discrete cosine transform of each channel",
+  "id": "dct",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "DCT-II"
+ },
+ {
+  "about": "Inverse DCT (DCT-III): recovers the signal from DCT-II coefficients",
+  "id": "idct",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Inverse DCT"
+ },
+ {
+  "about": "Cross-correlation of signals a and b, channel by channel",
+  "id": "xcorr",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Which part of the correlation to output, as in numpy.correlate",
+    "choices": [
+     "full",
+     "same",
+     "valid"
+    ],
+    "default": "full",
+    "name": "mode",
+    "values": {
+     "full": "all lags: length Na + Nb − 1",
+     "same": "the central part, as long as input a",
+     "valid": "only fully overlapping lags: length |Na − Nb| + 1"
+    }
+   },
+   {
+    "about": "Whether to divide by √(Ea·Eb) so values lie in [−1, 1]",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "normalize",
+    "values": {
+     "no": "raw sums of products: the scale depends on the signal levels",
+     "yes": "correlation coefficient: 1 means the same shape at that lag"
+    }
+   }
+  ],
+  "title": "Correlation"
+ },
+ {
+  "about": "Wavelet denoising: DWT, threshold the details, inverse DWT",
+  "id": "denoise",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Wavelet for the decomposition; long smooth ones (sym8, db8) suit smooth signals",
+    "choices": [],
+    "default": "sym8",
+    "name": "wavelet",
+    "values": {}
+   },
+   {
+    "about": "Number of levels J; 0 picks the maximum for this length minus 3, at least 1",
+    "choices": [],
+    "default": "0",
+    "max": 32.0,
+    "min": 0.0,
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "How the threshold λ is chosen per level; σ is estimated from the MAD of d1",
+    "choices": [
+     "bayes",
+     "visu",
+     "sure",
+     "minimax"
+    ],
+    "default": "bayes",
+    "name": "rule",
+    "values": {
+     "bayes": "BayesShrink: λ = σ²/σx per level, adapts to the signal",
+     "minimax": "Donoho–Johnstone minimax threshold: milder than the universal one",
+     "sure": "SureShrink: λ minimises Stein's unbiased risk estimate per level",
+     "visu": "VisuShrink: λ = σ√(2 ln N), removes nearly all noise but oversmooths"
+    }
+   },
+   {
+    "about": "Shrinkage function: how coefficients change relative to λ",
+    "choices": [
+     "soft",
+     "hard"
+    ],
+    "default": "soft",
+    "name": "mode",
+    "values": {
+     "hard": "hard: |y| ≤ λ → 0, the rest kept; less bias, more residual noise",
+     "soft": "soft: |y| ≤ λ → 0, the rest shrink by λ; smooth but biased"
+    }
+   },
+   {
+    "about": "Circular shifts to average over (cycle spinning): more means fewer artefacts, slower",
+    "choices": [],
+    "default": "1",
+    "max": 64.0,
+    "min": 1.0,
+    "name": "shifts",
+    "values": {}
+   }
+  ],
+  "title": "Denoise"
+ },
+ {
+  "about": "Report: fundamental frequency and total harmonic distortion",
+  "id": "thd",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Highest harmonic counted: the 2nd to Nth below Nyquist enter the THD",
+    "choices": [],
+    "default": "5",
+    "max": 20.0,
+    "min": 2.0,
+    "name": "harmonics",
+    "values": {}
+   }
+  ],
+  "title": "THD"
+ },
+ {
+  "about": "Report: onset times found from spectral flux, in seconds",
+  "id": "onsets",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "FFT window length, samples: longer is finer in frequency, coarser in time",
+    "choices": [],
+    "default": "1024",
+    "max": 65536.0,
+    "min": 64.0,
+    "name": "n",
+    "values": {}
+   },
+   {
+    "about": "Window hop, samples: smaller gives finer onset times but takes longer",
+    "choices": [],
+    "default": "256",
+    "max": 65536.0,
+    "min": 1.0,
+    "name": "hop",
+    "values": {}
+   }
+  ],
+  "title": "Onsets"
+ },
+ {
+  "about": "Saves the samples to CSV or JSON and reports what was written",
+  "id": "export",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "File path; a relative path is resolved against the pipeline's folder",
+    "choices": [],
+    "default": "out.csv",
+    "name": "path",
+    "values": {}
+   },
+   {
+    "about": "File format",
+    "choices": [
+     "csv",
+     "json"
+    ],
+    "default": "csv",
+    "name": "format",
+    "values": {
+     "csv": "table: column n plus one column ch0, ch1… per channel",
+     "json": "object {rate, channels: [[…], …]}: the rate and channel arrays"
+    }
+   }
+  ],
+  "title": "Export CSV / JSON"
+ },
+ {
+  "about": "Saves the fields of the incoming report to CSV or JSON",
+  "id": "export_report",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "File path; a relative path is resolved against the pipeline's folder",
+    "choices": [],
+    "default": "report.json",
+    "name": "path",
+    "values": {}
+   },
+   {
+    "about": "File format",
+    "choices": [
+     "csv",
+     "json"
+    ],
+    "default": "json",
+    "name": "format",
+    "values": {
+     "csv": "two columns field,value, one row per field",
+     "json": "object with passed and fields (name → value)"
+    }
+   }
+  ],
+  "title": "Export report"
+ },
+ {
+  "about": "Compares a signal with the reference ref and reports pass or fail",
+  "id": "check",
+  "inputs": [
+   {
+    "name": "ref",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Pass criterion; a channel count mismatch or a short input always fails",
+    "choices": [
+     "pr",
+     "error",
+     "snr"
+    ],
+    "default": "pr",
+    "name": "kind",
+    "values": {
+     "error": "error budget: max|x̂ − x| at most tol, for approximate schemes",
+     "pr": "perfect reconstruction: max|x̂ − x| at most tol",
+     "snr": "reconstruction SNR in dB at least tol"
+    }
+   },
+   {
+    "about": "Threshold: the largest error for pr and error, the smallest SNR in dB for snr",
+    "choices": [],
+    "default": "1e-12",
+    "name": "tol",
+    "values": {}
+   },
+   {
+    "about": "How far the tested signal lags the reference, in samples, or auto to find it",
+    "choices": [],
+    "default": "0",
+    "name": "delay",
+    "values": {}
+   }
+  ],
+  "title": "Check"
+ },
+ {
+  "about": "Writes the signal to a WAV file and reports how many samples clipped",
+  "id": "wav_out",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "File path; a relative path is resolved against the pipeline's folder",
+    "choices": [],
+    "default": "out.wav",
+    "name": "path",
+    "values": {}
+   },
+   {
+    "about": "Sample format in the file",
+    "choices": [
+     "16",
+     "24",
+     "32",
+     "f32"
+    ],
+    "default": "24",
+    "name": "bits",
+    "values": {
+     "16": "16-bit integer PCM, CD quality",
+     "24": "24-bit integer PCM, the studio standard",
+     "32": "32-bit integer PCM",
+     "f32": "32-bit float: values beyond full scale are kept, not clipped"
+    }
+   },
+   {
+    "about": "Dither when rounding to an integer format; ignored for f32",
+    "choices": [
+     "none",
+     "tpdf"
+    ],
+    "default": "tpdf",
+    "name": "dither",
+    "values": {
+     "none": "plain rounding: the error follows the signal",
+     "tpdf": "triangular ±1 LSB noise before rounding: the error becomes steady noise"
+    }
+   },
+   {
+    "about": "Dither generator seed: the same seed writes the same file",
+    "choices": [],
+    "default": "24301",
+    "name": "seed",
+    "values": {}
+   }
+  ],
+  "title": "Write"
+ },
+ {
+  "about": "Listening point: the connected signal can be played from the editor",
+  "id": "listen",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [],
+  "params": [],
+  "title": "Listen"
+ },
+ {
+  "about": "Adds zeros before and after the signal",
+  "id": "pad",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Zeros to insert at the start: samples, or seconds with an s suffix (0.01s)",
+    "choices": [],
+    "default": "0",
+    "name": "before",
+    "values": {}
+   },
+   {
+    "about": "Zeros to append at the end: samples, or seconds with an s suffix (0.01s)",
+    "choices": [],
+    "default": "0",
+    "name": "after",
+    "values": {}
+   }
+  ],
+  "title": "Zero padding"
+ },
+ {
+  "about": "Joins two signals: b follows right after a",
+  "id": "concat",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Concatenate"
+ },
+ {
+  "about": "Sample-wise product factor·a·b; without input b, just a·factor",
+  "id": "multiply",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": true,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Constant factor; a negative value flips the polarity",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "factor",
+    "values": {}
+   }
+  ],
+  "title": "Multiplier ⊗"
+ },
+ {
+  "about": "Multiplies the whole signal by a window of the same length",
+  "id": "window",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Window shape: a trade-off between main-lobe width and side-lobe level",
+    "choices": [
+     "hann",
+     "hamming",
+     "blackman",
+     "kaiser",
+     "tukey"
+    ],
+    "default": "hann",
+    "name": "kind",
+    "values": {
+     "blackman": "Blackman: side lobes at −58 dB, a wider main lobe",
+     "hamming": "Hamming: first side lobe at −43 dB, but slow roll-off",
+     "hann": "Hann: side lobes at −31 dB, a good general choice",
+     "kaiser": "Kaiser: the shape is set by beta",
+     "tukey": "Tukey: flat middle with cosine tapers, alpha is their share"
+    }
+   },
+   {
+    "about": "Kaiser parameter: higher lowers the side lobes and widens the main lobe; kaiser only",
+    "choices": [],
+    "default": "8.6",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "beta",
+    "values": {}
+   },
+   {
+    "about": "Share of the length in the Tukey tapers: 0 is rectangular, 1 is Hann; tukey only",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "alpha",
+    "values": {}
+   }
+  ],
+  "title": "Window"
+ },
+ {
+  "about": "Fades the signal in at the start and out at the end",
+  "id": "fade",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Fade-in length in samples, or seconds with an s suffix (0.01s); 0 turns it off",
+    "choices": [],
+    "default": "0.01s",
+    "name": "fade_in",
+    "values": {}
+   },
+   {
+    "about": "Fade-out length in samples, or seconds with an s suffix (0.01s); 0 turns it off",
+    "choices": [],
+    "default": "0.01s",
+    "name": "fade_out",
+    "values": {}
+   },
+   {
+    "about": "Shape of the gain curve",
+    "choices": [
+     "linear",
+     "cosine"
+    ],
+    "default": "linear",
+    "name": "curve",
+    "values": {
+     "cosine": "raised half-cosine: a gentle start and end of the ramp",
+     "linear": "linear ramp from 0 to 1"
+    }
+   }
+  ],
+  "title": "Fade in and out"
+ },
+ {
+  "about": "Flips the sign of every sample: x → −x",
+  "id": "invert",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Invert polarity"
+ },
+ {
+  "about": "Absolute value of each sample: full-wave rectification",
+  "id": "abs",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Absolute value |x|"
+ },
+ {
+  "about": "Squares each sample: instantaneous power",
+  "id": "square",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Square x²"
+ },
+ {
+  "about": "First difference y[n] = x[n] − x[n−1], with x[−1] = 0",
+  "id": "diff",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "First difference"
+ },
+ {
+  "about": "Running sum y[n] = x[0] + … + x[n]: a discrete integral",
+  "id": "cumsum",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Cumulative sum"
+ },
+ {
+  "about": "Soft clipping y = tanh(drive·x): smooth saturation within ±1",
+  "id": "softclip",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Gain before tanh: higher means stronger saturation and distortion",
+    "choices": [],
+    "default": "1",
+    "max": 1000.0,
+    "min": 0.01,
+    "name": "drive",
+    "values": {}
+   }
+  ],
+  "title": "Soft clip (tanh)"
+ },
+ {
+  "about": "Adds a constant to every sample",
+  "id": "dc_offset",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Offset in sample units (1.0 is full scale)",
+    "choices": [],
+    "default": "0",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "value",
+    "values": {}
+   }
+  ],
+  "title": "DC offset"
+ },
+ {
+  "about": "Trims silence at the start and end, common to all channels",
+  "id": "trim_silence",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Silence threshold, dBFS: edges quieter than it in every channel are cut",
+    "choices": [],
+    "default": "-60",
+    "max": 0.0,
+    "min": -200.0,
+    "name": "threshold_db",
+    "values": {}
+   }
+  ],
+  "title": "Trim silence"
+ },
+ {
+  "about": "Adds noise of a chosen colour at a given SNR",
+  "id": "add_noise",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Noise colour: the slope of its spectrum",
+    "choices": [
+     "white",
+     "pink",
+     "brown"
+    ],
+    "default": "white",
+    "name": "color",
+    "values": {
+     "brown": "brown 1/f²: −6 dB per octave, dominated by lows",
+     "pink": "pink 1/f: −3 dB per octave, equal power in every octave",
+     "white": "white: equal power at all frequencies"
+    }
+   },
+   {
+    "about": "Signal-to-noise ratio, dB, over the mean power of all channels: lower is noisier",
+    "choices": [],
+    "default": "20",
+    "max": 200.0,
+    "min": -100.0,
+    "name": "snr_db",
+    "values": {}
+   },
+   {
+    "about": "Noise generator seed; channel c uses seed + c",
+    "choices": [],
+    "default": "1",
+    "max": 1e+15,
+    "min": 0.0,
+    "name": "seed",
+    "values": {}
+   }
+  ],
+  "title": "Add noise"
+ },
+ {
+  "about": "Chirp: a sine whose frequency glides from f0 to f1",
+  "id": "chirp",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "How the frequency changes over time",
+    "choices": [
+     "linear",
+     "log"
+    ],
+    "default": "linear",
+    "name": "method",
+    "values": {
+     "linear": "linear: equal Hz per unit time",
+     "log": "logarithmic: equal octaves per unit time; f0 and f1 must be above 0"
+    }
+   },
+   {
+    "about": "Start frequency, Hz",
+    "choices": [],
+    "default": "100",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "f0",
+    "values": {}
+   },
+   {
+    "about": "End frequency, Hz; below f0 the chirp falls",
+    "choices": [],
+    "default": "8000",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "f1",
+    "values": {}
+   },
+   {
+    "about": "Peak amplitude; a negative value flips the polarity",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "amplitude",
+    "values": {}
+   },
+   {
+    "about": "Sample rate, Hz; frequencies above half of it alias",
+    "choices": [],
+    "default": "44100",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "Signal length, s",
+    "choices": [],
+    "default": "1",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "duration",
+    "values": {}
+   }
+  ],
+  "title": "Chirp"
+ },
+ {
+  "about": "Periodic waveforms: square, sawtooth, triangle or a pulse train",
+  "id": "osc",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Waveform",
+    "choices": [
+     "square",
+     "sawtooth",
+     "triangle",
+     "pulses"
+    ],
+    "default": "square",
+    "name": "kind",
+    "values": {
+     "pulses": "a unit pulse at the start of every period, zeros in between",
+     "sawtooth": "sawtooth: rises from −1 to 1 over width of the period, then falls",
+     "square": "rectangular ±1; duty is the share of the period at +1",
+     "triangle": "triangle: a sawtooth with width = 0.5"
+    }
+   },
+   {
+    "about": "Repetition frequency, Hz",
+    "choices": [],
+    "default": "440",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "freq",
+    "values": {}
+   },
+   {
+    "about": "Duty cycle: share of the period at +1; square only",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "duty",
+    "values": {}
+   },
+   {
+    "about": "Rising share of the sawtooth period: 1 ramps up, 0 ramps down; sawtooth only",
+    "choices": [],
+    "default": "1",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "width",
+    "values": {}
+   },
+   {
+    "about": "Amplitude; a negative value flips the polarity",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "amplitude",
+    "values": {}
+   },
+   {
+    "about": "Sample rate, Hz; frequencies above half of it alias",
+    "choices": [],
+    "default": "44100",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "Signal length, s",
+    "choices": [],
+    "default": "1",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "duration",
+    "values": {}
+   }
+  ],
+  "title": "Square, sawtooth, triangle"
+ },
+ {
+  "about": "Classic IIR filter, run as a cascade of biquad sections",
+  "id": "iir",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Filter family: shape of the magnitude and phase response",
+    "choices": [
+     "butterworth",
+     "cheby1",
+     "cheby2",
+     "ellip",
+     "bessel"
+    ],
+    "default": "butterworth",
+    "name": "family",
+    "values": {
+     "bessel": "Bessel: nearly constant group delay, gentle roll-off",
+     "butterworth": "Butterworth: maximally flat passband, no ripple",
+     "cheby1": "Chebyshev I: ripple rp in the passband, steeper roll-off",
+     "cheby2": "Chebyshev II: flat passband, attenuation rs in the stopband",
+     "ellip": "elliptic: ripple rp and rs, the steepest roll-off for the order"
+    }
+   },
+   {
+    "about": "Band type",
+    "choices": [
+     "lowpass",
+     "highpass",
+     "bandpass",
+     "bandstop"
+    ],
+    "default": "lowpass",
+    "name": "type",
+    "values": {
+     "bandpass": "band-pass: passes between the two cutoff frequencies",
+     "bandstop": "band-stop: rejects between the two cutoff frequencies",
+     "highpass": "high-pass: passes above cutoff",
+     "lowpass": "low-pass: passes below cutoff"
+    }
+   },
+   {
+    "about": "Filter order: higher is steeper but rings longer",
+    "choices": [],
+    "default": "4",
+    "max": 32.0,
+    "min": 1.0,
+    "name": "order",
+    "values": {}
+   },
+   {
+    "about": "Cutoff frequency, Hz; two, space- or comma-separated, for band-pass and band-stop",
+    "choices": [],
+    "default": "1000",
+    "name": "cutoff",
+    "values": {}
+   },
+   {
+    "about": "Passband ripple, dB; for cheby1 and ellip",
+    "choices": [],
+    "default": "1",
+    "max": 30.0,
+    "min": 0.01,
+    "name": "rp",
+    "values": {}
+   },
+   {
+    "about": "Stopband attenuation, dB; for cheby2 and ellip",
+    "choices": [],
+    "default": "40",
+    "max": 200.0,
+    "min": 1.0,
+    "name": "rs",
+    "values": {}
+   },
+   {
+    "about": "Whether to filter forward and backward (filtfilt) to cancel the phase shift",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "zero_phase",
+    "values": {
+     "no": "ordinary causal filtering: delay and phase distortion",
+     "yes": "forward and backward: zero phase, squared magnitude, doubled order"
+    }
+   }
+  ],
+  "title": "IIR filter"
+ },
+ {
+  "about": "Windowed-sinc FIR filter (as scipy firwin) with linear phase",
+  "id": "fir",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Number of taps N: more gives a sharper transition but a (N−1)/2-sample delay",
+    "choices": [],
+    "default": "101",
+    "max": 8191.0,
+    "min": 1.0,
+    "name": "numtaps",
+    "values": {}
+   },
+   {
+    "about": "Cutoff frequencies, Hz, space- or comma-separated: one for low/high-pass, more for bands",
+    "choices": [],
+    "default": "1000",
+    "name": "cutoff",
+    "values": {}
+   },
+   {
+    "about": "Window used to truncate the ideal response",
+    "choices": [
+     "hamming",
+     "hann",
+     "blackman",
+     "kaiser",
+     "boxcar"
+    ],
+    "default": "hamming",
+    "name": "window",
+    "values": {
+     "blackman": "Blackman: about 74 dB stopband, wider transition",
+     "boxcar": "rectangular: narrowest transition, only about 21 dB stopband",
+     "hamming": "Hamming: about 53 dB stopband, the usual choice",
+     "hann": "Hann: about 44 dB stopband",
+     "kaiser": "Kaiser: the attenuation is set by beta"
+    }
+   },
+   {
+    "about": "Kaiser parameter: higher gives more attenuation and a wider transition; kaiser only",
+    "choices": [],
+    "default": "8.6",
+    "max": 50.0,
+    "min": 0.0,
+    "name": "beta",
+    "values": {}
+   },
+   {
+    "about": "Whether the filter passes zero frequency (DC)",
+    "choices": [
+     "yes",
+     "no"
+    ],
+    "default": "yes",
+    "name": "pass_zero",
+    "values": {
+     "no": "DC is blocked: one cutoff gives high-pass, two give band-pass",
+     "yes": "DC passes: one cutoff gives low-pass, two give band-stop"
+    }
+   },
+   {
+    "about": "Whether to remove the filter's (N−1)/2-sample group delay",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "compensate",
+    "values": {
+     "no": "output lags by (N−1)/2 samples, like a real causal filter",
+     "yes": "output shifted back by (N−1)/2, time-aligned with the input"
+    }
+   }
+  ],
+  "title": "FIR filter (window method)"
+ },
+ {
+  "about": "Median filter: each sample becomes the median of its window; removes clicks",
+  "id": "median",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Window length, odd, samples: longer removes wider spikes and smooths more",
+    "choices": [],
+    "default": "5",
+    "max": 4095.0,
+    "min": 1.0,
+    "name": "kernel",
+    "values": {}
+   }
+  ],
+  "title": "Median filter"
+ },
+ {
+  "about": "Moving average over length samples: the simplest low-pass",
+  "id": "moving_average",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Averaging window, samples: longer smooths more",
+    "choices": [],
+    "default": "5",
+    "max": 65536.0,
+    "min": 1.0,
+    "name": "length",
+    "values": {}
+   },
+   {
+    "about": "Whether to centre the window, removing the (length−1)/2 delay",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "centred",
+    "values": {
+     "no": "causal window over past samples: output lags by (length−1)/2",
+     "yes": "window around the current sample: no lag"
+    }
+   }
+  ],
+  "title": "Moving average"
+ },
+ {
+  "about": "Pre-emphasis y[n] = x[n] − k·x[n−1]: boosts high frequencies",
+  "id": "preemphasis",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Coefficient k: closer to 1 boosts highs and cuts lows more",
+    "choices": [],
+    "default": "0.97",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "coeff",
+    "values": {}
+   }
+  ],
+  "title": "Pre-emphasis"
+ },
+ {
+  "about": "De-emphasis y[n] = x[n] + k·y[n−1]: undoes preemphasis",
+  "id": "deemphasis",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Coefficient k, the same as in pre-emphasis; closer to 1 means longer memory",
+    "choices": [],
+    "default": "0.97",
+    "max": 0.9999,
+    "min": 0.0,
+    "name": "coeff",
+    "values": {}
+   }
+  ],
+  "title": "De-emphasis"
+ },
+ {
+  "about": "9/7 (CDF, JPEG 2000) wavelet via lifting: multilevel decomposition",
+  "id": "lift97",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Number of levels; the signal needs at least 2^levels samples",
+    "choices": [],
+    "default": "4",
+    "max": 30.0,
+    "min": 1.0,
+    "name": "levels",
+    "values": {}
+   }
+  ],
+  "title": "Lifting 9/7"
+ },
+ {
+  "about": "Inverse 9/7 lifting: rebuilds the signal from lift97 bands",
+  "id": "ilift97",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Inverse lifting 9/7"
+ },
+ {
+  "about": "MRA component: one band's contribution brought back to the time domain",
+  "id": "mra",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Band to keep: a (or aJ) for the approximation, dJ for the details of level J",
+    "choices": [],
+    "default": "d1",
+    "name": "component",
+    "values": {}
+   }
+  ],
+  "title": "MRA component"
+ },
+ {
+  "about": "Builds a multichannel signal: the channels of l, then those of r",
+  "id": "merge",
+  "inputs": [
+   {
+    "name": "l",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "r",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Merge to stereo"
+ },
+ {
+  "about": "Swaps channels 0 and 1, left and right",
+  "id": "swap",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Swap L↔R"
+ },
+ {
+  "about": "Panning: mixes to mono and places it in stereo at position",
+  "id": "pan",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Position: −1 is hard left, 0 centre, 1 hard right",
+    "choices": [],
+    "default": "0",
+    "max": 1.0,
+    "min": -1.0,
+    "name": "position",
+    "values": {}
+   },
+   {
+    "about": "Pan law: how the level splits between L and R",
+    "choices": [
+     "constant_power",
+     "linear"
+    ],
+    "default": "constant_power",
+    "name": "law",
+    "values": {
+     "constant_power": "constant power: L = cos, R = sin; −3 dB each at centre",
+     "linear": "linear: L = (1−p)/2, R = (1+p)/2; −6 dB each at centre"
+    }
+   }
+  ],
+  "title": "Pan"
+ },
+ {
+  "about": "Repeats channels cyclically up to the requested count",
+  "id": "duplicate",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Number of output channels; input channels repeat cyclically",
+    "choices": [],
+    "default": "2",
+    "max": 64.0,
+    "min": 1.0,
+    "name": "channels",
+    "values": {}
+   }
+  ],
+  "title": "Duplicate channels"
+ },
+ {
+  "about": "Report: RMS, peak, crest factor, mean, std, zero crossings, spectral centroid",
+  "id": "stats",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [],
+  "title": "Signal statistics"
+ },
+ {
+  "about": "Report: the largest and mean RMS level over sliding windows, dBFS",
+  "id": "loudness",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Window length in samples, or seconds with an s suffix (0.01s)",
+    "choices": [],
+    "default": "0.4s",
+    "name": "window",
+    "values": {}
+   },
+   {
+    "about": "Window hop in samples, or seconds with an s suffix (0.01s); smaller is denser",
+    "choices": [],
+    "default": "0.1s",
+    "name": "hop",
+    "values": {}
+   }
+  ],
+  "title": "Loudness (RMS over 400 ms)"
+ },
+ {
+  "about": "Adaptive LMS/NLMS FIR filter: predicts d from x, outputs error e and estimate y",
+  "id": "lms",
+  "inputs": [
+   {
+    "name": "x",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "d",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "e",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "y",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Filter length, taps: more models a longer path but converges slower",
+    "choices": [],
+    "default": "32",
+    "max": 4096.0,
+    "min": 1.0,
+    "name": "taps",
+    "values": {}
+   },
+   {
+    "about": "Step size: larger converges faster but noisier; too large makes LMS diverge",
+    "choices": [],
+    "default": "0.1",
+    "max": 2.0,
+    "min": 1e-06,
+    "name": "mu",
+    "values": {}
+   },
+   {
+    "about": "Weight update rule",
+    "choices": [
+     "nlms",
+     "lms"
+    ],
+    "default": "nlms",
+    "name": "rule",
+    "values": {
+     "lms": "classic LMS: unnormalised step that depends on the level of x",
+     "nlms": "normalised LMS: step divided by the energy of x, stable for mu < 2"
+    }
+   }
+  ],
+  "title": "Adaptive LMS/NLMS filter"
+ },
+ {
+  "about": "Local Wiener filter: smooths where the local variance is close to the noise",
+  "id": "wiener",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Window for the local mean and variance, samples: larger smooths more",
+    "choices": [],
+    "default": "5",
+    "max": 1001.0,
+    "min": 1.0,
+    "name": "size",
+    "values": {}
+   },
+   {
+    "about": "Noise variance; 0 estimates it as the mean local variance",
+    "choices": [],
+    "default": "0",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "noise",
+    "values": {}
+   }
+  ],
+  "title": "Wiener filter"
+ },
+ {
+  "about": "Spectral subtraction: removes the noise power estimate from each STFT frame",
+  "id": "spectral_subtract",
+  "inputs": [
+   {
+    "name": "x",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "noise",
+    "optional": true,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Over-subtraction factor: higher removes more noise but distorts more",
+    "choices": [],
+    "default": "2",
+    "max": 10.0,
+    "min": 0.0,
+    "name": "alpha",
+    "values": {}
+   },
+   {
+    "about": "Spectral floor: the share of noise power a bin never drops below",
+    "choices": [],
+    "default": "0.01",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "beta",
+    "values": {}
+   },
+   {
+    "about": "FFT frame length, samples, hop n/4: longer is finer in frequency, coarser in time",
+    "choices": [],
+    "default": "512",
+    "max": 16384.0,
+    "min": 16.0,
+    "name": "n",
+    "values": {}
+   },
+   {
+    "about": "Without a noise input, how many seconds at the start count as noise",
+    "choices": [],
+    "default": "0.25",
+    "max": 60.0,
+    "min": 0.001,
+    "name": "noise_s",
+    "values": {}
+   }
+  ],
+  "title": "Spectral subtraction"
+ },
+ {
+  "about": "Wiener deconvolution: recovers x from y = h ∗ x given h",
+  "id": "deconvolve",
+  "inputs": [
+   {
+    "name": "y",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "h",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Expected SNR, dB: higher inverts more boldly but amplifies more noise",
+    "choices": [],
+    "default": "30",
+    "max": 120.0,
+    "min": -20.0,
+    "name": "snr_db",
+    "values": {}
+   }
+  ],
+  "title": "Deconvolution"
+ },
+ {
+  "about": "Tremolo: modulates the level periodically at rate_hz",
+  "id": "tremolo",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Level modulation frequency, Hz: 2–10 Hz is a classic tremolo",
+    "choices": [],
+    "default": "5",
+    "max": 20000.0,
+    "min": 0.0,
+    "name": "rate_hz",
+    "values": {}
+   },
+   {
+    "about": "Depth: 0 leaves the signal unchanged, 1 dips the level to zero",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "depth",
+    "values": {}
+   },
+   {
+    "about": "Shape of the low-frequency oscillator (LFO) that sets the level",
+    "choices": [
+     "sine",
+     "triangle",
+     "square"
+    ],
+    "default": "sine",
+    "name": "shape",
+    "values": {
+     "sine": "sine: a smooth swell",
+     "square": "square: hard switching between the full and the reduced level",
+     "triangle": "triangle: a linear rise and fall"
+    }
+   }
+  ],
+  "title": "Tremolo"
+ },
+ {
+  "about": "Chorus, flanger or vibrato: a delay swept by an LFO",
+  "id": "modulated_delay",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Effect: how the delayed and the original signals combine",
+    "choices": [
+     "chorus",
+     "flanger",
+     "vibrato"
+    ],
+    "default": "chorus",
+    "name": "mode",
+    "values": {
+     "chorus": "chorus: a 10–30 ms delay mixed with the original, no feedback",
+     "flanger": "flanger: a 0–5 ms delay with feedback, a comb of sweeping notches",
+     "vibrato": "vibrato: the delayed signal alone, so the pitch wobbles"
+    }
+   },
+   {
+    "about": "LFO frequency, Hz: how fast the delay sweeps",
+    "choices": [],
+    "default": "0.8",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "rate_hz",
+    "values": {}
+   },
+   {
+    "about": "Sweep width, ms: the delay moves from base_ms to base_ms + depth_ms",
+    "choices": [],
+    "default": "3",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "depth_ms",
+    "values": {}
+   },
+   {
+    "about": "Shortest delay, ms; it never gets shorter than one sample",
+    "choices": [],
+    "default": "12",
+    "max": 1000.0,
+    "min": 0.0,
+    "name": "base_ms",
+    "values": {}
+   },
+   {
+    "about": "Share of the delayed signal fed back into the delay; flanger only",
+    "choices": [],
+    "default": "0.5",
+    "max": 0.99,
+    "min": -0.99,
+    "name": "feedback",
+    "values": {}
+   },
+   {
+    "about": "Share of the delayed signal in the output: 0 is dry only; vibrato always uses 1",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "mix",
+    "values": {}
+   }
+  ],
+  "title": "Modulated delay"
+ },
+ {
+  "about": "Phaser: a chain of allpass stages whose notches an LFO sweeps across the spectrum",
+  "id": "phaser",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Number of first-order allpass stages: every two give one notch in the response",
+    "choices": [],
+    "default": "4",
+    "max": 12.0,
+    "min": 2.0,
+    "name": "stages",
+    "values": {}
+   },
+   {
+    "about": "LFO frequency, Hz: how fast the notches move",
+    "choices": [],
+    "default": "0.5",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "rate_hz",
+    "values": {}
+   },
+   {
+    "about": "Lower end of the stages' break-frequency sweep, Hz; below Nyquist",
+    "choices": [],
+    "default": "200",
+    "max": 1000000.0,
+    "min": 1.0,
+    "name": "min_hz",
+    "values": {}
+   },
+   {
+    "about": "Upper end of the sweep, Hz; below Nyquist; the sweep is even in octaves",
+    "choices": [],
+    "default": "2000",
+    "max": 1000000.0,
+    "min": 1.0,
+    "name": "max_hz",
+    "values": {}
+   },
+   {
+    "about": "Share of the chain output fed back to its input: sharper notches, more resonance",
+    "choices": [],
+    "default": "0.5",
+    "max": 0.99,
+    "min": -0.99,
+    "name": "feedback",
+    "values": {}
+   },
+   {
+    "about": "Share of the processed signal in the output: 0.5 gives the deepest notches",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "mix",
+    "values": {}
+   }
+  ],
+  "title": "Phaser"
+ },
+ {
+  "about": "Freeverb reverb: damped comb filters followed by allpass stages",
+  "id": "reverb",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Room size: larger means a longer tail (comb feedback 0.7…0.98)",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "room_size",
+    "values": {}
+   },
+   {
+    "about": "High-frequency damping in the tail: higher sounds darker",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "damping",
+    "values": {}
+   },
+   {
+    "about": "Level of the reverberation; the input length is kept, so pad it to hear the tail",
+    "choices": [],
+    "default": "0.33",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "wet",
+    "values": {}
+   },
+   {
+    "about": "Level of the original signal in the output",
+    "choices": [],
+    "default": "0.7",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "dry",
+    "values": {}
+   }
+  ],
+  "title": "Reverb"
+ },
+ {
+  "about": "Wavefolder: whatever exceeds ±1 is reflected back inside",
+  "id": "wavefold",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Gain before folding: higher gives more folds and overtones",
+    "choices": [],
+    "default": "2",
+    "max": 1000.0,
+    "min": 0.01,
+    "name": "drive",
+    "values": {}
+   },
+   {
+    "about": "How the signal folds",
+    "choices": [
+     "triangle",
+     "sine"
+    ],
+    "default": "triangle",
+    "name": "shape",
+    "values": {
+     "sine": "y = sin(π/2·drive·x): smooth folds",
+     "triangle": "reflection off ±1: a triangular transfer curve"
+    }
+   }
+  ],
+  "title": "Wavefolder"
+ },
+ {
+  "about": "AM: y = (1 + depth·x)·cos(2π·carrier_hz·t); the input is the message",
+  "id": "am",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Carrier frequency, Hz; above half the sample rate it aliases",
+    "choices": [],
+    "default": "1000",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "carrier_hz",
+    "values": {}
+   },
+   {
+    "about": "Modulation index: where |depth·x| > 1 the envelope crosses zero (overmodulation)",
+    "choices": [],
+    "default": "0.5",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "depth",
+    "values": {}
+   }
+  ],
+  "title": "Amplitude modulation"
+ },
+ {
+  "about": "FM: instantaneous frequency carrier_hz + deviation_hz·x; the input is the message",
+  "id": "fm",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Carrier frequency, Hz; above half the sample rate it aliases",
+    "choices": [],
+    "default": "1000",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "carrier_hz",
+    "values": {}
+   },
+   {
+    "about": "Frequency deviation per unit of input, Hz: how far the frequency swings",
+    "choices": [],
+    "default": "100",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "deviation_hz",
+    "values": {}
+   }
+  ],
+  "title": "Frequency modulation"
+ },
+ {
+  "about": "Gaussian-modulated sinusoid, as scipy gausspulse",
+  "id": "gausspulse",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Centre frequency, Hz",
+    "choices": [],
+    "default": "1000",
+    "max": 1000000.0,
+    "min": 0.001,
+    "name": "fc",
+    "values": {}
+   },
+   {
+    "about": "Fractional bandwidth at level bwr, a share of fc: smaller gives a longer pulse",
+    "choices": [],
+    "default": "0.5",
+    "max": 100.0,
+    "min": 0.001,
+    "name": "bw",
+    "values": {}
+   },
+   {
+    "about": "Level at which the bandwidth is measured, dB; negative",
+    "choices": [],
+    "default": "-6",
+    "max": -0.001,
+    "min": -200.0,
+    "name": "bwr",
+    "values": {}
+   },
+   {
+    "about": "Peak amplitude; a negative value flips the polarity",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "amplitude",
+    "values": {}
+   },
+   {
+    "about": "Sample rate, Hz; frequencies above half of it alias",
+    "choices": [],
+    "default": "44100",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "Signal length, s; the pulse sits in the middle",
+    "choices": [],
+    "default": "0.01",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "duration",
+    "values": {}
+   }
+  ],
+  "title": "Gaussian pulse"
+ },
+ {
+  "about": "Unit impulses every period samples, with zeros in between",
+  "id": "impulse_train",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Period in samples, or seconds with an s suffix (0.01s)",
+    "choices": [],
+    "default": "100",
+    "name": "period",
+    "values": {}
+   },
+   {
+    "about": "Position of the first impulse: samples, or seconds with an s suffix",
+    "choices": [],
+    "default": "0",
+    "name": "offset",
+    "values": {}
+   },
+   {
+    "about": "Impulse height; a negative value flips the polarity",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "amplitude",
+    "values": {}
+   },
+   {
+    "about": "Sample rate, Hz",
+    "choices": [],
+    "default": "44100",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "Signal length, s",
+    "choices": [],
+    "default": "1",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "duration",
+    "values": {}
+   }
+  ],
+  "title": "Impulse train"
+ },
+ {
+  "about": "y = scale·x + offset: scale and shift in one step",
+  "id": "affine",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Multiplier; a negative value flips the polarity",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "scale",
+    "values": {}
+   },
+   {
+    "about": "Constant added after the multiplication",
+    "choices": [],
+    "default": "0",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "offset",
+    "values": {}
+   }
+  ],
+  "title": "Scale and offset"
+ },
+ {
+  "about": "Sample-wise function: logarithm, exponential, root, power, sign, 1/x",
+  "id": "math",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Function; outside its domain the block stops with an error instead of giving NaN",
+    "choices": [
+     "log",
+     "log10",
+     "exp",
+     "sqrt",
+     "pow",
+     "sign",
+     "reciprocal"
+    ],
+    "default": "log",
+    "name": "op",
+    "values": {
+     "exp": "exponential eˣ; overflows above x = 709",
+     "log": "natural logarithm ln x; needs x > 0",
+     "log10": "base-10 logarithm; needs x > 0; 20·log10 of the magnitude is the level in dB",
+     "pow": "power xᵖ; for x < 0 p must be whole, for x = 0 not negative",
+     "reciprocal": "reciprocal 1/x; needs x ≠ 0",
+     "sign": "sign: −1, 0 or 1",
+     "sqrt": "square root; needs x ≥ 0"
+    }
+   },
+   {
+    "about": "Exponent; pow only",
+    "choices": [],
+    "default": "2",
+    "max": 1000.0,
+    "min": -1000.0,
+    "name": "p",
+    "values": {}
+   }
+  ],
+  "title": "Function"
+ },
+ {
+  "about": "Sample-wise operation on a and b: divide, min, max, power, hypotenuse",
+  "id": "binary",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Operation; the shorter input is padded with zeros, as in add",
+    "choices": [
+     "divide",
+     "min",
+     "max",
+     "pow",
+     "hypot"
+    ],
+    "default": "divide",
+    "name": "op",
+    "values": {
+     "divide": "a / b; a zero in b, padding included, is an error",
+     "hypot": "√(a² + b²) without overflow: the magnitude of two components",
+     "max": "the larger of a and b",
+     "min": "the smaller of a and b",
+     "pow": "aᵇ; for a < 0 b must be whole, for a = 0 not negative"
+    }
+   }
+  ],
+  "title": "Binary operation"
+ },
+ {
+  "about": "Repeats the whole signal back to back: times copies in all",
+  "id": "repeat",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "How many copies the output holds; 1 leaves the signal as is",
+    "choices": [],
+    "default": "2",
+    "max": 100000.0,
+    "min": 1.0,
+    "name": "times",
+    "values": {}
+   }
+  ],
+  "title": "Repeat"
+ },
+ {
+  "about": "Keeps the one channel with number index",
+  "id": "select_channel",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Channel number from zero: 0 is left, 1 is right",
+    "choices": [],
+    "default": "0",
+    "max": 1023.0,
+    "min": 0.0,
+    "name": "index",
+    "values": {}
+   }
+  ],
+  "title": "Select channel"
+ },
+ {
+  "about": "Shifts each channel by its own number of samples; the length is kept",
+  "id": "channel_delay",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Channel delays in samples, space- or comma-separated: 0 12; the last repeats, a negative one advances",
+    "choices": [],
+    "default": "0",
+    "name": "delays",
+    "values": {}
+   }
+  ],
+  "title": "Channel delay"
+ },
+ {
+  "about": "Stereo width via mid/side: the side signal is scaled by width",
+  "id": "stereo_width",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Side-signal factor: 0 is mono, 1 changes nothing, 2 is twice as wide",
+    "choices": [],
+    "default": "1.5",
+    "max": 2.0,
+    "min": 0.0,
+    "name": "width",
+    "values": {}
+   }
+  ],
+  "title": "Stereo width"
+ },
+ {
+  "about": "Constant-power stereo balance: L·√(1−p), R·√(1+p)",
+  "id": "balance",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Position p: −1 keeps the left only (+3 dB), 0 changes nothing, 1 keeps the right only",
+    "choices": [],
+    "default": "0",
+    "max": 1.0,
+    "min": -1.0,
+    "name": "position",
+    "values": {}
+   }
+  ],
+  "title": "Balance"
+ },
+ {
+  "about": "Sample and hold: every hold-th sample is held until the next; the length is kept",
+  "id": "sample_hold",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Hold length: samples, or seconds with an s suffix; the effective rate drops to fs/hold",
+    "choices": [],
+    "default": "4",
+    "name": "hold",
+    "values": {}
+   }
+  ],
+  "title": "Sample and hold"
+ },
+ {
+  "about": "First-order high-pass y[n] = x[n] − x[n−1] + r·y[n−1]: removes DC",
+  "id": "dc_block",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Pole: closer to 1 lowers the cutoff, about (1−r)·fs/2π, and slows settling",
+    "choices": [],
+    "default": "0.995",
+    "max": 0.999999,
+    "min": 0.0,
+    "name": "r",
+    "values": {}
+   }
+  ],
+  "title": "DC blocker"
+ },
+ {
+  "about": "Any b, a filter like scipy lfilter; poles outside the unit circle are refused",
+  "id": "lfilter",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Numerator coefficients b0 b1 …, space- or comma-separated; divided by a0",
+    "choices": [],
+    "default": "1",
+    "name": "b",
+    "values": {}
+   },
+   {
+    "about": "Denominator coefficients a0 a1 …; a0 must not be zero, a lone 1 gives an FIR filter",
+    "choices": [],
+    "default": "1",
+    "name": "a",
+    "values": {}
+   }
+  ],
+  "title": "Filter from coefficients b, a"
+ },
+ {
+  "about": "Convolves with the given taps like numpy convolve, cut to the input length",
+  "id": "fir_taps",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Impulse response h0 h1 …, space- or comma-separated",
+    "choices": [],
+    "default": "1",
+    "name": "taps",
+    "values": {}
+   },
+   {
+    "about": "Whether to remove the (N−1)/2-sample delay of an N-tap filter",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "compensate",
+    "values": {
+     "no": "output lags by (N−1)/2 samples, like a real causal filter",
+     "yes": "output shifted back by (N−1)/2, time-aligned with the input"
+    }
+   }
+  ],
+  "title": "FIR filter from taps"
+ },
+ {
+  "about": "Least-squares polynomial fit in a sliding window, like scipy savgol_filter",
+  "id": "savgol",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Window length in samples, odd: longer smooths more",
+    "choices": [],
+    "default": "11",
+    "max": 4095.0,
+    "min": 1.0,
+    "name": "window",
+    "values": {}
+   },
+   {
+    "about": "Polynomial order, below the window: higher keeps peaks sharper but smooths less",
+    "choices": [],
+    "default": "3",
+    "max": 20.0,
+    "min": 0.0,
+    "name": "polyorder",
+    "values": {}
+   },
+   {
+    "about": "Derivative order: 0 smooths, 1 gives the slope per second, 2 the curvature",
+    "choices": [],
+    "default": "0",
+    "max": 20.0,
+    "min": 0.0,
+    "name": "deriv",
+    "values": {}
+   },
+   {
+    "about": "How the window is filled past the ends of the signal",
+    "choices": [
+     "interp",
+     "mirror",
+     "nearest",
+     "constant",
+     "wrap"
+    ],
+    "default": "interp",
+    "name": "mode",
+    "values": {
+     "constant": "pad with zeros",
+     "interp": "fit a polynomial to the first and last window instead of padding",
+     "mirror": "reflect about the end samples without repeating them",
+     "nearest": "repeat the end samples",
+     "wrap": "continue periodically from the other end"
+    }
+   }
+  ],
+  "title": "Savitzky–Golay smoothing"
+ },
+ {
+  "about": "Imaginary part or phase of the analytic signal, like scipy hilbert",
+  "id": "hilbert",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "What to output; the magnitude is the envelope block, the phase rate is inst_freq",
+    "choices": [
+     "imag",
+     "phase",
+     "unwrapped"
+    ],
+    "default": "imag",
+    "name": "output",
+    "values": {
+     "imag": "the Hilbert transform itself: the signal shifted by 90°",
+     "phase": "instantaneous phase in radians, wrapped to −π…π",
+     "unwrapped": "instantaneous phase without 2π jumps, like numpy unwrap"
+    }
+   }
+  ],
+  "title": "Hilbert transform"
+ },
+ {
+  "about": "Designs a minimax FIR by Parks–McClellan, like scipy remez, and applies it",
+  "id": "remez",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Number of taps N: more gives a sharper transition but a (N−1)/2-sample delay",
+    "choices": [],
+    "default": "63",
+    "max": 4095.0,
+    "min": 3.0,
+    "name": "numtaps",
+    "values": {}
+   },
+   {
+    "about": "Band edges in Hz in pairs, from 0 up to nyquist, e.g. 0 1000 1500 nyquist",
+    "choices": [],
+    "default": "0 1000 1500 nyquist",
+    "name": "bands",
+    "values": {}
+   },
+   {
+    "about": "Wanted gain in each band, one value per pair of edges",
+    "choices": [],
+    "default": "1 0",
+    "name": "desired",
+    "values": {}
+   },
+   {
+    "about": "Error weight per band, empty means equal; larger makes that band flatter",
+    "choices": [],
+    "default": "",
+    "name": "weight",
+    "values": {}
+   },
+   {
+    "about": "Kind of filter to design",
+    "choices": [
+     "bandpass",
+     "differentiator",
+     "hilbert"
+    ],
+    "default": "bandpass",
+    "name": "type",
+    "values": {
+     "bandpass": "ordinary filter: low-, high-, band-pass or band-stop by the bands",
+     "differentiator": "gain grows with frequency: a derivative over the bands",
+     "hilbert": "90° phase shifter, an FIR Hilbert transformer"
+    }
+   },
+   {
+    "about": "Whether to remove the (N−1)/2-sample delay of an N-tap filter",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "compensate",
+    "values": {
+     "no": "output lags by (N−1)/2 samples, like a real causal filter",
+     "yes": "output shifted back by (N−1)/2, time-aligned with the input"
+    }
+   }
+  ],
+  "title": "Equiripple FIR (Remez)"
+ },
+ {
+  "about": "Designs an FIR by least squares, like scipy firls, and applies it",
+  "id": "firls",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Number of taps N, odd: more gives a sharper transition but a (N−1)/2-sample delay",
+    "choices": [],
+    "default": "63",
+    "max": 4095.0,
+    "min": 1.0,
+    "name": "numtaps",
+    "values": {}
+   },
+   {
+    "about": "Band edges in Hz in pairs, from 0 up to nyquist, e.g. 0 1000 1500 nyquist",
+    "choices": [],
+    "default": "0 1000 1500 nyquist",
+    "name": "bands",
+    "values": {}
+   },
+   {
+    "about": "Wanted gain at every band edge; the gain is linear in between",
+    "choices": [],
+    "default": "1 1 0 0",
+    "name": "desired",
+    "values": {}
+   },
+   {
+    "about": "Error weight per band, empty means equal; larger fits that band closer",
+    "choices": [],
+    "default": "",
+    "name": "weight",
+    "values": {}
+   },
+   {
+    "about": "Whether to remove the (N−1)/2-sample delay of an N-tap filter",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "compensate",
+    "values": {
+     "no": "output lags by (N−1)/2 samples, like a real causal filter",
+     "yes": "output shifted back by (N−1)/2, time-aligned with the input"
+    }
+   }
+  ],
+  "title": "Least-squares FIR"
+ },
+ {
+  "about": "Splits the signal into its polyphase components x[2n] and x[2n+1] at half the rate",
+  "id": "polyphase",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "even",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "odd",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Polyphase split"
+ },
+ {
+  "about": "Interleaves even and odd back into one signal at twice the rate",
+  "id": "ipolyphase",
+  "inputs": [
+   {
+    "name": "even",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "odd",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Polyphase merge"
+ },
+ {
+  "about": "Wavelet packet decomposition: also splits the details, keeps the chosen basis",
+  "id": "wpt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Wavelet for every split; an orthogonal one keeps the energy and suits the best basis",
+    "choices": [],
+    "default": "db2",
+    "name": "wavelet",
+    "values": {}
+   },
+   {
+    "about": "Depth J of the full tree; the signal needs at least 2^J samples",
+    "choices": [],
+    "default": "3",
+    "max": 16.0,
+    "min": 1.0,
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "Which leaves of the tree to output, in frequency order",
+    "choices": [
+     "best",
+     "full",
+     "dwt"
+    ],
+    "default": "best",
+    "name": "basis",
+    "values": {
+     "best": "Coifman–Wickerhauser best basis by Shannon entropy, one for all channels",
+     "dwt": "aJ and dJ…d1: the same tiling as an ordinary DWT",
+     "full": "all 2^J nodes of the deepest level: equal bands"
+    }
+   },
+   {
+    "about": "Signal extension at the edges, as in pywt",
+    "choices": [
+     "symmetric",
+     "periodization",
+     "zero",
+     "constant",
+     "smooth",
+     "periodic",
+     "reflect",
+     "antisymmetric",
+     "antireflect"
+    ],
+    "default": "symmetric",
+    "name": "ext",
+    "values": {
+     "antireflect": "point reflection about the edge sample: x[−n] = 2x0 − x[n]",
+     "antisymmetric": "mirror with a sign flip: … −x1 −x0 | x0 x1 …",
+     "constant": "repeats the edge sample",
+     "periodic": "periodic repetition, bands get longer",
+     "periodization": "circular, non-expansive: ⌈N/2⌉ coefficients per level",
+     "reflect": "mirror without repeating the edge: … x2 x1 | x0 x1 x2 …",
+     "smooth": "linear extrapolation from the two edge samples",
+     "symmetric": "mirror repeating the edge: … x1 x0 | x0 x1 …",
+     "zero": "zeros beyond the edges"
+    }
+   }
+  ],
+  "title": "Wavelet packets"
+ },
+ {
+  "about": "Rebuilds the signal from wpt bands using the basis they carry",
+  "id": "iwpt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Inverse wavelet packets"
+ },
+ {
+  "about": "Keeps the K largest detail coefficients by magnitude and zeros the rest",
+  "id": "keep_largest",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "How amount sets K: a share of the coefficients or their number",
+    "choices": [
+     "percent",
+     "count"
+    ],
+    "default": "percent",
+    "name": "mode",
+    "values": {
+     "count": "K is amount itself, rounded to a whole number",
+     "percent": "K is amount percent of the coefficients in the pool"
+    }
+   },
+   {
+    "about": "Percentage or count of coefficients kept in each channel",
+    "choices": [],
+    "default": "10",
+    "max": 1000000000.0,
+    "min": 0.0,
+    "name": "amount",
+    "values": {}
+   },
+   {
+    "about": "Whether the approximation is kept whole and left out of the selection",
+    "choices": [
+     "yes",
+     "no"
+    ],
+    "default": "yes",
+    "name": "keep_approx",
+    "values": {
+     "no": "approximation competes with the details for the K places",
+     "yes": "approximation kept whole, K is chosen among the details"
+    }
+   }
+  ],
+  "title": "Keep the largest"
+ },
+ {
+  "about": "Uniform mid-tread quantization of the details: c → Δ·round(c/Δ)",
+  "id": "coeff_quantize",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "How the step Δ is set",
+    "choices": [
+     "bits",
+     "step"
+    ],
+    "default": "bits",
+    "name": "mode",
+    "values": {
+     "bits": "per band: Δ = max|c| / (2^(bits−1) − 1)",
+     "step": "one step Δ = step for every detail band"
+    }
+   },
+   {
+    "about": "Bits per coefficient, sign included: fewer bits mean a coarser step",
+    "choices": [],
+    "default": "8",
+    "max": 32.0,
+    "min": 2.0,
+    "name": "bits",
+    "values": {}
+   },
+   {
+    "about": "Quantizer step Δ in coefficient units; values below Δ/2 become zero",
+    "choices": [],
+    "default": "0.01",
+    "max": 1000000.0,
+    "min": 1e-12,
+    "name": "step",
+    "values": {}
+   }
+  ],
+  "title": "Quantize coefficients"
+ },
+ {
+  "about": "Shifts the signal in time by whole samples; the length stays the same",
+  "id": "shift",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Shift in samples: positive delays the signal, negative advances it",
+    "choices": [],
+    "default": "0",
+    "max": 268435456.0,
+    "min": -268435456.0,
+    "name": "samples",
+    "values": {}
+   },
+   {
+    "about": "What fills the vacated samples",
+    "choices": [
+     "zero",
+     "circular"
+    ],
+    "default": "zero",
+    "name": "mode",
+    "values": {
+     "circular": "circular shift: samples leaving one end come back at the other",
+     "zero": "zeros enter, samples pushed past the edge are lost"
+    }
+   }
+  ],
+  "title": "Shift"
+ },
+ {
+  "about": "Second-order section from the RBJ Audio EQ Cookbook",
+  "id": "biquad",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Filter type; the cookbook formula for b and a",
+    "choices": [
+     "lowpass",
+     "highpass",
+     "bandpass",
+     "notch",
+     "peaking",
+     "lowshelf",
+     "highshelf",
+     "allpass"
+    ],
+    "default": "lowpass",
+    "name": "type",
+    "values": {
+     "allpass": "all-pass: flat magnitude, the phase turns by 360° around f0",
+     "bandpass": "band-pass with 0 dB at f0; q sets the width",
+     "highpass": "high-pass: −3 dB at f0 for q = 0.7071",
+     "highshelf": "high shelf: gain_db above f0",
+     "lowpass": "low-pass: −3 dB at f0 for q = 0.7071",
+     "lowshelf": "low shelf: gain_db below f0",
+     "notch": "notch: zero gain at f0, q sets the width",
+     "peaking": "peaking EQ: gain_db at f0, 0 dB far from it"
+    }
+   },
+   {
+    "about": "Centre or corner frequency, Hz; must lie between 0 and Nyquist",
+    "choices": [],
+    "default": "1000",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "f0",
+    "values": {}
+   },
+   {
+    "about": "Quality factor: higher is narrower and more resonant",
+    "choices": [],
+    "default": "0.7071",
+    "max": 1000.0,
+    "min": 0.01,
+    "name": "q",
+    "values": {}
+   },
+   {
+    "about": "Gain at f0 or on the shelf, dB; for peaking, lowshelf and highshelf only",
+    "choices": [],
+    "default": "0",
+    "max": 60.0,
+    "min": -60.0,
+    "name": "gain_db",
+    "values": {}
+   }
+  ],
+  "title": "Biquad (RBJ)"
+ },
+ {
+  "about": "Feed-forward compressor: lowers the level above threshold by ratio",
+  "id": "compressor",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "How the level is measured; channels are linked by one gain",
+    "choices": [
+     "peak",
+     "rms"
+    ],
+    "default": "peak",
+    "name": "detector",
+    "values": {
+     "peak": "instantaneous peak |x| over all channels",
+     "rms": "mean square over all channels, averaged over rms_ms"
+    }
+   },
+   {
+    "about": "Threshold, dBFS: the level above which compression starts",
+    "choices": [],
+    "default": "-20",
+    "max": 0.0,
+    "min": -120.0,
+    "name": "threshold_db",
+    "values": {}
+   },
+   {
+    "about": "Compression ratio: 4 means 4 dB over threshold become 1 dB",
+    "choices": [],
+    "default": "4",
+    "max": 100.0,
+    "min": 1.0,
+    "name": "ratio",
+    "values": {}
+   },
+   {
+    "about": "Knee width, dB: 0 is a hard knee, more makes the onset gradual",
+    "choices": [],
+    "default": "0",
+    "max": 48.0,
+    "min": 0.0,
+    "name": "knee_db",
+    "values": {}
+   },
+   {
+    "about": "Attack time constant, ms: how fast the gain drops when the level rises",
+    "choices": [],
+    "default": "10",
+    "max": 1000.0,
+    "min": 0.0,
+    "name": "attack_ms",
+    "values": {}
+   },
+   {
+    "about": "Release time constant, ms: how fast the gain recovers when the level falls",
+    "choices": [],
+    "default": "100",
+    "max": 5000.0,
+    "min": 0.0,
+    "name": "release_ms",
+    "values": {}
+   },
+   {
+    "about": "Makeup gain, dB, added after compression",
+    "choices": [],
+    "default": "0",
+    "max": 60.0,
+    "min": -60.0,
+    "name": "makeup_db",
+    "values": {}
+   },
+   {
+    "about": "Averaging time of the RMS detector, ms; rms only",
+    "choices": [],
+    "default": "10",
+    "max": 1000.0,
+    "min": 0.01,
+    "name": "rms_ms",
+    "values": {}
+   }
+  ],
+  "title": "Compressor"
+ },
+ {
+  "about": "Peak limiter: a compressor with an infinite ratio and a hard knee",
+  "id": "limiter",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Ceiling, dBFS: with attack 0 no sample ends above it",
+    "choices": [],
+    "default": "-1",
+    "max": 0.0,
+    "min": -120.0,
+    "name": "threshold_db",
+    "values": {}
+   },
+   {
+    "about": "Attack time constant, ms: above 0 short peaks slip past the ceiling",
+    "choices": [],
+    "default": "0",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "attack_ms",
+    "values": {}
+   },
+   {
+    "about": "Release time constant, ms: how fast the gain recovers after a peak",
+    "choices": [],
+    "default": "50",
+    "max": 5000.0,
+    "min": 0.0,
+    "name": "release_ms",
+    "values": {}
+   }
+  ],
+  "title": "Limiter"
+ },
+ {
+  "about": "Noise gate: attenuates the signal while its peak stays below the threshold",
+  "id": "gate",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Threshold, dBFS: below it the gate closes",
+    "choices": [],
+    "default": "-50",
+    "max": 0.0,
+    "min": -200.0,
+    "name": "threshold_db",
+    "values": {}
+   },
+   {
+    "about": "Attenuation of the closed gate, dB: 80 is nearly silence",
+    "choices": [],
+    "default": "80",
+    "max": 200.0,
+    "min": 0.0,
+    "name": "range_db",
+    "values": {}
+   },
+   {
+    "about": "Opening time constant, ms: how fast the gate opens on a loud sound",
+    "choices": [],
+    "default": "1",
+    "max": 1000.0,
+    "min": 0.0,
+    "name": "attack_ms",
+    "values": {}
+   },
+   {
+    "about": "Closing time constant, ms: how fast the gate closes after it",
+    "choices": [],
+    "default": "100",
+    "max": 5000.0,
+    "min": 0.0,
+    "name": "release_ms",
+    "values": {}
+   }
+  ],
+  "title": "Noise gate"
+ },
+ {
+  "about": "Echo with feedback: repeats every delay_ms, each feedback times quieter",
+  "id": "echo",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Time between repeats, ms",
+    "choices": [],
+    "default": "250",
+    "max": 10000.0,
+    "min": 0.0,
+    "name": "delay_ms",
+    "values": {}
+   },
+   {
+    "about": "Share of each repeat fed back: 0 gives one echo, near 1 a long tail",
+    "choices": [],
+    "default": "0.4",
+    "max": 0.999,
+    "min": -0.999,
+    "name": "feedback",
+    "values": {}
+   },
+   {
+    "about": "Wet share: 0 is the dry signal only, 1 the echoes only",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "mix",
+    "values": {}
+   }
+  ],
+  "title": "Echo"
+ },
+ {
+  "about": "Comb filter: the signal plus gain times itself delayed by delay samples",
+  "id": "comb",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Which signal is delayed",
+    "choices": [
+     "feedback",
+     "feedforward"
+    ],
+    "default": "feedback",
+    "name": "kind",
+    "values": {
+     "feedback": "y[n] = x[n] + g·y[n−D]: resonant peaks, an IIR filter",
+     "feedforward": "y[n] = x[n] + g·x[n−D]: evenly spaced notches, an FIR filter"
+    }
+   },
+   {
+    "about": "Delay D in samples, or seconds with an s suffix (0.01s); at least one sample",
+    "choices": [],
+    "default": "100",
+    "name": "delay",
+    "values": {}
+   },
+   {
+    "about": "Gain g of the delayed path; feedback needs |g| < 1",
+    "choices": [],
+    "default": "0.7",
+    "max": 1.0,
+    "min": -1.0,
+    "name": "gain",
+    "values": {}
+   }
+  ],
+  "title": "Comb filter"
+ },
+ {
+  "about": "Mixes signals a and b with their gains, or crossfades from a to b",
+  "id": "mix",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Gain of input a, dB",
+    "choices": [],
+    "default": "0",
+    "max": 24.0,
+    "min": -120.0,
+    "name": "gain_a_db",
+    "values": {}
+   },
+   {
+    "about": "Gain of input b, dB",
+    "choices": [],
+    "default": "0",
+    "max": 24.0,
+    "min": -120.0,
+    "name": "gain_b_db",
+    "values": {}
+   },
+   {
+    "about": "How the inputs are combined; the shorter one is zero-padded",
+    "choices": [
+     "sum",
+     "crossfade"
+    ],
+    "default": "sum",
+    "name": "mode",
+    "values": {
+     "crossfade": "a until at, a linear fade over crossfade_ms, then b",
+     "sum": "sum of both inputs at every sample"
+    }
+   },
+   {
+    "about": "Start of the crossfade, s; crossfade only",
+    "choices": [],
+    "default": "0",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "at",
+    "values": {}
+   },
+   {
+    "about": "Crossfade length, ms; 0 switches at once; crossfade only",
+    "choices": [],
+    "default": "10",
+    "max": 60000.0,
+    "min": 0.0,
+    "name": "crossfade_ms",
+    "values": {}
+   }
+  ],
+  "title": "Mixer"
+ },
+ {
+  "about": "Linear prediction by the autocorrelation method and Levinson–Durbin",
+  "id": "lpc",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "residual",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Predictor order p: how many past samples predict the next one",
+    "choices": [],
+    "default": "12",
+    "max": 64.0,
+    "min": 1.0,
+    "name": "order",
+    "values": {}
+   }
+  ],
+  "title": "Linear prediction (LPC)"
+ },
+ {
+  "about": "All-pole synthesis 1/A(z): rebuilds the signal from residual and report",
+  "id": "lpc_synth",
+  "inputs": [
+   {
+    "name": "residual",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "LPC synthesis"
+ },
+ {
+  "about": "Report: the strongest peaks of the Welch spectrum, Hz and dB",
+  "id": "spectrum_peaks",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "How many of the strongest peaks to report",
+    "choices": [],
+    "default": "5",
+    "max": 64.0,
+    "min": 1.0,
+    "name": "count",
+    "values": {}
+   },
+   {
+    "about": "Welch segment, samples, overlap 50 %: longer resolves closer peaks",
+    "choices": [],
+    "default": "4096",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "segment",
+    "values": {}
+   },
+   {
+    "about": "Minimum prominence, dB: how far a peak must rise above its surroundings",
+    "choices": [],
+    "default": "6",
+    "max": 200.0,
+    "min": 0.0,
+    "name": "prominence_db",
+    "values": {}
+   }
+  ],
+  "title": "Spectrum peaks"
+ },
+ {
+  "about": "Report: share of the power in each octave or third-octave band",
+  "id": "band_power",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Band width; centres are the IEC 61260 base-10 series around 1 kHz",
+    "choices": [
+     "octave",
+     "third"
+    ],
+    "default": "octave",
+    "name": "bands",
+    "values": {
+     "octave": "octave bands from 31.5 Hz to 16 kHz",
+     "third": "third-octave bands from 25 Hz to 20 kHz"
+    }
+   },
+   {
+    "about": "Welch segment, samples, overlap 50 %: longer resolves the low bands better",
+    "choices": [],
+    "default": "4096",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "segment",
+    "values": {}
+   }
+  ],
+  "title": "Octave band power"
+ },
+ {
+  "about": "Fundamental frequency per frame by YIN; reports the median and the voiced share",
+  "id": "pitch",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   },
+   {
+    "name": "f0",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Lowest pitch to look for, Hz: lower needs a longer frame",
+    "choices": [],
+    "default": "60",
+    "max": 20000.0,
+    "min": 1.0,
+    "name": "fmin",
+    "values": {}
+   },
+   {
+    "about": "Highest pitch to look for, Hz",
+    "choices": [],
+    "default": "1000",
+    "max": 100000.0,
+    "min": 1.0,
+    "name": "fmax",
+    "values": {}
+   },
+   {
+    "about": "Frame length in samples; its first half is the comparison window",
+    "choices": [],
+    "default": "2048",
+    "max": 65536.0,
+    "min": 32.0,
+    "name": "frame",
+    "values": {}
+   },
+   {
+    "about": "Step between frames in samples; the f0 output runs at rate/hop",
+    "choices": [],
+    "default": "512",
+    "max": 65536.0,
+    "min": 1.0,
+    "name": "hop",
+    "values": {}
+   },
+   {
+    "about": "Threshold on the normalised difference: lower is stricter, more frames unvoiced",
+    "choices": [],
+    "default": "0.1",
+    "max": 1.0,
+    "min": 0.001,
+    "name": "threshold",
+    "values": {}
+   }
+  ],
+  "title": "Pitch (YIN)"
+ },
+ {
+  "about": "Mean mel-frequency cepstral coefficients: HTK mel bank, dB, orthonormal DCT-II",
+  "id": "mfcc",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "How many coefficients to report, starting with c0, the overall level",
+    "choices": [],
+    "default": "13",
+    "max": 128.0,
+    "min": 1.0,
+    "name": "n_mfcc",
+    "values": {}
+   },
+   {
+    "about": "Number of triangular mel filters from 0 Hz to Nyquist",
+    "choices": [],
+    "default": "40",
+    "max": 256.0,
+    "min": 1.0,
+    "name": "n_mels",
+    "values": {}
+   },
+   {
+    "about": "Frame length in samples, Hann window",
+    "choices": [],
+    "default": "2048",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "frame",
+    "values": {}
+   },
+   {
+    "about": "Step between frames in samples",
+    "choices": [],
+    "default": "512",
+    "max": 65536.0,
+    "min": 1.0,
+    "name": "hop",
+    "values": {}
+   }
+  ],
+  "title": "MFCC"
+ },
+ {
+  "about": "Mean spectral centroid, spread, rolloff, flatness and flux over Hann frames",
+  "id": "spectral_features",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Frame length in samples, Hann window: longer is finer in frequency",
+    "choices": [],
+    "default": "2048",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "frame",
+    "values": {}
+   },
+   {
+    "about": "Step between frames in samples",
+    "choices": [],
+    "default": "512",
+    "max": 65536.0,
+    "min": 1.0,
+    "name": "hop",
+    "values": {}
+   },
+   {
+    "about": "Rolloff is the frequency below which this percentage of the magnitudes lies",
+    "choices": [],
+    "default": "85",
+    "max": 99.0,
+    "min": 1.0,
+    "name": "rolloff_pct",
+    "values": {}
+   }
+  ],
+  "title": "Spectral features"
+ },
+ {
+  "about": "Counts samples in equal bins like numpy histogram; the last bin keeps its right edge",
+  "id": "histogram",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Number of equal-width bins",
+    "choices": [],
+    "default": "10",
+    "max": 1024.0,
+    "min": 1.0,
+    "name": "bins",
+    "values": {}
+   },
+   {
+    "about": "auto takes the signal's minimum and maximum, or give two numbers lo hi",
+    "choices": [],
+    "default": "auto",
+    "name": "range",
+    "values": {}
+   }
+  ],
+  "title": "Histogram"
+ },
+ {
+  "about": "Lag of b behind a by the cross-correlation peak, refined between samples",
+  "id": "delay_estimate",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [],
+  "title": "Delay estimate"
+ },
+ {
+  "about": "Pearson, Spearman and cosine similarity of a and b over their common length",
+  "id": "correlation",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [],
+  "title": "Correlation"
+ },
+ {
+  "about": "Per band: energy share, Shannon entropy in bits, share of near-zero coefficients",
+  "id": "coeff_stats",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "A coefficient counts as near zero below tol × the largest magnitude in the channel",
+    "choices": [],
+    "default": "0.01",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "tol",
+    "values": {}
+   }
+  ],
+  "title": "Coefficient statistics"
+ }
+]

@@ -17,6 +17,7 @@
 #include "tui/shell/layout.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/screen_util.hpp"
 
 namespace signals::tui {
 
@@ -37,6 +38,7 @@ public:
     std::optional<std::pair<int, int>> menu_anchor() const override;
     void open_with(const NavArgs& args) override;
     std::vector<JumpTarget> jump_targets() const override;
+    std::optional<std::string> explain_at(int x, int y) const override;
     std::vector<Command> commands() override;
 
     ftxui::Box area(std::string_view id) const;
@@ -94,6 +96,7 @@ private:
     View view_ = View::subbands;
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::deque<Clickable> clickables_;
+    Notes notes_{"decomposition"};
     std::vector<ftxui::Box> plot_boxes_;
     std::shared_ptr<const DecompositionData> seen_;
     double begin_ = 0, end_ = 0;

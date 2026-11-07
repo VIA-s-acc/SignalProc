@@ -52,9 +52,7 @@ constexpr double kRoundOff = 1e-15;
 constexpr int kMinLeft = 26;
 constexpr int kComparisonRows = 8;
 constexpr int kRowPanels = 9;
-const ftxui::Box kNoBox{1, 0, 1, 0};
 
-bool valid(const ftxui::Box& b) { return b.x_max >= b.x_min && b.y_max >= b.y_min; }
 
 std::string pi_text(double w, int decimals = 3) { return std::isfinite(w) ? format_fixed(w, decimals) + "π" : "—"; }
 
@@ -252,6 +250,8 @@ ftxui::Box FiltersScreen::area(std::string_view id) const {
     if (id == "impulse_plot") return impulse_zoom_.box("impulse");
     if (id == "zplane") return zplane_box_;
     if (id == "roots_list") return roots_box_;
+    for (const auto& c : clickables_)
+        if (c.id == id) return c.box;
     return panel_boxes_[static_cast<std::size_t>(panel_of(std::string{id}))];
 }
 
@@ -369,8 +369,8 @@ ftxui::Element FiltersScreen::frame_panel(Panel p, ftxui::Element body, std::vec
            ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
 }
 
-ftxui::Element FiltersScreen::clickable(ftxui::Element e, std::function<void()> action) {
-    clickables_.push_back({kNoBox, std::move(action)});
+ftxui::Element FiltersScreen::clickable(std::string id, ftxui::Element e, std::function<void()> action) {
+    clickables_.push_back({std::move(id), kNoBox, std::move(action)});
     return std::move(e) | ftxui::reflect(clickables_.back().box);
 }
 
@@ -393,7 +393,7 @@ std::vector<ftxui::Element> FiltersScreen::chip_lines(std::vector<Item> items, i
         if (item.on && on_line && !*on_line) *on_line = rows.size();
         auto t = text(ellipsize(item.label, std::max(4, width - indent - 1), ui_.caps.glyphs == GlyphMode::ascii));
         t = item.on ? t | bold | fg(th.bg, ui_) | bg(th.trace[0], ui_) : t | fg(th.fg, ui_);
-        row.push_back(clickable(t, std::move(item.action)));
+        row.push_back(clickable(std::move(item.id), t, std::move(item.action)));
         row.push_back(text(" "));
         used += w;
     }
@@ -477,8 +477,8 @@ ftxui::Element FiltersScreen::library_panel(int width, int height) {
     }
     std::vector<Item> roles;
     for (auto r : {FilterRole::h0, FilterRole::h1, FilterRole::f0, FilterRole::f1})
-        roles.push_back({role_label(r), [this, r] { add_role_ = r; }, add_role_ == r});
-    rows.push_back(hbox({text(tr("tui.filters.role") + " ") | fg(th.dim, ui_), chip_rows(std::move(roles), inner, 0), text("(t)") | fg(th.dim, ui_)}));
+        roles.push_back({role_label(r), [this, r] { add_role_ = r; }, add_role_ == r, std::string{r == FilterRole::h0 ? "role_h0" : r == FilterRole::h1 ? "role_h1" : r == FilterRole::f0 ? "role_f0" : "role_f1"}});
+    rows.push_back(hbox({notes_.mark("role", text(tr("tui.filters.role") + " ") | fg(th.dim, ui_)), chip_rows(std::move(roles), inner, 0), text("(t)") | fg(th.dim, ui_)}));
     rows.push_back(text(""));
     auto in_set = [&](const FilterRef& r) {
         for (const auto& e : entries_) {
@@ -496,7 +496,7 @@ ftxui::Element FiltersScreen::library_panel(int width, int height) {
     if (searching_) {
         const auto m = matches();
         std::vector<Item> items;
-        for (std::size_t i = 0; i < m.size(); ++i) items.push_back({m[i]->label, [this, n = m[i]] { add(*n->ref); searching_ = false; query_.clear(); }, i == match_index_});
+        for (std::size_t i = 0; i < m.size(); ++i) items.push_back({m[i]->label, [this, n = m[i]] { add(*n->ref); searching_ = false; query_.clear(); }, i == match_index_, "filter"});
         if (items.empty()) {
             list.push_back(text(tr("tui.filters.nothing")) | fg(th.dim, ui_));
         } else {
@@ -513,7 +513,7 @@ ftxui::Element FiltersScreen::library_panel(int width, int height) {
                 continue;
             }
             const bool collapsed = (std::find(collapsed_.begin(), collapsed_.end(), group.label) != collapsed_.end()) != group.folded;
-            list.push_back(clickable(text(ellipsize((collapsed ? closed : open) + " " + group.label, inner, ascii)) | fg(th.fg, ui_), [this, label = group.label] {
+            list.push_back(clickable("group", text(ellipsize((collapsed ? closed : open) + " " + group.label, inner, ascii)) | fg(th.fg, ui_), [this, label = group.label] {
                 auto it = std::find(collapsed_.begin(), collapsed_.end(), label);
                 if (it == collapsed_.end()) collapsed_.push_back(label);
                 else collapsed_.erase(it);
@@ -525,16 +525,16 @@ ftxui::Element FiltersScreen::library_panel(int width, int height) {
                 const LibraryNode* chosen = &group.children.front();
                 for (const auto& f : group.children) {
                     if (f.label == family_) chosen = &f;
-                    families.push_back({f.label, [this, label = f.label] { family_ = label; }, f.label == family_});
+                    families.push_back({f.label, [this, label = f.label] { family_ = label; }, f.label == family_, "family"});
                 }
                 append(chip_lines(std::move(families), inner, 2));
                 std::vector<Item> names;
-                for (const auto& n : chosen->children) names.push_back({n.label, [this, ref = *n.ref] { add(ref); }, in_set(*n.ref)});
+                for (const auto& n : chosen->children) names.push_back({n.label, [this, ref = *n.ref] { add(ref); }, in_set(*n.ref), "filter"});
                 append(chip_lines(std::move(names), inner, 4));
             } else {
                 std::vector<Item> leaves;
                 for (const auto& n : group.children)
-                    if (n.ref) leaves.push_back({n.label, [this, ref = *n.ref] { add(ref); }, in_set(*n.ref)});
+                    if (n.ref) leaves.push_back({n.label, [this, ref = *n.ref] { add(ref); }, in_set(*n.ref), "filter"});
                 append(chip_lines(std::move(leaves), inner, 2));
             }
         }
@@ -565,10 +565,10 @@ ftxui::Element FiltersScreen::comparison_panel(int width) {
         const int room = std::max(4, width - 5 - display_width(legend_mark(i) + " " + reference_mark + eye) - (e.error ? 2 : 0));
         auto name = text(ellipsize((i == focus ? (ascii ? "> " : "▸ ") : "  ") + e.ref.label() + " (" + describe(e.ref) + ")", room, ascii));
         name = i == focus ? name | bold | fg(th.fg, ui_) : name | fg(e.visible ? th.fg : th.dim, ui_);
-        Elements line{text(legend_mark(i) + " ") | fg(color, ui_), clickable(name, [this, i] { set_->set_focus(i); }), filler()};
+        Elements line{text(legend_mark(i) + " ") | fg(color, ui_), clickable("entry", name, [this, i] { set_->set_focus(i); }), filler()};
         if (!reference_mark.empty()) line.push_back(text(reference_mark) | fg(th.accent, ui_));
         if (e.error) line.push_back(text(std::string{glyph(Glyph::cross, ui_.caps.glyphs)} + " ") | fg(th.err, ui_));
-        line.push_back(clickable(text(eye) | fg(e.visible ? th.fg : th.dim, ui_), [this, i] { set_->toggle(i); }));
+        line.push_back(clickable("eye", text(eye) | fg(e.visible ? th.fg : th.dim, ui_), [this, i] { set_->toggle(i); }));
         rows.push_back(hbox(std::move(line)) | reflect(row_boxes_[i]));
     }
     if (entries_.empty()) rows.push_back(text(tr("tui.filters.empty_set")) | fg(th.dim, ui_));
@@ -584,8 +584,10 @@ ftxui::Element FiltersScreen::comparison_panel(int width) {
 ftxui::Element FiltersScreen::magnitude_panel(int) {
     using namespace ftxui;
     const auto& th = ui_.theme;
-    std::vector<Chip> chips{{tr("tui.filters.chip.db"), decibels_}, {tr("tui.filters.chip.linear"), !decibels_},
-                            {tr("tui.filters.chip.log"), log_}, {tr("tui.filters.chip.normalised"), normalise_}};
+    std::vector<Chip> chips{{tr("tui.filters.chip.db"), decibels_, notes_.box("chip.db")},
+                            {tr("tui.filters.chip.linear"), !decibels_, notes_.box("chip.linear")},
+                            {tr("tui.filters.chip.log"), log_, notes_.box("chip.log")},
+                            {tr("tui.filters.chip.normalised"), normalise_, notes_.box("chip.normalised")}};
     if (auto p = set_->pending_label())
         chips.insert(chips.begin(), Chip{fmt::format(fmt::runtime(tr("tui.filters.computing")), fmt::arg("name", *p)), true});
     const auto title = tr("tui.filters.magnitude") + (normalise_ ? " · " + tr("tui.filters.normalised_title") : "");
@@ -927,7 +929,7 @@ ftxui::Element FiltersScreen::measures_panel(int width) {
     }
     if (rows.size() == 1) rows.push_back(text("—") | fg(th.dim, ui_));
     const auto title = tr("tui.filters.measures") + (dropped ? fmt::format(fmt::runtime(tr("tui.filters.more_columns")), fmt::arg("count", dropped)) : "");
-    return frame_panel(measures, vbox(std::move(rows)), {{tr("tui.filters.chip.bands"), false}}, title);
+    return frame_panel(measures, vbox(std::move(rows)), {{tr("tui.filters.chip.bands"), false, notes_.box("chip.bands")}}, title);
 }
 
 ftxui::Element FiltersScreen::build(Panel p, int rows, int width) {
@@ -952,6 +954,7 @@ ftxui::Element FiltersScreen::OnRender() {
     title_boxes_.fill(kNoBox);
     plot_boxes_.fill(kNoBox);
     clickables_.clear();
+    notes_.clear();
     impulse_zoom_.begin_frame();
     zplane_box_ = roots_box_ = kNoBox;
     if (ui_.jobs) {
@@ -1134,9 +1137,17 @@ std::vector<MenuItem> FiltersScreen::context_menu(int x, int y) {
 
 std::vector<JumpTarget> FiltersScreen::jump_targets() const {
     std::vector<JumpTarget> out;
-    for (const auto& c : clickables_) out.push_back({c.box, ""});
+    for (const auto& c : clickables_) out.push_back({c.box, c.id});
     for (int p = 0; p < panel_count; ++p) out.push_back({title_boxes_[static_cast<std::size_t>(p)], key_of(static_cast<Panel>(p))});
     return out;
+}
+
+std::optional<std::string> FiltersScreen::explain_at(int x, int y) const {
+    for (const auto& c : clickables_)
+        if (valid(c.box) && c.box.Contain(x, y)) return notes_.explain(c.id);
+    for (int p = 0; p < panel_count; ++p)
+        if (const auto& b = title_boxes_[static_cast<std::size_t>(p)]; valid(b) && b.Contain(x, y)) return notes_.explain("panel." + key_of(static_cast<Panel>(p)));
+    return notes_.at(x, y);
 }
 
 bool FiltersScreen::on_search(ftxui::Event e) {

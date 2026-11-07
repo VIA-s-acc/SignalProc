@@ -395,16 +395,18 @@ ftxui::Element SignalScreen::wave_panel(const std::shared_ptr<const SignalData>&
     const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
     const std::string play_chip = head_at ? std::string{ascii ? "> " : "▶ "} + format_fixed(*head_at, 2) + " " + tr("unit.s") : std::string{ascii ? "#" : "■"};
     std::vector<Chip> chips{{tr(selecting ? "tui.signal.chip.drag_select" : "tui.signal.chip.drag_pan"), selecting, &drag_chip_},
-                            {tr("tui.signal.chip.minmax"), true},
-                            {fmt::format(fmt::runtime(tr("tui.signal.chip.scale")), fmt::arg("ratio", ratio)), false}};
-    if (ui_.player) chips.insert(chips.begin(), Chip{play_chip, head_at.has_value()});
+                            {tr("tui.signal.chip.minmax"), true, notes_.box("chip.minmax")},
+                            {fmt::format(fmt::runtime(tr("tui.signal.chip.scale")), fmt::arg("ratio", ratio)), false, notes_.box("chip.scale")}};
+    if (ui_.player) chips.insert(chips.begin(), Chip{play_chip, head_at.has_value(), notes_.box("chip.play")});
     return frame_panel(wave, vbox(std::move(body)), std::move(chips), tr("tui.signal.wave"));
 }
 
 ftxui::Element SignalScreen::spectrum_panel(const SignalData* d, int, int width) {
     using namespace ftxui;
     const auto& th = ui_.theme;
-    std::vector<Chip> chips{{tr("tui.signal.chip.logf"), true}, {tr("tui.signal.chip.floor"), false}, {tr("tui.signal.chip.edges"), false}};
+    std::vector<Chip> chips{{tr("tui.signal.chip.logf"), true, notes_.box("chip.logf")},
+                            {tr("tui.signal.chip.floor"), false, notes_.box("chip.floor")},
+                            {tr("tui.signal.chip.edges"), false, notes_.box("chip.edges")}};
     if (!d || d->psd_db.empty())
         return frame_panel(spectrum, centered({text(d ? tr("tui.signal.no_spectrum") : "—") | fg(th.dim, ui_)}), std::move(chips),
                            tr("tui.signal.spectrum"));
@@ -479,6 +481,7 @@ ftxui::Element SignalScreen::build(Panel p, const std::shared_ptr<const SignalDa
 ftxui::Element SignalScreen::OnRender() {
     using namespace ftxui;
     zoom_.begin_frame();
+    notes_.clear();
     panel_boxes_.fill(kNoBox);
     title_boxes_.fill(kNoBox);
     wave_boxes_.fill(kNoBox);
@@ -799,6 +802,13 @@ std::vector<JumpTarget> SignalScreen::jump_targets() const {
     std::vector<JumpTarget> out{{drag_chip_, tr("tui.signal.chip.drag_pan")}};
     for (int p = 0; p < panel_count; ++p) out.push_back({title_boxes_[static_cast<std::size_t>(p)], key_of(static_cast<Panel>(p))});
     return out;
+}
+
+std::optional<std::string> SignalScreen::explain_at(int x, int y) const {
+    if (valid(drag_chip_) && drag_chip_.Contain(x, y)) return notes_.explain(drag_mode_ == DragMode::select ? "drag.select" : "drag.pan");
+    for (int p = 0; p < panel_count; ++p)
+        if (const auto& b = title_boxes_[static_cast<std::size_t>(p)]; valid(b) && b.Contain(x, y)) return notes_.explain("panel." + key_of(static_cast<Panel>(p)));
+    return notes_.at(x, y);
 }
 
 std::optional<std::pair<int, int>> SignalScreen::menu_anchor() const {
