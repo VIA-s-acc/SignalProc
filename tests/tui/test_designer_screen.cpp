@@ -267,3 +267,25 @@ TEST_CASE("designer groups, constraints and presets work from the keyboard", "[t
     CHECK(f.h.send(ftxui::Event::Character('r')));
     CHECK((f.model->split().group_in_h0 != split.group_in_h0 || f.model->split().zeros_h0 != split.zeros_h0));
 }
+
+TEST_CASE("the designer z-plane zooms around the pointer, pans by drag and resets from the menu", "[tui][designer][zoom]") {
+    DesignerFixture f;
+    const auto r = f.screen->area("roots");
+    REQUIRE(r.x_max > r.x_min);
+    const auto wide = f.screen->plot_axis("roots");
+    const int right = r.x_max - 2, middle_y = (r.y_min + r.y_max) / 2;
+    CHECK(f.h.wheel(right, middle_y, true));
+    f.h.frame();
+    const auto zoomed = f.screen->plot_axis("roots");
+    CHECK(zoomed.hi - zoomed.lo < wide.hi - wide.lo);
+    CHECK(zoomed.lo > wide.lo);
+    f.h.drag(right - 4, middle_y, right, middle_y);
+    f.h.frame();
+    const auto panned = f.screen->plot_axis("roots");
+    CHECK(panned.lo < zoomed.lo);
+    const auto menu = f.screen->context_menu((r.x_min + r.x_max) / 2, middle_y);
+    REQUIRE_FALSE(menu.empty());
+    menu.back().action();
+    f.h.frame();
+    CHECK(f.screen->plot_axis("roots").lo == wide.lo);
+}

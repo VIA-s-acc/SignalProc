@@ -33,14 +33,21 @@ Result<std::vector<Complex<Real>>> polynomial_roots(const std::vector<Real>& coe
     }
 
     const Real eps = std::is_floating_point_v<Real> ? Real(1e-15) : Real(std::ldexp(1.0, -200));
+    const Real rounding = std::is_floating_point_v<Real> ? Real(8 * std::numeric_limits<double>::epsilon()) : Real(std::ldexp(1.0, -220));
+    bool settled = false;
     for (int iteration = 0; iteration < 500; ++iteration) {
         Real worst(0);
+        settled = true;
         for (std::size_t k = 0; k < degree; ++k) {
             Complex<Real> p{c[degree], Real(0)}, dp{Real(0), Real(0)};
+            Real bound = abs(c[degree]);
+            const Real r = modulus(z[k]);
             for (std::size_t i = degree; i-- > 0;) {
                 dp = dp * z[k] + p;
                 p = p * z[k] + Complex<Real>{c[i], Real(0)};
+                bound = bound * r + abs(c[i]);
             }
+            if (modulus(p) > rounding * bound) settled = false;
             if (modulus(dp) == 0) dp = {Real(1e-30), Real(0)};
             const Complex<Real> w = p / dp;
             Complex<Real> s{Real(0), Real(0)};
@@ -54,6 +61,7 @@ Result<std::vector<Complex<Real>>> polynomial_roots(const std::vector<Real>& coe
         }
         if (worst < eps) return z;
     }
+    if (settled) return z;
     return make_error(Errc::no_convergence, "polynomial_roots: Aberth-Ehrlich did not converge in 500 iterations");
 }
 

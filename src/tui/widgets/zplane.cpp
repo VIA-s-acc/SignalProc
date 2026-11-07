@@ -47,7 +47,10 @@ public:
         if (W <= 0 || H <= 0) return;
         const int DW = 2 * W, DH = 4 * H, side = std::min(DW, DH);
         const double scale = (side - 1) / (2 * spec_.extent);
-        const double cxd = (DW - 1) / 2.0, cyd = (DH - 1) / 2.0;
+        const double mx = (DW - 1) / 2.0, my = (DH - 1) / 2.0;
+        const double cxd = mx - scale * spec_.center.real(), cyd = my + scale * spec_.center.imag();
+        const double re_lo = spec_.center.real() - spec_.extent, re_hi = spec_.center.real() + spec_.extent;
+        const double im_lo = spec_.center.imag() - spec_.extent, im_hi = spec_.center.imag() + spec_.extent;
         std::vector<std::uint8_t> mask(static_cast<std::size_t>(W * H), 0);
         auto set = [&](double dx, double dy) {
             const int x = static_cast<int>(std::lround(dx)), y = static_cast<int>(std::lround(dy));
@@ -73,10 +76,10 @@ public:
         int outside = 0;
         auto place = [&](const Marker& m, const char* uni, const char* asc, Rgb colour) {
             double re = m.z.real(), im = m.z.imag();
-            if (std::abs(re) > spec_.extent || std::abs(im) > spec_.extent) {
+            if (re < re_lo || re > re_hi || im < im_lo || im > im_hi) {
                 outside += m.count;
-                re = std::clamp(re, -spec_.extent, spec_.extent);
-                im = std::clamp(im, -spec_.extent, spec_.extent);
+                re = std::clamp(re, re_lo, re_hi);
+                im = std::clamp(im, im_lo, im_hi);
             }
             const int x = box_.x_min + std::clamp(static_cast<int>(std::lround(cxd + scale * re)) / 2, 0, W - 1);
             const int y = box_.y_min + std::clamp(static_cast<int>(std::lround(cyd - scale * im)) / 4, 0, H - 1);
@@ -91,8 +94,8 @@ public:
         if (spec_.hits) spec_.hits->clear();
         for (const auto& m : spec_.markers) {
             double re = m.z.real(), im = m.z.imag();
-            re = std::clamp(re, -spec_.extent, spec_.extent);
-            im = std::clamp(im, -spec_.extent, spec_.extent);
+            re = std::clamp(re, re_lo, re_hi);
+            im = std::clamp(im, im_lo, im_hi);
             const int x = box_.x_min + std::clamp(static_cast<int>(std::lround(cxd + scale * re)) / 2, 0, W - 1);
             const int y = box_.y_min + std::clamp(static_cast<int>(std::lround(cyd - scale * im)) / 4, 0, H - 1);
             put(screen, x, y, glyphs_ == GlyphMode::ascii ? (m.glyph == "●" ? "*" : m.glyph == "◉" ? "@" : "o") : m.glyph, m.color);
@@ -127,6 +130,72 @@ private:
 
 ftxui::Element zplane(ZPlaneSpec spec, const Theme& theme, ColorDepth depth, GlyphMode glyphs) {
     return std::make_shared<ZPlaneNode>(std::move(spec), theme, depth, glyphs);
+}
+
+namespace {
+
+constexpr double kZStep = 1.25, kZMax = 50.0;
+
+double dot_scale(const ftxui::Box& box, double extent) {
+    const int W = box.x_max - box.x_min + 1, H = box.y_max - box.y_min + 1;
+    return (std::max(1, std::min(2 * W, 4 * H)) - 1) / (2 * extent);
+}
+
+}  // namespace
+
+std::complex<double> ZView::at(const ftxui::Box& box, int x, int y, double base) const {
+    const double scale = dot_scale(box, extent(base));
+    const int W = box.x_max - box.x_min + 1, H = box.y_max - box.y_min + 1;
+    const double dx = 2.0 * (x - box.x_min) + 0.5 - (2 * W - 1) / 2.0, dy = 4.0 * (y - box.y_min) + 1.5 - (4 * H - 1) / 2.0;
+    return center_ + std::complex<double>{dx / scale, -dy / scale};
+}
+
+void ZView::zoom_by(double factor, std::optional<std::complex<double>> anchor, double base) {
+    const double next = std::clamp(zoom_ * factor, 1.0, kZMax);
+    if (next == 1.0) {
+        reset();
+        return;
+    }
+    if (anchor) center_ = *anchor - (*anchor - center_) * (zoom_ / next);
+    zoom_ = next;
+    const double limit = 2 * base;
+    center_ = {std::clamp(center_.real(), -limit, limit), std::clamp(center_.imag(), -limit, limit)};
+}
+
+bool ZView::on_mouse(const ftxui::Mouse& m, const ftxui::Box& box, double base) {
+    using ftxui::Mouse;
+    const bool inside = box.x_max >= box.x_min && box.Contain(m.x, m.y);
+    if ((m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) && inside) {
+        zoom_by(m.button == Mouse::WheelUp ? kZStep : 1 / kZStep, at(box, m.x, m.y, base), base);
+        return true;
+    }
+    if (m.button == Mouse::Left && m.motion == Mouse::Pressed && inside) {
+        dragging_ = true;
+        last_x_ = m.x, last_y_ = m.y;
+        return true;
+    }
+    if (!dragging_) return false;
+    if (m.motion == Mouse::Released) {
+        dragging_ = false;
+        return true;
+    }
+    const double scale = dot_scale(box, extent(base));
+    center_ -= std::complex<double>{2.0 * (m.x - last_x_) / scale, -4.0 * (m.y - last_y_) / scale};
+    last_x_ = m.x, last_y_ = m.y;
+    return true;
+}
+
+bool ZView::on_key(const ftxui::Event& e, double base) {
+    using ftxui::Event;
+    if (e == Event::Character('+') || e == Event::Character('=')) return zoom_by(kZStep, std::nullopt, base), true;
+    if (e == Event::Character('-')) return zoom_by(1 / kZStep, std::nullopt, base), true;
+    if (e == Event::Character('0')) return reset(), true;
+    const double step = 0.2 * extent(base);
+    if (e == Event::ArrowLeftCtrl) return center_ -= step, true;
+    if (e == Event::ArrowRightCtrl) return center_ += step, true;
+    if (e == Event::ArrowUpCtrl) return center_ += std::complex<double>{0, step}, true;
+    if (e == Event::ArrowDownCtrl) return center_ -= std::complex<double>{0, step}, true;
+    return false;
 }
 
 }  // namespace signals::tui

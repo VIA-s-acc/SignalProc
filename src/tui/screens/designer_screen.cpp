@@ -23,7 +23,6 @@ namespace signals::tui {
 namespace {
 
 constexpr int kLeft = 47;
-constexpr double kWheelStep = 1.25;
 
 std::string signed_text(double v) { return (v < 0 ? "−" : "+") + format_fixed(std::abs(v), 4); }
 
@@ -136,7 +135,8 @@ ftxui::Element DesignerScreen::roots_panel(const DesignerData* d, const Designer
             spec.markers.push_back({z, in_h0 ? "●" : "○", in_h0 ? th.trace[0] : f0_color, static_cast<int>(g)});
             if (grp.conjugate_pair) spec.markers.push_back({std::conj(z), in_h0 ? "●" : "○", in_h0 ? th.trace[0] : f0_color, static_cast<int>(g)});
         }
-        spec.extent = std::max(1.5, 1.1 * far) / zplane_zoom_;
+        spec.extent = std::max(1.5, 1.1 * far);
+        zview_.apply(spec);
     }
     const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
     auto legend = vbox({text(std::string{ascii ? "* " : "● "} + tr("tui.designer.in_h0")) | fg(th.trace[0], ui_),
@@ -392,11 +392,10 @@ bool DesignerScreen::OnEvent(ftxui::Event e) {
     auto& jobs = *ui_.jobs;
     if (e.is_mouse()) {
         const auto& m = e.mouse();
+        const double base = zplane_base(model_->data().get());
+        const bool press = m.button == ftxui::Mouse::Left && m.motion == ftxui::Mouse::Pressed;
+        if (!press && zview_.on_mouse(m, roots_box_, base)) return true;
         if (m.button == ftxui::Mouse::WheelUp || m.button == ftxui::Mouse::WheelDown) {
-            if (roots_box_.Contain(m.x, m.y)) {
-                zplane_zoom_ = std::clamp(zplane_zoom_ * (m.button == ftxui::Mouse::WheelUp ? kWheelStep : 1 / kWheelStep), 1.0, 50.0);
-                return true;
-            }
             if (panel_boxes_[splits].Contain(m.x, m.y)) {
                 if (m.button == ftxui::Mouse::WheelDown) ++groups_first_;
                 else if (groups_first_ > 0) --groups_first_;
@@ -417,6 +416,7 @@ bool DesignerScreen::OnEvent(ftxui::Event e) {
                     model_->toggle_group(static_cast<std::size_t>(h.id), jobs);
                     return true;
                 }
+        if (zview_.on_mouse(m, roots_box_, base)) return focus_ = roots, true;
         for (int p = 0; p < panel_count; ++p)
             if (panel_boxes_[static_cast<std::size_t>(p)].Contain(m.x, m.y)) {
                 focus_ = static_cast<Panel>(p);
@@ -466,11 +466,7 @@ bool DesignerScreen::OnEvent(ftxui::Event e) {
     if (focus_ == magnitude && zoom_.on_key(e, "magnitude")) return true;
     if (focus_ == phi && zoom_.on_key(e, "phi")) return true;
     if (focus_ == phi_dual && zoom_.on_key(e, "phi_dual")) return true;
-    if (focus_ == roots) {
-        if (e == Event::Character('+') || e == Event::Character('=')) return zplane_zoom_ = std::min(50.0, zplane_zoom_ * kWheelStep), true;
-        if (e == Event::Character('-')) return zplane_zoom_ = std::max(1.0, zplane_zoom_ / kWheelStep), true;
-        if (e == Event::Character('0')) return zplane_zoom_ = 1.0, true;
-    }
+    if (focus_ == roots && zview_.on_key(e, zplane_base(model_->data().get()))) return true;
     if (e == Event::Character('x')) return model_->swap(jobs), true;
     if (e == Event::Character('c')) {
         const int next = model_->cascade_iterations() + 1;
@@ -491,15 +487,18 @@ bool DesignerScreen::OnEvent(ftxui::Event e) {
 
 Axis DesignerScreen::plot_axis(std::string_view id) const {
     if (auto v = zoom_.view(id)) return *v;
-    if (id == "roots") return {-zplane_extent(model_->data().get()), zplane_extent(model_->data().get())};
+    if (id == "roots") {
+        const double ext = zview_.extent(zplane_base(model_->data().get()));
+        return {zview_.center().real() - ext, zview_.center().real() + ext};
+    }
     return {};
 }
 
-double DesignerScreen::zplane_extent(const DesignerData* d) const {
+double DesignerScreen::zplane_base(const DesignerData* d) const {
     double far = 1;
     if (d)
         for (const auto& g : d->f.groups) far = std::max(far, std::abs(std::complex<double>{static_cast<double>(g.root.re), static_cast<double>(g.root.im)}));
-    return std::max(1.5, 1.1 * far) / zplane_zoom_;
+    return std::max(1.5, 1.1 * far);
 }
 
 ftxui::Box DesignerScreen::area(std::string_view id) const {
@@ -530,7 +529,7 @@ std::vector<Command> DesignerScreen::commands() {
 
 std::vector<MenuItem> DesignerScreen::context_menu(int x, int y) {
     if (auto reset = zoom_.reset_item(x, y)) return {*reset};
-    if (roots_box_.Contain(x, y) && zplane_zoom_ > 1) {
+    if (roots_box_.Contain(x, y) && zview_.zoomed()) {
         std::vector<MenuItem> items;
         if (hits_)
             for (const auto& h : *hits_)
@@ -540,7 +539,7 @@ std::vector<MenuItem> DesignerScreen::context_menu(int x, int y) {
                     items.push_back({tr(in_h0 ? "tui.designer.menu.to_f0" : "tui.designer.menu.to_h0"), tr("tui.signal.key.click"),
                                      [this, g] { model_->toggle_group(g, *ui_.jobs); }});
                 }
-        items.push_back({tr("tui.menu.reset_zoom"), "", [this] { zplane_zoom_ = 1; }});
+        items.push_back({tr("tui.menu.reset_zoom"), "", [this] { zview_.reset(); }});
         return items;
     }
     if (!hits_ || !ui_.jobs) return {};

@@ -19,7 +19,10 @@
 #include "tui/shell/layout.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/shell/plot_zoom.hpp"
 #include "tui/widgets/plot.hpp"
+#include "tui/widgets/zplane.hpp"
+#include "tui/widgets/scroll.hpp"
 
 namespace signals::tui {
 
@@ -41,6 +44,8 @@ public:
     bool OnEvent(ftxui::Event e) override;
 
     ftxui::Box area(std::string_view id) const;
+
+    std::optional<Axis> plot_view(std::string_view id) const;
     std::pair<double, double> view() const { return {lo_, hi_}; }
     std::optional<double> cursor_a() const { return cursor_a_; }
     std::optional<double> cursor_b() const { return cursor_b_; }
@@ -86,7 +91,7 @@ private:
     ftxui::Element zeros_panel(int rows);
     ftxui::Element properties_panel();
     ftxui::Element measures_panel(int width);
-    ftxui::Element library_panel(int width);
+    ftxui::Element library_panel(int width, int height);
     ftxui::Element comparison_panel(int width);
     ftxui::Element clickable(ftxui::Element e, std::function<void()> action);
     struct Item {
@@ -95,6 +100,7 @@ private:
         bool on = false;
     };
     ftxui::Element chip_rows(std::vector<Item> items, int width, int indent);
+    std::vector<ftxui::Element> chip_lines(std::vector<Item> items, int width, int indent);
 
     Axis omega_axis() const;
     double to_axis(double w) const;
@@ -135,6 +141,10 @@ private:
     std::array<ftxui::Box, panel_count> title_boxes_{};
     std::array<ftxui::Box, 3> plot_boxes_{};
     std::deque<Clickable> clickables_;
+    Scroll library_scroll_, roots_scroll_;
+    PlotZoom impulse_zoom_;
+    ZView zview_;
+    ftxui::Box zplane_box_{}, roots_box_{};
     std::vector<ftxui::Box> row_boxes_;
     double lo_ = 0, hi_ = 1, span_ = 1;
     std::optional<double> cursor_a_, cursor_b_;

@@ -68,3 +68,24 @@ TEST_CASE("db2 zeros and step response", "[freq]") {
     CHECK(zeros_poles(Laurent{{}, 0}).error().code == Errc::invalid_argument);
     CHECK(zeros_poles(Laurent{{2.0}, -1})->poles_at_origin == -1);
 }
+
+TEST_CASE("zeros of long wavelets with many roots at -1 and +1 are found", "[core][freq]") {
+    for (const char* name : {"db10", "db20", "sym12"}) {
+        const auto bank = wavelet(name);
+        REQUIRE(bank);
+        for (const auto* h : {&bank->h0, &bank->h1}) {
+            const auto zp = zeros_poles(*h);
+            REQUIRE(zp);
+            CHECK(zp->zeros.size() == h->coeffs.size() - 1);
+            for (const auto& z : zp->zeros) {
+                std::complex<double> p = 0;
+                double norm = 0;
+                for (std::size_t k = h->coeffs.size(); k-- > 0;) {
+                    p = p * z + h->coeffs[h->coeffs.size() - 1 - k];
+                    norm += std::abs(h->coeffs[k]);
+                }
+                CHECK(std::abs(p) < 1e-8 * norm * std::pow(std::max(1.0, std::abs(z)), static_cast<double>(h->coeffs.size() - 1)));
+            }
+        }
+    }
+}

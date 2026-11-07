@@ -511,3 +511,60 @@ TEST_CASE("m7b review: a failed save is reported even when the comparison is ful
     set_user_filters({});
     std::filesystem::remove_all(blocker);
 }
+
+TEST_CASE("the library scrolls when every group is open and the wheel reaches the last group", "[tui][filters][scroll]") {
+    Fixture f{120, 40};
+    Harness h{f.screen, 120, 37};
+    auto frame = h.frame();
+    for (const auto* header : {"▸ Спектры", "▸ CWT", "▸ Пакеты"}) {
+        const auto at = signals::test::locate(frame, header);
+        if (!at) continue;
+        h.click(at->first + 2, at->second);
+        frame = h.frame();
+    }
+    CHECK(frame.find("▼") != std::string::npos);
+    const auto box = f.screen->area("library");
+    REQUIRE(box.x_max > box.x_min);
+    for (int k = 0; k < 30; ++k) h.wheel((box.x_min + box.x_max) / 2, (box.y_min + box.y_max) / 2, false);
+    frame = h.frame();
+    CHECK(frame.find("Мои фильтры") != std::string::npos);
+    CHECK(frame.find("▲") != std::string::npos);
+}
+
+TEST_CASE("the impulse plot and the z-plane zoom with the wheel and the roots list scrolls", "[tui][filters][zoom]") {
+    Fixture f;
+    Harness h{f.screen, 150, 41};
+    ClassicalSpec spec;
+    spec.family = signals::core::IirFamily::elliptic;
+    spec.order = 14;
+    REQUIRE(f.set->add(classical_ref(spec)));
+    f.set->set_focus(0);
+    h.frame();
+    auto frame = h.frame();
+    REQUIRE(f.set->entries()[0].analysis);
+    REQUIRE(f.set->entries()[0].analysis->zp);
+    const auto imp = f.screen->area("impulse_plot");
+    REQUIRE(imp.x_max > imp.x_min);
+    const auto wide = f.screen->plot_view("impulse");
+    REQUIRE(wide);
+    CHECK(h.wheel((imp.x_min + imp.x_max) / 2, (imp.y_min + imp.y_max) / 2, true));
+    h.frame();
+    CHECK(f.screen->plot_view("impulse")->hi - f.screen->plot_view("impulse")->lo < wide->hi - wide->lo);
+    CHECK_FALSE(f.screen->context_menu((imp.x_min + imp.x_max) / 2, (imp.y_min + imp.y_max) / 2).empty());
+
+    const auto plane = f.screen->area("zplane");
+    REQUIRE(plane.x_max > plane.x_min);
+    const auto before = f.screen->plot_view("zplane");
+    CHECK(h.wheel(plane.x_max - 1, (plane.y_min + plane.y_max) / 2, true));
+    h.frame();
+    const auto after = f.screen->plot_view("zplane");
+    CHECK(after->hi - after->lo < before->hi - before->lo);
+    CHECK(after->lo > before->lo);
+
+    frame = h.frame();
+    CHECK(frame.find("▼") != std::string::npos);
+    const auto list = f.screen->area("roots_list");
+    REQUIRE(list.x_max > list.x_min);
+    for (int k = 0; k < 10; ++k) h.wheel((list.x_min + list.x_max) / 2, (list.y_min + list.y_max) / 2, false);
+    CHECK(h.frame().find("▲") != std::string::npos);
+}
