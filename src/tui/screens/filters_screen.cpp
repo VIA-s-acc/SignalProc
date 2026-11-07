@@ -747,8 +747,8 @@ ftxui::Element FiltersScreen::properties_panel() {
     const auto tiny = [](double v) { return std::abs(v) < 1e-12 ? std::string{"0"} : format_number(v, 4); };
     if (a.zpk) {
         const std::vector<double> ends{0.0, kPi};
-        const auto g = core::zpk_response(*a.zpk, ends);
-        rows.push_back(text("|H(0)| = " + tiny(std::abs(g[0])) + "   |H(π)| = " + tiny(std::abs(g[1]))) | fg(th.fg, ui_));
+        const auto gain = core::zpk_response(*a.zpk, ends);
+        rows.push_back(text("|H(0)| = " + tiny(std::abs(gain[0])) + "   |H(π)| = " + tiny(std::abs(gain[1]))) | fg(th.fg, ui_));
     } else {
         double sum = 0, alternating = 0;
         for (std::size_t k = 0; k < a.h.coeffs.size(); ++k) {
