@@ -1205,6 +1205,7 @@
   "tui.pipeline.channels": "ch.",
   "tui.pipeline.nothing_to_play": "nothing to play: run the graph and add a probe",
   "tui.pipeline.cmd.example": "Pipeline: open an example…",
+  "tui.pipeline.cmd.format": "Pipeline: the .sig file format",
   "tui.pipeline.cmd.run": "Pipeline: run",
   "tui.pipeline.cmd.save": "Pipeline: save",
   "tui.pipeline.cmd.open": "Pipeline: open .sig",

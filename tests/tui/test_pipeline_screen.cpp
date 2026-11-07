@@ -331,7 +331,8 @@ TEST_CASE("Esc during a run interrupts it", "[tui][pipeline_screen]") {
 
 TEST_CASE("F1 on a node opens the card of its block", "[tui][pipeline_screen][theory]") {
     PipelineFixture f;
-    CHECK_FALSE(f.screen->theory_link());
+    REQUIRE(f.screen->theory_link());
+    CHECK(f.screen->theory_link()->id == "sig-format");
     f.model->selection = {Selection::Kind::node, "thr", {}};
     auto link = f.screen->theory_link();
     REQUIRE(link);
@@ -905,4 +906,21 @@ TEST_CASE("every block, parameter and choice value has an explanation in both la
             }
         }
     }
+}
+
+TEST_CASE("F1 without a selected node opens the .sig format chapter", "[tui][pipeline_screen][sig]") {
+    PipelineFixture f{150, 44, true};
+    f.model->selection = {};
+    const auto link = f.screen->theory_link();
+    REQUIRE(link);
+    CHECK(link->kind == TheoryLink::Kind::section);
+    CHECK(link->id == "sig-format");
+    std::optional<TheoryPage> opened;
+    f.ui->open_theory = [&](TheoryPage page) { opened = std::move(page); };
+    const auto commands = f.screen->commands();
+    const auto help = std::find_if(commands.begin(), commands.end(), [](const Command& c) { return c.id == "pipeline.format"; });
+    REQUIRE(help != commands.end());
+    help->run();
+    REQUIRE(opened);
+    CHECK(opened->link.id == "sig-format");
 }

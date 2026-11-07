@@ -77,7 +77,7 @@ TEST_CASE("search with no hits shows zero and keeps the selection valid", "[tui]
     f.type("нетакогослова");
     f.h.send(ftxui::Event::ArrowDown);
     f.h.send(ftxui::Event::ArrowUp);
-    CHECK(f.h.frame().find("0 из 132") != std::string::npos);
+    CHECK(f.h.frame().find("0 из 139") != std::string::npos);
     f.h.send(ftxui::Event::Return);
     f.h.send(ftxui::Event::Escape);
     CHECK_FALSE(f.screen->capturing_text());

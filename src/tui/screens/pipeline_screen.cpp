@@ -54,7 +54,7 @@ PipelineScreen::PipelineScreen(UiContext& ui, std::shared_ptr<PipelineModel> mod
 
 std::optional<TheoryLink> PipelineScreen::theory_link() const {
     const auto* n = selected_node();
-    if (!n) return std::nullopt;
+    if (!n) return TheoryLink{TheoryLink::Kind::section, "sig-format", tr("tui.pipeline.cmd.format")};
     static const std::map<std::string, std::string, std::less<>> cards{
         {"wav", "wav_in"},         {"gen", "generator"},         {"samples", "generator"},  {"chirp", "generator"},   {"osc", "generator"},
         {"check", "error"},        {"resample", "upsample"},     {"lift53", "lifting"},     {"ilift53", "lifting"},   {"lift97", "lifting"},
@@ -118,6 +118,9 @@ void PipelineScreen::open_examples() {
 std::vector<Command> PipelineScreen::commands() {
     std::vector<Command> out;
     out.push_back({"pipeline.example", tr("tui.pipeline.cmd.example"), [this] { open_examples(); }});
+    out.push_back({"pipeline.format", tr("tui.pipeline.cmd.format"), [this] {
+                       if (ui_.open_theory) ui_.open_theory(TheoryPage{TheoryLink{TheoryLink::Kind::section, "sig-format", tr("tui.pipeline.cmd.format")}});
+                   }});
     out.push_back({"pipeline.run", tr("tui.pipeline.cmd.run"), [this] {
                        if (ui_.jobs) model_->run(*ui_.jobs);
                    }});
