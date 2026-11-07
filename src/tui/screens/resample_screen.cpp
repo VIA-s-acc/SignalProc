@@ -45,24 +45,39 @@ void ResampleScreen::publish(theory::LiveValues& v) const {
 
 void ResampleScreen::refresh() {
     const auto data = signal_ ? signal_->data() : nullptr;
-    const auto source_data = options_.source == ResampleSource::file ? data : nullptr;
-    if (computed_ && *computed_ == options_ && computed_data_ == source_data && (view_ || !notice_.empty())) return;
+    const bool from_file = options_.source == ResampleSource::file;
+    const auto source_data = from_file ? data : nullptr;
+    const bool usable = source_data && !source_data->samples.empty() && !source_data->samples.front().empty();
+    start_ = 0;
+    if (usable) {
+        const auto& s = source_data->samples.front();
+        if (const auto sel = signal_->selection()) {
+            start_ = std::min(s.size() - 1, static_cast<std::size_t>(std::max(0.0, sel->first) * source_data->info.sample_rate));
+        } else {
+            if (source_data != peak_data_) {
+                const auto peak = static_cast<std::size_t>(std::max_element(s.begin(), s.end(), [](float l, float r) { return std::abs(l) < std::abs(r); }) - s.begin());
+                peak_start_ = peak > kResampleLength / 2 ? std::min(peak - kResampleLength / 2, s.size() > kResampleLength ? s.size() - kResampleLength : std::size_t{0}) : 0;
+                peak_data_ = source_data;
+            }
+            start_ = peak_start_;
+        }
+    }
+    if (computed_ && *computed_ == options_ && computed_data_ == source_data && computed_start_ == start_ && (view_ || !notice_.empty())) return;
     computed_ = options_;
     computed_data_ = source_data;
+    computed_start_ = start_;
     notice_.clear();
     std::vector<double> x;
     double fs = kSyntheticRate;
-    if (options_.source == ResampleSource::file) {
-        if (!data || data->samples.empty() || data->samples.front().empty()) {
+    if (from_file) {
+        if (!usable) {
             notice_ = tr("tui.resample.no_file");
             view_.reset();
             return;
         }
-        const auto& s = data->samples.front();
-        fs = data->info.sample_rate;
-        std::size_t start = 0;
-        if (const auto sel = signal_->selection()) start = std::min(s.size() - 1, static_cast<std::size_t>(std::max(0.0, sel->first) * fs));
-        x.assign(s.begin() + static_cast<std::ptrdiff_t>(start), s.begin() + static_cast<std::ptrdiff_t>(std::min(s.size(), start + kResampleLength)));
+        const auto& s = source_data->samples.front();
+        fs = source_data->info.sample_rate;
+        x.assign(s.begin() + static_cast<std::ptrdiff_t>(start_), s.begin() + static_cast<std::ptrdiff_t>(std::min(s.size(), start_ + kResampleLength)));
     } else {
         x = resample_source(options_, fs, kResampleLength);
     }
@@ -161,7 +176,8 @@ ftxui::Element ResampleScreen::after_panel() {
     if (v.up > 1)
         for (double k = 1; k * v.fs < v.fs_out / 2 + 1; ++k) spec.x_marks.push_back(k * v.fs);
     if (v.tone_out) spec.cursor_a = *v.tone_out;
-    const auto chips = v.copies_db.empty() ? std::vector<Chip>{} : std::vector<Chip>{{fmt::format(fmt::runtime(tr("tui.resample.copies")), fmt::arg("count", v.copies_db.size())), false}};
+    std::vector<Chip> chips;
+    if (!v.copies_db.empty()) chips.push_back({fmt::format(fmt::runtime(tr("tui.resample.copies")), fmt::arg("count", v.copies_db.size())), false});
     return panel(tr("tui.resample.after") + " · fs′ = " + hz(v.fs_out), chips, plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex, false, ui_);
 }
 
@@ -175,12 +191,21 @@ ftxui::Element ResampleScreen::readouts() {
                                     fmt::arg("down", v.down))) |
                    fg(th.fg, ui_));
     if (v.tone_out) {
-        const bool folds = options_.tone_hz > v.fs_out / 2;
-        const bool removed = folds && options_.filter == AntiAlias::on;
-        const auto key = !folds ? "tui.resample.tone_kept" : removed ? "tui.resample.tone_removed" : "tui.resample.tone_folded";
-        rows.push_back(text(fmt::format(fmt::runtime(tr(key)), fmt::arg("f", hz(options_.tone_hz)), fmt::arg("out", hz(*v.tone_out)),
-                                        fmt::arg("db", format_fixed(v.aa_attenuation_db, 0)))) |
-                       fg(removed ? th.ok : folds ? th.warn : th.fg, ui_));
+        const double f = options_.tone_hz, half = v.fs_out / 2;
+        const double att = -v.tone_gain_db;
+        std::string key = "tui.resample.tone_kept";
+        Rgb colour = th.fg;
+        if (v.down > 1 && std::abs(f - half) < 0.5) key = "tui.resample.tone_edge", colour = th.warn;
+        else if (f <= half && att >= 3) key = "tui.resample.tone_kept_attenuated", colour = th.warn;
+        else if (f > half && att >= 60) key = "tui.resample.tone_removed", colour = th.ok;
+        else if (f > half && att >= 3) key = "tui.resample.tone_folded_weak", colour = th.warn;
+        else if (f > half) key = "tui.resample.tone_folded", colour = th.warn;
+        rows.push_back(text(fmt::format(fmt::runtime(tr(key)), fmt::arg("f", hz(f)), fmt::arg("out", hz(*v.tone_out)), fmt::arg("db", format_fixed(att, 0)))) |
+                       fg(colour, ui_));
+        if (v.up > 1)
+            rows.push_back(text(fmt::format(fmt::runtime(tr(options_.filter == AntiAlias::on ? "tui.resample.images_suppressed" : "tui.resample.images_kept")),
+                                            fmt::arg("img", hz(v.fs - f)), fmt::arg("db", format_fixed(-v.image_gain_db, 0)))) |
+                           fg(th.fg, ui_));
     }
     if (options_.filter == AntiAlias::on && v.taps > 1)
         rows.push_back(text(fmt::format(fmt::runtime(tr("tui.resample.filter_line")), fmt::arg("taps", v.taps), fmt::arg("db", format_fixed(v.aa_attenuation_db, 1)))) | fg(th.fg, ui_));
@@ -190,13 +215,43 @@ ftxui::Element ResampleScreen::readouts() {
     return panel(tr("tui.resample.readouts"), {}, vbox(std::move(rows)), false, ui_);
 }
 
+ftxui::Element ResampleScreen::time_panel() {
+    using namespace ftxui;
+    const auto& th = ui_.theme;
+    if (!view_) return text("");
+    const auto& v = *view_;
+    Trace in{{}, {}, th.dim};
+    in.stems = true;
+    for (std::size_t k = 0; k < v.x_head.size() && k * v.up < v.y_head.size() * v.down; ++k) {
+        in.x.push_back(static_cast<double>(k * v.up));
+        in.y.push_back(v.x_head[k]);
+    }
+    Trace out{{}, {}, th.trace[0]};
+    out.stems = true;
+    for (std::size_t k = 0; k < v.y_head.size(); ++k) {
+        out.x.push_back(static_cast<double>(k * v.down));
+        out.y.push_back(v.y_head[k]);
+    }
+    double lo = 0, hi = 0;
+    for (double y : out.y) lo = std::min(lo, y), hi = std::max(hi, y);
+    for (double y : in.y) lo = std::min(lo, y), hi = std::max(hi, y);
+    PlotSpec spec;
+    spec.x = {-0.5, static_cast<double>(std::max<std::size_t>(1, v.y_head.size() * v.down)) - 0.5};
+    spec.y = {lo - 0.1 * (hi - lo + 1e-9), hi + 0.1 * (hi - lo + 1e-9)};
+    spec.traces.push_back(std::move(in));
+    spec.traces.push_back(std::move(out));
+    return panel(tr("tui.resample.time"), {}, plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex, false, ui_);
+}
+
 ftxui::Element ResampleScreen::OnRender() {
     using namespace ftxui;
     clickables_.clear();
     refresh();
     const auto [cols, rows] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
     auto plots = cols >= 120 ? hbox({before_panel() | flex, text(" "), after_panel() | flex}) : vbox({before_panel() | flex, after_panel() | flex});
-    return vbox({controls(cols), std::move(plots) | flex, readouts()});
+    const bool time = view_ && view_->up > 1 && cols >= 120;
+    auto bottom = time ? hbox({readouts() | flex, text(" "), time_panel() | size(WIDTH, EQUAL, cols / 3)}) : readouts();
+    return vbox({controls(cols), std::move(plots) | flex, std::move(bottom)});
 }
 
 bool ResampleScreen::OnEvent(ftxui::Event e) {

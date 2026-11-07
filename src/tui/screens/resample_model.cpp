@@ -97,6 +97,21 @@ core::Result<ResampleView> compute_resample(const ResampleOptions& o, std::span<
         v.aa_attenuation_db = worst > 0 ? -20 * std::log10(worst) : -kFloorDb;
     }
     v.taps = h.coeffs.size();
+    auto gain_db = [&](double f) {
+        if (h.coeffs.size() < 2) return 0.0;
+        const double nu = f / (fs * static_cast<double>(v.up) / 2);
+        std::complex<double> s{0, 0};
+        double dc = 0;
+        for (std::size_t k = 0; k < h.coeffs.size(); ++k) {
+            s += h.coeffs[k] * std::polar(1.0, -kPi * nu * static_cast<double>(k));
+            dc += h.coeffs[k];
+        }
+        return std::max(kFloorDb, 20 * std::log10(std::max(std::abs(s) / std::abs(dc), 1e-300)));
+    };
+    if (o.source == ResampleSource::tone) {
+        v.tone_gain_db = gain_db(o.tone_hz);
+        if (v.up > 1) v.image_gain_db = gain_db(fs - o.tone_hz);
+    }
     const auto y = core::upfirdn(h, x, v.up, v.down);
     if (y.size() < 16) return core::make_error(core::Errc::invalid_argument, "resample: the output is too short to show");
     auto in = power_per_bin(x, fs);

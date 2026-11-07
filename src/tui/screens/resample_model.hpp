@@ -32,6 +32,7 @@ struct ResampleView {
     std::vector<double> x_head, y_head;
     std::optional<double> tone_out;
     double aa_attenuation_db = 0;
+    double tone_gain_db = 0, image_gain_db = 0;
 };
 
 inline constexpr std::size_t kResampleLength = 8192;
