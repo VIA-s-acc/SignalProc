@@ -16,5 +16,6 @@ double relative_l2_error(std::span<const double> reference, std::span<const doub
 double snr_db(std::span<const double> reference, std::span<const double> test);
 double psnr_db(std::span<const double> reference, std::span<const double> test, double peak);
 std::vector<double> band_energy_fractions(const BasicCoeffs<double>& coeffs);
+std::vector<double> band_energy_fractions(const BasicCoeffs<double>& coeffs, std::span<const double> weights);
 
 }  // namespace signals::core

@@ -670,6 +670,7 @@
   "tui.decomposition.stage.tiles": "energy and tiles",
   "tui.decomposition.stage.recon": "reconstruction",
   "tui.decomposition.mra_skipped": "MRA skipped: need {need}, more than half of memory",
+  "tui.decomposition.swt_memory": "SWT does not fit in memory: needs {need}, {budget} available. Lower J or pick DWT",
   "tui.decomposition.hint.band": "band",
   "tui.decomposition.hint.toggle": "☑/☐",
   "tui.decomposition.hint.listen": "listen Σ☑",

@@ -222,3 +222,35 @@ TEST_CASE("swt refuses levels beyond the signal length before padding", "[pipeli
     REQUIRE_FALSE(r);
     CHECK(r.error().code == core::Errc::level_out_of_range);
 }
+
+TEST_CASE("modwt and swt thresholds give the same signal and energies", "[pipeline][swt][review]") {
+    const auto x = test_wav();
+    const auto s = run("swt", {x}, {{"wavelet", "db2"}, {"levels", "4"}, {"norm", "no"}});
+    const auto m = run("swt", {x}, {{"wavelet", "db2"}, {"levels", "4"}, {"norm", "yes"}});
+    for (const char* rule : {"bayes", "visu"})
+        for (const char* sigma : {"mad_d1", "0.01"}) {
+            INFO(rule << " sigma=" << sigma);
+            const auto ys = audio(run("iswt", {run("threshold", {s[0]}, {{"rule", rule}, {"sigma", sigma}})[0]})[0]);
+            const auto ym = audio(run("iswt", {run("threshold", {m[0]}, {{"rule", rule}, {"sigma", sigma}})[0]})[0]);
+            CHECK(core::max_abs_error(ys.channels[0], ym.channels[0]) < (std::string_view{sigma} == "mad_d1" ? 1e-5 : 1e-9));
+            CHECK(core::max_abs_error(ys.channels[0], x.channels[0]) > 1e-4);
+        }
+    const auto es = std::get<Report>(run("band_energy", {s[0]})[0]);
+    const auto em = std::get<Report>(run("band_energy", {m[0]})[0]);
+    REQUIRE(es.fields.size() == em.fields.size());
+    for (std::size_t i = 0; i < es.fields.size(); ++i) CHECK(std::get<double>(es.fields[i].second) == Catch::Approx(std::get<double>(em.fields[i].second)).margin(1e-9));
+}
+
+TEST_CASE("swt refuses an output above the length cap", "[pipeline][swt][review]") {
+    core::AudioBuffer a;
+    a.sample_rate = 8000;
+    a.channels.push_back(std::vector<double>(std::size_t{1} << 24, 0.25));
+    const auto* swt = find_block_type("swt");
+    const auto params = resolve_params(*swt, {{"levels", "16"}});
+    REQUIRE(params);
+    const std::vector<Value> in{std::move(a)};
+    const auto r = swt->run(RunContext{}, in, *params);
+    REQUIRE_FALSE(r);
+    CHECK(r.error().code == core::Errc::invalid_argument);
+}
+

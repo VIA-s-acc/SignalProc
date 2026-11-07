@@ -56,13 +56,13 @@ $$\sum_n x[n]^2 = \sum_{j=1}^{J}\sum_k d_j[k]^2 + \sum_k a_J[k]^2$$
 
 ## Реализация
 
-Энергия каждой полосы и нормировка на сумму.
+Энергия каждой полосы и нормировка на сумму. Для SWT полоса уровня $j$ получает вес $2^{-j}$: без прореживания в ней $2^j$ раз больше энергии, чем в MODWT.
 
 ```cpp
-std::vector<double> band_energy_fractions(const BasicCoeffs<double>& coeffs) {
+std::vector<double> band_energy_fractions(const BasicCoeffs<double>& coeffs, std::span<const double> weights) {
     std::vector<double> e;
     e.reserve(coeffs.bands.size());
-    for (const auto& band : coeffs.bands) e.push_back(energy(band));
+    for (std::size_t k = 0; k < coeffs.bands.size(); ++k) e.push_back(energy(coeffs.bands[k]) * (k < weights.size() ? weights[k] : 1.0));
     const double total = neumaier_sum(e);
     for (double& v : e) v = total > 0 ? v / total : 0.0;
     return e;

@@ -85,10 +85,12 @@ double psnr_db(std::span<const double> reference, std::span<const double> test, 
     return 10.0 * std::log10(peak * peak / mse);
 }
 
-std::vector<double> band_energy_fractions(const BasicCoeffs<double>& coeffs) {
+std::vector<double> band_energy_fractions(const BasicCoeffs<double>& coeffs) { return band_energy_fractions(coeffs, {}); }
+
+std::vector<double> band_energy_fractions(const BasicCoeffs<double>& coeffs, std::span<const double> weights) {
     std::vector<double> e;
     e.reserve(coeffs.bands.size());
-    for (const auto& band : coeffs.bands) e.push_back(energy(band));
+    for (std::size_t k = 0; k < coeffs.bands.size(); ++k) e.push_back(energy(coeffs.bands[k]) * (k < weights.size() ? weights[k] : 1.0));
     const double total = neumaier_sum(e);
     for (double& v : e) v = total > 0 ? v / total : 0.0;
     return e;
