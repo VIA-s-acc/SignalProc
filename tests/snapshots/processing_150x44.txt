@@ -1,4 +1,4 @@
- ◆ Signals 0.4.0 │ 1 Обраб.                                                                 test.wav · L · 2,27–2,45 с + шум 10 дБ · sym8 · J = 5   ?
+ ◆ Signals 0.5.0 │ 1 Обраб.                                                                 test.wav · L · 2,27–2,45 с + шум 10 дБ · sym8 · J = 5   ?
 Порог [BayesShrink] VisuShrink  SureShrink  Minimax  │[soft] hard
 λ × 0,5  0,75 [1] 1,5  2  │ вид [A вход] B результат  X разность  │ края symmetric
 
