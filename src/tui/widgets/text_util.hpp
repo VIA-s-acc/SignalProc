@@ -142,6 +142,7 @@ inline std::string ellipsize(const std::string& s, int width, bool ascii) {
         out += cp;
         if (!mark) ++used;
     }
+    while (!out.empty() && out.back() == ' ') out.pop_back();
     return out + (ascii ? "~" : "…");
 }
 

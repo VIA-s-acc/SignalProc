@@ -378,3 +378,19 @@ TEST_CASE("wrap_words breaks at spaces and splits only words wider than the line
     CHECK(wrap_words("", 10) == std::vector<std::string>{""});
     CHECK(wrap_words("a  b", 10) == std::vector<std::string>{"a  b"});
 }
+
+TEST_CASE("a panel title that does not fit ends with an ellipsis and keeps the last chip", "[tui][shell]") {
+    auto ui = signals::test::make_ui(80, 24);
+    auto element = panel("Очень длинный заголовок панели с подробностями", {{"Tab 1/6", false}}, ftxui::text("x"), true, *ui);
+    auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(36), ftxui::Dimension::Fixed(3));
+    ftxui::Render(screen, element);
+    const auto top = screen.ToString().substr(0, screen.ToString().find('\n'));
+    CHECK(top.find("…") != std::string::npos);
+    CHECK(top.find("Tab 1/6") != std::string::npos);
+    CHECK(screen.CellAt(35, 0).character == "╮");
+}
+
+TEST_CASE("ellipsize drops the spaces before the ellipsis", "[tui][text_util]") {
+    CHECK(signals::tui::ellipsize("ошибка от K", 8, false) == "ошибка…");
+    CHECK(signals::tui::ellipsize("ab   cd", 5, true) == "ab~");
+}
