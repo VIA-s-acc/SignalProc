@@ -542,6 +542,8 @@ def fir_json():
         (31, [0.05, 0.45], [1], None, "hilbert"),
         (30, [0.05, 0.45], [1], None, "hilbert"),
         (21, [0, 0.4], [1], None, "differentiator"),
+        (31, [0, 0.37], [1], None, "differentiator"),
+        (30, [0.02, 0.41], [1], None, "differentiator"),
     ]:
         h = scipy.signal.remez(numtaps, bands, desired, weight=weight, type=kind, fs=1.0)
         remez.append({"numtaps": numtaps, "bands": bands, "desired": desired, "weight": weight, "type": kind, "h": floats(h)})

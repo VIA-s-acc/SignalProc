@@ -280,3 +280,50 @@ TEST_CASE("classical steps change the order and the cutoff", "[tui][filters][cla
     CHECK_FALSE(classical_step(FilterRef{Kind::bank, "db2"}, 1, 1.0));
     CHECK_FALSE(parse_classical("iir/oops/lowpass/4/0.25"));
 }
+
+TEST_CASE("edge steps keep classical band edges apart at the limits", "[tui][filters][classic]") {
+    using M = ClassicalSpec::Method;
+    using T = signals::core::BandType;
+    for (const auto& spec : {ClassicalSpec{M::iir, signals::core::IirFamily::butterworth, T::bandpass, 4, {0.2, 0.4}},
+                             ClassicalSpec{M::iir, signals::core::IirFamily::butterworth, T::bandstop, 4, {0.3, 0.5}},
+                             ClassicalSpec{M::remez, signals::core::IirFamily::butterworth, T::lowpass, 31, {0.4, 0.5}}}) {
+        auto ref = classical_ref(spec);
+        INFO(ref.label());
+        for (const auto& [factor, presses] : {std::pair{1.1, 40}, std::pair{1 / 1.1, 40}, std::pair{1.1, 25}}) {
+            for (int k = 0; k < presses; ++k) {
+                const auto next = classical_step(ref, 0, factor);
+                REQUIRE(next);
+                ref = *next;
+                const auto edges = parse_classical(ref.wavelet)->edges;
+                CHECK(edges.front() >= 0.01);
+                CHECK(edges.back() <= 0.98);
+                for (std::size_t i = 1; i < edges.size(); ++i) CHECK(edges[i] > edges[i - 1] * 1.05);
+            }
+            if (factor < 1) continue;
+            const auto a = analyze(ref, 256);
+            INFO((a ? std::string{} : a.error().message));
+            CHECK(a);
+        }
+    }
+}
+
+TEST_CASE("every library group has filters or says when they come", "[tui][filters]") {
+    const auto lib = build_library();
+    for (const auto& g : lib.children) {
+        INFO(g.label);
+        CHECK_FALSE(g.label.empty());
+        CHECK((!g.children.empty() || !g.later.empty()));
+    }
+}
+
+TEST_CASE("a zoomed IIR view continues the unwrapped phase of the full band", "[tui][filters][classic]") {
+    JobRunner jobs{[] {}, std::chrono::milliseconds{0}, true};
+    ComparisonSet set;
+    REQUIRE(set.add(classical_ref(ClassicalSpec{ClassicalSpec::Method::iir, signals::core::IirFamily::butterworth, signals::core::BandType::lowpass, 8, {0.25}})));
+    set.request(jobs, 1024);
+    set.request_view(jobs, 0.5, 0.75, 257);
+    const auto e = set.entries()[0];
+    REQUIRE(e.analysis);
+    REQUIRE(e.view);
+    CHECK(e.view->phase_unwrapped.front() == Catch::Approx(e.analysis->response.phase_unwrapped[512]).margin(1e-9));
+}
