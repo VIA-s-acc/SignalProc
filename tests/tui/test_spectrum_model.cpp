@@ -5,9 +5,12 @@
 #include <cmath>
 #include <fstream>
 #include <memory>
+#include <numbers>
+#include <thread>
 
 #include <nlohmann/json.hpp>
 
+#include "io/wav.hpp"
 #include "support/paths.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/screens/spectrum_model.hpp"
@@ -125,4 +128,37 @@ TEST_CASE("a file shorter than the window is an error, not a crash", "[tui][spec
     f.model->sync(f.jobs);
     CHECK_FALSE(f.model->spectrogram());
     REQUIRE(f.model->error());
+}
+
+TEST_CASE("a cancelled spectrum job can be run again", "[tui][spectrum][review]") {
+    JobRunner inline_jobs{[] {}, 0ms, true};
+    JobRunner jobs{[] {}, 0ms, false};
+    auto signal = std::make_shared<SignalModel>();
+    signal->open(signals::test::sample("test.wav"), inline_jobs);
+    SpectrumModel model{signal};
+    model.sync(jobs);
+    const bool pending = model.job().has_value();
+    model.cancel(jobs);
+    if (pending) CHECK(model.cancelled());
+    model.recompute(jobs);
+    for (int i = 0; i < 2000 && (model.job() || !model.spectrogram()); ++i) {
+        model.sync(jobs);
+        std::this_thread::sleep_for(5ms);
+    }
+    CHECK(model.spectrogram());
+    CHECK(model.selection());
+    CHECK_FALSE(model.cancelled());
+}
+
+TEST_CASE("a zero-width selection is ignored and the selection can be cleared", "[tui][spectrum][review]") {
+    SpectrumFixture f;
+    f.model->sync(f.jobs);
+    f.model->set_selection(3.0, 3.0, f.jobs);
+    REQUIRE(f.model->selection());
+    CHECK(f.model->selection()->t0 == 0);
+    CHECK_FALSE(f.model->selection()->f.empty());
+    f.model->set_selection(2.10, 4.85, f.jobs);
+    CHECK(f.model->selection()->t0 == 2.10);
+    f.model->clear_selection(f.jobs);
+    CHECK(f.model->selection()->t0 == 0);
 }

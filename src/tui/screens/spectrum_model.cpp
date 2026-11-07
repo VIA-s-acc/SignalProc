@@ -145,6 +145,7 @@ void SpectrumModel::set_options(SpectrumOptions o, JobRunner& jobs) {
 
 void SpectrumModel::set_selection(double t0, double t1, JobRunner& jobs) {
     if (t0 > t1) std::swap(t0, t1);
+    if (seen_ && (t1 - t0) * seen_->info.sample_rate < 16) return;
     requested_ = std::pair{t0, t1};
     if (seen_) compute_selection(jobs);
 }
@@ -175,8 +176,26 @@ std::optional<std::uint64_t> SpectrumModel::job() const {
     return job_ ? job_ : selection_job_;
 }
 
+bool SpectrumModel::cancelled() const {
+    std::lock_guard lock{mutex_};
+    return cancelled_;
+}
+
+void SpectrumModel::recompute(JobRunner& jobs) {
+    if (!seen_) return;
+    selection_for_.reset();
+    compute(jobs);
+    compute_selection(jobs);
+}
+
+void SpectrumModel::clear_selection(JobRunner& jobs) {
+    requested_.reset();
+    if (seen_) compute_selection(jobs);
+}
+
 void SpectrumModel::cancel(JobRunner& jobs) {
     std::lock_guard lock{mutex_};
+    if (job_ || selection_job_) cancelled_ = true;
     if (job_) jobs.cancel(*job_);
     if (selection_job_) jobs.cancel(*selection_job_);
     job_.reset();
@@ -194,6 +213,7 @@ void SpectrumModel::compute(JobRunner& jobs) {
         if (job_) jobs.cancel(*job_);
         job_.reset();
         error_.reset();
+        cancelled_ = false;
         gen = ++gen_;
     }
     const auto opts = options_;
