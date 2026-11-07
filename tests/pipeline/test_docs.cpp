@@ -36,3 +36,8 @@ TEST_CASE("docs/user/blocks.md is the generated reference", "[pipeline][docs]") 
     const signals::LanguageScope en{signals::Language::en};
     CHECK(read(dir / "blocks.en.md") == signals::pipeline::blocks_markdown());
 }
+
+TEST_CASE("m7a review: markdown cells escape pipes once", "[pipeline][docs]") {
+    CHECK(signals::pipeline::markdown_cell("a | b") == "a \\| b");
+    CHECK(signals::pipeline::markdown_cell("one\ntwo") == "one two");
+}

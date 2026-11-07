@@ -3,6 +3,7 @@
 #include <set>
 
 #include "i18n/i18n.hpp"
+#include "pipeline/docs.hpp"
 #include "tui/app_screens.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/theme/theme.hpp"
@@ -10,15 +11,9 @@
 namespace signals::tui {
 namespace {
 
-std::string cell(std::string s) {
-    std::string out;
-    for (const char c : s) out += c == '|' ? std::string{"\\\\|"} : std::string{c};
-    return out;
-}
-
 std::string table(const std::vector<Hint>& hints) {
     std::string out = "| " + tr("docs.keys.col.key") + " | " + tr("docs.keys.col.action") + " |\n|---|---|\n";
-    for (const auto& h : hints) out += "| `" + cell(h.key) + "` | " + cell(h.label) + " |\n";
+    for (const auto& h : hints) out += "| `" + pipeline::markdown_cell(h.key) + "` | " + pipeline::markdown_cell(h.label) + " |\n";
     return out + "\n";
 }
 

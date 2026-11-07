@@ -47,12 +47,22 @@ std::string params(const BlockType& b) {
 
 }  // namespace
 
+std::string markdown_cell(std::string_view text) {
+    std::string out;
+    for (const char c : text) {
+        if (c == '|') out += "\\|";
+        else out += c == '\n' ? ' ' : c;
+    }
+    return out;
+}
+
 std::string blocks_markdown() {
     std::string out = "# " + tr("docs.blocks.title") + "\n\n" + tr("docs.blocks.generated") + "\n\n";
     out += "| " + tr("docs.blocks.col.block") + " | " + tr("docs.blocks.col.name") + " | " + tr("docs.blocks.col.inputs") + " | " +
            tr("docs.blocks.col.outputs") + " | " + tr("docs.blocks.col.params") + " |\n|---|---|---|---|---|\n";
     for (const auto& b : block_types())
-        out += "| `" + b.id + "` | " + block_title(b) + " | " + ports(b.inputs) + " | " + ports(b.outputs) + " | " + params(b) + " |\n";
+        out += "| `" + markdown_cell(b.id) + "` | " + markdown_cell(block_title(b)) + " | " + markdown_cell(ports(b.inputs)) + " | " +
+               markdown_cell(ports(b.outputs)) + " | " + markdown_cell(params(b)) + " |\n";
     return out;
 }
 
