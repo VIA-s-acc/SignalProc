@@ -136,10 +136,12 @@ void SpectrumModel::sync(JobRunner& jobs) {
 
 void SpectrumModel::set_options(SpectrumOptions o, JobRunner& jobs) {
     if (o == options_) return;
+    const bool channel = o.channel != options_.channel;
     options_ = o;
     if (!seen_) return;
-    selection_for_.reset();
     compute(jobs);
+    if (!channel) return;
+    selection_for_.reset();
     compute_selection(jobs);
 }
 
@@ -163,7 +165,7 @@ std::shared_ptr<const SpectrogramData> SpectrumModel::spectrogram() const {
 
 std::shared_ptr<const SelectionSpectrum> SpectrumModel::selection() const {
     std::lock_guard lock{mutex_};
-    return selection_ && selection_->options == options_ && selection_->source.lock() == seen_ ? selection_ : nullptr;
+    return selection_ && selection_->options.channel == options_.channel && selection_->source.lock() == seen_ ? selection_ : nullptr;
 }
 
 std::optional<std::string> SpectrumModel::error() const {

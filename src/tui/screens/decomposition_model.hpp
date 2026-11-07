@@ -152,10 +152,10 @@ public:
     std::shared_ptr<const PacketData> packets() const;
     std::optional<std::string> packets_error() const;
     std::vector<core::PacketNode> basis() const;
-    bool set_basis(std::vector<core::PacketNode> b);
-    void make_leaf(core::PacketNode n);
+    bool set_basis(std::vector<core::PacketNode> b, JobRunner& jobs);
+    void make_leaf(core::PacketNode n, JobRunner& jobs);
     double basis_cost() const;
-    double basis_pr_error() const;
+    std::optional<double> basis_pr_error() const;
 
     void request_scalogram(JobRunner& jobs);
     std::shared_ptr<const ScalogramData> scalogram() const;
@@ -182,7 +182,8 @@ private:
     bool recon_pending_ = false, cancelled_ = false;
     std::shared_ptr<const PacketData> packets_;
     std::vector<core::PacketNode> basis_;
-    double basis_pr_ = 0;
+    std::optional<double> basis_pr_;
+    std::uint64_t basis_gen_ = 0;
     std::optional<std::string> packets_error_;
     std::weak_ptr<const DecompositionData> packets_for_;
     std::optional<std::uint64_t> packets_job_;

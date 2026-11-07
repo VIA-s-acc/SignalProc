@@ -1257,5 +1257,7 @@
   "unit.section.many": "{n} sections",
   "tui.resample.filter_off_line_up": "filter bypassed — spectral images remain",
   "tui.filters.custom.saved": "saved as “{name}” — {file}",
-  "pipeline.error.xcorr_rates": "xcorr: the inputs have different sample rates — {a} and {b} Hz; bring them to one with the resample block"
+  "pipeline.error.xcorr_rates": "xcorr: the inputs have different sample rates — {a} and {b} Hz; bring them to one with the resample block",
+  "tui.decomposition.job_basis": "Packet basis",
+  "tui.decomposition.stage.basis": "reconstruction check"
 }
