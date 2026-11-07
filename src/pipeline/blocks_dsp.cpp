@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <optional>
 #include <sstream>
@@ -655,17 +656,19 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                                const auto& a = ref.channels[0];
                                const auto& b = test.channels[0];
                                double best = std::numeric_limits<double>::infinity();
-                               for (std::size_t s = 0; s < std::min<std::size_t>(b.size(), 4096); ++s) {
-                                   const auto n = std::min(a.size(), b.size() - s);
-                                   if (n == 0) break;
+                               const auto n = std::min(a.size(), b.size());
+                               const auto last = b.size() > a.size() ? std::min<std::size_t>(b.size() - a.size(), 4096) : 0;
+                               for (std::size_t s = 0; n > 0 && s <= last; ++s) {
                                    const double e = core::max_abs_error(std::span<const double>{a.data(), n}, std::span<const double>{b.data() + s, n});
                                    if (e < best) best = e, shift = s;
                                }
                            }
                        } else {
-                           const auto parsed = std::strtoll(delay.c_str(), nullptr, 10);
-                           if (parsed < 0) return core::make_error(core::Errc::invalid_argument, "check: delay must be auto or a non-negative number of samples");
-                           shift = static_cast<std::size_t>(parsed);
+                           std::size_t parsed = 0;
+                           const auto [end, ec] = std::from_chars(delay.data(), delay.data() + delay.size(), parsed);
+                           if (ec != std::errc{} || end != delay.data() + delay.size())
+                               return core::make_error(core::Errc::invalid_argument, "check: delay must be auto or a non-negative number of samples, got '" + delay + "'");
+                           shift = parsed;
                        }
                        for (std::size_t ch = 0; ch < std::min(ref.channels.size(), test.channels.size()); ++ch) {
                            const auto n = test.channels[ch].size() > shift ? std::min(ref.channels[ch].size(), test.channels[ch].size() - shift) : 0;

@@ -618,3 +618,27 @@ TEST_CASE("a single filter from the user library works in convolve by its name",
     REQUIRE(params);
     CHECK_FALSE(t->run(RunContext{std::filesystem::temp_directory_path()}, std::vector<Value>{x}, *params));
 }
+
+TEST_CASE("check delay=auto needs the whole reference and rejects a bad delay", "[pipeline][teaching][review]") {
+    const auto x = audio(run("samples", {}, {{"values", "0 1 2 3 4 5 6 7"}, {"rate", "8"}})[0]);
+    core::AudioBuffer good = x;
+    good.channels[0].push_back(0.0);
+    auto report = std::get<Report>(run("check", {x, good}, {{"kind", "pr"}, {"delay", "auto"}})[0]);
+    CHECK(report.passed);
+    const auto delay = [](const Report& r) {
+        const auto it = std::find_if(r.fields.begin(), r.fields.end(), [](const auto& f) { return f.first == "delay"; });
+        return it == r.fields.end() ? -1.0 : std::get<double>(it->second);
+    };
+    CHECK(delay(report) == 0);
+    core::AudioBuffer wrong = x;
+    std::reverse(wrong.channels[0].begin(), wrong.channels[0].end());
+    wrong.channels[0].push_back(0.0);
+    report = std::get<Report>(run("check", {x, wrong}, {{"kind", "pr"}, {"delay", "auto"}})[0]);
+    CHECK_FALSE(report.passed);
+    const auto* t = find_block_type("check");
+    for (const char* bad : {"auot", "3x", "-1"}) {
+        const auto params = resolve_params(*t, {{"delay", bad}});
+        if (!params) continue;
+        CHECK_FALSE(t->run(RunContext{std::filesystem::temp_directory_path()}, std::vector<Value>{x, good}, *params));
+    }
+}
