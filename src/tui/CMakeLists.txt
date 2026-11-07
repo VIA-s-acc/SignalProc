@@ -50,6 +50,7 @@ add_library(signals_tui STATIC
   screens/decomposition_model.cpp
   screens/spectrum_model.cpp
   screens/spectrum_screen.cpp
+  screens/processing_model.cpp
   screens/pipeline_model.cpp
   screens/pipeline_canvas.cpp
   screens/pipeline_screen.cpp
