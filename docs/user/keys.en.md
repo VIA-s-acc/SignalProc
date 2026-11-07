@@ -77,6 +77,22 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `f/F` | tone frequency |
 | `F1` | ↓M / ↑M card |
 
+## 2 Spectrum ▸ Tone and time
+
+| Key | Action |
+|---|---|
+| `{ }` | subtabs |
+| `Tab` | panel |
+| `z` | fullscreen |
+| `m` | mode |
+| `+ −` | rate × |
+| `> <` | semitones |
+| `w` | method |
+| `s` | input |
+| `a/b` | before/after |
+| `Space` | stop |
+| `F1` | how it works |
+
 ## 3 Filters
 
 | Key | Action |

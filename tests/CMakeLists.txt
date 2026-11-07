@@ -74,6 +74,7 @@ add_executable(signals_tests
   tui/test_diagram_screen.cpp
   tui/test_resample_model.cpp
   tui/test_resample_screen.cpp
+  tui/test_tempo_screen.cpp
   tui/test_docs_keys.cpp
   tui/test_explain_screen.cpp
   tui/test_designer_model.cpp
