@@ -46,6 +46,8 @@ constexpr std::array<V, 2> kCut{"block.begin", "block.end"};
 constexpr std::array<V, 3> kListen{"block.clip", "block.rate", "metric.position"};
 constexpr std::array<V, 5> kIirDesign{"block.filter", "block.order", "block.cutoff", "metric.poles", "check.stable"};
 constexpr std::array<V, 5> kFirDesign{"block.filter", "block.length", "block.cutoff", "metric.ripple_db", "metric.attenuation_db"};
+constexpr std::array<V, 4> kPhiPsi{"block.filter", "block.factors", "metric.zeros", "metric.partition"};
+constexpr std::array<V, 2> kLifting{"block.levels", "block.integer"};
 constexpr std::array<V, 7> kStft{"block.n", "block.hop", "block.overlap", "block.rate", "metric.dt", "metric.df", "metric.frames"};
 
 constexpr std::array kCatalog{
@@ -81,6 +83,8 @@ constexpr std::array kCatalog{
     BlockSpec{"stft", "STFT spectrogram", "stft", Tier::v1, kStft},
     BlockSpec{"iir_design", "IIR design", "cls-iir-prototypes", Tier::v1, kIirDesign},
     BlockSpec{"fir_design", "FIR design", "cls-parks-mcclellan", Tier::v1, kFirDesign},
+    BlockSpec{"phi_psi", "Spectra of phi and psi", "freq-phi-psi-spectra", Tier::v1, kPhiPsi},
+    BlockSpec{"lifting", "Lifting 5/3 and 9/7", "lift-53", Tier::v1, kLifting},
 };
 
 }  // namespace

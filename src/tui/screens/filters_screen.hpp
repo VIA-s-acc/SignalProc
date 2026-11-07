@@ -114,6 +114,7 @@ private:
     void zoom(double factor, double anchor);
     void pan(double delta);
     std::vector<const LibraryNode*> matches() const;
+    std::string focus_wavelet() const;
     bool on_mouse(const ftxui::Mouse& m);
     bool on_search(ftxui::Event e);
     int plot_under(int x, int y) const;
@@ -124,6 +125,7 @@ private:
     UiContext& ui_;
     std::shared_ptr<ComparisonSet> set_;
     LibraryNode library_;
+    std::string library_wavelet_ = "db2";
     std::vector<ComparisonSet::Entry> entries_;
     PanelLayout layout_;
     Breakpoint breakpoint_ = Breakpoint::primary;
@@ -133,7 +135,7 @@ private:
     std::array<ftxui::Box, 3> plot_boxes_{};
     std::deque<Clickable> clickables_;
     std::vector<ftxui::Box> row_boxes_;
-    double lo_ = 0, hi_ = 1;
+    double lo_ = 0, hi_ = 1, span_ = 1;
     std::optional<double> cursor_a_, cursor_b_;
     double db_floor_ = -80;
     double phase_zoom_ = 1, delay_zoom_ = 1, linear_zoom_ = 1;

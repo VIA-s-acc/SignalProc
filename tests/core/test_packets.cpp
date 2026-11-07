@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <limits>
@@ -8,6 +9,8 @@
 #include <vector>
 
 #include "core/check.hpp"
+#include "core/design/families.hpp"
+#include "core/freq.hpp"
 #include "core/extension.hpp"
 #include "core/metrics.hpp"
 #include "core/packets.hpp"
@@ -182,4 +185,43 @@ TEST_CASE("a signal above the tree cap is refused before anything is copied", "[
     const auto tree = wp_decompose(huge, golden_bank("haar"), 1, Extension::periodization);
     REQUIRE_FALSE(tree);
     CHECK(tree.error().code == Errc::level_out_of_range);
+}
+
+TEST_CASE("packet node filters extend the dwt equivalents", "[packets][freq]") {
+    const auto bank = wavelet("db2");
+    REQUIRE(bank);
+    for (std::size_t j = 1; j <= 3; ++j) {
+        const auto approx = packet_filter(*bank, {j, 0});
+        const auto detail = packet_filter(*bank, {j, 1});
+        REQUIRE(approx);
+        REQUIRE(detail);
+        const auto a = equivalent_filter(*bank, j, false);
+        const auto d = equivalent_filter(*bank, j, true);
+        CHECK(approx->offset == a->offset);
+        CHECK(max_abs_error(approx->coeffs, a->coeffs) < 1e-15);
+        CHECK(detail->offset == d->offset);
+        CHECK(max_abs_error(detail->coeffs, d->coeffs) < 1e-15);
+    }
+    CHECK_FALSE(packet_filter(*bank, {0, 0}));
+    CHECK_FALSE(packet_filter(*bank, {2, 4}));
+}
+
+TEST_CASE("orthogonal packet node filters are power complementary and sit in their band", "[packets][freq]") {
+    const auto bank = wavelet("db8");
+    REQUIRE(bank);
+    constexpr std::size_t level = 3;
+    std::vector<FrequencyResponse> responses;
+    for (std::size_t n = 0; n < (std::size_t{1} << level); ++n) responses.push_back(frequency_response(*packet_filter(*bank, {level, n}), 512));
+    for (std::size_t k = 0; k < 512; k += 37) {
+        double sum = 0;
+        for (const auto& r : responses) sum += std::norm(r.h[k]);
+        CHECK(std::abs(sum - 8) < 1e-9);
+    }
+    for (std::size_t n = 0; n < responses.size(); ++n) {
+        const auto& r = responses[n];
+        const auto peak = static_cast<double>(std::max_element(r.magnitude.begin(), r.magnitude.end()) - r.magnitude.begin()) / 512.0;
+        const auto f = static_cast<double>(freq_position({level, n}));
+        CHECK(peak >= f / 8 - 0.01);
+        CHECK(peak <= (f + 1) / 8 + 0.01);
+    }
 }
