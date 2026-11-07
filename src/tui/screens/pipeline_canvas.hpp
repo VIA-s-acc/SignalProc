@@ -41,10 +41,16 @@ struct GraphPicture {
     CellStyle style(int x, int y) const { return styles[static_cast<std::size_t>(y * width + x)]; }
 };
 
-inline constexpr int kNodeWidth = 22, kNodeHeight = 5, kColumnGap = 6, kRowGap = 1;
+struct GraphMetrics {
+    int node_w, node_h, col_gap, row_gap;
+    bool summary, info;
+};
+
+inline constexpr int kGraphZoomDefault = 2, kGraphZoomMax = 3;
+GraphMetrics graph_metrics(int zoom);
 
 GraphPicture draw_pipeline(const pipeline::Graph& g, const pipeline::PipelineDoc& doc, const RunView& run, const Selection& selection,
-                           GlyphMode mode);
+                           GlyphMode mode, int zoom = kGraphZoomDefault);
 std::string block_name(std::string_view type);
 
 }  // namespace signals::tui

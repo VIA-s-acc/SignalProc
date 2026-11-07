@@ -72,10 +72,11 @@ private:
     std::vector<CellStyle> style_;
 };
 
-int port_row(int y, std::size_t k, std::size_t n) {
-    if (n <= 1) return y + 2;
-    if (n == 2) return y + (k == 0 ? 1 : 3);
-    return y + 1 + static_cast<int>(std::min<std::size_t>(k, 2));
+int port_row(int y, std::size_t k, std::size_t n, int h) {
+    const int inner = h - 2;
+    if (n <= 1) return y + 1 + (inner - 1) / 2;
+    if (n == 2) return k == 0 ? y + 1 : y + h - 2;
+    return y + 1 + static_cast<int>(std::min<std::size_t>(k, static_cast<std::size_t>(inner - 1)));
 }
 
 std::vector<std::pair<int, int>> polyline(const std::vector<std::pair<int, int>>& corners) {
@@ -150,9 +151,24 @@ std::string block_name(std::string_view type) {
     return name == key ? std::string{type} : name;
 }
 
-GraphPicture draw_pipeline(const pipeline::Graph& g, const pipeline::PipelineDoc& doc, const RunView& run, const Selection& selection, GlyphMode mode) {
+GraphMetrics graph_metrics(int zoom) {
+    switch (std::clamp(zoom, 0, kGraphZoomMax)) {
+    case 0: return {14, 4, 4, 0, false, true};
+    case 1: return {18, 4, 5, 1, true, false};
+    case 3: return {34, 5, 8, 1, true, true};
+    default: return {22, 5, 6, 1, true, true};
+    }
+}
+
+GraphPicture draw_pipeline(const pipeline::Graph& g, const pipeline::PipelineDoc& doc, const RunView& run, const Selection& selection, GlyphMode mode, int zoom) {
     GraphPicture picture;
     if (g.nodes.empty()) return picture;
+    const auto metrics = graph_metrics(zoom);
+    const int kNodeWidth = metrics.node_w, kColumnGap = metrics.col_gap, kRowGap = metrics.row_gap;
+    std::size_t most_ports = 1;
+    for (const auto& n : g.nodes) most_ports = std::max({most_ports, n.type->inputs.size(), n.type->outputs.size()});
+    const int kNodeHeight = std::max(metrics.node_h, static_cast<int>(std::min<std::size_t>(most_ports, 3)) + 2);
+    const auto port_at = [&](int y, std::size_t k, std::size_t n) { return port_row(y, k, n, kNodeHeight); };
     const bool ascii = mode == GlyphMode::ascii;
     const auto layout = pipeline::layout_graph(g);
     std::size_t rows = 1;
@@ -160,8 +176,8 @@ GraphPicture draw_pipeline(const pipeline::Graph& g, const pipeline::PipelineDoc
     const int width = 2 + static_cast<int>(layout.layers.size()) * (kNodeWidth + kColumnGap) - kColumnGap;
     const int height = static_cast<int>(rows) * (kNodeHeight + kRowGap);
     Cells cells{width, height};
-    const auto col = [](int layer) { return 1 + layer * (kNodeWidth + kColumnGap); };
-    const auto row = [](int order) { return order * (kNodeHeight + kRowGap); };
+    const auto col = [&](int layer) { return 1 + layer * (kNodeWidth + kColumnGap); };
+    const auto row = [&](int order) { return order * (kNodeHeight + kRowGap); };
     const auto item_x = [&](std::size_t item) { return col(layout.items[item].layer); };
     const auto item_y = [&](std::size_t item) { return row(layout.items[item].order); };
 
@@ -200,10 +216,10 @@ GraphPicture draw_pipeline(const pipeline::Graph& g, const pipeline::PipelineDoc
                 for (std::size_t h = 0; h + 1 < chain.size(); ++h) {
                     const auto a = chain[h], b = chain[h + 1];
                     const int sx = item_x(a) + kNodeWidth;
-                    const int sy = h == 0 ? port_row(item_y(a), source.output, g.nodes[u].type->outputs.size()) : item_y(a) + 2;
+                    const int sy = h == 0 ? port_at(item_y(a), source.output, g.nodes[u].type->outputs.size()) : port_at(item_y(a), 0, 1);
                     const bool last = h + 2 == chain.size();
                     const int ex = item_x(b) - 1;
-                    const int ey = last ? port_row(item_y(b), j, target.type->inputs.size()) : item_y(b) + 2;
+                    const int ey = last ? port_at(item_y(b), j, target.type->inputs.size()) : port_at(item_y(b), 0, 1);
                     const int lx = std::min(ex - 1, sx + 1 + lane[a]);
                     auto path = sy == ey ? polyline({{sx, sy}, {ex, ey}}) : polyline({{sx, sy}, {lx, sy}, {lx, ey}, {ex, ey}});
                     if (!last) {
@@ -223,7 +239,7 @@ GraphPicture draw_pipeline(const pipeline::Graph& g, const pipeline::PipelineDoc
     for (const auto& probe : g.probes) {
         const auto& n = g.nodes[probe.source.node];
         const auto item = layout.item_of_node[probe.source.node];
-        const int y = port_row(item_y(item), probe.source.output, n.type->outputs.size());
+        const int y = port_at(item_y(item), probe.source.output, n.type->outputs.size());
         cells.put(item_x(item) + kNodeWidth, y, ascii ? "#" : "◆", CellStyle::accent);
     }
 
@@ -251,7 +267,7 @@ GraphPicture draw_pipeline(const pipeline::Graph& g, const pipeline::PipelineDoc
         const int inner = kNodeWidth - 4;
         cells.put(x + 2, y + 1, state_glyph(state, ascii), state_style(state));
         cells.put(x + 4, y + 1, ellipsize(n.id + (ascii ? " " : " · ") + block_name(n.type->id), inner - 2, ascii), chosen ? CellStyle::selected : CellStyle::plain);
-        cells.put(x + 2, y + 2, ellipsize(summary(n), inner, ascii), CellStyle::dim);
+        if (metrics.summary) cells.put(x + 2, y + 2, ellipsize(summary(n), inner, ascii), CellStyle::dim);
         std::string info;
         auto info_style = CellStyle::dim;
         if (it != run.nodes.end()) {
@@ -272,14 +288,14 @@ GraphPicture draw_pipeline(const pipeline::Graph& g, const pipeline::PipelineDoc
             }
         }
         if (n.bypass && info.empty()) info = tr("tui.pipeline.state.bypassed");
-        cells.put(x + 2, y + 3, ellipsize(info, inner, ascii), info_style);
+        if (metrics.info) cells.put(x + 2, y + (metrics.summary ? 3 : 2), ellipsize(info, inner, ascii), info_style);
         for (std::size_t k = 0; k < n.type->inputs.size(); ++k) {
-            const int py = port_row(y, k, n.type->inputs.size());
+            const int py = port_at(y, k, n.type->inputs.size());
             cells.put(x, py, std::string{glyph(Glyph::bullet_off, mode)}, CellStyle::plain);
             picture.ports.push_back({n.id, n.type->inputs[k].name, false, x, py});
         }
         for (std::size_t k = 0; k < n.type->outputs.size(); ++k) {
-            const int py = port_row(y, k, n.type->outputs.size());
+            const int py = port_at(y, k, n.type->outputs.size());
             cells.put(x + kNodeWidth - 1, py, std::string{glyph(Glyph::bullet_on, mode)}, CellStyle::plain);
             picture.ports.push_back({n.id, n.type->outputs[k].name, true, x + kNodeWidth - 1, py});
         }

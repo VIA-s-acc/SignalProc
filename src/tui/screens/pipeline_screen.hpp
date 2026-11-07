@@ -44,6 +44,7 @@ public:
 
     ftxui::Box area(std::string_view id) const;
     std::optional<Axis> plot_view(std::string_view id) const;
+    int graph_zoom() const { return graph_zoom_; }
     std::vector<MenuItem> context_menu(int x, int y) override;
     const std::string& notice() const { return notice_; }
     std::pair<int, int> view_offset() const { return {ox_, oy_}; }
@@ -58,6 +59,7 @@ private:
     std::vector<std::string> param_values(const pipeline::BlockType& type, const pipeline::ParamSpec& spec) const;
     void add_block(const std::string& type);
     void open_example(std::string_view name, std::string_view text);
+    void open_examples();
     ftxui::Element add_panel(int width, int height);
     bool on_add_key(const ftxui::Event& e);
     bool on_inspector_key(const ftxui::Event& e);
@@ -72,6 +74,7 @@ private:
     ftxui::Element text_panel(int width, int height);
     void follow_selection();
     void clamp_view();
+    void set_graph_zoom(int zoom, std::optional<std::pair<int, int>> anchor);
     void move_selection(int dx, int dy);
     void cycle_wires();
     bool on_mouse(const ftxui::Mouse& m);
@@ -97,10 +100,13 @@ private:
     } drag_;
     std::string notice_;
     std::vector<std::pair<std::string, ftxui::Box>> add_rows_;
-    Scroll text_scroll_, run_scroll_, add_scroll_, inspector_scroll_;
+    Scroll text_scroll_, run_scroll_, add_scroll_, inspector_scroll_, probe_text_scroll_;
+    std::vector<ftxui::Box> probe_chip_boxes_;
+    ftxui::Box probe_view_box_{};
     std::vector<ftxui::Box> param_boxes_;
     std::string param_follow_;
     PlotZoom probe_zoom_;
+    int graph_zoom_ = kGraphZoomDefault;
     std::string text_follow_;
     std::size_t add_follow_ = static_cast<std::size_t>(-1);
     std::function<std::optional<std::filesystem::path>()> current_file_;

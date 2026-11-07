@@ -25,7 +25,22 @@ TEST_CASE("points outside the field are counted", "[tui][zplane]") {
     ZPlaneSpec s{{std::complex<double>{3.7, 0.0}}, 0};
     auto t = signals::test::render_text(zplane(s, builtin_theme("dark"), ColorDepth::truecolor, GlyphMode::unicode), 40, 20);
     CHECK(t.find("вне поля: 1") != std::string::npos);
-    CHECK(t.find("○") != std::string::npos);
+    CHECK(t.find("○") == std::string::npos);
+    CHECK(t.find("→") != std::string::npos);
+}
+
+TEST_CASE("panned markers outside the view become dim arrows that cannot be clicked", "[tui][zplane]") {
+    ZPlaneSpec s;
+    s.extent = 0.5;
+    s.center = {-1.0, 0.0};
+    s.hits = std::make_shared<std::vector<ZHit>>();
+    s.markers.push_back({{0.8, 0.6}, "○", builtin_theme("dark").trace[0], 7});
+    s.markers.push_back({{-1.0, 0.0}, "●", builtin_theme("dark").trace[0], 3});
+    auto t = signals::test::render_text(zplane(s, builtin_theme("dark"), ColorDepth::truecolor, GlyphMode::unicode), 40, 20);
+    CHECK(t.find("→") != std::string::npos);
+    CHECK(t.find("○") == std::string::npos);
+    REQUIRE(s.hits->size() == 1);
+    CHECK(s.hits->front().id == 3);
 }
 
 TEST_CASE("ascii z-plane uses o and x", "[tui][zplane]") {

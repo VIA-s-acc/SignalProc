@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <set>
 #include <sstream>
 #include <memory>
 #include <string>
@@ -28,6 +29,7 @@
 #include "theory/live.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/pipeline_model.hpp"
+#include "tui/screens/pipeline_canvas.hpp"
 #include "tui/screens/pipeline_screen.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/ui_fixture.hpp"
@@ -752,4 +754,106 @@ TEST_CASE("the run panel and the .sig text scroll from the keyboard when focused
         for (auto at = after.find("▲ ещё"); at != std::string::npos; at = after.find("▲ ещё", at + 1)) ++ups;
         CHECK(ups >= 1);
     }
+}
+
+TEST_CASE("the graph draws smaller or larger at each zoom level and keeps the ports apart", "[tui][pipeline_screen][zoom]") {
+    PipelineModel m;
+    REQUIRE(m.load(std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples" / "haar_bank.sig"));
+    const auto* g = m.graph();
+    REQUIRE(g);
+    int last_width = 0;
+    for (int zoom = 0; zoom <= kGraphZoomMax; ++zoom) {
+        const auto pic = draw_pipeline(*g, m.doc(), m.run_view(), m.selection, GlyphMode::unicode, zoom);
+        CHECK(pic.width > last_width);
+        last_width = pic.width;
+        std::set<std::pair<int, int>> seen;
+        for (const auto& p : pic.ports) CHECK(seen.insert({p.x, p.y}).second);
+        CHECK(pic.wires.size() == m.doc().edges.size());
+    }
+}
+
+TEST_CASE("plus, minus and zero zoom the focused graph and the title shows the level", "[tui][pipeline_screen][zoom]") {
+    PipelineFixture f{150, 44, true};
+    const auto graph = f.box("graph");
+    f.h.click(graph.x_min + 1, graph.y_max);
+    REQUIRE(f.screen->graph_zoom() == kGraphZoomDefault);
+    f.h.send(ftxui::Event::Character('-'));
+    CHECK(f.screen->graph_zoom() == kGraphZoomDefault - 1);
+    CHECK(f.h.frame().find(signals::tr("tui.pipeline.zoom.1")) != std::string::npos);
+    f.h.send(ftxui::Event::Character('+'));
+    f.h.send(ftxui::Event::Character('+'));
+    CHECK(f.screen->graph_zoom() == kGraphZoomDefault + 1);
+    CHECK_FALSE(f.screen->context_menu(graph.x_min + 2, graph.y_min + 2).empty());
+    f.h.send(ftxui::Event::Character('0'));
+    CHECK(f.screen->graph_zoom() == kGraphZoomDefault);
+    ftxui::Mouse m;
+    m.button = ftxui::Mouse::WheelDown;
+    m.motion = ftxui::Mouse::Pressed;
+    m.control = true;
+    m.x = (graph.x_min + graph.x_max) / 2;
+    m.y = (graph.y_min + graph.y_max) / 2;
+    f.h.send(ftxui::Event::Mouse("", m));
+    CHECK(f.screen->graph_zoom() == kGraphZoomDefault - 1);
+}
+
+TEST_CASE("O lists the examples and a WAV example asks for the file, offering the open one", "[tui][pipeline_screen]") {
+    JobRunner jobs{[] {}, 0ms, true};
+    auto ui = signals::test::make_ui(150, 44);
+    ui->jobs = &jobs;
+    auto model = std::make_shared<PipelineModel>();
+    const auto open_file = std::filesystem::path{SIGNALS_SOURCE_DIR} / "resources" / "samples" / "test.wav";
+    auto screen = std::make_shared<PipelineScreen>(*ui, model, [open_file] { return std::optional{open_file}; });
+    screen->set_breakpoint(Breakpoint::primary);
+    Harness h{screen, 150, 41};
+    std::vector<Command> items;
+    std::string prompt, initial;
+    std::function<void(std::string)> answer;
+    ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    ui->ask_text = [&](std::string p, std::string i, std::function<void(std::string)> done) {
+        prompt = std::move(p);
+        initial = std::move(i);
+        answer = std::move(done);
+    };
+    h.frame();
+    const auto hints = screen->hints();
+    CHECK(std::any_of(hints.begin(), hints.end(), [](const signals::tui::Hint& x) { return x.key == "O"; }));
+    h.send(ftxui::Event::Character('O'));
+    const auto wav = std::find_if(items.begin(), items.end(), [](const Command& c) { return c.id == "haar_bank_wav"; });
+    REQUIRE(wav != items.end());
+    wav->run();
+    REQUIRE(answer);
+    CHECK(prompt == signals::tr("tui.pipeline.ask_wav"));
+    CHECK(initial == std::filesystem::absolute(open_file).string());
+    answer("/tmp/other.wav");
+    const auto& nodes = model->doc().nodes;
+    const auto x = std::find_if(nodes.begin(), nodes.end(), [](const auto& n) { return n.type == "wav"; });
+    REQUIRE(x != nodes.end());
+    CHECK(x->params.at("path") == "/tmp/other.wav");
+}
+
+TEST_CASE("probes switch by click and arrows, and a report probe shows its numbers", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    f.ui->ask_text = [](std::string, std::string, std::function<void(std::string)>) {};
+    f.h.send(ftxui::Event::Character('O'));
+    std::find_if(items.begin(), items.end(), [](const Command& c) { return c.id == "haar_bank"; })->run();
+    f.model->toggle_probe({"pr", {}, 0, 0});
+    f.model->run(f.jobs);
+    for (int k = 0; k < 2000 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    f.h.frame();
+    const auto chip = f.screen->area("probe_chip:pr");
+    REQUIRE(chip.x_max >= chip.x_min);
+    f.h.click(chip.x_min + 1, chip.y_min);
+    auto frame = f.h.frame();
+    CHECK(frame.find("Щуп · pr") != std::string::npos);
+    CHECK(frame.find("max_abs") != std::string::npos);
+    CHECK(frame.find("delay") != std::string::npos);
+    CHECK(frame.find("✓") != std::string::npos);
+    f.h.send(ftxui::Event::ArrowLeft);
+    frame = f.h.frame();
+    CHECK(frame.find("Щуп · pr") == std::string::npos);
+    f.h.send(ftxui::Event::ArrowRight);
+    CHECK(f.h.frame().find("Щуп · pr") != std::string::npos);
+    CHECK(frame.find("←→") != std::string::npos);
 }
