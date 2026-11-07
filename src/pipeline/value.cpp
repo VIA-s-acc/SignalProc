@@ -115,7 +115,7 @@ std::optional<Value> band_port(const Coeffs& c, std::string_view name) {
     if (!i) return std::nullopt;
     const auto level = *i == 0 ? c.levels() : c.levels() + 1 - *i;
     core::AudioBuffer out;
-    out.sample_rate = c.transform == "dwt" ? c.rate / static_cast<double>(std::size_t{1} << level) : c.rate;
+    out.sample_rate = c.transform != "swt" ? c.rate / static_cast<double>(std::size_t{1} << level) : c.rate;
     for (const auto& ch : c.channels) out.channels.push_back(ch.bands[*i]);
     return Value{std::move(out)};
 }

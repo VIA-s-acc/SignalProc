@@ -16,6 +16,8 @@
 #include "core/bank.hpp"
 #include "core/design/families.hpp"
 #include "core/design/fir.hpp"
+#include "core/packets.hpp"
+#include "core/wavelet/spectra.hpp"
 #include "i18n/i18n.hpp"
 #include "tui/shell/errors.hpp"
 #include "tui/widgets/format.hpp"
@@ -48,6 +50,8 @@ const core::Laurent& role_filter(const core::FilterBank& b, FilterRole r) {
 }
 
 bool analysis_side(FilterRole r) { return r == FilterRole::h0 || r == FilterRole::h1; }
+
+std::string factors_suffix(std::size_t factors) { return factors ? " · J=" + std::to_string(factors) : std::string{}; }
 
 }  // namespace
 
@@ -118,6 +122,17 @@ std::optional<FilterRef> classical_step(const FilterRef& ref, int order_step, do
     return classical_ref(*s);
 }
 
+std::optional<FilterRef> spectrum_step(const FilterRef& ref, int step) {
+    if (ref.kind != FilterRef::Kind::scaling && ref.kind != FilterRef::Kind::wavelet_fn) return std::nullopt;
+    constexpr std::size_t kMostFactors = 12;
+    auto next = ref;
+    if (step < 0) next.level = ref.level == 0 ? kMostFactors : std::max<std::size_t>(1, ref.level - 1);
+    else if (step > 0 && ref.level != 0) next.level = ref.level + 1 > kMostFactors ? 0 : ref.level + 1;
+    return next;
+}
+
+double span_of(const FilterRef& ref) { return ref.kind == FilterRef::Kind::scaling || ref.kind == FilterRef::Kind::wavelet_fn ? 8.0 : 1.0; }
+
 std::string FilterRef::label() const {
     if (kind == Kind::classical) {
         const auto s = parse_classical(wavelet);
@@ -129,6 +144,10 @@ std::string FilterRef::label() const {
     case Kind::equivalent: return (detail ? "d" : "a") + subscript_count(level) + " " + wavelet;
     case Kind::distortion: return "T(z) " + wavelet;
     case Kind::alias: return "A(z) " + wavelet;
+    case Kind::scaling: return std::string{analysis_side(role) ? "Φ̃ " : "Φ "} + wavelet + factors_suffix(level);
+    case Kind::wavelet_fn: return std::string{analysis_side(role) ? "Ψ̃ " : "Ψ "} + wavelet + factors_suffix(level);
+    case Kind::cwt: return "Ψ̂ " + wavelet + " a=" + std::to_string(level);
+    case Kind::packet: return core::packet_path({level, node}) + " " + wavelet;
     case Kind::classical: break;
     }
     return wavelet;
@@ -170,11 +189,33 @@ LibraryNode build_library(std::string_view equivalent_wavelet, std::size_t level
         const auto ref = classical_ref(spec);
         classic.children.push_back({ref.label(), {}, ref});
     }
+    LibraryNode packets{fmt::format(fmt::runtime(tr("tui.filters.group.packets")), fmt::arg("wavelet", eq_name), fmt::arg("levels", levels))};
+    for (std::size_t j = 1; j <= levels; ++j)
+        for (std::size_t f = 0; f < (std::size_t{1} << j); ++f) {
+            const auto n = core::natural_index_at(j, f);
+            packets.children.push_back({core::packet_path({j, n}), {}, FilterRef{FilterRef::Kind::packet, eq_name, FilterRole::h0, j, false, n}});
+        }
+    packets.folded = true;
+    LibraryNode cwt{tr("tui.filters.group.cwt")};
+    cwt.folded = true;
+    for (const char* name : {"morl", "mexh", "cmor1.5-1.0"})
+        for (const std::size_t a : {2, 4, 8, 16, 32}) {
+            const FilterRef r{FilterRef::Kind::cwt, name, FilterRole::h0, a};
+            cwt.children.push_back({r.label(), {}, r});
+        }
+    LibraryNode spectra{fmt::format(fmt::runtime(tr("tui.filters.group.spectra")), fmt::arg("wavelet", eq_name))};
+    spectra.children.push_back({"Φ", {}, FilterRef{FilterRef::Kind::scaling, eq_name, FilterRole::f0}});
+    spectra.children.push_back({"Ψ", {}, FilterRef{FilterRef::Kind::wavelet_fn, eq_name, FilterRole::f0}});
+    spectra.children.push_back({"Φ̃", {}, FilterRef{FilterRef::Kind::scaling, eq_name, FilterRole::h0}});
+    spectra.children.push_back({"Ψ̃", {}, FilterRef{FilterRef::Kind::wavelet_fn, eq_name, FilterRole::h0}});
+    spectra.folded = true;
+    classic.folded = true;
     root.children.push_back(std::move(classic));
     root.children.push_back(std::move(equivalent));
+    root.children.push_back(std::move(packets));
     root.children.push_back(std::move(chain));
-    root.children.push_back({tr("tui.filters.group.cwt"), {}, {}, "M6"});
-    root.children.push_back({tr("tui.filters.group.spectra"), {}, {}, "M6"});
+    root.children.push_back(std::move(cwt));
+    root.children.push_back(std::move(spectra));
     LibraryNode mine{tr("tui.filters.group.mine")};
     for (const auto& b : user_banks()) {
         LibraryNode node{b.name};
@@ -190,7 +231,10 @@ LibraryNode build_library(std::string_view equivalent_wavelet, std::size_t level
 }
 
 core::Result<core::FilterBank> bank_of(const FilterRef& ref) {
-    if (ref.kind != FilterRef::Kind::user) return core::wavelet(ref.wavelet);
+    if (ref.kind != FilterRef::Kind::user) {
+        auto bank = core::wavelet(ref.wavelet);
+        if (bank || ref.kind == FilterRef::Kind::bank) return bank;
+    }
     for (const auto& b : user_banks())
         if (b.name == ref.wavelet) return core::make_bank<double>(b.name, b.h0, b.f0, 1e-9);
     return core::make_error(core::Errc::invalid_argument, "no user bank named " + ref.wavelet);
@@ -239,12 +283,146 @@ core::Result<FilterAnalysis> analyze_classical(const FilterRef& ref, std::size_t
     return a;
 }
 
+core::FrequencyResponse sampled_response(std::vector<double> omega, std::vector<std::complex<double>> h) {
+    core::FrequencyResponse r;
+    const auto n = omega.size();
+    r.omega = std::move(omega);
+    r.h = std::move(h);
+    r.magnitude.resize(n);
+    r.magnitude_db.resize(n);
+    r.phase.resize(n);
+    r.group_delay.assign(n, std::numeric_limits<double>::quiet_NaN());
+    for (std::size_t k = 0; k < n; ++k) {
+        r.magnitude[k] = std::abs(r.h[k]);
+        r.magnitude_db[k] = r.magnitude[k] > 0 ? std::max(-300.0, 20 * std::log10(r.magnitude[k])) : -300.0;
+        r.phase[k] = std::arg(r.h[k]);
+    }
+    r.phase_unwrapped = core::unwrap_phase(r.phase);
+    for (std::size_t k = 0; n > 1 && k < n; ++k) {
+        const auto lo = k == 0 ? 0 : k - 1, hi = k + 1 == n ? k : k + 1;
+        r.group_delay[k] = -(r.phase_unwrapped[hi] - r.phase_unwrapped[lo]) / (r.omega[hi] - r.omega[lo]);
+    }
+    return r;
+}
+
+std::optional<double> phi_partition(const core::Laurent& lowpass) {
+    constexpr double pi = std::numbers::pi;
+    constexpr int kShifts = 256, kBase = 16;
+    std::vector<double> w;
+    for (int b = 0; b < kBase; ++b)
+        for (int k = -kShifts; k <= kShifts; ++k) w.push_back(2 * pi * (static_cast<double>(b) / kBase + k));
+    const auto v = core::scaling_spectrum(lowpass, w);
+    if (!v) return std::nullopt;
+    double worst = 0;
+    for (std::size_t b = 0; b < kBase; ++b) {
+        double sum = 0;
+        for (std::size_t k = 0; k < 2 * kShifts + 1; ++k) sum += std::norm((*v)[b * (2 * kShifts + 1) + k]);
+        worst = std::max(worst, std::abs(sum - 1));
+    }
+    return worst;
+}
+
+std::optional<double> psi_partition(const core::Laurent& lowpass, const core::Laurent& highpass) {
+    constexpr int kBase = 8, kLow = -40, kHigh = 24;
+    std::vector<double> w;
+    for (int b = 0; b < kBase; ++b)
+        for (int j = kLow; j <= kHigh; ++j) w.push_back(std::ldexp(std::numbers::pi * (1 + static_cast<double>(b) / kBase), j));
+    const auto v = core::wavelet_spectrum(lowpass, highpass, w);
+    if (!v) return std::nullopt;
+    double worst = 0;
+    const std::size_t per = kHigh - kLow + 1;
+    for (std::size_t b = 0; b < kBase; ++b) {
+        double sum = 0;
+        for (std::size_t j = 0; j < per; ++j) sum += std::norm((*v)[b * per + j]);
+        worst = std::max(worst, std::abs(sum - 1));
+    }
+    return worst;
+}
+
+core::Result<FilterAnalysis> analyze_spectrum(const FilterRef& ref, const core::FilterBank& bank, std::size_t points) {
+    constexpr double pi = std::numbers::pi;
+    const double kSpan = span_of(ref);
+    const bool dual = analysis_side(ref.role);
+    const auto lowpass = dual ? core::reverse(bank.h0) : bank.f0;
+    const auto highpass = dual ? core::reverse(bank.h1) : bank.f1;
+    const std::size_t n = 4 * points;
+    std::vector<double> omega(n);
+    for (std::size_t k = 0; k < n; ++k) omega[k] = kSpan * pi * static_cast<double>(k) / static_cast<double>(n);
+    const bool scaling = ref.kind == FilterRef::Kind::scaling;
+    auto values = scaling ? core::scaling_spectrum(lowpass, omega, ref.level) : core::wavelet_spectrum(lowpass, highpass, omega, ref.level);
+    if (!values) return std::unexpected{values.error()};
+    FilterAnalysis a;
+    a.ref = ref;
+    a.span = kSpan;
+    a.factors = ref.level > 0 ? ref.level : core::spectrum_factors(omega.back());
+    a.response = sampled_response(std::move(omega), std::move(*values));
+    a.metrics = core::band_metrics(a.response, -1.0, 2 * kSpan);
+    a.zeros_at_minus_one = core::zeros_at_minus_one(scaling ? lowpass : (dual ? bank.f0 : bank.h0), 1e-6);
+    const auto info = core::wavelet_info(ref.wavelet);
+    const bool orthogonal = info ? info->orthogonal : core::check_orthogonality(bank, kOrthogonalityTol).passed();
+    if (orthogonal && ref.level == 0) a.partition_error = scaling ? phi_partition(lowpass) : psi_partition(lowpass, highpass);
+    return a;
+}
+
+core::Result<FilterAnalysis> analyze_cwt(const FilterRef& ref, std::size_t points) {
+    constexpr double pi = std::numbers::pi;
+    const auto cw = core::continuous_wavelet(ref.wavelet);
+    if (!cw) return std::unexpected{cw.error()};
+    if (ref.level == 0) return core::make_error(core::Errc::invalid_argument, "cwt spectrum: the scale must be positive");
+    const double scale = static_cast<double>(ref.level);
+    std::vector<double> omega(points), scaled(points);
+    for (std::size_t k = 0; k < points; ++k) {
+        omega[k] = pi * static_cast<double>(k) / static_cast<double>(points);
+        scaled[k] = scale * omega[k];
+    }
+    FilterAnalysis a;
+    a.ref = ref;
+    a.response = sampled_response(std::move(omega), core::continuous_spectrum(*cw, scaled));
+    a.metrics = core::band_metrics(a.response, -1.0, 2.0);
+    const double guess = cw->family == core::ContinuousWavelet::Family::morl   ? 5.0
+                         : cw->family == core::ContinuousWavelet::Family::mexh ? std::sqrt(2.0)
+                                                                                : 2 * pi * cw->center;
+    constexpr std::size_t kDense = 40000;
+    std::vector<double> x(kDense + 1);
+    for (std::size_t i = 0; i <= kDense; ++i) x[i] = (4 * guess + 10) * static_cast<double>(i) / kDense;
+    const auto dense = core::continuous_spectrum(*cw, x);
+    std::vector<double> mag(dense.size());
+    for (std::size_t i = 0; i < dense.size(); ++i) mag[i] = std::abs(dense[i]);
+    const auto peak = static_cast<std::size_t>(std::max_element(mag.begin(), mag.end()) - mag.begin());
+    const double half = mag[peak] / std::sqrt(2.0);
+    std::optional<double> lower, upper;
+    for (std::size_t i = peak; i > 0 && !lower; --i)
+        if (mag[i - 1] < half) lower = x[i - 1] + (half - mag[i - 1]) / (mag[i] - mag[i - 1]) * (x[i] - x[i - 1]);
+    for (std::size_t i = peak; i + 1 < mag.size() && !upper; ++i)
+        if (mag[i + 1] < half) upper = x[i] + (mag[i] - half) / (mag[i] - mag[i + 1]) * (x[i + 1] - x[i]);
+    a.centre = x[peak] / (scale * pi);
+    if (lower && upper) a.quality = x[peak] / (*upper - *lower);
+    a.at_zero = mag.front();
+    return a;
+}
+
+}  // namespace
+
+namespace {
+
+core::Result<FilterAnalysis> analyze_any(const FilterRef& ref, std::size_t points);
+
 }  // namespace
 
 core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points) {
+    auto a = analyze_any(ref, points);
+    if (a) a->points = points;
+    return a;
+}
+
+namespace {
+
+core::Result<FilterAnalysis> analyze_any(const FilterRef& ref, std::size_t points) {
     if (ref.kind == FilterRef::Kind::classical) return analyze_classical(ref, points);
+    if (ref.kind == FilterRef::Kind::cwt) return analyze_cwt(ref, points);
     const auto bank = bank_of(ref);
     if (!bank) return std::unexpected(bank.error());
+    if (ref.kind == FilterRef::Kind::scaling || ref.kind == FilterRef::Kind::wavelet_fn) return analyze_spectrum(ref, *bank, points);
     FilterAnalysis a;
     a.ref = ref;
     double lo = 0, hi = 0.5;
@@ -264,7 +442,19 @@ core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points) {
     }
     case FilterRef::Kind::distortion: a.h = core::distortion_transfer(*bank), lo = -1; break;
     case FilterRef::Kind::alias: a.h = core::alias_transfer(*bank), lo = -1; break;
-    case FilterRef::Kind::classical: break;
+    case FilterRef::Kind::packet: {
+        auto p = core::packet_filter(*bank, {ref.level, ref.node});
+        if (!p) return std::unexpected(p.error());
+        a.h = std::move(*p);
+        const auto f = static_cast<double>(core::freq_position({ref.level, ref.node}));
+        lo = std::ldexp(f, -static_cast<int>(ref.level));
+        hi = std::ldexp(f + 1, -static_cast<int>(ref.level));
+        break;
+    }
+    case FilterRef::Kind::classical:
+    case FilterRef::Kind::scaling:
+    case FilterRef::Kind::wavelet_fn:
+    case FilterRef::Kind::cwt: break;
     }
     a.response = core::frequency_response(a.h, points);
     a.metrics = lo == 0 ? core::band_metrics(a.response, hi / 2, std::min(1.0, 1.5 * hi)) : core::band_metrics(a.response, -1.0, 2.0);
@@ -300,6 +490,8 @@ void align_unwrapped(core::FrequencyResponse& r, const core::FrequencyResponse& 
     const double shift = 2 * pi * std::round((full.phase_unwrapped[i] - r.phase_unwrapped.front()) / (2 * pi));
     for (auto& p : r.phase_unwrapped) p += shift;
 }
+
+}  // namespace
 
 }  // namespace
 
@@ -426,7 +618,7 @@ void ComparisonSet::request(JobRunner& jobs, std::size_t points) {
     {
         std::lock_guard lock{mutex_};
         for (const auto& e : entries_)
-            if (!e.error && (!e.analysis || e.analysis->response.omega.size() != points) &&
+            if (!e.error && (!e.analysis || e.analysis->points != points) &&
                 std::find(pending_.begin(), pending_.end(), e.ref) == pending_.end())
                 todo.push_back(e.ref);
         pending_.insert(pending_.end(), todo.begin(), todo.end());
@@ -471,7 +663,8 @@ void ComparisonSet::request_view(JobRunner& jobs, double lo, double hi, std::siz
         std::lock_guard lock{mutex_};
         if (view_pending_) return;
         for (const auto& e : entries_)
-            if (e.analysis && (!e.view || e.view_lo != lo || e.view_hi != hi || e.view->omega.size() != points))
+            if (e.analysis && (e.analysis->zpk || !e.analysis->h.coeffs.empty()) &&
+                (!e.view || e.view_lo != lo || e.view_hi != hi || e.view->omega.size() != points))
                 todo.emplace_back(e.ref, e.analysis);
         if (todo.empty()) return;
         view_pending_ = true;

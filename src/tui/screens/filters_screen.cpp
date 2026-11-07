@@ -67,6 +67,10 @@ std::string describe(const FilterRef& r) {
     case FilterRef::Kind::distortion: return tr("tui.filters.role.distortion");
     case FilterRef::Kind::alias: return tr("tui.filters.role.alias");
     case FilterRef::Kind::classical: return tr("tui.filters.role.classical");
+    case FilterRef::Kind::scaling: return tr("tui.filters.role.scaling");
+    case FilterRef::Kind::wavelet_fn: return tr("tui.filters.role.wavelet_fn");
+    case FilterRef::Kind::cwt: return tr("tui.filters.role.cwt");
+    case FilterRef::Kind::packet: return tr("tui.filters.role.packet");
     }
     return {};
 }
@@ -135,7 +139,9 @@ std::string FiltersScreen::context() const { return tr("tui.filters.context"); }
 
 std::optional<TheoryLink> FiltersScreen::theory_link() const {
     const auto* e = focused();
-    const bool equivalent = e && e->ref.kind == FilterRef::Kind::equivalent;
+    const bool equivalent = e && (e->ref.kind == FilterRef::Kind::equivalent || e->ref.kind == FilterRef::Kind::packet);
+    if (e && (e->ref.kind == FilterRef::Kind::scaling || e->ref.kind == FilterRef::Kind::wavelet_fn || e->ref.kind == FilterRef::Kind::cwt))
+        return TheoryLink{TheoryLink::Kind::card, "phi_psi"};
     if (e && e->ref.kind == FilterRef::Kind::classical) {
         const auto spec = parse_classical(e->ref.wavelet);
         return TheoryLink{TheoryLink::Kind::card, spec && spec->method != ClassicalSpec::Method::iir ? "fir_design" : "iir_design"};
@@ -167,6 +173,9 @@ void FiltersScreen::publish(theory::LiveValues& v) const {
     v.set("metric.attenuation_db", format_fixed(a.metrics.stopband_attenuation_db, 1) + " " + tr("tui.unit.db"));
     v.set("metric.transition", pi(a.metrics.transition_width));
     v.set("block.bank", e->ref.wavelet);
+    if (a.factors) v.set("block.factors", std::to_string(*a.factors));
+    if (a.zeros_at_minus_one) v.set("metric.zeros", std::to_string(*a.zeros_at_minus_one));
+    if (a.partition_error) v.set("metric.partition", format_number(*a.partition_error, 2));
     v.set("block.band", std::string{e->ref.detail ? "d" : "a"} + subscript_number(e->ref.level));
     v.set("block.level", std::to_string(e->ref.level));
     if (const auto bank = core::wavelet(e->ref.wavelet)) {
@@ -214,7 +223,7 @@ double FiltersScreen::omega_at(std::string_view plot, int x) const {
     const int p = plot == "phase" ? 1 : plot == "delay" ? 2 : 0;
     const auto a = plot_box(p);
     if (!valid(a)) return lo_;
-    return std::clamp(from_axis(value_at_column(omega_axis(), x - a.x_min, a.x_max - a.x_min + 1)), 0.0, 1.0);
+    return std::clamp(from_axis(value_at_column(omega_axis(), x - a.x_min, a.x_max - a.x_min + 1)), 0.0, span_);
 }
 
 ftxui::Box FiltersScreen::area(std::string_view id) const {
@@ -275,7 +284,7 @@ std::vector<FiltersScreen::Trace> FiltersScreen::traces() const {
         if (!e.visible || !e.analysis) continue;
         const auto& full = e.analysis->response;
         if (full.magnitude.empty()) continue;
-        const bool covers = e.view && e.view_lo <= lo_ + 1e-12 && e.view_hi >= hi_ - 1e-12 && (lo_ > 0 || hi_ < 1);
+        const bool covers = e.view && e.view_lo <= lo_ + 1e-12 && e.view_hi >= hi_ - 1e-12 && (lo_ > 0 || hi_ < span_);
         out.push_back({&e, color_of(i), style_of(i), covers ? e.view.get() : &full,
                        *std::max_element(full.magnitude_db.begin(), full.magnitude_db.end()),
                        *std::max_element(full.magnitude.begin(), full.magnitude.end()), normalise_ && !chain(e.ref)});
@@ -388,6 +397,16 @@ std::vector<const LibraryNode*> FiltersScreen::matches() const {
     return out;
 }
 
+std::string FiltersScreen::focus_wavelet() const {
+    auto bank_like = [](const FilterRef& r) { return r.kind != FilterRef::Kind::classical && r.kind != FilterRef::Kind::cwt && !r.wavelet.empty(); };
+    const auto entries = set_->entries();
+    const auto f = set_->focus();
+    if (f < entries.size() && bank_like(entries[f].ref)) return entries[f].ref.wavelet;
+    for (const auto& e : entries)
+        if (bank_like(e.ref)) return e.ref.wavelet;
+    return "db2";
+}
+
 void FiltersScreen::add(const FilterRef& leaf) {
     FilterRef ref = leaf;
     if (ref.kind == FilterRef::Kind::bank) ref.role = add_role_;
@@ -426,9 +445,9 @@ ftxui::Element FiltersScreen::library_panel(int width) {
         roles.push_back({role_label(r), [this, r] { add_role_ = r; }, add_role_ == r});
     rows.push_back(hbox({text(tr("tui.filters.role") + " ") | fg(th.dim, ui_), chip_rows(std::move(roles), inner, 0), text("(t)") | fg(th.dim, ui_)}));
     rows.push_back(text(""));
-    auto in_set = [&](const FilterRef& leaf) {
+    auto in_set = [&](const FilterRef& r) {
         for (const auto& e : entries_) {
-            if (leaf.kind == FilterRef::Kind::bank ? e.ref.kind == leaf.kind && e.ref.wavelet == leaf.wavelet : e.ref == leaf) return true;
+            if (r.kind == FilterRef::Kind::bank ? e.ref.kind == r.kind && e.ref.wavelet == r.wavelet : e.ref == r) return true;
         }
         return false;
     };
@@ -446,7 +465,7 @@ ftxui::Element FiltersScreen::library_panel(int width) {
                 rows.push_back(text(closed + " " + group.label + " · " + group.later) | fg(th.dim, ui_));
                 continue;
             }
-            const bool collapsed = std::find(collapsed_.begin(), collapsed_.end(), group.label) != collapsed_.end();
+            const bool collapsed = (std::find(collapsed_.begin(), collapsed_.end(), group.label) != collapsed_.end()) != group.folded;
             rows.push_back(clickable(text((collapsed ? closed : open) + " " + group.label) | fg(th.fg, ui_), [this, label = group.label] {
                 auto it = std::find(collapsed_.begin(), collapsed_.end(), label);
                 if (it == collapsed_.end()) collapsed_.push_back(label);
@@ -650,7 +669,7 @@ ftxui::Element FiltersScreen::impulse_panel(int width) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto* e = focused();
-    if (!e || !e->analysis) return frame_panel(impulse, text("—") | fg(th.dim, ui_), {}, tr("tui.filters.impulse"));
+    if (!e || !e->analysis || e->analysis->h.coeffs.empty()) return frame_panel(impulse, text("—") | fg(th.dim, ui_), {}, tr("tui.filters.impulse"));
     const auto& h = e->analysis->h;
     PlotSpec spec;
     const double first = static_cast<double>(h.first()), last = static_cast<double>(h.last());
@@ -716,6 +735,28 @@ ftxui::Element FiltersScreen::properties_panel() {
     if (!e || !e->analysis) return frame_panel(properties, text(e && e->error ? *e->error : "—") | fg(e && e->error ? th.err : th.dim, ui_), {},
                                                tr("tui.filters.properties"));
     const auto& a = *e->analysis;
+    const bool spectral = a.ref.kind == FilterRef::Kind::scaling || a.ref.kind == FilterRef::Kind::wavelet_fn || a.ref.kind == FilterRef::Kind::cwt;
+    if (spectral) {
+        Elements rows;
+        auto line = [&](const std::string& s) { rows.push_back(text(s) | fg(th.fg, ui_)); };
+        auto format = [](const char* key, auto&&... args) { return fmt::format(fmt::runtime(tr(key)), std::forward<decltype(args)>(args)...); };
+        if (a.ref.kind == FilterRef::Kind::cwt) {
+            line(format("tui.filters.prop.cwt_centre", fmt::arg("centre", a.centre ? format_fixed(*a.centre, 3) : std::string{"—"}),
+                        fmt::arg("scale", a.ref.level), fmt::arg("quality", a.quality ? format_fixed(*a.quality, 2) : std::string{"—"})));
+            if (a.at_zero) line(format("tui.filters.prop.cwt_zero", fmt::arg("value", *a.at_zero < 1e-15 ? std::string{"0"} : format_number(*a.at_zero, 2))));
+        } else {
+            const bool phi = a.ref.kind == FilterRef::Kind::scaling;
+            if (a.factors) line(format(a.ref.level ? "tui.filters.prop.factors" : "tui.filters.prop.factors_auto", fmt::arg("count", *a.factors)));
+            if (a.zeros_at_minus_one) {
+                const int n = *a.zeros_at_minus_one;
+                line(phi ? format("tui.filters.prop.phi_zeros", fmt::arg("count", n)) : format("tui.filters.prop.psi_zeros", fmt::arg("count", n), fmt::arg("slope", 20 * n)));
+            }
+            if (a.partition_error)
+                line(format(phi ? "tui.filters.prop.phi_partition" : "tui.filters.prop.psi_partition",
+                            fmt::arg("value", *a.partition_error < kRoundOff ? std::string{"< 10⁻¹⁵"} : format_number(*a.partition_error, 2))));
+        }
+        return frame_panel(properties, vbox(std::move(rows)), {}, tr("tui.filters.properties") + " · " + e->ref.label());
+    }
     const auto g = ui_.caps.glyphs;
     auto mark = [&](bool ok) { return text(" " + std::string{glyph(ok ? Glyph::check : Glyph::cross, g)}) | fg(ok ? th.ok : th.err, ui_); };
     Elements rows;
@@ -863,9 +904,23 @@ ftxui::Element FiltersScreen::OnRender() {
     clickables_.clear();
     if (ui_.jobs) {
         set_->request(*ui_.jobs, kPoints);
-        if (lo_ > 0 || hi_ < 1) set_->request_view(*ui_.jobs, lo_, hi_, kPoints);
+        if (lo_ > 0 || hi_ < span_) set_->request_view(*ui_.jobs, lo_, hi_, kPoints);
     }
     entries_ = set_->entries();
+    if (const auto w = focus_wavelet(); w != library_wavelet_) {
+        library_wavelet_ = w;
+        library_ = build_library(w);
+    }
+    double span = 1;
+    for (const auto& e : entries_)
+        if (e.visible) span = std::max(span, span_of(e.ref));
+    if (span != span_) {
+        span_ = span;
+        lo_ = 0;
+        hi_ = span_;
+        cursor_a_.reset();
+        cursor_b_.reset();
+    }
     const auto [cols, rows] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
     layout_.resize(cols, rows);
     const int height = std::max(3, rows - 3);
@@ -912,25 +967,25 @@ ftxui::Element FiltersScreen::OnRender() {
 void FiltersScreen::zoom(double factor, double anchor) {
     if (!(factor > 0)) return;
     if (log_) {
-        const double l = std::log(std::max(lo_, kLogFloor)), h = std::log(hi_), a = std::log(std::clamp(anchor, kLogFloor, 1.0));
+        const double l = std::log(std::max(lo_, kLogFloor)), h = std::log(hi_), a = std::log(std::clamp(anchor, kLogFloor, span_));
         const double nl = a - (a - l) / factor, nh = a + (h - a) / factor;
-        double lo = std::exp(nl), hi = std::min(1.0, std::exp(nh));
+        double lo = std::exp(nl), hi = std::min(span_, std::exp(nh));
         if (hi - lo < kMinSpan) return;
         lo_ = lo <= kLogFloor * 1.0001 ? 0.0 : lo;
         hi_ = hi;
         return;
     }
     const double span = hi_ - lo_;
-    const double s = std::clamp(span / factor, kMinSpan, 1.0);
+    const double s = std::clamp(span / factor, kMinSpan, span_);
     const double a = std::clamp(anchor, lo_, hi_);
-    const double lo = std::clamp(a - (a - lo_) * s / span, 0.0, 1.0 - s);
+    const double lo = std::clamp(a - (a - lo_) * s / span, 0.0, span_ - s);
     lo_ = lo;
     hi_ = lo + s;
 }
 
 void FiltersScreen::pan(double delta) {
     const double span = hi_ - lo_;
-    lo_ = std::clamp(lo_ + delta, 0.0, 1.0 - span);
+    lo_ = std::clamp(lo_ + delta, 0.0, span_ - span);
     hi_ = lo_ + span;
 }
 
@@ -995,7 +1050,7 @@ std::vector<MenuItem> FiltersScreen::context_menu(int x, int y) {
                 {tr("tui.menu.cursor_b"), "Shift+" + tr("tui.signal.key.click"), [this, w] { cursor_b_ = w; }},
                 {tr("tui.menu.reset_zoom"), "", [this] {
                      lo_ = 0;
-                     hi_ = 1;
+                     hi_ = span_;
                      phase_zoom_ = delay_zoom_ = linear_zoom_ = 1;
                      db_floor_ = -80;
                  }}};
@@ -1106,7 +1161,7 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
         const double step = (hi_ - lo_) / (2.0 * columns);
         auto& cursor = arrows_move_b_ ? cursor_b_ : cursor_a_;
         const double current = cursor.value_or((lo_ + hi_) / 2);
-        cursor = std::clamp(current + (e == Event::ArrowLeft ? -step : step), 0.0, 1.0);
+        cursor = std::clamp(current + (e == Event::ArrowLeft ? -step : step), 0.0, span_);
         if (*cursor < lo_) pan(*cursor - lo_);
         if (*cursor > hi_) pan(*cursor - hi_);
         return true;
@@ -1125,7 +1180,7 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
     if (e == Event::Character('<') || e == Event::Character(',')) return pan(-0.2 * (hi_ - lo_)), true;
     if (e == Event::Character('0')) {
         lo_ = 0;
-        hi_ = 1;
+        hi_ = span_;
         phase_zoom_ = delay_zoom_ = linear_zoom_ = 1;
         db_floor_ = -80;
         return true;
@@ -1158,7 +1213,8 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
         if (i >= entries.size()) return false;
         const int step = e == Event::Character('o') ? 1 : e == Event::Character('O') ? -1 : 0;
         const double factor = e == Event::Character('f') ? 1.1 : e == Event::Character('F') ? 1 / 1.1 : 1.0;
-        const auto next = classical_step(entries[i].ref, step, factor);
+        auto next = classical_step(entries[i].ref, step, factor);
+        if (!next && step != 0) next = spectrum_step(entries[i].ref, step);
         if (!next) return false;
         (void)set_->replace(i, *next);
         return true;

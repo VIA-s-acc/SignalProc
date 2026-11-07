@@ -10,6 +10,8 @@ add_executable(signals_tests
   core/test_dwt.cpp
   core/test_wavedec.cpp
   core/test_swt.cpp
+  core/test_lifting.cpp
+  core/test_spectra.cpp
   core/test_packets.cpp
   core/test_cwt.cpp
   core/test_maxflat.cpp
@@ -63,6 +65,8 @@ add_executable(signals_tests
   tui/test_f1.cpp
   tui/test_external.cpp
   tui/test_explain_model.cpp
+  tui/test_diagram_model.cpp
+  tui/test_diagram_screen.cpp
   tui/test_explain_screen.cpp
   tui/test_designer_model.cpp
   tui/test_user_filters.cpp

@@ -16,6 +16,7 @@ add_library(signals_core STATIC
   bank.cpp
   wavedec.cpp
   swt.cpp
+  lifting.cpp
   packets.cpp
   cwt.cpp
   design/maxflat.cpp
@@ -30,6 +31,7 @@ add_library(signals_core STATIC
   matrix.cpp
   wavelet/regularity.cpp
   wavelet/cascade.cpp
+  wavelet/spectra.cpp
 )
 set_property(SOURCE version.cpp APPEND PROPERTY COMPILE_DEFINITIONS SIGNALS_VERSION="${PROJECT_VERSION}${SIGNALS_VERSION_SUFFIX}")
 target_include_directories(signals_core PUBLIC ${PROJECT_SOURCE_DIR}/src)

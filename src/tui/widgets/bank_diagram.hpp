@@ -1,8 +1,10 @@
 #pragma once
 
+#include <deque>
 #include <map>
 #include <set>
 #include <string>
+#include <utility>
 
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/screen/box.hpp>
@@ -15,8 +17,14 @@ struct DiagramSpec {
     std::set<std::string> highlight;
     std::string down = "↓2";
     std::string up = "↑2";
+    bool polyphase = false;
+    bool compact = false;
+    std::string selected = {};
 };
 
-ftxui::Element bank_diagram(const DiagramSpec& spec, const UiContext& ui, std::map<std::string, ftxui::Box>* boxes = nullptr);
+using DiagramHits = std::deque<std::pair<std::string, ftxui::Box>>;
+
+ftxui::Element bank_diagram(const DiagramSpec& spec, const UiContext& ui, std::map<std::string, ftxui::Box>* boxes = nullptr,
+                            DiagramHits* hits = nullptr);
 
 }  // namespace signals::tui

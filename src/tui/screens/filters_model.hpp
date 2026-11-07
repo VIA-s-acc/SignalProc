@@ -19,12 +19,13 @@ namespace signals::tui {
 enum class FilterRole { h0, h1, f0, f1 };
 
 struct FilterRef {
-    enum class Kind { bank, equivalent, distortion, alias, user, classical };
+    enum class Kind { bank, equivalent, distortion, alias, user, classical, scaling, wavelet_fn, cwt, packet };
     Kind kind = Kind::bank;
     std::string wavelet;
     FilterRole role = FilterRole::h0;
     std::size_t level = 0;
     bool detail = false;
+    std::size_t node = 0;
 
     std::string label() const;
     friend bool operator==(const FilterRef&, const FilterRef&) = default;
@@ -44,12 +45,15 @@ struct ClassicalSpec {
 std::optional<ClassicalSpec> parse_classical(std::string_view key);
 FilterRef classical_ref(const ClassicalSpec& spec);
 std::optional<FilterRef> classical_step(const FilterRef& ref, int order_step, double edge_factor);
+std::optional<FilterRef> spectrum_step(const FilterRef& ref, int step);
+double span_of(const FilterRef& ref);
 
 struct LibraryNode {
     std::string label;
     std::vector<LibraryNode> children = {};
     std::optional<FilterRef> ref = {};
     std::string later = {};
+    bool folded = false;
 };
 
 LibraryNode build_library(std::string_view equivalent_wavelet = "db2", std::size_t levels = 3);
@@ -65,6 +69,10 @@ struct FilterAnalysis {
     bool linear_phase = false;
     std::optional<core::Zpk> zpk = {};
     std::optional<bool> stable = {};
+    double span = 1;
+    std::size_t points = 0;
+    std::optional<std::size_t> factors = {};
+    std::optional<double> partition_error = {}, centre = {}, quality = {}, at_zero = {};
 };
 
 core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points);

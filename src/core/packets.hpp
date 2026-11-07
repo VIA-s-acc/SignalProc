@@ -39,5 +39,6 @@ std::vector<PacketNode> best_basis(const PacketTree& tree, PacketCost cost);
 std::vector<PacketNode> dwt_basis(std::size_t levels);
 std::vector<PacketNode> level_basis(std::size_t level);
 void sort_by_frequency(std::vector<PacketNode>& basis);
+Result<Laurent> packet_filter(const FilterBank& bank, PacketNode node);
 
 }  // namespace signals::core

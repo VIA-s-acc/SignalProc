@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "core/dwt.hpp"
+#include "core/freq.hpp"
 
 namespace signals::core {
 
@@ -170,6 +171,17 @@ std::vector<PacketNode> level_basis(std::size_t level) {
     std::vector<PacketNode> out;
     for (std::size_t k = 0; k < (std::size_t{1} << level); ++k) out.push_back({level, natural_index_at(level, k)});
     return out;
+}
+
+Result<Laurent> packet_filter(const FilterBank& bank, PacketNode node) {
+    if (node.level == 0 || node.level > 16 || node.index >> node.level != 0)
+        return make_error(Errc::level_out_of_range, "packet_filter: the node is not in a tree of 1..16 levels");
+    Laurent g{{1.0}, 0};
+    for (std::size_t i = 0; i < node.level; ++i) {
+        const bool detail = (node.index >> (node.level - 1 - i)) & 1U;
+        g = multiply(dilate(detail ? bank.h1 : bank.h0, std::size_t{1} << i), g);
+    }
+    return g;
 }
 
 void sort_by_frequency(std::vector<PacketNode>& basis) {

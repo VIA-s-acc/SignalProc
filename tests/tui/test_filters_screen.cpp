@@ -328,3 +328,96 @@ TEST_CASE("a classical IIR filter draws its poles and shows its own properties",
     frame = h.frame();
     CHECK(frame.find("|H(0)| = 1") != std::string::npos);
 }
+
+namespace {
+
+void search_and_add(Harness& h, const std::string& query) {
+    h.send(ftxui::Event::Character('/'));
+    h.send(ftxui::Event::Character(query));
+    h.send(ftxui::Event::Return);
+    h.frame();
+}
+
+}  // namespace
+
+TEST_CASE("the spectra group adds Φ of the wavelet in focus on an 8π axis", "[tui][filters][spectra]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    REQUIRE(f.set->add({Kind::bank, "db4", FilterRole::h0}));
+    f.set->set_focus(0);
+    h.frame();
+    search_and_add(h, "Φ");
+    REQUIRE(f.set->entries().size() == 2);
+    CHECK(f.set->entries()[1].ref.label() == "Φ db4");
+    const auto frame = h.frame();
+    CHECK(f.screen->view().second == 8);
+    CHECK(frame.find("8π") != std::string::npos);
+    CHECK(frame.find("нули Φ в 2πk, k ≠ 0: порядок 4") != std::string::npos);
+    CHECK(frame.find("отклонение от 1") != std::string::npos);
+    h.send(ftxui::Event::Character('O'));
+    h.frame();
+    CHECK(f.set->entries()[1].ref.label() == "Φ db4 · J=12");
+    CHECK(h.frame().find("множителей в ∏ m₀(ω/2ʲ): 12") != std::string::npos);
+    f.set->remove(1);
+    h.frame();
+    CHECK(f.screen->view().second == 1);
+}
+
+TEST_CASE("a cwt wavelet and a packet node join the comparison", "[tui][filters][spectra]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    REQUIRE(f.set->add({Kind::bank, "db2", FilterRole::h0}));
+    f.set->set_focus(0);
+    h.frame();
+    search_and_add(h, "morl a=8");
+    REQUIRE(f.set->entries().size() == 2);
+    CHECK(f.set->entries()[1].ref.label() == "Ψ̂ morl a=8");
+    auto frame = h.frame();
+    CHECK(frame.find("Q = 3,00") != std::string::npos);
+    CHECK(f.screen->view().second == 1);
+    f.set->set_focus(0);
+    search_and_add(h, "dad");
+    REQUIRE(f.set->entries().size() == 3);
+    CHECK(f.set->entries()[2].ref.label() == "dad db2");
+    frame = h.frame();
+    CHECK(frame.find("ИХ · dad db2") != std::string::npos);
+    CHECK(frame.find("(узел пакетов)") != std::string::npos);
+}
+
+TEST_CASE("the derived groups start folded so every group header fits", "[tui][filters][spectra]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    auto frame = h.frame();
+    CHECK(frame.find("▸ Спектры φ / ψ (db2)") != std::string::npos);
+    CHECK(frame.find("▸ CWT: Ψ̂(aω)") != std::string::npos);
+    CHECK(frame.find("Мои фильтры") != std::string::npos);
+    CHECK(frame.find("morl a=2") == std::string::npos);
+    const auto at = signals::test::locate(frame, "▸ CWT");
+    REQUIRE(at);
+    h.click(at->first + 2, at->second);
+    frame = h.frame();
+    CHECK(frame.find("▾ CWT: Ψ̂(aω)") != std::string::npos);
+    CHECK(frame.find("morl a=2") != std::string::npos);
+}
+
+TEST_CASE("the axis follows visible spectra, also while they are recomputed", "[tui][filters][spectra]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    REQUIRE(f.set->add({Kind::bank, "db4", FilterRole::h0}));
+    f.set->set_focus(0);
+    h.frame();
+    search_and_add(h, "Φ");
+    h.frame();
+    REQUIRE(f.screen->view().second == 8);
+    f.screen->set_cursor_a(2.5);
+    f.ui->jobs = nullptr;
+    h.send(ftxui::Event::Character('O'));
+    h.frame();
+    REQUIRE_FALSE(f.set->entries()[1].analysis);
+    CHECK(f.screen->view().second == 8);
+    REQUIRE(f.screen->cursor_a());
+    CHECK(*f.screen->cursor_a() == 2.5);
+    f.set->toggle(1);
+    h.frame();
+    CHECK(f.screen->view().second == 1);
+}
