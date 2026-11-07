@@ -41,6 +41,58 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                        if (!file) return std::unexpected{file.error()};
                        return std::vector<Value>{std::move(file->audio)};
                    }});
+    out.push_back({"samples",
+                   {},
+                   kOneOut,
+                   {{"values", Kind::text, "4 6 10 12 8 6 5 5"}, {"rate", Kind::integer, "8", {}, 1, 768000}},
+                   [](const RunContext&, std::span<const Value>, const Params& p) -> Out {
+                       core::AudioBuffer a;
+                       a.sample_rate = static_cast<double>(param_int(p, "rate"));
+                       std::vector<double> values;
+                       auto text = param_text(p, "values");
+                       for (auto& c : text)
+                           if (c == ',' || c == ';') c = ' ';
+                       std::istringstream in{text};
+                       in.imbue(std::locale::classic());
+                       for (std::string token; in >> token;) {
+                           std::istringstream part{token};
+                           part.imbue(std::locale::classic());
+                           double v = 0;
+                           part >> v;
+                           if (part.fail() || part.peek() != std::char_traits<char>::eof() || !std::isfinite(v))
+                               return core::make_error(core::Errc::invalid_argument, "samples: not a finite number: " + token);
+                           values.push_back(v);
+                       }
+                       if (values.empty()) return core::make_error(core::Errc::invalid_argument, "samples: list the values, e.g. 4 6 10 12");
+                       a.channels.push_back(std::move(values));
+                       return std::vector<Value>{std::move(a)};
+                   }});
+    out.push_back({"add",
+                   {{"a", PortType::signal}, {"b", PortType::signal}},
+                   kOneOut,
+                   {{"op", Kind::choice, "add", {"add", "sub"}}},
+                   [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                       const auto& a = std::get<core::AudioBuffer>(in[0]);
+                       const auto& b = std::get<core::AudioBuffer>(in[1]);
+                       if (a.sample_rate != b.sample_rate)
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.rates")), fmt::arg("block", "add"),
+                                                                                             fmt::arg("a", a.sample_rate), fmt::arg("b", b.sample_rate)));
+                       const double sign = param_text(p, "op") == "sub" ? -1.0 : 1.0;
+                       core::AudioBuffer out_buffer;
+                       out_buffer.sample_rate = a.sample_rate;
+                       const auto channels = std::max(a.channels.size(), b.channels.size());
+                       for (std::size_t ch = 0; ch < channels; ++ch) {
+                           const auto* x = a.channels.empty() ? nullptr : &a.channels[std::min(ch, a.channels.size() - 1)];
+                           const auto* y = b.channels.empty() ? nullptr : &b.channels[std::min(ch, b.channels.size() - 1)];
+                           std::vector<double> sum(std::max(x ? x->size() : 0, y ? y->size() : 0), 0.0);
+                           if (x)
+                               for (std::size_t i = 0; i < x->size(); ++i) sum[i] += (*x)[i];
+                           if (y)
+                               for (std::size_t i = 0; i < y->size(); ++i) sum[i] += sign * (*y)[i];
+                           out_buffer.channels.push_back(std::move(sum));
+                       }
+                       return std::vector<Value>{std::move(out_buffer)};
+                   }});
     out.push_back({"gen",
                    {},
                    kOneOut,

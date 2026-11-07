@@ -16,7 +16,9 @@
 #include "tui/screens/processing_model.hpp"
 #include "tui/shell/layout.hpp"
 #include "tui/shell/panel.hpp"
+#include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/scroll.hpp"
 
 namespace signals::tui {
 
@@ -28,6 +30,7 @@ public:
 
     std::string tab_label() const override;
     std::vector<Hint> hints() const override;
+    std::vector<Command> commands() override;
     std::optional<TheoryLink> theory_link() const override;
     void publish(theory::LiveValues& v) const override;
     std::string context() const override;
@@ -38,6 +41,8 @@ public:
     void open_with(const NavArgs& args) override;
 
     ftxui::Box area(std::string_view id) const;
+    std::optional<Axis> plot_view(std::string_view id) const;
+    std::vector<MenuItem> context_menu(int x, int y) override;
     View view() const { return view_; }
     std::size_t preset() const { return preset_; }
     std::size_t active_preset() const;
@@ -60,6 +65,7 @@ private:
     ftxui::Element summary_body(const ProcessingResult& r);
     ftxui::Element noise_body(const ProcessingResult& r);
     ftxui::Element listen_body();
+    void pick_wavelet();
     void change(const std::function<void(ProcessingOptions&)>& edit, bool new_step = true);
     void set_scale(double s, bool new_step = true);
     void set_preset(std::size_t p);
@@ -71,6 +77,10 @@ private:
     Breakpoint breakpoint_ = Breakpoint::primary;
     Panel focus_ = coeffs_panel;
     std::optional<Panel> maximized_;
+    PlotZoom zoom_;
+    AxisZoom coeff_zoom_{Axis{0, 1}};
+    Scroll bands_scroll_;
+    ftxui::Box coeff_plot_box_{};
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::deque<Clickable> clickables_;
     View view_ = View::a;

@@ -74,6 +74,26 @@ std::vector<double> seeded_noise(std::size_t n, double sigma, std::uint64_t seed
     return out;
 }
 
+core::Result<std::vector<double>> process_signal(std::span<const double> noisy, const ProcessingOptions& o, core::ProgressSink* progress) {
+    const auto bank = core::wavelet(o.wavelet);
+    if (!bank) return std::unexpected{bank.error()};
+    if (noisy.empty()) return core::make_error(core::Errc::invalid_argument, "processing: empty signal");
+    auto coeffs = core::wavedec<double>(noisy, *bank, o.levels, {o.mode}, progress);
+    if (!coeffs) return std::unexpected{coeffs.error()};
+    const auto sigma = core::noise_sigma_mad(coeffs->bands.back());
+    for (std::size_t b = 1; b < coeffs->bands.size(); ++b) {
+        const double lambda = o.scale * core::rule_threshold(o.rule, coeffs->bands[b], sigma, noisy.size());
+        coeffs->bands[b] = core::threshold(coeffs->bands[b], lambda, o.threshold);
+    }
+    for (std::size_t b = 0; b < coeffs->bands.size(); ++b)
+        if (const double g = b < o.gains.size() ? o.gains[b] : 1.0; g != 1.0)
+            for (double& c : coeffs->bands[b]) c *= g;
+    auto y = core::waverec<double>(*coeffs, *bank, {o.mode});
+    if (!y) return std::unexpected{y.error()};
+    y->resize(noisy.size());
+    return y;
+}
+
 core::Result<ProcessingResult> process_fragment(std::span<const double> clean, std::span<const double> noisy, double fs, const ProcessingOptions& o,
                                                 core::ProgressSink* progress) {
     const auto bank = core::wavelet(o.wavelet);
@@ -301,25 +321,45 @@ void ProcessingModel::compute(JobRunner& jobs) {
         const auto total = s->samples.front().size();
         const auto length = std::min(o.length, total);
         const auto start = o.start + length <= total ? o.start : total - length;
-        std::vector<double> clean(length, 0.0);
-        if (o.channel >= 0 && static_cast<std::size_t>(o.channel) < s->samples.size()) {
-            const auto& ch = s->samples[static_cast<std::size_t>(o.channel)];
-            for (std::size_t i = 0; i < length; ++i) clean[i] = ch[start + i];
-        } else {
-            for (const auto& ch : s->samples)
-                for (std::size_t i = 0; i < length; ++i) clean[i] += ch[start + i] / static_cast<double>(s->samples.size());
-        }
+        auto mono = [&](std::size_t from, std::size_t count) {
+            std::vector<double> out(count, 0.0);
+            if (o.channel >= 0 && static_cast<std::size_t>(o.channel) < s->samples.size()) {
+                const auto& ch = s->samples[static_cast<std::size_t>(o.channel)];
+                for (std::size_t i = 0; i < count; ++i) out[i] = ch[from + i];
+            } else {
+                for (const auto& ch : s->samples)
+                    for (std::size_t i = 0; i < count; ++i) out[i] += ch[from + i] / static_cast<double>(s->samples.size());
+            }
+            return out;
+        };
+        const auto clean = mono(start, length);
         const double power = length ? energy(clean) / static_cast<double>(length) : 0.0;
-        auto noise = seeded_noise(length, std::sqrt(power / std::pow(10.0, o.snr_db / 10)), 7);
+        const double sigma = std::sqrt(power / std::pow(10.0, o.snr_db / 10));
+        auto noise = seeded_noise(length, sigma, 7);
         std::vector<double> noisy(length);
         for (std::size_t i = 0; i < length; ++i) noisy[i] = clean[i] + noise[i];
         auto r = process_fragment(clean, noisy, s->info.sample_rate, o, &ctx);
         if (r) {
             r->source = s;
             r->start = start;
-            r->audio_noisy.assign(r->noisy.begin(), r->noisy.end());
-            r->audio_out.assign(r->out.begin(), r->out.end());
-            r->audio_residual.assign(r->residual.begin(), r->residual.end());
+            const auto listen = std::min(total, std::max(length, static_cast<std::size_t>(std::llround(kListenSeconds * s->info.sample_rate))));
+            const auto centre = start + length / 2;
+            const auto listen_start = std::min(total - listen, centre > listen / 2 ? centre - listen / 2 : std::size_t{0});
+            auto heard = mono(listen_start, listen);
+            const auto hiss = seeded_noise(listen, sigma, 7);
+            for (std::size_t i = 0; i < listen; ++i) heard[i] += hiss[i];
+            auto heard_out = process_signal(heard, o);
+            if (!heard_out) {
+                r = std::unexpected{heard_out.error()};
+            } else {
+                r->listen_start = listen_start;
+                r->audio_noisy.assign(heard.begin(), heard.end());
+                r->audio_out.assign(heard_out->begin(), heard_out->end());
+                r->audio_residual.resize(listen);
+                for (std::size_t i = 0; i < listen; ++i) r->audio_residual[i] = static_cast<float>(heard[i] - (*heard_out)[i]);
+            }
+        }
+        if (r) {
             ctx.finish();
         } else {
             ctx.fail(r.error().message);

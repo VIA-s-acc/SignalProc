@@ -229,3 +229,39 @@ TEST_CASE("m7b: the matrix card does not call square matrices non-square", "[tui
         f.h.send(ftxui::Event::Character('v'));
     }
 }
+
+TEST_CASE("the singular spectrum zooms with the wheel and resets with 0", "[tui][matrix][panels]") {
+    MatrixFixture f;
+    f.h.send(ftxui::Event::Character('s'));
+    f.h.frame();
+    const auto b = f.screen->area("sigma_plot");
+    REQUIRE(b.x_max > b.x_min);
+    const auto full = f.screen->plot_view("sigma");
+    REQUIRE(full);
+    ftxui::Mouse m;
+    m.button = ftxui::Mouse::WheelUp;
+    m.motion = ftxui::Mouse::Pressed;
+    m.x = b.x_min + (b.x_max - b.x_min) / 3;
+    m.y = (b.y_min + b.y_max) / 2;
+    f.h.send(ftxui::Event::Mouse("", m));
+    f.h.send(ftxui::Event::Mouse("", m));
+    f.h.frame();
+    const auto zoomed = f.screen->plot_view("sigma");
+    REQUIRE(zoomed);
+    CHECK(zoomed->hi - zoomed->lo < 0.7 * (full->hi - full->lo));
+    CHECK_FALSE(f.screen->context_menu(m.x, m.y).empty());
+    f.h.send(ftxui::Event::Character('0'));
+    f.h.frame();
+    CHECK(f.screen->plot_view("sigma")->hi - f.screen->plot_view("sigma")->lo == full->hi - full->lo);
+}
+
+TEST_CASE("the origin panel scrolls with the wheel when its text does not fit", "[tui][matrix][scroll]") {
+    MatrixFixture f{120, 40};
+    auto frame = f.h.frame();
+    const auto box = f.screen->area("origin_panel");
+    REQUIRE(box.x_max > box.x_min);
+    CHECK(frame.find("Левинсон — O(N²)") == std::string::npos);
+    for (int k = 0; k < 20; ++k) f.h.wheel((box.x_min + box.x_max) / 2, (box.y_min + box.y_max) / 2, false);
+    frame = f.h.frame();
+    CHECK(frame.find("Левинсон — O(N²)") != std::string::npos);
+}

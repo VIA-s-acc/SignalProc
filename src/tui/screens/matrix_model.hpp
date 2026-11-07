@@ -42,7 +42,8 @@ struct MatrixData {
     std::vector<std::string> outputs;
     std::size_t detail_start = 0;
     std::vector<double> x, y;
-    std::optional<double> orth_error, transpose_error, left_inverse_error, dct_error, levinson_error;
+    std::optional<double> orth_error, transpose_error, left_inverse_error, dct_error, levinson_error, gohberg_error;
+    std::optional<std::string> gohberg_refusal;
     std::vector<double> singular;
     double cond = 0;
     bool square = true;

@@ -6,6 +6,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <filesystem>
 #include <memory>
 #include <regex>
 #include <string>
@@ -528,4 +529,43 @@ TEST_CASE("keys zoom and pan the waveform and the spectrum and select between th
     r.h.frame();
     const auto narrower = r.screen->plot_axis("spectrum");
     CHECK(narrower.hi - narrower.lo < spectrum.hi - spectrum.lo);
+}
+
+TEST_CASE("the log keeps the newest line in view, scrolls back with the wheel and wraps long lines", "[tui][signal][scroll]") {
+    auto ui = signals::test::make_ui(150, 44);
+    JobRunner jobs{[] {}, 0ms, true};
+    ui->jobs = &jobs;
+    auto model = loaded(jobs);
+    for (int k = 0; k < 20; ++k) model->add_log("строка " + std::to_string(k), LogLine::info);
+    model->add_log("очень длинное сообщение журнала, которое не помещается в одну строку левой колонки и должно переноситься", LogLine::warn);
+    auto screen = std::make_shared<SignalScreen>(*ui, model);
+    screen->set_breakpoint(Breakpoint::primary);
+    Harness h{screen, 150, 41};
+    auto frame = h.frame();
+    CHECK(frame.find("переноситься") != std::string::npos);
+    CHECK(frame.find("▲") != std::string::npos);
+    CHECK(frame.find("строка 0 ") == std::string::npos);
+    const auto log = screen->area("log");
+    for (int k = 0; k < 10; ++k) h.wheel((log.x_min + log.x_max) / 2, (log.y_min + log.y_max) / 2, true);
+    frame = h.frame();
+    CHECK(frame.find("строка 0 ") != std::string::npos);
+    CHECK(frame.find("▼") != std::string::npos);
+}
+
+TEST_CASE("a long file name keeps its tail in the source panel", "[tui][signal]") {
+    auto ui = signals::test::make_ui(150, 44);
+    JobRunner jobs{[] {}, 0ms, true};
+    ui->jobs = &jobs;
+    const auto dir = std::filesystem::temp_directory_path() / "signals-long-name";
+    std::filesystem::create_directories(dir);
+    const auto file = dir / "очень-длинное-имя-файла-с-записью-голоса-и-шума-test.wav";
+    std::filesystem::copy_file(signals::test::sample("test.wav"), file, std::filesystem::copy_options::overwrite_existing);
+    auto model = std::make_shared<SignalModel>();
+    model->open(file, jobs);
+    auto screen = std::make_shared<SignalScreen>(*ui, model);
+    screen->set_breakpoint(Breakpoint::primary);
+    Harness h{screen, 150, 41};
+    const auto frame = h.frame();
+    CHECK(frame.find("…") != std::string::npos);
+    CHECK(frame.find("шума-test.wav") != std::string::npos);
 }

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <utility>
 
 #include <fmt/format.h>
@@ -15,6 +16,7 @@
 #include "tui/shell/panel.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/plot.hpp"
+#include "tui/widgets/scroll.hpp"
 #include "tui/widgets/text_util.hpp"
 
 namespace signals::tui {
@@ -154,13 +156,17 @@ ftxui::Element SignalScreen::frame_panel(Panel p, ftxui::Element body, std::vect
            ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
 }
 
-ftxui::Element SignalScreen::source_panel(const SignalData* d) {
+ftxui::Element SignalScreen::source_panel(const SignalData* d, int width, int rows_budget) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     if (!d) return frame_panel(source, vbox({text(tr("tui.signal.empty")) | fg(th.dim, ui_), text(tr("tui.signal.empty_hint")) | fg(th.dim, ui_)}), {},
                                tr("tui.signal.source"));
-    auto kv = [&](const std::string& key, std::string value) {
-        return hbox({text(pad_right(key, 9)) | fg(th.dim, ui_), text(std::move(value)) | fg(th.fg, ui_)});
+    const int inner = std::max(12, width - 4);
+    Elements rows;
+    auto kv = [&](const std::string& key, const std::string& value) {
+        const auto parts = wrap_words(value, inner - 9);
+        for (std::size_t k = 0; k < parts.size(); ++k)
+            rows.push_back(hbox({text(pad_right(k == 0 ? key : std::string{}, 9)) | fg(th.dim, ui_), text(parts[k]) | fg(th.fg, ui_)}));
     };
     const std::size_t n = d->stats.size();
     auto per_channel = [&](auto value) {
@@ -171,24 +177,25 @@ ftxui::Element SignalScreen::source_panel(const SignalData* d) {
         }
         return out + " " + tr("unit.dbfs");
     };
-    Elements rows{text(d->path.filename().string()) | bold | fg(th.fg, ui_), kv(tr("tui.signal.format"), format_text(d->info)),
-                  kv(tr("tui.signal.channels"), n == 2 ? "2 (L, R)" : std::to_string(n)),
-                  kv(tr("tui.signal.rate"), group(d->info.sample_rate) + " " + tr("unit.hz")),
-                  kv(tr("tui.signal.length"), fmt::format(fmt::runtime(tr("tui.signal.frames")), fmt::arg("count", tr_count("unit.frame", static_cast<long long>(d->info.frames), group(d->info.frames))),
-                                                          fmt::arg("time", format_fixed(d->duration(), 2) + " " + tr("unit.s")))),
-                  kv(tr("tui.signal.peak"), per_channel([](const io::ChannelStats& s) { return format_fixed(s.peak_dbfs, 1); })),
-                  kv(tr("tui.signal.rms"), per_channel([](const io::ChannelStats& s) { return format_fixed(s.rms_dbfs, 1); }))};
+    rows.push_back(text(ellipsize_start(d->path.filename().string(), inner, ui_.caps.glyphs == GlyphMode::ascii)) | bold | fg(th.fg, ui_));
+    kv(tr("tui.signal.format"), format_text(d->info));
+    kv(tr("tui.signal.channels"), n == 2 ? "2 (L, R)" : std::to_string(n));
+    kv(tr("tui.signal.rate"), group(d->info.sample_rate) + " " + tr("unit.hz"));
+    kv(tr("tui.signal.length"), fmt::format(fmt::runtime(tr("tui.signal.frames")), fmt::arg("count", tr_count("unit.frame", static_cast<long long>(d->info.frames), group(d->info.frames))),
+                                            fmt::arg("time", format_fixed(d->duration(), 2) + " " + tr("unit.s"))));
+    kv(tr("tui.signal.peak"), per_channel([](const io::ChannelStats& s) { return format_fixed(s.peak_dbfs, 1); }));
+    kv(tr("tui.signal.rms"), per_channel([](const io::ChannelStats& s) { return format_fixed(s.rms_dbfs, 1); }));
     if (d->full_scale_samples > 0) {
         std::string clip = std::string{glyph(Glyph::warn, ui_.caps.glyphs)} + " " + tr("tui.signal.clipping");
         for (std::size_t c = 0; c < n; ++c) {
             const auto name = channel_name(c, n);
             clip += (c ? " · " : " ") + (name.empty() ? "" : name + " ") + group(d->stats[c].clipped);
         }
-        rows.push_back(text(clip) | fg(th.warn, ui_));
+        for (const auto& part : wrap_words(clip, inner)) rows.push_back(text(part) | fg(th.warn, ui_));
     } else {
-        rows.push_back(text(tr("tui.signal.no_clipping")) | fg(th.dim, ui_));
+        for (const auto& part : wrap_words(tr("tui.signal.no_clipping"), inner)) rows.push_back(text(part) | fg(th.dim, ui_));
     }
-    return frame_panel(source, vbox(std::move(rows)), {}, tr("tui.signal.source"));
+    return frame_panel(source, scrolled(std::move(rows), source_scroll_, std::max(1, rows_budget - 2), std::nullopt, ui_), {}, tr("tui.signal.source"));
 }
 
 ftxui::Element SignalScreen::run_panel(int panel_width) {
@@ -218,14 +225,16 @@ ftxui::Element SignalScreen::run_panel(int panel_width) {
         }
         elapsed += s.seconds;
         const auto time = s.state == StageState::waiting ? std::string{"—"} : format_si(s.seconds, tr("unit.s"));
-        rows.push_back(hbox({text(icon) | fg(color, ui_), text(" " + s.name) | fg(s.state == StageState::waiting ? th.dim : th.fg, ui_), filler(),
-                             text(" " + time) | fg(th.dim, ui_)}));
+        const auto name = ellipsize(s.name, std::max(4, width - 3 - display_width(time)), ui_.caps.glyphs == GlyphMode::ascii);
+        rows.push_back(hbox({text(icon) | fg(color, ui_), text(" " + name) | fg(s.state == StageState::waiting ? th.dim : th.fg, ui_), filler(), text(" " + time) | fg(th.dim, ui_)}));
         if (s.state == StageState::running)
             rows.push_back(hbox({text("  " + bar(s.fraction, std::max(4, width - 9), g)) | fg(th.accent, ui_),
                                  text(" " + pad_left(format_fixed(100 * s.fraction, 0) + " %", 5))}));
-        if (!s.detail.empty()) rows.push_back(text("  " + s.detail) | fg(th.dim, ui_));
+        if (!s.detail.empty())
+            for (const auto& part : wrap_words(s.detail, width - 2)) rows.push_back(text("  " + part) | fg(th.dim, ui_));
     }
-    if (job->error) rows.push_back(text(*job->error) | fg(th.err, ui_));
+    if (job->error)
+        for (const auto& part : wrap_words(*job->error, width)) rows.push_back(text(part) | fg(th.err, ui_));
     if (job->cancelled) rows.push_back(text(tr("tui.jobs.cancelled")) | fg(th.warn, ui_));
     rows.push_back(filler());
     std::string rule;
@@ -239,20 +248,37 @@ ftxui::Element SignalScreen::run_panel(int panel_width) {
     return frame_panel(progress, vbox(std::move(rows)), {{"#" + std::to_string(job->id), false}}, tr("tui.signal.run") + " · " + job->title);
 }
 
-ftxui::Element SignalScreen::log_panel(int rows) {
+ftxui::Element SignalScreen::log_panel(int rows, int width) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto lines = model_->log();
+    if (lines.empty()) return frame_panel(log, text(tr("tui.signal.no_log")) | fg(th.dim, ui_), {}, tr("tui.signal.log"));
     Elements out;
-    const auto shown = static_cast<std::size_t>(std::max(1, rows - 2));
-    for (std::size_t i = lines.size() > shown ? lines.size() - shown : 0; i < lines.size(); ++i) {
-        const auto& l = lines[i];
+    const int inner = std::max(12, width - 4);
+    for (const auto& l : lines) {
         const Rgb c = l.level == LogLine::error ? th.err : l.level == LogLine::warn ? th.warn : th.fg;
         const std::string mark = l.level == LogLine::warn ? std::string{glyph(Glyph::warn, ui_.caps.glyphs)} + " " : "";
-        out.push_back(hbox({text(l.time + " ") | fg(th.dim, ui_), text(mark + l.text) | fg(c, ui_)}));
+        const int stamp = display_width(l.time) + 1;
+        const auto parts = wrap_words(mark + l.text, inner - stamp);
+        for (std::size_t k = 0; k < parts.size(); ++k)
+            out.push_back(hbox({text(k == 0 ? l.time + " " : std::string(static_cast<std::size_t>(stamp), ' ')) | fg(th.dim, ui_), text(parts[k]) | fg(c, ui_)}));
     }
-    if (out.empty()) out.push_back(text(tr("tui.signal.no_log")) | fg(th.dim, ui_));
-    return frame_panel(log, vbox(std::move(out)), {}, tr("tui.signal.log"));
+    const auto follow = lines.size() != log_seen_ ? std::optional{out.size() - 1} : std::nullopt;
+    log_seen_ = lines.size();
+    return frame_panel(log, scrolled(std::move(out), log_scroll_, std::max(1, rows - 2), follow, ui_), {}, tr("tui.signal.log"));
+}
+
+bool SignalScreen::on_log_key(const ftxui::Event& e) {
+    using ftxui::Event;
+    constexpr std::size_t page = 5;
+    auto& first = log_scroll_.first;
+    if (e == Event::ArrowUp) return first = first > 0 ? first - 1 : 0, true;
+    if (e == Event::ArrowDown) return ++first, true;
+    if (e == Event::PageUp) return first = first > page ? first - page : 0, true;
+    if (e == Event::PageDown) return first += page, true;
+    if (e == Event::Home) return first = 0, true;
+    if (e == Event::End) return first = std::numeric_limits<std::size_t>::max() / 2, true;
+    return false;
 }
 
 int SignalScreen::wave_columns() const {
@@ -442,9 +468,9 @@ ftxui::Element SignalScreen::build(Panel p, const std::shared_ptr<const SignalDa
     case wave: return wave_panel(d, rows, width);
     case spectrum: return spectrum_panel(d.get(), rows, width);
     case bands: return bands_panel(d.get(), width);
-    case source: return source_panel(d.get());
+    case source: return source_panel(d.get(), width, rows);
     case progress: return run_panel(width);
-    case log: return log_panel(rows);
+    case log: return log_panel(rows, width);
     case panel_count: break;
     }
     return ftxui::text("");
@@ -536,6 +562,7 @@ ftxui::Box SignalScreen::area(std::string_view id) const {
 bool SignalScreen::on_mouse(const ftxui::Mouse& m) {
     using ftxui::Mouse;
     if (m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) {
+        if (wheel_scroll(m, panel_boxes_[log], log_scroll_) || wheel_scroll(m, panel_boxes_[source], source_scroll_)) return true;
         if (!model_->data() || !in_wave(m.x, m.y)) return zoom_.on_mouse(m);
         const double f = m.button == Mouse::WheelUp ? kWheelStep : 1 / kWheelStep;
         if (m.shift) model_->zoom_amplitude(f);
@@ -618,6 +645,8 @@ bool SignalScreen::on_mouse(const ftxui::Mouse& m) {
 bool SignalScreen::OnEvent(ftxui::Event e) {
     using ftxui::Event;
     if (e.is_mouse()) return on_mouse(e.mouse());
+    if (focus_ == log && on_log_key(e)) return true;
+    if (focus_ == source && key_scroll(e, source_scroll_)) return true;
     if (e == Event::Character(' ')) {
         toggle_playback();
         return true;

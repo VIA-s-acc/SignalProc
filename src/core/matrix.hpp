@@ -32,6 +32,7 @@ struct Levinson {
     std::vector<double> x, reflection;
 };
 Result<Levinson> levinson_solve(std::span<const double> r, std::span<const double> b);
+Result<Eigen::MatrixXd> toeplitz_inverse(std::span<const double> r);
 double condition_number(std::span<const double> singular);
 CheckResult check_left_inverse(const Eigen::MatrixXd& s, const Eigen::MatrixXd& a, double tol);
 CheckResult check_orthogonal_matrix(const Eigen::MatrixXd& a, double tol);

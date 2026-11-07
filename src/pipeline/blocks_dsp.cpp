@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <optional>
 #include <sstream>
@@ -22,16 +23,12 @@
 #include "io/temp_file.hpp"
 #include "io/wav.hpp"
 #include "pipeline/block.hpp"
+#include "pipeline/blocks_common.hpp"
 
 namespace signals::pipeline {
 namespace {
 
-std::string_view inverse_of(std::string_view transform) {
-    if (transform == "swt") return "iswt";
-    if (transform == "lift53" || transform == "lift53i") return "ilift53";
-    return "idwt";
-}
-
+using blocks::inverse_of;
 using Kind = ParamSpec::Kind;
 using Out = core::Result<std::vector<Value>>;
 
@@ -63,14 +60,18 @@ core::Result<core::FilterBank> bank_of(const std::string& name) { return core::w
 
 core::Result<core::Laurent> filter_of(const std::string& spec) {
     const auto dot = spec.rfind('.');
-    if (dot == std::string::npos) return core::make_error(core::Errc::invalid_argument, "filter must look like db2.h0");
-    auto bank = bank_of(spec.substr(0, dot));
-    if (!bank) return std::unexpected{bank.error()};
+    auto bank = dot == std::string::npos ? core::Result<core::FilterBank>{core::make_error(core::Errc::invalid_argument, "filter must look like db2.h0 or name a filter from the user library")}
+                                         : bank_of(spec.substr(0, dot));
+    if (!bank) {
+        if (auto mine = core::named_filter(spec)) return std::move(*mine);
+        return std::unexpected{bank.error()};
+    }
     const auto role = spec.substr(dot + 1);
     if (role == "h0") return bank->h0;
     if (role == "h1") return bank->h1;
     if (role == "f0") return bank->f0;
     if (role == "f1") return bank->f1;
+    if (auto mine = core::named_filter(spec)) return std::move(*mine);
     return core::make_error(core::Errc::invalid_argument, "filter role must be h0, h1, f0 or f1");
 }
 
@@ -160,20 +161,25 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"downsample",
                    kSignalIn,
                    kSignalOut,
-                   {{"m", Kind::integer, "2", {}, 1, kMaxFactor}, kAttenuation, {"anti_alias", Kind::choice, "yes", {"yes", "no"}}},
+                   {{"m", Kind::integer, "2", {}, 1, kMaxFactor}, kAttenuation, {"anti_alias", Kind::choice, "yes", {"yes", "no"}}, {"phase", Kind::integer, "0", {}, 0, kMaxFactor - 1}},
                    [](const RunContext&, std::span<const Value> in, const Params& p) {
                        const auto m = static_cast<std::size_t>(param_int(p, "m"));
+                       const auto phase = static_cast<std::size_t>(param_int(p, "phase"));
                        const auto o = multirate(p);
                        return per_channel(in_audio(in), in_audio(in).sample_rate / static_cast<double>(m),
-                                          [&](const std::vector<double>& c) { return core::decimate(c, m, o); });
+                                          [&](const std::vector<double>& c) -> core::Result<std::vector<double>> {
+                                              if (phase >= m) return core::make_error(core::Errc::invalid_argument, "downsample: phase must be below m");
+                                              return core::decimate(std::span<const double>{c}.subspan(std::min(phase, c.size())), m, o);
+                                          });
                    }});
     out.push_back({"upsample",
                    kSignalIn,
                    kSignalOut,
-                   {{"m", Kind::integer, "2", {}, 1, kMaxFactor}, kAttenuation},
+                   {{"m", Kind::integer, "2", {}, 1, kMaxFactor}, kAttenuation, {"anti_image", Kind::choice, "yes", {"yes", "no"}}},
                    [](const RunContext&, std::span<const Value> in, const Params& p) {
                        const auto m = static_cast<std::size_t>(param_int(p, "m"));
-                       const auto o = multirate(p);
+                       auto o = multirate(p);
+                       o.anti_alias = param_text(p, "anti_image") == "yes";
                        return per_channel(in_audio(in), in_audio(in).sample_rate * static_cast<double>(m),
                                           [&](const std::vector<double>& c) -> core::Result<std::vector<double>> {
                                               if (auto n = checked_length(c.size(), m); !n) return std::unexpected{n.error()};
@@ -343,7 +349,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    [](const RunContext&, std::span<const Value> in, const Params&) -> Out {
                        const auto& c = in_coeffs(in);
                        if (c.transform != "lift53" && c.transform != "lift53i")
-                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", "ilift53")));
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", inverse_of(c.transform))));
                        core::AudioBuffer result;
                        result.sample_rate = c.rate;
                        for (const auto& ch : c.channels) {
@@ -640,15 +646,38 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"check",
                    {{"ref", PortType::signal}, {"in", PortType::signal}},
                    kReportOut,
-                   {{"kind", Kind::choice, "pr", {"pr", "error", "snr"}}, {"tol", Kind::real, "1e-12"}},
+                   {{"kind", Kind::choice, "pr", {"pr", "error", "snr"}}, {"tol", Kind::real, "1e-12"}, {"delay", Kind::text, "0"}},
                    [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
                        const auto& ref = in_audio(in, 0);
                        const auto& test = in_audio(in, 1);
                        Report r;
                        double worst = 0, rms = 0, snr = std::numeric_limits<double>::infinity();
+                       std::size_t shift = 0;
+                       const auto& delay = param_text(p, "delay");
+                       if (delay == "auto") {
+                           if (!ref.channels.empty() && !test.channels.empty()) {
+                               const auto& a = ref.channels[0];
+                               const auto& b = test.channels[0];
+                               double best = std::numeric_limits<double>::infinity();
+                               const auto n = std::min(a.size(), b.size());
+                               const auto last = b.size() > a.size() ? std::min<std::size_t>(b.size() - a.size(), 4096) : 0;
+                               for (std::size_t s = 0; n > 0 && s <= last; ++s) {
+                                   const double e = core::max_abs_error(std::span<const double>{a.data(), n}, std::span<const double>{b.data() + s, n});
+                                   if (e < best) best = e, shift = s;
+                               }
+                           }
+                       } else {
+                           std::size_t parsed = 0;
+                           const auto [end, ec] = std::from_chars(delay.data(), delay.data() + delay.size(), parsed);
+                           if (ec != std::errc{} || end != delay.data() + delay.size())
+                               return core::make_error(core::Errc::invalid_argument, "check: delay must be auto or a non-negative number of samples, got '" + delay + "'");
+                           shift = parsed;
+                       }
+                       bool covered = true;
                        for (std::size_t ch = 0; ch < std::min(ref.channels.size(), test.channels.size()); ++ch) {
-                           const auto n = std::min(ref.channels[ch].size(), test.channels[ch].size());
-                           const std::span<const double> a{ref.channels[ch].data(), n}, b{test.channels[ch].data(), n};
+                           const auto n = test.channels[ch].size() > shift ? std::min(ref.channels[ch].size(), test.channels[ch].size() - shift) : 0;
+                           if (n < ref.channels[ch].size()) covered = false;
+                           const std::span<const double> a{ref.channels[ch].data(), n}, b{test.channels[ch].data() + std::min(shift, test.channels[ch].size()), n};
                            worst = std::max(worst, core::max_abs_error(a, b));
                            rms = std::max(rms, core::rms_error(a, b));
                            snr = std::min(snr, core::snr_db(a, b));
@@ -656,8 +685,9 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        const auto& kind = param_text(p, "kind");
                        const double tol = param_real(p, "tol");
                        r.fields = {{"max_abs", worst}, {"rms", rms}, {"snr_db", snr}};
+                       if (delay != "0") r.fields.push_back({"delay", static_cast<double>(shift)});
                        r.passed = kind == "snr" ? snr >= tol : worst <= tol;
-                       if (ref.channels.size() != test.channels.size()) r.passed = false;
+                       if (ref.channels.size() != test.channels.size() || !covered) r.passed = false;
                        return std::vector<Value>{std::move(r)};
                    }});
     out.push_back({"wav_out",

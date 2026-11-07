@@ -11,6 +11,7 @@
 #include "tui/shell/panel.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/plot.hpp"
+#include "tui/widgets/text_util.hpp"
 
 namespace signals::tui {
 namespace {
@@ -39,7 +40,7 @@ ftxui::Element resources_panel(const UiContext& ui, int width, int height, float
     const int column = wide ? 70 : std::max(30, width - 6);
     const auto heading = [&](const std::string& s) { return text(s) | bold; };
     const auto row = [&](const std::string& key, const std::string& value) {
-        return hbox({text(key) | fg(th.dim, ui) | size(WIDTH, EQUAL, 12), paragraph(value)});
+        return hbox({text(ellipsize(key, 11, ui.caps.glyphs == GlyphMode::ascii)) | fg(th.dim, ui) | size(WIDTH, EQUAL, 12), paragraph(value)});
     };
 
     const auto cores = latest.core_load_pct.empty() ? std::size_t{1} : latest.core_load_pct.size();
@@ -87,7 +88,7 @@ ftxui::Element resources_panel(const UiContext& ui, int width, int height, float
             name = label == key ? name : label;
         }
         if (name.empty()) name = tr("tui.resources.thread.system");
-        threads.push_back(hbox({text(name) | size(WIDTH, EQUAL, 18), text(eighths_bar(std::min(1.0, t.pct / 100), bar)) | fg(th.trace[0], ui),
+        threads.push_back(hbox({text(ellipsize(name, 17, ui.caps.glyphs == GlyphMode::ascii)) | size(WIDTH, EQUAL, 18), text(eighths_bar(std::min(1.0, t.pct / 100), bar)) | fg(th.trace[0], ui),
                                 text(" " + format_number(t.pct, 2) + " %") | size(WIDTH, EQUAL, 10),
                                 text(fmt::format(fmt::runtime(tr("tui.resources.thread_total")), fmt::arg("seconds", format_number(t.cpu_seconds, 3)))) |
                                     fg(th.dim, ui)}));
@@ -97,7 +98,7 @@ ftxui::Element resources_panel(const UiContext& ui, int width, int height, float
     Elements buffers{heading(tr("tui.resources.buffers"))};
     for (std::size_t i = 0; i < latest.buffers.size(); ++i) {
         const bool untracked = static_cast<core::MemoryCategory>(i) == core::MemoryCategory::fft_plans;
-        buffers.push_back(hbox({text(buffer_name(i)) | size(WIDTH, EQUAL, 22),
+        buffers.push_back(hbox({text(ellipsize(buffer_name(i), 21, ui.caps.glyphs == GlyphMode::ascii)) | size(WIDTH, EQUAL, 22),
                                 text(untracked ? tr("tui.resources.untracked") : format_si(static_cast<double>(latest.buffers[i]), tr("unit.byte")))}));
     }
     Elements queue{heading(tr("tui.resources.queue"))};

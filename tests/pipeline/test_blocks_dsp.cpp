@@ -4,15 +4,20 @@
 #include <filesystem>
 #include <numbers>
 #include <fstream>
+#include <iterator>
 #include <variant>
+#include <span>
 #include <sstream>
 #include <tuple>
 #include <vector>
 
 #include <nlohmann/json.hpp>
 
+#include "commands/cli.hpp"
 #include "core/analysis.hpp"
+#include "core/restoration.hpp"
 #include "i18n/i18n.hpp"
+#include "pipeline/examples.hpp"
 #include "core/check.hpp"
 #include "core/conv.hpp"
 #include "core/design/families.hpp"
@@ -469,4 +474,224 @@ TEST_CASE("m7b review: swt and lift53 level errors name each unit once", "[pipel
             CHECK(m.find(ru ? "уровней 30" : "levels levels") == std::string::npos);
         }
     }
+}
+
+TEST_CASE("m7e: samples, add, phased downsampling and zero stuffing build a filter bank", "[pipeline][teaching]") {
+    const auto x = audio(run("samples", {}, {{"values", "4 6 10 12 8 6 5 5"}, {"rate", "8"}})[0]);
+    REQUIRE(x.channels.size() == 1);
+    CHECK(x.channels[0] == std::vector<double>{4, 6, 10, 12, 8, 6, 5, 5});
+    CHECK(x.sample_rate == 8);
+    const auto odd = audio(run("downsample", {x}, {{"m", "2"}, {"anti_alias", "no"}, {"phase", "1"}})[0]);
+    CHECK(odd.channels[0] == std::vector<double>{6, 12, 6, 5});
+    CHECK(odd.sample_rate == 4);
+    const auto stuffed = audio(run("upsample", {odd}, {{"m", "2"}, {"anti_image", "no"}})[0]);
+    CHECK(stuffed.channels[0] == std::vector<double>{6, 0, 12, 0, 6, 0, 5, 0});
+    core::AudioBuffer shorter = x;
+    shorter.channels[0].resize(3);
+    const auto sum = audio(run("add", {x, shorter})[0]);
+    CHECK(sum.channels[0] == std::vector<double>{8, 12, 20, 12, 8, 6, 5, 5});
+    const auto diff = audio(run("add", {x, x}, {{"op", "sub"}})[0]);
+    CHECK(diff.channels[0] == std::vector<double>(8, 0.0));
+    core::AudioBuffer late = x;
+    late.channels[0].insert(late.channels[0].begin(), 0.0);
+    const auto report = std::get<Report>(run("check", {x, late}, {{"kind", "pr"}, {"delay", "auto"}})[0]);
+    CHECK(report.passed);
+    const auto delay = std::find_if(report.fields.begin(), report.fields.end(), [](const auto& f) { return f.first == "delay"; });
+    REQUIRE(delay != report.fields.end());
+    CHECK(std::get<double>(delay->second) == 1);
+}
+
+TEST_CASE("m7e: every example graph runs and passes its checks", "[pipeline][teaching]") {
+    for (const auto& entry : std::filesystem::directory_iterator{std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples"}) {
+        if (entry.path().extension() != ".sig") continue;
+        INFO(entry.path().filename().string());
+        std::ostringstream out, err;
+        const auto path = entry.path().string();
+        std::ifstream text_in{entry.path()};
+        const std::string text{std::istreambuf_iterator<char>{text_in}, std::istreambuf_iterator<char>{}};
+        const auto out_file = (std::filesystem::temp_directory_path() / "signals-example-out.wav").string();
+        std::vector<std::string_view> args{"signals", "run", path};
+        if (text.find("wav_out(") != std::string::npos) {
+            args.push_back("-o");
+            args.push_back(out_file);
+        }
+        const int code = signals::cli::run_cli(args, out, err);
+        INFO(out.str() << err.str());
+        CHECK(code == 0);
+    }
+    for (const char* name : {"haar_bank.sig", "haar_two_levels.sig", "dwt_levels.sig", "effects_chain.sig"})
+        CHECK(std::filesystem::exists(std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples" / name));
+    for (const auto& ex : signals::pipeline::examples()) {
+        const auto key = "tui.pipeline.example." + std::string{ex.name};
+        CHECK(signals::tr(key) != key);
+    }
+}
+
+TEST_CASE("a bank from the user library works in dwt, idwt and convolve", "[pipeline][user_banks]") {
+    const auto db2 = core::wavelet("db2");
+    REQUIRE(db2);
+    core::set_user_wavelets([db2](std::string_view name) -> std::optional<core::FilterBank> {
+        if (name != "my_bank") return std::nullopt;
+        auto b = *db2;
+        b.name = "my_bank";
+        return b;
+    }, [] { return std::vector<std::string>{"my_bank"}; });
+    CHECK(core::user_wavelet_names() == std::vector<std::string>{"my_bank"});
+    CHECK(core::all_wavelet_names().front() == "my_bank");
+    const auto x = audio(run("samples", {}, {{"values", "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16"}, {"rate", "16"}})[0]);
+    const auto c = run("dwt", {x}, {{"wavelet", "my_bank"}, {"levels", "2"}});
+    const auto back = audio(run("idwt", {c[0]}, {{"wavelet", "my_bank"}})[0]);
+    REQUIRE(back.channels[0].size() >= 16);
+    for (std::size_t k = 0; k < 16; ++k) CHECK(back.channels[0][k] == Catch::Approx(x.channels[0][k]).margin(1e-9));
+    const auto filtered = audio(run("convolve", {x}, {{"filter", "my_bank.h0"}, {"method", "direct"}})[0]);
+    CHECK(filtered.channels[0].size() >= 16);
+    CHECK_FALSE(core::wavelet("nobody").has_value());
+    core::set_user_wavelets({}, {});
+    CHECK(core::user_wavelet_names().empty());
+    CHECK_FALSE(core::wavelet("my_bank").has_value());
+}
+
+TEST_CASE("m8a: the lms block cancels a correlated interference", "[pipeline][adaptive]") {
+    const auto g = signals::test::load_golden("adaptive.json");
+    const auto& s = g["scenarios"][1];
+    core::AudioBuffer x, d;
+    x.sample_rate = d.sample_rate = 8000;
+    x.channels.push_back(s["x"].get<std::vector<double>>());
+    d.channels.push_back(s["d"].get<std::vector<double>>());
+    const auto& nlms = s["runs"][1];
+    const auto out = run("lms", {x, d}, {{"taps", "6"}, {"mu", "0.5"}, {"rule", "nlms"}});
+    REQUIRE(out.size() == 2);
+    CHECK(core::max_abs_error(audio(out[0]).channels[0], nlms["e"].get<std::vector<double>>()) < 1e-10);
+    CHECK(core::max_abs_error(audio(out[1]).channels[0], nlms["y"].get<std::vector<double>>()) < 1e-10);
+    CHECK(audio(out[0]).sample_rate == 8000);
+    core::AudioBuffer other = x;
+    other.sample_rate = 16000;
+    const auto* block = find_block_type("lms");
+    const std::vector<Value> mismatched{other, d};
+    CHECK_FALSE(block->run(RunContext{}, mismatched, *resolve_params(*block, {})));
+}
+
+TEST_CASE("m8a: the wiener, spectral_subtract and deconvolve blocks match the core", "[pipeline][restoration]") {
+    const auto g = signals::test::load_golden("restoration.json");
+    auto mono = [](std::vector<double> v) {
+        core::AudioBuffer a;
+        a.sample_rate = 8000;
+        a.channels.push_back(std::move(v));
+        return a;
+    };
+    const auto x = mono(g["x"].get<std::vector<double>>());
+    const auto noise = mono(g["noise"].get<std::vector<double>>());
+    const auto w = run("wiener", {x}, {{"size", "11"}});
+    CHECK(core::max_abs_error(audio(w[0]).channels[0], g["wiener"][1]["out"].get<std::vector<double>>()) < 1e-12);
+    const auto s = run("spectral_subtract", {x, noise}, {{"n", "64"}, {"alpha", "2"}, {"beta", "0.01"}});
+    CHECK(core::max_abs_error(audio(s[0]).channels[0], g["subtract"][0]["out"].get<std::vector<double>>()) < 1e-12);
+    const auto lead = run("spectral_subtract", {x, core::AudioBuffer{}}, {{"n", "64"}, {"noise_s", "0.02"}});
+    core::SpectralSubtraction o;
+    o.n = 64;
+    o.hop = 16;
+    const auto& xs = x.channels[0];
+    const auto expected = core::spectral_subtract(xs, std::span<const double>{xs}.first(160), o);
+    REQUIRE(expected);
+    CHECK(core::max_abs_error(audio(lead[0]).channels[0], *expected) < 1e-12);
+    const auto d = run("deconvolve", {mono(g["blurred"].get<std::vector<double>>()), mono(g["h"].get<std::vector<double>>())}, {{"snr_db", "40"}});
+    CHECK(core::max_abs_error(audio(d[0]).channels[0], g["deconvolve"][1]["out"].get<std::vector<double>>()) < 1e-12);
+    const auto* sub = find_block_type("spectral_subtract");
+    const std::vector<Value> too_short{x, core::AudioBuffer{}};
+    const auto r = sub->run(RunContext{}, too_short, *resolve_params(*sub, {{"n", "4096"}}));
+    REQUIRE_FALSE(r);
+}
+
+TEST_CASE("a single filter from the user library works in convolve by its name", "[pipeline][user_banks]") {
+    core::set_named_filters([](std::string_view name) -> std::optional<core::Laurent> {
+        if (name != "my lowpass") return std::nullopt;
+        return core::Laurent{{0.5, 0.5}, 0};
+    }, [] { return std::vector<std::string>{"my lowpass"}; });
+    CHECK(core::named_filter_names() == std::vector<std::string>{"my lowpass"});
+    const auto x = audio(run("samples", {}, {{"values", "2 4 6 8"}, {"rate", "8"}})[0]);
+    const auto y = audio(run("convolve", {x}, {{"filter", "my lowpass"}, {"method", "direct"}})[0]);
+    REQUIRE(y.channels[0].size() >= 4);
+    CHECK(y.channels[0][0] == 1.0);
+    CHECK(y.channels[0][1] == 3.0);
+    core::set_named_filters({}, {});
+    const auto* t = find_block_type("convolve");
+    auto params = resolve_params(*t, {{"filter", "my lowpass"}});
+    REQUIRE(params);
+    CHECK_FALSE(t->run(RunContext{std::filesystem::temp_directory_path()}, std::vector<Value>{x}, *params));
+}
+
+TEST_CASE("check delay=auto needs the whole reference and rejects a bad delay", "[pipeline][teaching][review]") {
+    const auto x = audio(run("samples", {}, {{"values", "0 1 2 3 4 5 6 7"}, {"rate", "8"}})[0]);
+    core::AudioBuffer good = x;
+    good.channels[0].push_back(0.0);
+    auto report = std::get<Report>(run("check", {x, good}, {{"kind", "pr"}, {"delay", "auto"}})[0]);
+    CHECK(report.passed);
+    const auto delay = [](const Report& r) {
+        const auto it = std::find_if(r.fields.begin(), r.fields.end(), [](const auto& f) { return f.first == "delay"; });
+        return it == r.fields.end() ? -1.0 : std::get<double>(it->second);
+    };
+    CHECK(delay(report) == 0);
+    core::AudioBuffer wrong = x;
+    std::reverse(wrong.channels[0].begin(), wrong.channels[0].end());
+    wrong.channels[0].push_back(0.0);
+    report = std::get<Report>(run("check", {x, wrong}, {{"kind", "pr"}, {"delay", "auto"}})[0]);
+    CHECK_FALSE(report.passed);
+    const auto* t = find_block_type("check");
+    for (const char* bad : {"auot", "3x", "-1"}) {
+        const auto params = resolve_params(*t, {{"delay", bad}});
+        if (!params) continue;
+        CHECK_FALSE(t->run(RunContext{std::filesystem::temp_directory_path()}, std::vector<Value>{x, good}, *params));
+    }
+}
+
+TEST_CASE("samples refuses values it cannot read instead of dropping them", "[pipeline][teaching][review]") {
+    const auto* t = find_block_type("samples");
+    for (const char* bad : {"1 1e999 3", "1 2x 3", "nan 1", "1 inf"}) {
+        const auto params = resolve_params(*t, {{"values", bad}});
+        REQUIRE(params);
+        INFO(bad);
+        CHECK_FALSE(t->run(RunContext{std::filesystem::temp_directory_path()}, std::vector<Value>{}, *params));
+    }
+    const auto ok = audio(run("samples", {}, {{"values", "1, -2.5;3e2"}, {"rate", "8"}})[0]);
+    CHECK(ok.channels[0] == std::vector<double>{1, -2.5, 300});
+}
+
+TEST_CASE("a built-in bank role wins over a user filter with the same name", "[pipeline][user_banks][review]") {
+    core::set_named_filters([](std::string_view name) -> std::optional<core::Laurent> {
+        if (name != "db2.h0") return std::nullopt;
+        return core::Laurent{{1.0}, 0};
+    }, [] { return std::vector<std::string>{"db2.h0"}; });
+    const auto x = audio(run("samples", {}, {{"values", "1 0 0 0 0 0"}, {"rate", "8"}})[0]);
+    const auto y = audio(run("convolve", {x}, {{"filter", "db2.h0"}, {"method", "direct"}})[0]);
+    CHECK(y.channels[0][0] == Catch::Approx(core::wavelet("db2")->h0.coeffs[0]));
+    core::set_named_filters({}, {});
+}
+
+TEST_CASE("check fails when the test does not cover the whole reference", "[pipeline][teaching][review]") {
+    const auto x = audio(run("samples", {}, {{"values", "4 6 10 12 8 6 5 5"}, {"rate", "8"}})[0]);
+    core::AudioBuffer late = x;
+    late.channels[0].insert(late.channels[0].begin(), 0.0);
+    for (const char* delay : {"12", "5"}) {
+        INFO(delay);
+        const auto report = std::get<Report>(run("check", {x, late}, {{"kind", "pr"}, {"delay", delay}})[0]);
+        CHECK_FALSE(report.passed);
+    }
+    core::AudioBuffer shorter = x;
+    shorter.channels[0].resize(5);
+    for (const char* delay : {"0", "auto"}) {
+        INFO(delay);
+        CHECK_FALSE(std::get<Report>(run("check", {x, shorter}, {{"kind", "pr"}, {"delay", delay}})[0]).passed);
+        CHECK_FALSE(std::get<Report>(run("check", {x, shorter}, {{"kind", "snr"}, {"tol", "20"}, {"delay", delay}})[0]).passed);
+    }
+    CHECK(std::get<Report>(run("check", {x, late}, {{"kind", "pr"}, {"delay", "1"}})[0]).passed);
+}
+
+TEST_CASE("a user filter named like a bank with an unknown role still resolves", "[pipeline][user_banks][review]") {
+    core::set_named_filters([](std::string_view name) -> std::optional<core::Laurent> {
+        if (name != "haar.smooth") return std::nullopt;
+        return core::Laurent{{0.25, 0.75}, 0};
+    }, [] { return std::vector<std::string>{"haar.smooth"}; });
+    const auto x = audio(run("samples", {}, {{"values", "1 0 0 0"}, {"rate", "8"}})[0]);
+    const auto y = audio(run("convolve", {x}, {{"filter", "haar.smooth"}, {"method", "direct"}})[0]);
+    CHECK(y.channels[0][0] == 0.25);
+    core::set_named_filters({}, {});
 }

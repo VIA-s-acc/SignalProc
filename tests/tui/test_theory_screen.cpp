@@ -555,3 +555,23 @@ TEST_CASE("z maximizes the focused theory panel and esc restores it", "[tui][the
         CHECK_FALSE(absent("doc"));
     }
 }
+
+TEST_CASE("Tab walks the links, then the contents panel, then back to the first link", "[tui][theory]") {
+    TheoryFixture f{TheoryScreen::Mode::tutorial};
+    f.nav->open({{TheoryLink::Kind::section, "dwt-mallat", ""}});
+    f.h.frame();
+    f.h.send(ftxui::Event::Tab);
+    REQUIRE(f.screen->focused_link());
+    for (int i = 0; i < 200 && f.screen->focused_link(); ++i) {
+        f.h.send(ftxui::Event::Tab);
+        f.h.frame();
+    }
+    CHECK_FALSE(f.screen->focused_link());
+    CHECK(f.screen->hints().front().key == "↑↓");
+    f.h.send(ftxui::Event::Tab);
+    REQUIRE(f.screen->focused_link());
+    CHECK(*f.screen->focused_link() == 0u);
+    f.h.send(ftxui::Event::TabReverse);
+    CHECK_FALSE(f.screen->focused_link());
+    CHECK(f.screen->hints().front().key == "↑↓");
+}

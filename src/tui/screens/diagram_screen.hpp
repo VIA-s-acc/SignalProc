@@ -1,6 +1,7 @@
 #pragma once
 
 #include <deque>
+#include <array>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -14,7 +15,10 @@
 #include "tui/screens/designer_model.hpp"
 #include "tui/screens/diagram_model.hpp"
 #include "tui/screens/signal_model.hpp"
+#include "tui/shell/layout.hpp"
+#include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/scroll.hpp"
 #include "tui/widgets/bank_diagram.hpp"
 
 namespace signals::tui {
@@ -22,6 +26,8 @@ namespace signals::tui {
 class DiagramScreen final : public TabScreen {
 public:
     enum class ProbeView { time, spectrum, numbers };
+
+    enum Panel { diagram_panel_id, probe_panel_id, panel_count };
 
     DiagramScreen(UiContext& ui, std::shared_ptr<DesignerModel> designer, std::shared_ptr<SignalModel> signal);
 
@@ -40,6 +46,10 @@ public:
     std::string bank_name() const { return bank_name_; }
     std::shared_ptr<const DiagramResult> result() const { return result_; }
     ftxui::Box area(std::string_view id) const;
+    std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<Command> commands() override;
+    Panel focus() const { return focus_; }
+    std::optional<Axis> plot_view(std::string_view id) const { return zoom_.view(id); }
 
 private:
     struct Clickable {
@@ -55,6 +65,7 @@ private:
     void refresh();
     ftxui::Element clickable(ftxui::Element e, std::function<void()> action);
     ftxui::Element chips(std::vector<Item> items);
+    std::vector<std::string> quick_banks() const;
     ftxui::Element diagram_panel(int width);
     ftxui::Element probe_panel(int width, int height);
     void select(const std::string& id);
@@ -64,9 +75,17 @@ private:
     std::shared_ptr<DesignerModel> designer_;
     std::shared_ptr<SignalModel> signal_;
     Breakpoint breakpoint_ = Breakpoint::primary;
-    std::size_t bank_ = 0, length_ = 1, bank_length_ = 0;
+    std::size_t length_ = 1, bank_length_ = 0;
+    std::string bank_choice_ = "designer";
+    ftxui::Box more_banks_box_{};
     bool file_ = false, polyphase_ = false;
     ProbeView view_ = ProbeView::time;
+    Panel focus_ = diagram_panel_id;
+    std::optional<Panel> maximized_;
+    PanelLayout layout_;
+    std::array<ftxui::Box, panel_count> panel_boxes_{};
+    PlotZoom zoom_;
+    Scroll numbers_scroll_;
     std::string probe_ = "a", hover_, bank_name_, notice_, key_;
     std::shared_ptr<const DiagramResult> result_;
     std::shared_ptr<const DesignerResult> source_bank_;

@@ -72,6 +72,7 @@ ftxui::Element ContextMenu::render(const UiContext& ui, int width, int height) {
         label_w = std::max(label_w, display_width(item.label));
         key_w = std::max(key_w, display_width(item.key));
     }
+    label_w = std::min(label_w, std::max(4, width - 4 - (key_w ? key_w + 2 : 0)));
     const int inner = label_w + (key_w ? key_w + 2 : 0) + 2;
     const int w = inner + 2, h = static_cast<int>(items_.size()) + 2;
     int left = std::clamp(x_, 0, std::max(0, width - w));
@@ -103,7 +104,7 @@ ftxui::Element ContextMenu::render(const UiContext& ui, int width, int height) {
             const auto bg = on ? to_color(th.accent, depth) : back;
             put(screen, x0, y, std::string{glyph(Glyph::v, glyphs)}, border, back);
             put(screen, x1, y, std::string{glyph(Glyph::v, glyphs)}, border, back);
-            const std::string row = " " + pad_right(items_[i].label, label_w) +
+            const std::string row = " " + pad_right(ellipsize(items_[i].label, label_w, glyphs == GlyphMode::ascii), label_w) +
                                     (items_[i].key.empty() ? std::string{} : "  " + items_[i].key);
             put_text(screen, x0 + 1, y, pad_right(row, inner), fg, bg, on);
         }

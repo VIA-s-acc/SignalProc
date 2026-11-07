@@ -43,6 +43,7 @@ core::Result<std::filesystem::path> save_user_filter(const std::filesystem::path
 UserLibrary load_user_banks(const std::filesystem::path& dir);
 
 void set_user_banks(std::vector<UserBank> banks);
+void install_user_wavelets();
 std::vector<UserBank> user_banks();
 void set_user_filters(std::vector<UserFilter> filters);
 std::vector<UserFilter> user_filters();

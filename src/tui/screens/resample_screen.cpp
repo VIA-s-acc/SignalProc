@@ -10,6 +10,7 @@
 #include "tui/shell/panel.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/plot.hpp"
+#include "tui/widgets/screen_util.hpp"
 
 namespace signals::tui {
 namespace {
@@ -25,7 +26,8 @@ ResampleScreen::ResampleScreen(UiContext& ui, std::shared_ptr<SignalModel> signa
 std::string ResampleScreen::tab_label() const { return tr("tui.sub.resample"); }
 
 std::vector<Hint> ResampleScreen::hints() const {
-    return {{"m", tr("tui.resample.hint.mode")},     {"+ −", "M"},                              {"> <", "L"},
+    return {{"Tab", tr("tui.explain.hint.tab")},     {"z", tr("tui.signal.hint.zoom")},
+            {"m", tr("tui.resample.hint.mode")},     {"+ −", "M"},                              {"> <", "L"},
             {"a", tr("tui.resample.hint.filter")},   {"c/C", tr("tui.resample.hint.cutoff")},   {"s", tr("tui.resample.hint.source")},
             {"f/F", tr("tui.resample.hint.tone")},   {"F1", tr("tui.resample.hint.f1")}};
 }
@@ -104,7 +106,18 @@ ftxui::Element ResampleScreen::chip(const std::string& label, bool on, std::func
     return hbox({clickable(t, std::move(action)), text(" ")});
 }
 
-ftxui::Element ResampleScreen::controls(int) {
+ftxui::Element ResampleScreen::frame(Panel p, std::string title, std::vector<Chip> chips, ftxui::Element body) {
+    if (breakpoint_ <= Breakpoint::small && !maximized_ && p != controls_panel) {
+        const auto it = std::find(small_panels_.begin(), small_panels_.end(), p);
+        if (it != small_panels_.end())
+            chips.push_back({fmt::format(fmt::runtime(tr("tui.signal.chip.panel")), fmt::arg("index", static_cast<int>(it - small_panels_.begin()) + 1),
+                                         fmt::arg("count", static_cast<int>(small_panels_.size()))),
+                             false});
+    }
+    return panel(std::move(title), std::move(chips), std::move(body), focus_ == p, ui_) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
+}
+
+ftxui::Element ResampleScreen::controls() {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto& o = options_;
@@ -127,20 +140,20 @@ ftxui::Element ResampleScreen::controls(int) {
     second.push_back(chip(tr("tui.resample.source.tone") + " " + hz(o.tone_hz), o.source == ResampleSource::tone, set([](ResampleOptions& p) { p.source = ResampleSource::tone; })));
     second.push_back(chip(tr("tui.resample.source.sweep"), o.source == ResampleSource::sweep, set([](ResampleOptions& p) { p.source = ResampleSource::sweep; })));
     second.push_back(chip(tr("tui.resample.source.file"), o.source == ResampleSource::file, set([](ResampleOptions& p) { p.source = ResampleSource::file; })));
-    Elements body{hbox(std::move(first)), hbox(std::move(second))};
-    if (!notice_.empty()) body.push_back(text(notice_) | fg(th.warn, ui_));
+    Elements body{hbox(std::move(first)) | xflex, hbox(std::move(second)) | xflex};
+    if (!notice_.empty()) body.push_back(paragraph(notice_) | fg(th.warn, ui_));
     std::string title = tr("tui.resample.title");
     if (view_) title += fmt::format(" · {} → {}", hz(view_->fs), hz(view_->fs_out));
-    return panel(title, {}, vbox(std::move(body)), true, ui_);
+    return frame(controls_panel, title, {}, vbox(std::move(body)));
 }
 
-ftxui::Element ResampleScreen::before_panel() {
+ftxui::Element ResampleScreen::before_body() {
     using namespace ftxui;
     const auto& th = ui_.theme;
-    if (!view_) return panel(tr("tui.resample.before"), {}, text("—") | fg(th.dim, ui_), false, ui_);
+    if (!view_) return text("—") | fg(th.dim, ui_);
     const auto& v = *view_;
     PlotSpec spec;
-    spec.x = {0, v.fs / 2};
+    spec.x = zoom_.axis("before", {0, v.fs / 2}).axis();
     spec.y = {-140, 5};
     Trace in{v.psd_in_db, v.f_in, th.trace[0]};
     spec.traces.push_back(std::move(in));
@@ -153,16 +166,17 @@ ftxui::Element ResampleScreen::before_panel() {
         spec.selection = std::pair{v.fs_out / 2, v.fs / 2};
     }
     if (options_.source == ResampleSource::tone) spec.cursor_a = options_.tone_hz;
-    return panel(tr("tui.resample.before") + " · fs = " + hz(v.fs), {}, plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex, false, ui_);
+    auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
+    return zoom_.track("before", std::move(spec), std::move(drawn));
 }
 
-ftxui::Element ResampleScreen::after_panel() {
+ftxui::Element ResampleScreen::after_body() {
     using namespace ftxui;
     const auto& th = ui_.theme;
-    if (!view_) return panel(tr("tui.resample.after"), {}, text("—") | fg(th.dim, ui_), false, ui_);
+    if (!view_) return text("—") | fg(th.dim, ui_);
     const auto& v = *view_;
     PlotSpec spec;
-    spec.x = {0, v.fs_out / 2};
+    spec.x = zoom_.axis("after", {0, v.fs_out / 2}).axis();
     spec.y = {-140, 5};
     for (std::size_t k = 0; k < v.copies_db.size(); ++k) {
         Trace c{v.copies_db[k], v.f_out, th.trace[(1 + k) % th.trace.size()], LineStyle::dotted};
@@ -177,12 +191,11 @@ ftxui::Element ResampleScreen::after_panel() {
     if (v.up > 1)
         for (double k = 1; k * v.fs < v.fs_out / 2 + 1; ++k) spec.x_marks.push_back(k * v.fs);
     if (v.tone_out) spec.cursor_a = *v.tone_out;
-    std::vector<Chip> chips;
-    if (!v.copies_db.empty()) chips.push_back({fmt::format(fmt::runtime(tr("tui.resample.copies")), fmt::arg("count", tr_count("unit.copy", static_cast<long long>(v.copies_db.size())))), false});
-    return panel(tr("tui.resample.after") + " · fs′ = " + hz(v.fs_out), chips, plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex, false, ui_);
+    auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
+    return zoom_.track("after", std::move(spec), std::move(drawn));
 }
 
-ftxui::Element ResampleScreen::readouts() {
+ftxui::Element ResampleScreen::readouts_body() {
     using namespace ftxui;
     const auto& th = ui_.theme;
     if (!view_) return text("");
@@ -213,10 +226,10 @@ ftxui::Element ResampleScreen::readouts() {
     else
         rows.push_back(text(tr(v.up > 1 && v.down == 1 ? "tui.resample.filter_off_line_up" : "tui.resample.filter_off_line")) | fg(th.warn, ui_));
     rows.push_back(text(v.up > 1 && v.down == 1 ? "Y(ω) = X(Lω) — L − 1 " + tr("tui.resample.images") : "Y(ω) = (1/M) Σₖ X((ω − 2πk)/M)") | fg(th.dim, ui_));
-    return panel(tr("tui.resample.readouts"), {}, vbox(std::move(rows)), false, ui_);
+    return vbox(std::move(rows));
 }
 
-ftxui::Element ResampleScreen::time_panel() {
+ftxui::Element ResampleScreen::time_body() {
     using namespace ftxui;
     const auto& th = ui_.theme;
     if (!view_) return text("");
@@ -237,35 +250,126 @@ ftxui::Element ResampleScreen::time_panel() {
     for (double y : out.y) lo = std::min(lo, y), hi = std::max(hi, y);
     for (double y : in.y) lo = std::min(lo, y), hi = std::max(hi, y);
     PlotSpec spec;
-    spec.x = {-0.5, static_cast<double>(std::max<std::size_t>(1, v.y_head.size() * v.down)) - 0.5};
+    spec.x = zoom_.axis("time", {-0.5, static_cast<double>(std::max<std::size_t>(1, v.y_head.size() * v.down)) - 0.5}).axis();
     spec.y = {lo - 0.1 * (hi - lo + 1e-9), hi + 0.1 * (hi - lo + 1e-9)};
     spec.traces.push_back(std::move(in));
     spec.traces.push_back(std::move(out));
-    return panel(tr("tui.resample.time"), {}, plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex, false, ui_);
+    auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
+    return zoom_.track("time", std::move(spec), std::move(drawn));
+}
+
+std::vector<ResampleScreen::Panel> ResampleScreen::shown_panels(int cols) const {
+    std::vector<Panel> out{before_panel, after_panel, readouts_panel};
+    if (view_ && view_->up > 1 && (cols >= 120 || breakpoint_ <= Breakpoint::small)) out.push_back(time_panel);
+    return out;
+}
+
+ftxui::Element ResampleScreen::render_panel(Panel p) {
+    std::vector<Chip> chips;
+    switch (p) {
+    case controls_panel: return controls();
+    case before_panel: return frame(p, tr("tui.resample.before") + (view_ ? " · fs = " + hz(view_->fs) : std::string{}), {}, before_body());
+    case after_panel:
+        if (view_ && !view_->copies_db.empty())
+            chips.push_back({fmt::format(fmt::runtime(tr("tui.resample.copies")), fmt::arg("count", tr_count("unit.copy", static_cast<long long>(view_->copies_db.size())))), false});
+        return frame(p, tr("tui.resample.after") + (view_ ? " · fs′ = " + hz(view_->fs_out) : std::string{}), std::move(chips), after_body());
+    case readouts_panel: return frame(p, tr("tui.resample.readouts"), {}, readouts_body());
+    case time_panel: return frame(p, tr("tui.resample.time"), {}, time_body());
+    case panel_count: break;
+    }
+    return ftxui::text("");
 }
 
 ftxui::Element ResampleScreen::OnRender() {
     using namespace ftxui;
     clickables_.clear();
+    panel_boxes_.fill(kNoBox);
+    zoom_.begin_frame();
     refresh();
     const auto [cols, rows] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
-    auto plots = cols >= 120 ? hbox({before_panel() | flex, text(" "), after_panel() | flex}) : vbox({before_panel() | flex, after_panel() | flex});
-    const bool time = view_ && view_->up > 1 && cols >= 120;
-    auto bottom = time ? hbox({readouts() | flex, text(" "), time_panel() | size(WIDTH, EQUAL, cols / 3)}) : readouts();
-    return vbox({controls(cols), std::move(plots) | flex, std::move(bottom)});
+    layout_.resize(cols, rows);
+    const auto shown = shown_panels(cols);
+    if (maximized_) {
+        if (*maximized_ == time_panel && std::find(shown.begin(), shown.end(), time_panel) == shown.end()) maximized_ = before_panel;
+        focus_ = *maximized_;
+        return render_panel(*maximized_) | flex;
+    }
+    if (breakpoint_ <= Breakpoint::small) {
+        small_panels_ = shown;
+        const auto p = shown[layout_.small_index() % shown.size()];
+        if (focus_ != controls_panel) focus_ = p;
+        return vbox({controls(), render_panel(p) | flex});
+    }
+    small_panels_.clear();
+    auto plots = cols >= 120 ? hbox({render_panel(before_panel) | flex, text(" "), render_panel(after_panel) | flex})
+                             : vbox({render_panel(before_panel) | flex, render_panel(after_panel) | flex});
+    const bool time = std::find(shown.begin(), shown.end(), time_panel) != shown.end();
+    auto bottom = time ? hbox({render_panel(readouts_panel) | flex, text(" "), render_panel(time_panel) | size(WIDTH, EQUAL, cols / 3)}) : render_panel(readouts_panel);
+    return vbox({controls(), std::move(plots) | flex, std::move(bottom)});
+}
+
+std::vector<MenuItem> ResampleScreen::context_menu(int x, int y) {
+    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
+    return {};
+}
+
+ftxui::Box ResampleScreen::area(std::string_view id) const {
+    if (id == "before_plot") return zoom_.box("before");
+    if (id == "after_plot") return zoom_.box("after");
+    if (id == "time_plot") return zoom_.box("time");
+    if (id == "controls_panel") return panel_boxes_[controls_panel];
+    if (id == "before_panel") return panel_boxes_[before_panel];
+    if (id == "after_panel") return panel_boxes_[after_panel];
+    if (id == "readouts_panel") return panel_boxes_[readouts_panel];
+    if (id == "time_panel") return panel_boxes_[time_panel];
+    return kNoBox;
 }
 
 bool ResampleScreen::OnEvent(ftxui::Event e) {
     using ftxui::Event;
     if (e.is_mouse()) {
         const auto& m = e.mouse();
+        if (zoom_.on_mouse(m)) return true;
         if (m.button != ftxui::Mouse::Left || m.motion != ftxui::Mouse::Pressed) return false;
         for (auto& c : clickables_)
             if (c.box.Contain(m.x, m.y)) {
                 c.action();
                 return true;
             }
+        for (int p = 0; p < panel_count; ++p)
+            if (panel_boxes_[static_cast<std::size_t>(p)].Contain(m.x, m.y)) {
+                focus_ = static_cast<Panel>(p);
+                zoom_.press(m.x, m.y);
+                return true;
+            }
         return false;
+    }
+    if (e == Event::Escape) {
+        if (!maximized_) return false;
+        maximized_.reset();
+        return true;
+    }
+    if (e == Event::Character('z')) {
+        maximized_ = maximized_ ? std::nullopt : std::optional<Panel>{focus_};
+        return true;
+    }
+    if (e == Event::Tab || e == Event::TabReverse) {
+        const bool back = e == Event::TabReverse;
+        const std::size_t step = back ? panel_count - 1 : 1;
+        if (breakpoint_ <= Breakpoint::small && !maximized_) {
+            layout_.next_panel(std::max<std::size_t>(1, small_panels_.size()), back);
+            focus_ = before_panel;
+            return true;
+        }
+        auto next = static_cast<Panel>((focus_ + step) % panel_count);
+        if (next == time_panel && !(view_ && view_->up > 1)) next = static_cast<Panel>((next + step) % panel_count);
+        focus_ = next;
+        if (maximized_) maximized_ = focus_;
+        return true;
+    }
+    if (e == Event::Character('0')) {
+        const char* id = focus_ == before_panel ? "before" : focus_ == after_panel ? "after" : focus_ == time_panel ? "time" : nullptr;
+        if (id) return zoom_.on_key(e, id);
     }
     auto& o = options_;
     if (e == Event::Character('m')) {

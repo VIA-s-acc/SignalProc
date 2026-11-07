@@ -83,7 +83,23 @@ Result<ZerosPoles> zeros_poles(const Laurent& h) {
     const std::vector<double> ascending(std::make_reverse_iterator(last), std::make_reverse_iterator(first));
     ZerosPoles out{{}, offset + static_cast<std::ptrdiff_t>(ascending.size()) - 1};
     if (ascending.size() == 1) return out;
-    auto roots = polynomial_roots<double>(ascending);
+    std::vector<double> rest = ascending;
+    double norm = 0;
+    for (double v : rest) norm += std::abs(v);
+    for (const double r : {-1.0, 1.0}) {
+        while (rest.size() > 1) {
+            std::vector<double> q(rest.size() - 1);
+            double acc = rest.back();
+            for (std::size_t i = rest.size() - 1; i-- > 0;) {
+                q[i] = acc;
+                acc = acc * r + rest[i];
+            }
+            if (std::abs(acc) > 1e-10 * norm) break;
+            rest = std::move(q);
+            out.zeros.emplace_back(r, 0.0);
+        }
+    }
+    auto roots = polynomial_roots<double>(rest);
     if (!roots) return std::unexpected{roots.error()};
     for (const auto& z : *roots) out.zeros.emplace_back(z.re, z.im);
     return out;

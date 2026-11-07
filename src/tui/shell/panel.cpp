@@ -19,7 +19,7 @@ public:
     void ComputeRequirement() override {
         children_[0]->ComputeRequirement();
         requirement_ = children_[0]->requirement();
-        requirement_.min_x = std::max(requirement_.min_x + 4, static_cast<int>(split_codepoints(title_).size()) + 6);
+        requirement_.min_x = std::max(requirement_.min_x + 4, std::min(display_width(title_), 12) + 6);
         requirement_.min_y += 2;
     }
 
@@ -50,15 +50,7 @@ public:
             put(screen, x0, y, glyph(Glyph::v, glyphs_), border);
             put(screen, x1, y, glyph(Glyph::v, glyphs_), border);
         }
-        const auto title = split_codepoints(" " + title_ + " ");
-        int x = x0 + 2;
-        for (const auto& ch : title) {
-            if (x >= x1 - 1) break;
-            put(screen, x, y0, ch, focused_ ? theme_.accent : theme_.fg, true);
-            ++x;
-        }
-        if (title_box_) *title_box_ = {x0 + 2, x - 1, y0, y0};
-        const auto chip_width = [](const Chip& c) { return static_cast<int>(split_codepoints(c.on ? "[" + c.label + "]" : c.label).size()) + 1; };
+        const auto chip_width = [](const Chip& c) { return display_width(c.on ? "[" + c.label + "]" : c.label) + 1; };
         std::vector<const Chip*> shown;
         for (const auto& c : chips_) {
             if (c.box) *c.box = ftxui::Box{1, 0, 1, 0};
@@ -69,7 +61,8 @@ public:
             for (const auto* c : shown) w += chip_width(*c);
             return w;
         };
-        while (!shown.empty() && x1 - 1 - total() <= x + 1) {
+        const int title_full = display_width(title_) + 2, title_min = std::min(display_width(title_), 12) + 2;
+        while (!shown.empty() && x1 - 1 - total() <= x0 + 2 + (shown.size() > 1 ? title_full : title_min)) {
             auto victim = shown.end();
             for (auto it = shown.begin(); it + 1 < shown.end() && victim == shown.end(); ++it)
                 if (!(*it)->on) victim = it;
@@ -77,6 +70,19 @@ public:
             if (victim == shown.end()) victim = shown.begin();
             shown.erase(victim);
         }
+        const int room = x1 - 1 - (shown.empty() ? 0 : total() + 1) - (x0 + 2);
+        const auto title = split_codepoints(" " + ellipsize(title_, room - 1, glyphs_ == GlyphMode::ascii) + " ");
+        int x = x0 + 2;
+        for (const auto& ch : title) {
+            if (is_combining_mark(ch) && x > x0 + 2) {
+                screen.CellAt(x - 1, y0).character += ch;
+                continue;
+            }
+            if (x >= x1 - 1) break;
+            put(screen, x, y0, ch, focused_ ? theme_.accent : theme_.fg, true);
+            ++x;
+        }
+        if (title_box_) *title_box_ = {x0 + 2, x - 1, y0, y0};
         if (shown.empty()) return;
         int cx = x1 - 1 - total();
         for (const auto* chip : shown) {

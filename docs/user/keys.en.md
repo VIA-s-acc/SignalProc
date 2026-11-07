@@ -66,6 +66,8 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | Key | Action |
 |---|---|
 | `{ }` | subtabs |
+| `Tab` | panel |
+| `z` | fullscreen |
 | `m` | mode |
 | `+ −` | M |
 | `> <` | L |
@@ -87,6 +89,7 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `r` | reference |
 | `Del` | remove |
 | `←→` | cursor A |
+| `PgUp/PgDn` | page |
 | `b` | arrows: cursor A/B |
 | `+ − 0 < >` | zoom in, zoom out, fit all (plot in focus) |
 | `[ ]` | vertical zoom for the plot in focus |
@@ -188,6 +191,7 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `Tab` | panel |
 | `z` | fullscreen |
 | `a/b/x` | A, B, difference |
+| `w` | wavelet |
 | `j/J` | more or fewer levels |
 | `m` | method |
 | `s` | soft/hard |
@@ -196,6 +200,7 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `e` | band edit |
 | `u` | undo |
 | `Space` | stop |
+| `PgUp/PgDn` | page |
 | `F1` | thresholds and noise |
 
 ## 8 Pipeline
@@ -217,9 +222,11 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `r` | run |
 | `A/B` | A input, B probe |
 | `Space` | listen |
+| `PgUp/PgDn` | page |
 | `v` | time or spectrum |
 | `L` | layout and view |
 | `drag ● → ○` | connect |
+| `c/C` | connect: c — output, arrows, Enter; C — list of inputs |
 
 ## 9 Theory ▸ Explain
 

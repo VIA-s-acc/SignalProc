@@ -17,6 +17,7 @@
 #include "tui/shell/panel.hpp"
 #include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/scroll.hpp"
 
 namespace signals::tui {
 
@@ -54,9 +55,10 @@ private:
     };
 
     ftxui::Element frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title);
-    ftxui::Element source_panel(const SignalData* d);
+    ftxui::Element source_panel(const SignalData* d, int width, int rows);
     ftxui::Element run_panel(int panel_width);
-    ftxui::Element log_panel(int rows);
+    ftxui::Element log_panel(int rows, int width);
+    bool on_log_key(const ftxui::Event& e);
     ftxui::Element wave_panel(const std::shared_ptr<const SignalData>& d, int rows, int width);
     ftxui::Element spectrum_panel(const SignalData* d, int rows, int width);
     ftxui::Element bands_panel(const SignalData* d, int width);
@@ -86,6 +88,8 @@ private:
     bool wave_split_ = true;
     Drag drag_;
     PlotZoom zoom_;
+    Scroll source_scroll_, log_scroll_;
+    std::size_t log_seen_ = 0;
     DragMode drag_mode_ = DragMode::pan;
     ftxui::Box drag_chip_{};
     bool audio_warned_ = false;

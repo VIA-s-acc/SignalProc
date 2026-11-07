@@ -147,3 +147,32 @@ TEST_CASE("m7b: muted bands are not kept and the removed energy stays within 0â€
     CHECK(loud->energy_removed_pct == 0);
     CHECK(base->energy_removed_pct == Catch::Approx(100 - base->energy_pct));
 }
+
+TEST_CASE("A, B and X play four seconds around the fragment, processed the same way", "[tui][processing]") {
+    JobRunner inline_jobs{[] {}, 0ms, true};
+    auto signal = std::make_shared<SignalModel>();
+    signal->open(signals::test::sample("test.wav"), inline_jobs);
+    ProcessingModel model{signal};
+    model.sync(inline_jobs);
+    const auto r = model.result();
+    REQUIRE(r);
+    const auto fs = r->fs;
+    const auto a = model.clip(ProcessingModel::Clip::noisy);
+    const auto b = model.clip(ProcessingModel::Clip::out);
+    const auto x = model.clip(ProcessingModel::Clip::residual);
+    REQUIRE(a);
+    REQUIRE(b);
+    REQUIRE(x);
+    CHECK(static_cast<double>(a->frames()) >= 4.0 * fs - 1);
+    CHECK(b->frames() == a->frames());
+    CHECK(x->frames() == a->frames());
+    CHECK(r->listen_start <= r->start);
+    CHECK(r->listen_start + a->frames() >= r->start + r->noisy.size());
+    for (std::size_t i = 0; i < a->frames(); i += 997) CHECK(std::abs(a->channels[0][i] - b->channels[0][i] - x->channels[0][i]) < 1e-5);
+    double out_energy = 0, in_energy = 0;
+    for (std::size_t i = 0; i < a->frames(); ++i) {
+        out_energy += b->channels[0][i] * b->channels[0][i];
+        in_energy += a->channels[0][i] * a->channels[0][i];
+    }
+    CHECK(out_energy < in_energy);
+}

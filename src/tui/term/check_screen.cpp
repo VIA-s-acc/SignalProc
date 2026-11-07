@@ -1,5 +1,7 @@
 #include "tui/term/check_screen.hpp"
 
+#include <algorithm>
+
 #include "i18n/i18n.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/term/caps.hpp"
@@ -54,7 +56,7 @@ ftxui::Element TerminalCheck::render(const UiContext& ui) const {
         return on ? t | bold | fg(ui.theme.bg, ui) | bg(ui.theme.accent, ui) : t | fg(ui.theme.fg, ui);
     };
     auto body = vbox({
-        text(tr("tui.check.detected") + (ui.caps.emulator.empty() ? std::string{"—"} : ui.caps.emulator)),
+        paragraph(tr("tui.check.detected") + (ui.caps.emulator.empty() ? std::string{"—"} : ui.caps.emulator)),
         text(""),
         hbox({text(tr("tui.check.braille")), text("⣿⡇⠿⠛⣀⣤⣶")}),
         hbox({text(tr("tui.check.halfblocks")), hbox(std::move(gradient))}),
@@ -63,16 +65,17 @@ ftxui::Element TerminalCheck::render(const UiContext& ui) const {
         hbox({text(tr("tui.check.sextants")), text("🬀🬁🬂🬃🬄🬅🬆🬇")}),
         hbox({text(tr("tui.check.octants")), text("𜴀𜴁𜴂𜴃𜴄𜴅")}),
         text(""),
-        hbox({text(tr("tui.check.colour")), option("1", tr("tui.check.none"), ui.caps.color == ColorDepth::none),
-              option("2", "16", ui.caps.color == ColorDepth::ansi16), option("3", "256", ui.caps.color == ColorDepth::palette256),
-              option("4", tr("tui.check.true"), ui.caps.color == ColorDepth::truecolor)}),
-        hbox({text(tr("tui.check.glyphs")), option("u", "Unicode", ui.caps.glyphs == GlyphMode::unicode),
-              option("a", "ASCII", ui.caps.glyphs == GlyphMode::ascii)}),
+        flexbox({text(tr("tui.check.colour")), option("1", tr("tui.check.none"), ui.caps.color == ColorDepth::none),
+                 option("2", "16", ui.caps.color == ColorDepth::ansi16), option("3", "256", ui.caps.color == ColorDepth::palette256),
+                 option("4", tr("tui.check.true"), ui.caps.color == ColorDepth::truecolor)}),
+        flexbox({text(tr("tui.check.glyphs")), option("u", "Unicode", ui.caps.glyphs == GlyphMode::unicode),
+                 option("a", "ASCII", ui.caps.glyphs == GlyphMode::ascii)}),
         text(""),
-        text(tr("tui.check.keys")) | fg(ui.theme.dim, ui),
-        text(status_) | fg(ui.theme.ok, ui),
+        paragraph(tr("tui.check.keys")) | fg(ui.theme.dim, ui),
+        paragraph(status_) | fg(ui.theme.ok, ui),
     });
-    return panel(tr("tui.check.title"), {}, body, true, ui);
+    const int cols = ui.terminal_size ? ui.terminal_size().first : 150;
+    return panel(tr("tui.check.title"), {}, body | size(WIDTH, LESS_THAN, std::max(20, cols - 6)), true, ui);
 }
 
 }  // namespace signals::tui

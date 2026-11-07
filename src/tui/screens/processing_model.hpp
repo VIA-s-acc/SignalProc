@@ -61,9 +61,13 @@ struct ProcessingResult {
     std::vector<CurvePoint> curve;
     TransferCurves transfer;
     std::vector<float> audio_noisy, audio_out, audio_residual;
+    std::size_t listen_start = 0;
     std::weak_ptr<const SignalData> source;
 };
 
+inline constexpr double kListenSeconds = 4.0;
+
+core::Result<std::vector<double>> process_signal(std::span<const double> noisy, const ProcessingOptions& o, core::ProgressSink* progress = nullptr);
 core::Result<ProcessingResult> process_fragment(std::span<const double> clean, std::span<const double> noisy, double fs, const ProcessingOptions& o,
                                                 core::ProgressSink* progress = nullptr);
 core::Result<TransferCurves> band_transfer(std::string_view wavelet, std::size_t levels, std::span<const double> gains, std::size_t np,

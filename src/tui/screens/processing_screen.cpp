@@ -3,20 +3,27 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <span>
 #include <tuple>
 
 #include <fmt/format.h>
 #include <ftxui/component/mouse.hpp>
 #include <ftxui/dom/elements.hpp>
+#include <ftxui/dom/node.hpp>
 
 #include "i18n/i18n.hpp"
+#include "core/design/families.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/plot.hpp"
+#include "tui/widgets/list_window.hpp"
 #include "tui/widgets/screen_util.hpp"
+#include "tui/widgets/scroll.hpp"
 #include "tui/widgets/text_util.hpp"
 
 namespace signals::tui {
 namespace {
+
+constexpr double kWheelStep = 1.25;
 
 constexpr int kRightWidth = 39;
 constexpr int kBandLabel = 24;
@@ -63,12 +70,24 @@ std::string ProcessingScreen::tab_label() const { return tr("tui.tab.processing"
 
 std::vector<Hint> ProcessingScreen::hints() const {
     return {{"Tab", tr("tui.explain.hint.tab")},       {"z", tr("tui.signal.hint.zoom")},          {"a/b/x", tr("tui.processing.hint.view")},
-            {"j/J", tr("tui.decomposition.hint.levels")}, {"m", tr("tui.processing.hint.method")},  {"s", tr("tui.processing.hint.mode")},      {"[ ]", tr("tui.processing.hint.scale")},
+            {"w", tr("tui.decomposition.wavelet")}, {"j/J", tr("tui.decomposition.hint.levels")}, {"m", tr("tui.processing.hint.method")},  {"s", tr("tui.processing.hint.mode")},      {"[ ]", tr("tui.processing.hint.scale")},
             {tr("tui.spectrum.key.drag"), "±λ"},       {"e", tr("tui.processing.hint.eq")},        {"u", tr("tui.decomposition.hint.undo")},
-            {"Space", tr("tui.processing.hint.stop")}, {"F1", tr("tui.processing.hint.f1")}};
+            {"Space", tr("tui.processing.hint.stop")}, {"PgUp/PgDn", tr("tui.hint.page")}, {"F1", tr("tui.processing.hint.f1")}};
 }
 
 std::optional<TheoryLink> ProcessingScreen::theory_link() const { return TheoryLink{TheoryLink::Kind::card, "threshold"}; }
+
+void ProcessingScreen::pick_wavelet() {
+    if (ui_.open_palette) ui_.open_palette(tr("tui.processing.cmd.wavelet"));
+}
+
+std::vector<Command> ProcessingScreen::commands() {
+    std::vector<Command> out;
+    for (const auto& name : core::all_wavelet_names())
+        out.push_back({"processing.wavelet." + name, tr("tui.processing.cmd.wavelet") + " " + name,
+                       [this, name] { change([name](ProcessingOptions& o) { o.wavelet = name; }); }});
+    return out;
+}
 
 void ProcessingScreen::publish(theory::LiveValues& v) const {
     const auto r = model_->result();
@@ -164,6 +183,19 @@ ftxui::Element ProcessingScreen::toolbar(bool two_rows, int width) {
     parts.push_back(text(" │") | fg(th.dim, ui_));
     for (const auto& [mode, name] : {std::pair{core::ThresholdMode::soft, "soft"}, std::pair{core::ThresholdMode::hard, "hard"}})
         parts.push_back(chip(std::string{"mode_"} + name, name, o.threshold == mode, [this, mode] { change([mode](ProcessingOptions& p) { p.threshold = mode; }); }));
+    const auto wavelet_part = [&](bool lead) {
+        return Elements{text((lead ? " │ " : "") + tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_),
+                        clickable("wavelet", text(o.wavelet + " ▾") | fg(th.fg, ui_), [this] { pick_wavelet(); }), text(" J " + std::to_string(o.levels)) | fg(th.dim, ui_)};
+    };
+    const int first_width = [&] {
+        auto probe = hbox(parts);
+        probe->ComputeRequirement();
+        return probe->requirement().min_x;
+    }();
+    const int wavelet_width = display_width(" │ " + tr("tui.decomposition.wavelet") + " " + o.wavelet + " ▾ J " + std::to_string(o.levels));
+    const bool own_row = two_rows && first_width + wavelet_width > width;
+    if (!own_row)
+        for (auto& e : wavelet_part(true)) parts.push_back(std::move(e));
     const std::string lead = (two_rows ? "" : " │ ") + std::string{"λ ×"};
     used = display_width(lead);
     Elements second{text(lead) | fg(th.dim, ui_)};
@@ -178,6 +210,7 @@ ftxui::Element ProcessingScreen::toolbar(bool two_rows, int width) {
     auto edges = " │ " + tr("tui.decomposition.edges") + " " + std::string{core::to_string(o.mode)};
     if (two_rows && used + display_width(edges) > width) edges = ellipsize(edges, std::max(0, width - used), ui_.caps.glyphs == GlyphMode::ascii);
     second.push_back(text(edges) | fg(th.dim, ui_));
+    if (own_row) return vbox({hbox(std::move(parts)), hbox(std::move(second)), hbox(wavelet_part(false))});
     if (two_rows) return vbox({hbox(std::move(parts)), hbox(std::move(second))});
     for (auto& e : second) parts.push_back(std::move(e));
     return hbox(std::move(parts));
@@ -188,9 +221,13 @@ ftxui::Element ProcessingScreen::coeffs_body(const ProcessingResult& r, int widt
     const auto& th = ui_.theme;
     const int plot_width = std::max(10, width - kBandLabel - 4);
     Elements out;
-    const auto shown = std::min<std::size_t>(r.bands.size(), static_cast<std::size_t>(std::max(1, rows / 2)));
-    for (std::size_t b = 0; b < shown; ++b) {
+    const auto window = list_window(bands_scroll_.first, r.bands.size(), std::max(2, rows), 2, std::nullopt);
+    const auto view = coeff_zoom_.axis();
+    for (std::size_t b = 0; b < r.bands.size(); ++b) {
         const auto& band = r.bands[b];
+        const auto first = std::min(band.coeffs.size(), static_cast<std::size_t>(std::floor(view.lo * static_cast<double>(band.coeffs.size()))));
+        const auto last = std::max(first + 1, std::min(band.coeffs.size(), static_cast<std::size_t>(std::ceil(view.hi * static_cast<double>(band.coeffs.size())))));
+        const auto visible = std::span<const double>{band.coeffs}.subspan(first, std::min(last, band.coeffs.size()) - first);
         const double scale = band.lambda > 0 ? std::min(band.max_abs, 4 * band.lambda) : std::max(band.max_abs, 1e-12);
         PlotSpec spec;
         spec.labels = false;
@@ -198,15 +235,16 @@ ftxui::Element ProcessingScreen::coeffs_body(const ProcessingResult& r, int widt
         spec.x = {0, 1};
         spec.y = {-1, 1};
         if (band.lambda > 0) spec.y_marks = {band.lambda / scale, -band.lambda / scale};
-        spec.envelopes.push_back(Envelope{columns_of(band.coeffs, 2 * plot_width, scale), b == 0 ? th.dim : th.trace[0], {}});
+        spec.envelopes.push_back(Envelope{columns_of(visible, 2 * plot_width, scale), b == 0 ? th.dim : th.trace[0], {}});
         const auto& name = band.name;
         const auto info = b == 0 ? tr("tui.processing.untouched") : "λ " + format_number(band.lambda, 3) + " · " + group(band.kept) + "/" + group(band.length);
         out.push_back(hbox({vbox({hbox({text(name) | bold | fg(b == 0 ? th.dim : th.trace[0], ui_), text(" " + hz_text(band.lo_hz) + "–" + hz_text(band.hi_hz)) | fg(th.dim, ui_)}),
                                   text(info) | fg(th.dim, ui_)}) |
                                 size(WIDTH, EQUAL, kBandLabel),
-                            plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, 2) | size(WIDTH, EQUAL, plot_width)}));
+                            plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, 2) | size(WIDTH, EQUAL, plot_width) |
+                                (b == window.first ? reflect(coeff_plot_box_) : nothing)}));
     }
-    return vbox(std::move(out));
+    return scrolled(std::move(out), bands_scroll_, std::max(2, rows), std::nullopt, ui_, 2);
 }
 
 ftxui::Element ProcessingScreen::signal_body(const ProcessingResult& r, int width, int height) {
@@ -217,19 +255,24 @@ ftxui::Element ProcessingScreen::signal_body(const ProcessingResult& r, int widt
     for (const double v : r.noisy) peak = std::max(peak, std::abs(v));
     peak = std::max(peak, 1e-12);
     const auto& shown = view_ == View::a ? r.noisy : view_ == View::b ? r.out : r.residual;
+    const auto n = r.clean.size();
     PlotSpec spec;
-    spec.x = {0, static_cast<double>(r.clean.size()) / r.fs};
+    spec.x = zoom_.axis("signal", {0, static_cast<double>(n) / r.fs}).axis();
     spec.y = {-1, 1};
-    spec.envelopes.push_back(Envelope{columns_of(r.clean, 2 * plot_width, peak), th.dim, {}});
-    spec.envelopes.push_back(Envelope{columns_of(shown, 2 * plot_width, peak), view_ == View::x ? th.warn : th.trace[0], {}});
-    return plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, std::max(3, height)) | size(WIDTH, EQUAL, plot_width);
+    const auto first = std::min(n - 1, static_cast<std::size_t>(std::max(0.0, std::floor(spec.x.lo * r.fs))));
+    const auto last = std::clamp(static_cast<std::size_t>(std::ceil(spec.x.hi * r.fs)), first + 1, n);
+    auto slice = [&](const std::vector<double>& v) { return std::span<const double>{v}.subspan(first, last - first); };
+    spec.envelopes.push_back(Envelope{columns_of(slice(r.clean), 2 * plot_width, peak), th.dim, {}});
+    spec.envelopes.push_back(Envelope{columns_of(slice(shown), 2 * plot_width, peak), view_ == View::x ? th.warn : th.trace[0], {}});
+    auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, std::max(3, height)) | size(WIDTH, EQUAL, plot_width);
+    return zoom_.track("signal", std::move(spec), std::move(drawn));
 }
 
 ftxui::Element ProcessingScreen::curve_body(const ProcessingResult& r, int width, int height) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     PlotSpec spec;
-    spec.x = {1, static_cast<double>(std::max<std::size_t>(2, r.total)), AxisScale::log10};
+    spec.x = zoom_.axis("curve", {1, static_cast<double>(std::max<std::size_t>(2, r.total)), AxisScale::log10}).axis();
     spec.y = {-40, 0};
     Trace t;
     t.color = th.trace[0];
@@ -239,7 +282,8 @@ ftxui::Element ProcessingScreen::curve_body(const ProcessingResult& r, int width
     }
     spec.traces.push_back(std::move(t));
     spec.x_marks = {static_cast<double>(std::max<std::size_t>(1, r.kept))};
-    return plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, std::max(3, height)) | size(WIDTH, EQUAL, std::max(10, width - 4));
+    auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, std::max(3, height)) | size(WIDTH, EQUAL, std::max(10, width - 4));
+    return zoom_.track("curve", std::move(spec), std::move(drawn));
 }
 
 ftxui::Element ProcessingScreen::eq_body(const ProcessingResult& r, int width, int height) {
@@ -252,7 +296,7 @@ ftxui::Element ProcessingScreen::eq_body(const ProcessingResult& r, int width, i
                                   [this, p] { set_preset(p); }));
     }
     PlotSpec spec;
-    spec.x = {1.0 / 128, 1.0, AxisScale::log10};
+    spec.x = zoom_.axis("eq", {1.0 / 128, 1.0, AxisScale::log10}).axis();
     spec.y = {-40, 10};
     Trace t, a;
     t.color = th.trace[0];
@@ -266,8 +310,8 @@ ftxui::Element ProcessingScreen::eq_body(const ProcessingResult& r, int width, i
     }
     spec.traces.push_back(std::move(t));
     spec.traces.push_back(std::move(a));
-    return vbox({hbox(std::move(chips)),
-                 plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, std::max(3, height - 1)) | size(WIDTH, EQUAL, std::max(10, width - 4))});
+    auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, std::max(3, height - 1)) | size(WIDTH, EQUAL, std::max(10, width - 4));
+    return vbox({hbox(std::move(chips)), zoom_.track("eq", std::move(spec), std::move(drawn))});
 }
 
 ftxui::Element ProcessingScreen::summary_body(const ProcessingResult& r) {
@@ -299,7 +343,13 @@ ftxui::Element ProcessingScreen::listen_body() {
                                     std::tuple{View::x, "tui.processing.play.x", "play_x"}})
         buttons.push_back(clickable(id, text("▶ " + tr(key) + " ") | fg(view_ == v ? th.accent : th.fg, ui_), [this, v] { play(v); }));
     Elements rows{hbox(std::move(buttons)), text(tr("tui.processing.seamless")) | fg(th.dim, ui_)};
-    if (!notice_.empty()) rows.push_back(text(notice_) | fg(th.warn, ui_));
+    if (const auto r = model_->result(); r && r->fs > 0) {
+        const double from = static_cast<double>(r->listen_start) / r->fs, span = static_cast<double>(r->audio_noisy.size()) / r->fs;
+        rows.push_back(text(fmt::format(fmt::runtime(tr("tui.processing.heard")), fmt::arg("span", format_fixed(span, 2)), fmt::arg("from", format_fixed(from, 2)),
+                                        fmt::arg("to", format_fixed(from + span, 2)))) |
+                       fg(th.dim, ui_));
+    }
+    if (!notice_.empty()) rows.push_back(paragraph(notice_) | fg(th.warn, ui_));
     return vbox(std::move(rows));
 }
 
@@ -307,6 +357,8 @@ ftxui::Element ProcessingScreen::OnRender() {
     using namespace ftxui;
     panel_boxes_.fill(kNoBox);
     clickables_.clear();
+    zoom_.begin_frame();
+    coeff_plot_box_ = kNoBox;
     if (!ui_.jobs) return text("");
     model_->sync(*ui_.jobs);
     const auto r = model_->result();
@@ -324,8 +376,12 @@ ftxui::Element ProcessingScreen::OnRender() {
                        fg(e ? th.err : stopped ? th.warn : th.dim, ui_)};
         return vbox({toolbar(two_rows, cols), frame_panel(coeffs_panel, centered(std::move(lines)), {}, tr("tui.processing.coeffs")) | flex});
     }
-    const int coeff_rows = small ? total - 4 : static_cast<int>(2 * r->bands.size());
-    const int lower = small ? total / 2 : std::max(5, total - (two_rows ? 2 : 1) - 1 - (coeff_rows + 2) - 2 - 1 - 9);
+    auto bar = toolbar(two_rows, cols);
+    bar->ComputeRequirement();
+    const int bar_rows = std::max(1, bar->requirement().min_y);
+    const int coeff_room = total - bar_rows - 1 - 2 - 2 - 1 - 9 - 5;
+    const int coeff_rows = small ? total - 4 : std::clamp(static_cast<int>(2 * r->bands.size()), 4, std::max(4, coeff_room));
+    const int lower = small ? total / 2 : std::max(5, total - bar_rows - 1 - (coeff_rows + 2) - 2 - 1 - 9);
     auto coeffs = frame_panel(coeffs_panel, coeffs_body(*r, main_width, coeff_rows), {{tr("tui.processing.coeffs_chip"), false}}, tr("tui.processing.coeffs"));
     const auto view_name = tr(view_ == View::a ? "tui.processing.view.a" : view_ == View::b ? "tui.processing.view.b" : "tui.processing.view.x");
     auto signal = frame_panel(signal_panel, signal_body(*r, main_width, lower), {{tr("tui.processing.signal_chip"), false}},
@@ -342,7 +398,7 @@ ftxui::Element ProcessingScreen::OnRender() {
         const auto p = maximized_ ? *maximized_ : static_cast<Panel>(layout_.small_index() % panel_count);
         focus_ = p;
         switch (p) {
-        case coeffs_panel: return vbox({toolbar(two_rows, cols), coeffs | flex});
+        case coeffs_panel: return vbox({bar, coeffs | flex});
         case signal_panel: return signal;
         case curve_panel: return curve;
         case eq_panel: return eq;
@@ -355,7 +411,7 @@ ftxui::Element ProcessingScreen::OnRender() {
     }
     auto left = vbox({coeffs, signal | flex, hbox({curve | size(WIDTH, EQUAL, half), text(" "), eq | flex})});
     auto right = vbox({summary, noise, listen, theory | flex});
-    return vbox({toolbar(two_rows, cols), text(""), hbox({left | flex, text(" "), right | size(WIDTH, EQUAL, kRightWidth)}) | flex});
+    return vbox({bar, text(""), hbox({left | flex, text(" "), right | size(WIDTH, EQUAL, kRightWidth)}) | flex});
 }
 
 bool ProcessingScreen::OnEvent(ftxui::Event e) {
@@ -365,6 +421,13 @@ bool ProcessingScreen::OnEvent(ftxui::Event e) {
     auto& jobs = *ui_.jobs;
     if (e.is_mouse()) {
         const auto& m = e.mouse();
+        if (!drag_.active && zoom_.on_mouse(m)) return true;
+        const bool in_coeffs = panel_boxes_[coeffs_panel].Contain(m.x, m.y) && m.x >= coeff_plot_box_.x_min && coeff_plot_box_.x_max >= coeff_plot_box_.x_min;
+        if ((m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) && in_coeffs) {
+            coeff_zoom_.zoom_at(m.button == Mouse::WheelUp ? kWheelStep : 1 / kWheelStep, coeff_plot_box_, m.x);
+            return true;
+        }
+        if (wheel_scroll(m, panel_boxes_[coeffs_panel], bands_scroll_, 1)) return true;
         if (m.button == Mouse::Left && m.motion == Mouse::Pressed) {
             for (auto& c : clickables_)
                 if (c.box.Contain(m.x, m.y)) {
@@ -375,6 +438,7 @@ bool ProcessingScreen::OnEvent(ftxui::Event e) {
             for (int p = 0; p < panel_count; ++p)
                 if (panel_boxes_[static_cast<std::size_t>(p)].Contain(m.x, m.y)) focus_ = static_cast<Panel>(p);
             if (panel_boxes_[coeffs_panel].Contain(m.x, m.y)) drag_ = {true, false, m.y, m.y, model_->options().scale};
+            else zoom_.press(m.x, m.y);
             return true;
         }
         if (drag_.active) {
@@ -395,6 +459,16 @@ bool ProcessingScreen::OnEvent(ftxui::Event e) {
         else if (maximized_) maximized_.reset();
         else return false;
         return true;
+    }
+    if (focus_ == signal_panel && zoom_.on_key(e, "signal")) return true;
+    if (focus_ == curve_panel && zoom_.on_key(e, "curve")) return true;
+    if (focus_ == eq_panel && zoom_.on_key(e, "eq")) return true;
+    if (focus_ == coeffs_panel) {
+        if (e == Event::Character('+') || e == Event::Character('=')) return coeff_zoom_.zoom_center(kWheelStep), true;
+        if (e == Event::Character('-')) return coeff_zoom_.zoom_center(1 / kWheelStep), true;
+        if (e == Event::Character('>') || e == Event::Character('.')) return coeff_zoom_.pan_view(0.2), true;
+        if (e == Event::Character('<') || e == Event::Character(',')) return coeff_zoom_.pan_view(-0.2), true;
+        if (e == Event::Character('0')) return coeff_zoom_.reset(), true;
     }
     if (e == Event::Character('z')) {
         maximized_ = maximized_ ? std::nullopt : std::optional<Panel>{focus_};
@@ -450,12 +524,33 @@ bool ProcessingScreen::OnEvent(ftxui::Event e) {
     if (e == Event::Character('e')) return set_preset((active_preset() < kPresets.size() ? active_preset() : preset_) + 1), true;
     if (e == Event::Character('j')) return change([](ProcessingOptions& o) { o.levels = std::min<std::size_t>(10, o.levels + 1); }), true;
     if (e == Event::Character('J')) return change([](ProcessingOptions& o) { o.levels = std::max<std::size_t>(1, o.levels - 1); }), true;
+    if (focus_ == coeffs_panel && key_scroll(e, bands_scroll_)) return true;
+    if (e == Event::Character('w')) return pick_wavelet(), true;
     if (e == Event::Character('r')) return model_->recompute(jobs), true;
     if (e == Event::Character('u')) return model_->undo(jobs), true;
     return false;
 }
 
+std::optional<Axis> ProcessingScreen::plot_view(std::string_view id) const {
+    if (id == "coeffs") return coeff_zoom_.axis();
+    return zoom_.view(id);
+}
+
+std::vector<MenuItem> ProcessingScreen::context_menu(int x, int y) {
+    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
+    if (panel_boxes_[coeffs_panel].Contain(x, y) && coeff_zoom_.zoomed()) return {MenuItem{tr("tui.menu.reset_zoom"), "", [this] { coeff_zoom_.reset(); }}};
+    return {};
+}
+
 ftxui::Box ProcessingScreen::area(std::string_view id) const {
+    if (id == "signal_plot") return zoom_.box("signal");
+    if (id == "curve_plot") return zoom_.box("curve");
+    if (id == "eq_plot") return zoom_.box("eq");
+    if (id == "coeffs_plot") {
+        auto b = coeff_plot_box_;
+        b.y_max = panel_boxes_[coeffs_panel].y_max - 1;
+        return b;
+    }
     if (id == "coeffs_panel") return panel_boxes_[coeffs_panel];
     if (id == "summary_panel") return panel_boxes_[summary_panel];
     for (const auto& c : clickables_)

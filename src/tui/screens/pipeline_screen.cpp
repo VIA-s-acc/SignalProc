@@ -10,13 +10,16 @@
 #include <fmt/format.h>
 
 #include "core/spectral.hpp"
+#include "core/design/families.hpp"
 #include "i18n/i18n.hpp"
+#include "pipeline/examples.hpp"
 #include "pipeline/block.hpp"
 #include "pipeline/sig.hpp"
 #include "tui/shell/palette.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/plot.hpp"
 #include "tui/widgets/screen_util.hpp"
+#include "tui/widgets/scroll.hpp"
 #include "tui/widgets/text_util.hpp"
 
 namespace signals::tui {
@@ -38,7 +41,14 @@ PipelineScreen::PipelineScreen(UiContext& ui, std::shared_ptr<PipelineModel> mod
 std::optional<TheoryLink> PipelineScreen::theory_link() const {
     const auto* n = selected_node();
     if (!n) return std::nullopt;
-    static const std::map<std::string, std::string, std::less<>> cards{{"wav", "wav_in"}, {"gen", "generator"}, {"check", "error"}, {"resample", "upsample"}, {"lift53", "lifting"}, {"ilift53", "lifting"}};
+    static const std::map<std::string, std::string, std::less<>> cards{
+        {"wav", "wav_in"},         {"gen", "generator"},         {"samples", "generator"},  {"chirp", "generator"},   {"osc", "generator"},
+        {"check", "error"},        {"resample", "upsample"},     {"lift53", "lifting"},     {"ilift53", "lifting"},   {"lift97", "lifting"},
+        {"ilift97", "lifting"},    {"mra", "dwt"},               {"iir", "iir_design"},     {"fir", "fir_design"},    {"moving_average", "fir_design"},
+        {"preemphasis", "fir_design"}, {"deemphasis", "iir_design"}, {"add", "filter_bank"}, {"multiply", "gain"},   {"invert", "gain"},
+        {"pad", "delay"},          {"concat", "cut"},            {"trim_silence", "cut"},   {"merge", "split"},       {"swap", "split"},
+        {"duplicate", "split"},    {"pan", "mixdown"},           {"add_noise", "snr"},      {"dc_offset", "remove_dc"}, {"stats", "band_energy"},
+        {"loudness", "band_energy"}};
     if (n->type->id == "swt" || n->type->id == "iswt") return TheoryLink{TheoryLink::Kind::section, "swt-modwt", block_name(n->type->id)};
     const auto it = cards.find(n->type->id);
     return TheoryLink{TheoryLink::Kind::card, it == cards.end() ? n->type->id : it->second, block_name(n->type->id)};
@@ -60,10 +70,25 @@ std::string PipelineScreen::context() const {
     return model_->path() ? model_->path()->filename().string() : tr("tui.pipeline.untitled");
 }
 
+void PipelineScreen::open_example(std::string_view name, std::string_view text) {
+    if (auto ok = model_->load_text(name, text); !ok) return report(ok);
+    const auto file = current_file_ ? current_file_() : std::nullopt;
+    if (!file) return;
+    for (const auto& n : model_->doc().nodes)
+        if (n.type == "wav") (void)model_->set_param(n.id, "path", std::filesystem::absolute(*file).string());
+}
+
 std::vector<Command> PipelineScreen::commands() {
     std::vector<Command> out;
     out.push_back({"pipeline.example", tr("tui.pipeline.cmd.example"), [this] {
-                       report(model_->load(std::filesystem::path{ui_.repo_root} / "examples" / "denoise.sig"));
+                       std::vector<Command> items;
+                       for (const auto& ex : pipeline::examples()) {
+                           const auto key = "tui.pipeline.example." + std::string{ex.name};
+                           const auto title = tr(key);
+                           items.push_back({std::string{ex.name}, title == key ? std::string{ex.name} : title, [this, ex] { open_example(ex.name, ex.text); }});
+                       }
+                       if (ui_.choose) ui_.choose(tr("tui.pipeline.cmd.example"), std::move(items));
+                       else if (!items.empty()) items.front().run();
                    }});
     out.push_back({"pipeline.run", tr("tui.pipeline.cmd.run"), [this] {
                        if (ui_.jobs) model_->run(*ui_.jobs);
@@ -82,7 +107,9 @@ std::vector<Hint> PipelineScreen::hints() const {
             {"M", tr("tui.pipeline.hint.bypass")},         {"p", tr("tui.pipeline.hint.probe")},     {"Del", tr("tui.pipeline.hint.delete")},
             {"Ctrl+Z/Y", tr("tui.pipeline.hint.undo")},    {"Ctrl+S", tr("tui.pipeline.hint.save")}, {"o", tr("tui.pipeline.hint.open")},
             {"r", tr("tui.pipeline.hint.run")},           {"A/B", tr("tui.pipeline.hint.ab")},      {"Space", tr("tui.pipeline.hint.listen")},
-            {"v", tr("tui.pipeline.hint.view")},          {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")}};
+            {"PgUp/PgDn", tr("tui.hint.page")},
+            {"v", tr("tui.pipeline.hint.view")},          {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")},
+            {"c/C", tr("tui.pipeline.hint.connect_keys")}};
 }
 
 const pipeline::GraphNode* PipelineScreen::selected_node() const {
@@ -104,14 +131,19 @@ ftxui::Element PipelineScreen::frame_panel(Panel p, ftxui::Element body, std::ve
 ftxui::Element PipelineScreen::toolbar() const {
     using namespace ftxui;
     const auto& th = ui_.theme;
-    const auto name = model_->path() ? model_->path()->filename().string() : tr("tui.pipeline.untitled");
-    Elements parts{text(" " + name + " ") | bold | fg(th.fg, ui_)};
-    parts.push_back(text(model_->dirty() ? "● " + tr("tui.pipeline.changed") : tr("tui.pipeline.saved")) | fg(model_->dirty() ? th.warn : th.dim, ui_));
+    const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
+    const int cols = ui_.terminal_size ? ui_.terminal_size().first : 150;
+    const auto name = ellipsize_start(model_->path() ? model_->path()->filename().string() : tr("tui.pipeline.untitled"), std::max(8, cols / 3), ascii);
+    const auto state = model_->dirty() ? "● " + tr("tui.pipeline.changed") : tr("tui.pipeline.saved");
+    Elements parts{text(" " + name + " ") | bold | fg(th.fg, ui_), text(state) | fg(model_->dirty() ? th.warn : th.dim, ui_)};
+    int room = cols - display_width(name) - 2 - display_width(state);
     if (const auto p = model_->problem()) {
         const auto where = p->line > 0 ? fmt::format(fmt::runtime(tr("tui.pipeline.problem_line")), fmt::arg("line", p->line)) + " " : std::string{};
-        parts.push_back(text("  " + where + p->message) | fg(th.warn, ui_));
+        const auto shown = ellipsize("  " + where + p->message, std::max(0, room), ascii);
+        room -= display_width(shown);
+        parts.push_back(text(shown) | fg(th.warn, ui_));
     }
-    if (!notice_.empty()) parts.push_back(text("  " + notice_) | fg(th.err, ui_));
+    if (!notice_.empty()) parts.push_back(text(ellipsize("  " + notice_, std::max(0, room), ascii)) | fg(th.err, ui_));
     return hbox(std::move(parts));
 }
 
@@ -157,6 +189,26 @@ ftxui::Element PipelineScreen::graph_panel(int width, int height) {
         default: return th.fg;
         }
     };
+    std::map<std::pair<int, int>, std::pair<std::string, CellStyle>> overlay;
+    std::string wire_note;
+    if (drag_.kind == Drag::Kind::wire) {
+        const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
+        std::optional<std::pair<int, int>> end;
+        if (valid(drag_.box) && drag_.box.Contain(drag_.last_x, drag_.last_y))
+            end = std::pair{drag_.last_x - drag_.box.x_min + ox_, drag_.last_y - drag_.box.y_min + oy_};
+        const int fx = drag_.from.x, fy = drag_.from.y;
+        const int tx = end ? end->first : fx, ty = end ? end->second : fy;
+        const PortHit* target = nullptr;
+        for (const auto& p : picture_.ports)
+            if (!p.output && end && p.x == tx && p.y == ty) target = &p;
+        const auto dot = std::string{ascii ? "." : "·"};
+        for (int x = std::min(fx + 1, tx); x <= std::max(fx + 1, tx); ++x) overlay[{x, fy}] = {dot, CellStyle::accent};
+        for (int y = std::min(fy, ty); y <= std::max(fy, ty); ++y) overlay[{tx, y}] = {dot, CellStyle::accent};
+        if (target) overlay[{tx, ty}] = {picture_.glyph(tx, ty), CellStyle::ok};
+        else if (end) overlay[{tx, ty}] = {ascii ? "*" : "●", CellStyle::accent};
+        const auto name = [](const PortHit& p) { return p.port.empty() ? p.node : p.node + "." + p.port; };
+        wire_note = fmt::format(fmt::runtime(tr("tui.pipeline.wire_drag")), fmt::arg("from", name(drag_.from)), fmt::arg("to", target ? name(*target) : std::string{"…"}));
+    }
     Elements rows;
     for (int y = oy_; y < oy_ + view_h_; ++y) {
         Elements segments;
@@ -171,12 +223,13 @@ ftxui::Element PipelineScreen::graph_panel(int width, int height) {
         };
         for (int x = ox_; x < ox_ + view_w_; ++x) {
             const bool inside = x < picture_.width && y < picture_.height;
-            const auto s = inside ? picture_.style(x, y) : CellStyle::plain;
+            const auto over = overlay.find({x, y});
+            const auto s = over != overlay.end() ? over->second.second : inside ? picture_.style(x, y) : CellStyle::plain;
             if (s != style) {
                 flush();
                 style = s;
             }
-            run += inside ? picture_.glyph(x, y) : " ";
+            run += over != overlay.end() ? over->second.first : inside ? picture_.glyph(x, y) : " ";
         }
         flush();
         rows.push_back(hbox(std::move(segments)));
@@ -197,11 +250,11 @@ ftxui::Element PipelineScreen::graph_panel(int width, int height) {
     add(right, ascii ? ">" : "▸");
     add(above, ascii ? "^" : "▴");
     add(below, ascii ? "v" : "▾");
-    auto body = vbox({vbox(std::move(rows)) | reflect(graph_box_), text(more) | fg(th.dim, ui_)});
+    auto body = vbox({vbox(std::move(rows)) | reflect(graph_box_), wire_note.empty() ? text(more) | fg(th.dim, ui_) : text(wire_note) | fg(th.accent, ui_)});
     return frame_panel(kGraph, std::move(body), {}, tr("tui.pipeline.graph"));
 }
 
-ftxui::Element PipelineScreen::inspector_panel() {
+ftxui::Element PipelineScreen::inspector_panel(int width, int height) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto& sel = model_->selection;
@@ -210,31 +263,43 @@ ftxui::Element PipelineScreen::inspector_panel() {
     if (sel.kind == Selection::Kind::node && g) {
         const auto it = std::find_if(g->nodes.begin(), g->nodes.end(), [&](const auto& n) { return n.id == sel.node; });
         if (it != g->nodes.end()) {
-            rows.push_back(text(it->id + " · " + block_name(it->type->id)) | bold | fg(th.fg, ui_));
+            rows.push_back(text(ellipsize(it->id + " · " + block_name(it->type->id), width, ui_.caps.glyphs == GlyphMode::ascii)) | bold | fg(th.fg, ui_));
             param_ = std::min(param_, it->type->params.empty() ? 0 : it->type->params.size() - 1);
+            Elements params;
+            param_boxes_.assign(it->type->params.size(), kNoBox);
             for (std::size_t k = 0; k < it->type->params.size(); ++k) {
                 const auto& spec = it->type->params[k];
                 const auto value = it->params.count(spec.name) ? it->params.at(spec.name) : spec.fallback;
                 const bool choice = spec.kind == pipeline::ParamSpec::Kind::choice;
-                auto row = hbox({text(pad_right(spec.name, 14)) | fg(th.dim, ui_), text(choice ? "◂ " + value + " ▸" : value) | fg(th.fg, ui_), filler()});
+                const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
+                const int room = std::max(4, width - 14);
+                const auto shown = choice ? "◂ " + ellipsize(value, room - 4, ascii) + " ▸" : spec.kind == pipeline::ParamSpec::Kind::path ? ellipsize_start(value, room, ascii) : ellipsize(value, room, ascii);
+                auto row = hbox({text(pad_right(ellipsize(spec.name, 13, ascii), 14)) | fg(th.dim, ui_), text(shown) | fg(th.fg, ui_), filler()}) | reflect(param_boxes_[k]);
                 if (focus_ == kInspector && k == param_) row = row | bg(tint(th.bg, th.accent, 0.3), ui_);
-                rows.push_back(std::move(row));
+                params.push_back(std::move(row));
             }
-            if (it->bypass) rows.push_back(text(tr("tui.pipeline.state.bypassed")) | fg(th.warn, ui_));
+            Elements tail;
+            if (it->bypass) tail.push_back(text(tr("tui.pipeline.state.bypassed")) | fg(th.warn, ui_));
             const auto run = model_->run_view();
             if (const auto r = run.nodes.find(it->id); r != run.nodes.end() && !r->second.status.message.empty())
-                rows.push_back(paragraph(r->second.status.message) | fg(th.err, ui_));
+                for (const auto& line : wrap_words(r->second.status.message, std::max(8, width))) tail.push_back(text(line) | fg(th.err, ui_));
+            const auto key = it->id + "#" + std::to_string(param_);
+            const auto follow = key != param_follow_ ? std::optional{param_} : std::nullopt;
+            param_follow_ = key;
+            const int budget = std::max(2, height - 1 - static_cast<int>(tail.size()));
+            rows.push_back(scrolled(std::move(params), inspector_scroll_, budget, follow, ui_));
+            for (auto& t : tail) rows.push_back(std::move(t));
         }
     } else if (sel.kind == Selection::Kind::wire) {
         const auto ref = [](const pipeline::PortRef& r) { return r.port.empty() ? r.node : r.node + "." + r.port; };
-        rows.push_back(text(ref(sel.wire.from) + " → " + ref(sel.wire.to)) | bold | fg(th.fg, ui_));
+        rows.push_back(text(ellipsize(ref(sel.wire.from) + " → " + ref(sel.wire.to), width, ui_.caps.glyphs == GlyphMode::ascii)) | bold | fg(th.fg, ui_));
     } else {
-        rows.push_back(paragraph(tr("tui.pipeline.inspector_hint")) | fg(th.dim, ui_));
+        for (const auto& line : wrap_words(tr("tui.pipeline.inspector_hint"), std::max(8, width))) rows.push_back(text(line) | fg(th.dim, ui_));
     }
-    return frame_panel(kInspector, vbox(std::move(rows)) | yframe, {}, tr("tui.pipeline.inspector"));
+    return frame_panel(kInspector, vbox(std::move(rows)), {}, tr("tui.pipeline.inspector"));
 }
 
-ftxui::Element PipelineScreen::add_panel() {
+ftxui::Element PipelineScreen::add_panel(int width, int height) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     std::vector<Command> all;
@@ -244,11 +309,33 @@ ftxui::Element PipelineScreen::add_panel() {
     Elements rows{hbox({text("/ " + query_) | fg(th.fg, ui_), text(ui_.caps.glyphs == GlyphMode::ascii ? "_" : "▏") | fg(th.accent, ui_), filler(),
                         text(std::to_string(found.size()) + " / " + std::to_string(all.size())) | fg(th.dim, ui_)}),
                   text(model_->selection.kind == Selection::Kind::wire ? tr("tui.pipeline.add_into_wire") : tr("tui.pipeline.add_free")) | fg(th.dim, ui_)};
+    const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
+    add_rows_.assign(found.size(), {});
+    Elements items;
     for (std::size_t k = 0; k < found.size(); ++k) {
-        auto row = hbox({text((k == pick_ ? "▸ " : "  ") + found[k]->title) | fg(k == pick_ ? th.accent : th.fg, ui_), filler(), text(found[k]->id) | fg(th.dim, ui_)});
-        rows.push_back(k == pick_ ? row | focus : row);
+        add_rows_[k].first = found[k]->id;
+        const auto id_width = display_width(found[k]->id);
+        items.push_back(hbox({text(ellipsize((k == pick_ ? "▸ " : "  ") + found[k]->title, std::max(6, width - id_width - 2), ascii)) | fg(k == pick_ ? th.accent : th.fg, ui_), filler(),
+                              text(found[k]->id) | fg(th.dim, ui_)}) |
+                        reflect(add_rows_[k].second));
     }
-    return frame_panel(kInspector, vbox(std::move(rows)) | yframe, {}, tr("tui.pipeline.add_title"));
+    Elements about;
+    if (!found.empty())
+        if (const auto* type = pipeline::find_block_type(found[std::min(pick_, found.size() - 1)]->id)) {
+            auto ports = [](const std::vector<pipeline::PortSpec>& list) {
+                std::string s;
+                for (const auto& p : list) s += (s.empty() ? "" : ", ") + p.name + ": " + std::string{pipeline::to_string(p.type)};
+                return s.empty() ? std::string{"—"} : s;
+            };
+            for (const auto& line : wrap_words(ports(type->inputs) + " → " + ports(type->outputs), width)) about.push_back(text(line) | fg(th.dim, ui_));
+        }
+    const int budget = std::max(3, height - static_cast<int>(rows.size()) - static_cast<int>(about.size()) - 1);
+    const auto follow = pick_ != add_follow_ ? std::optional{pick_} : std::nullopt;
+    add_follow_ = pick_;
+    rows.push_back(scrolled(std::move(items), add_scroll_, budget, follow, ui_));
+    rows.push_back(filler());
+    for (auto& a : about) rows.push_back(std::move(a));
+    return frame_panel(kInspector, vbox(std::move(rows)), {}, tr("tui.pipeline.add_title"));
 }
 
 bool PipelineScreen::on_add_key(const ftxui::Event& e) {
@@ -257,6 +344,16 @@ bool PipelineScreen::on_add_key(const ftxui::Event& e) {
     for (const auto& t : pipeline::block_types()) all.push_back({t.id, block_name(t.id), {}});
     const auto found = filter_commands(all, query_);
     if (e == Event::Escape) return adding_ = false, true;
+    if (e.is_mouse()) {
+        auto copy = e;
+        const auto m = copy.mouse();
+        const auto& box = panel_boxes_[kInspector];
+        if (wheel_scroll(m, box, add_scroll_)) return true;
+        if (m.button == ftxui::Mouse::Left && m.motion == ftxui::Mouse::Pressed && box.Contain(m.x, m.y))
+            for (const auto& [type, row] : add_rows_)
+                if (row.Contain(m.x, m.y)) return add_block(type), true;
+        return true;
+    }
     if (e == Event::ArrowDown) return pick_ = found.empty() ? 0 : std::min(pick_ + 1, found.size() - 1), true;
     if (e == Event::ArrowUp) return pick_ = pick_ > 0 ? pick_ - 1 : 0, true;
     if (e == Event::Backspace) {
@@ -266,12 +363,8 @@ bool PipelineScreen::on_add_key(const ftxui::Event& e) {
         return true;
     }
     if (e == Event::Return) {
-        adding_ = false;
-        if (found.empty()) return true;
-        const auto type = found[std::min(pick_, found.size() - 1)]->id;
-        if (model_->selection.kind == Selection::Kind::wire) report(model_->insert_into_wire(model_->selection.wire, type));
-        else if (const auto id = model_->add_node(type); !id.empty()) model_->selection = {Selection::Kind::node, id, {}};
-        follow_ = true;
+        if (found.empty()) return adding_ = false, true;
+        add_block(found[std::min(pick_, found.size() - 1)]->id);
         return true;
     }
     if (e.is_character()) {
@@ -280,6 +373,32 @@ bool PipelineScreen::on_add_key(const ftxui::Event& e) {
         return true;
     }
     return true;
+}
+
+void PipelineScreen::add_block(const std::string& type) {
+    adding_ = false;
+    if (model_->selection.kind == Selection::Kind::wire) report(model_->insert_into_wire(model_->selection.wire, type));
+    else if (const auto id = model_->add_node(type); !id.empty()) model_->selection = {Selection::Kind::node, id, {}};
+    follow_ = true;
+}
+
+std::vector<std::string> PipelineScreen::param_values(const pipeline::BlockType& type, const pipeline::ParamSpec& spec) const {
+    std::vector<std::string> out;
+    if (type.id == "mra" && spec.name == "component") {
+        out.emplace_back("a");
+        for (int k = 1; k <= 16; ++k) out.push_back("d" + std::to_string(k));
+        return out;
+    }
+    if (type.id == "check" && spec.name == "delay") return {"0", "auto"};
+    if (spec.name == "wavelet") {
+        if (spec.fallback == "auto") out.emplace_back("auto");
+        for (auto& name : core::all_wavelet_names()) out.push_back(std::move(name));
+    } else if (spec.name == "filter" && spec.fallback.find('.') != std::string::npos) {
+        for (auto& name : core::named_filter_names()) out.push_back(std::move(name));
+        for (const auto& name : core::all_wavelet_names())
+            for (const char* role : {".h0", ".h1", ".f0", ".f1"}) out.push_back(std::string{name} + role);
+    }
+    return out;
 }
 
 void PipelineScreen::edit_param(int step) {
@@ -295,8 +414,26 @@ void PipelineScreen::edit_param(int step) {
         report(model_->set_param(id, spec.name, spec.choices[static_cast<std::size_t>(k)]));
         return;
     }
-    if (step != 0 || !ui_.ask_text) return;
     const auto name = spec.name;
+    if (const auto names = param_values(*n->type, spec); !names.empty()) {
+        if (step != 0) {
+            auto it = std::find(names.begin(), names.end(), current);
+            auto k = it == names.end() ? 0 : static_cast<long>(it - names.begin());
+            k = (k + step + static_cast<long>(names.size())) % static_cast<long>(names.size());
+            report(model_->set_param(id, name, names[static_cast<std::size_t>(k)]));
+            return;
+        }
+        if (ui_.choose) {
+            std::vector<Command> items;
+            for (const auto& v : names) items.push_back({v, v, [this, id, name, v] { report(model_->set_param(id, name, v)); }});
+            if (ui_.ask_text)
+                items.push_back({"manual", tr("tui.pipeline.type_value"),
+                                 [this, id, name, current] { ui_.ask_text(id + "." + name, current, [this, id, name](std::string value) { report(model_->set_param(id, name, value)); }); }});
+            ui_.choose(id + "." + name, std::move(items));
+            return;
+        }
+    }
+    if (step != 0 || !ui_.ask_text) return;
     ui_.ask_text(id + "." + name, current, [this, id, name](std::string value) { report(model_->set_param(id, name, value)); });
 }
 
@@ -312,14 +449,15 @@ bool PipelineScreen::on_inspector_key(const ftxui::Event& e) {
     return false;
 }
 
-ftxui::Element PipelineScreen::run_panel() {
+ftxui::Element PipelineScreen::run_panel(int width, int height) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto run = model_->run_view();
     const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
-    Elements rows;
+    const int inner = std::max(10, width);
+    Elements head, nodes, foot;
     if (run.number == 0) {
-        rows.push_back(paragraph(tr("tui.pipeline.run_hint")) | fg(th.dim, ui_));
+        for (const auto& line : wrap_codepoints(tr("tui.pipeline.run_hint"), inner, "")) head.push_back(text(line) | fg(th.dim, ui_));
     } else {
         double done = 0;
         for (const auto& [id, n] : run.nodes) done += n.status.fraction;
@@ -329,8 +467,9 @@ ftxui::Element PipelineScreen::run_panel() {
         else if (run.cancelled) title += " · " + tr("tui.pipeline.cancelled");
         else if (run.error) title += " · " + tr("tui.pipeline.failed");
         else title += " · " + format_si(run.seconds, tr("unit.s"));
-        rows.push_back(text(title) | fg(run.error ? th.err : th.fg, ui_));
-        if (run.error) rows.push_back(paragraph(*run.error) | fg(th.err, ui_));
+        head.push_back(text(ellipsize(title, inner, ascii)) | fg(run.error ? th.err : th.fg, ui_));
+        if (run.error)
+            for (const auto& line : wrap_codepoints(*run.error, inner, "")) head.push_back(text(line) | fg(th.err, ui_));
         if (const auto* g = model_->graph())
             for (const auto i : g->order) {
                 const auto it = run.nodes.find(g->nodes[i].id);
@@ -349,29 +488,34 @@ ftxui::Element PipelineScreen::run_panel() {
                 const auto time = st.state == pipeline::NodeState::running ? eighths_bar(st.fraction, 8)
                                   : st.state == pipeline::NodeState::waiting ? std::string{"—"}
                                                                             : format_si(st.wall_seconds, tr("unit.s"));
-                rows.push_back(hbox({text(mark + " ") | fg(color, ui_), text(pad_right(st.id, 10)) | fg(th.fg, ui_), text(pad_left(time, 10)) | fg(th.dim, ui_),
-                                     text(pad_left(st.bytes ? format_si(static_cast<double>(st.bytes), tr("unit.byte")) : std::string{"—"}, 10)) | fg(th.dim, ui_),
-                                     text(it->second.bottleneck ? " !" : "") | fg(th.warn, ui_)}));
+                nodes.push_back(hbox({text(mark + " ") | fg(color, ui_), text(pad_right(ellipsize(st.id, 10, ascii), 10)) | fg(th.fg, ui_), text(pad_left(time, 10)) | fg(th.dim, ui_),
+                                      text(pad_left(st.bytes ? format_si(static_cast<double>(st.bytes), tr("unit.byte")) : std::string{"—"}, 10)) | fg(th.dim, ui_),
+                                      text(it->second.bottleneck ? " !" : "") | fg(th.warn, ui_)}));
             }
     }
     std::vector<std::string> parts{"$ signals run " + (model_->path() ? model_->path()->filename().string() : tr("tui.pipeline.untitled"))};
     for (const auto& set : run.sets) parts.push_back("--set " + set);
-    rows.push_back(filler());
     if (run.structure_changed || !model_->path()) {
-        rows.push_back(paragraph(tr("tui.pipeline.save_for_cli")) | fg(th.dim, ui_));
+        for (const auto& line : wrap_codepoints(tr("tui.pipeline.save_for_cli"), inner, "")) foot.push_back(text(line) | fg(th.dim, ui_));
         parts.clear();
     }
     std::string line;
     for (const auto& part : parts) {
-        if (!line.empty() && display_width(line) + 1 + display_width(part) > kRightWidth - 4) {
-            rows.push_back(text(line + " \\") | fg(th.dim, ui_));
+        if (!line.empty() && display_width(line) + 1 + display_width(part) > inner - 2) {
+            foot.push_back(text(line + " \\") | fg(th.dim, ui_));
             line = "  ";
         }
         line += (line.empty() || line == "  " ? "" : " ") + part;
     }
-    if (!line.empty()) rows.push_back(text(line) | fg(th.dim, ui_));
-    rows.push_back(hbox({key_label(" r ", ui_), text(" " + tr("tui.pipeline.hint.run") + "  ") | fg(th.dim, ui_), key_label(" Esc ", ui_),
+    if (!line.empty())
+        for (const auto& piece : wrap_codepoints(line, inner, "  ")) foot.push_back(text(piece) | fg(th.dim, ui_));
+    foot.push_back(hbox({key_label(" r ", ui_), text(" " + tr("tui.pipeline.hint.run") + "  ") | fg(th.dim, ui_), key_label(" Esc ", ui_),
                          text(" " + tr("tui.pipeline.hint.cancel")) | fg(th.dim, ui_)}));
+    const int budget = std::max(1, height - static_cast<int>(head.size()) - static_cast<int>(foot.size()));
+    Elements rows = std::move(head);
+    rows.push_back(scrolled(std::move(nodes), run_scroll_, budget, std::nullopt, ui_));
+    rows.push_back(filler());
+    for (auto& f : foot) rows.push_back(std::move(f));
     return frame_panel(kRun, vbox(std::move(rows)), {}, tr("tui.pipeline.run"));
 }
 
@@ -443,20 +587,32 @@ void PipelineScreen::play(bool input) {
     if (auto r = ui_.player->play(std::move(clip), 0); !r) notice_ = fmt::format(fmt::runtime(tr("tui.signal.audio_unavailable")), fmt::arg("reason", r.error().message));
 }
 
-ftxui::Element PipelineScreen::probe_panel(int height) {
+ftxui::Element PipelineScreen::probe_panel(int width, int height) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto run = model_->run_view();
     refresh_probe(run);
-    Elements head;
-    std::size_t k = 0;
-    for (const auto& [name, value] : run.probes) {
-        const bool on = k++ == probe_index_;
-        head.push_back(text((on ? "[" : " ") + name + (on ? "]" : " ")) | fg(on ? th.accent : th.fg, ui_));
+    const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
+    const auto view = spectrum_ ? " " + tr("tui.pipeline.view.time") + " [" + tr("tui.pipeline.view.spectrum") + "]" : "[" + tr("tui.pipeline.view.time") + "] " + tr("tui.pipeline.view.spectrum") + " ";
+    std::vector<std::string> chips;
+    for (const auto& [name, value] : run.probes) chips.push_back(name);
+    const auto chip = [&](std::size_t i) { return (i == probe_index_ ? "[" : " ") + ellipsize(chips[i], 16, ascii) + (i == probe_index_ ? "]" : " "); };
+    const int room = std::max(8, width - display_width(view) - 1);
+    std::size_t lo = std::min(probe_index_, chips.empty() ? 0 : chips.size() - 1), hi = lo + 1;
+    int used = chips.empty() ? 0 : display_width(chip(lo));
+    const std::string more = ascii ? "..." : "…";
+    while (true) {
+        const int marks = (lo > 0 ? 2 : 0) + (hi < chips.size() ? 2 : 0);
+        if (hi < chips.size() && used + display_width(chip(hi)) + marks <= room) used += display_width(chip(hi++));
+        else if (lo > 0 && used + display_width(chip(lo - 1)) + marks <= room) used += display_width(chip(--lo));
+        else break;
     }
+    Elements head;
+    if (lo > 0) head.push_back(text(more + " ") | fg(th.dim, ui_));
+    for (std::size_t i = lo; i < hi && i < chips.size(); ++i) head.push_back(text(chip(i)) | fg(i == probe_index_ ? th.accent : th.fg, ui_));
+    if (hi < chips.size()) head.push_back(text(" " + more) | fg(th.dim, ui_));
     head.push_back(filler());
-    head.push_back(text(spectrum_ ? " " + tr("tui.pipeline.view.time") + " [" + tr("tui.pipeline.view.spectrum") + "]" : "[" + tr("tui.pipeline.view.time") + "] " + tr("tui.pipeline.view.spectrum") + " ") |
-                   fg(th.dim, ui_));
+    head.push_back(text(view) | fg(th.dim, ui_));
     Elements rows;
     if (run.probes.empty()) {
         rows.push_back(paragraph(tr("tui.pipeline.probe_hint")) | fg(th.dim, ui_));
@@ -467,21 +623,26 @@ ftxui::Element PipelineScreen::probe_panel(int height) {
     const auto& value = *run.probes.at(probe_.name.empty() || !run.probes.contains(probe_.name) ? run.probes.begin()->first : probe_.name);
     if (probe_.samples && !spectrum_) {
         PlotSpec spec;
-        spec.x = {0, static_cast<double>(probe_.frames) / std::max(1.0, probe_.rate)};
+        const double rate = std::max(1.0, probe_.rate);
+        spec.x = probe_zoom_.axis("probe_time", {0, static_cast<double>(probe_.frames) / rate}).axis();
         const auto all = probe_.pyramid->query(0, probe_.pyramid->size(), 1);
         const double m = all.empty() ? 1.0 : std::max({1e-12, std::abs(static_cast<double>(all[0].lo)), std::abs(static_cast<double>(all[0].hi))});
         spec.y = {-m, m};
         spec.playhead = playhead();
         const auto* pyramid = probe_.pyramid.get();
-        spec.envelopes.push_back(Envelope{{}, th.trace[0], [pyramid](int cols) { return pyramid->query(0, pyramid->size(), static_cast<std::size_t>(cols)); }});
-        rows.push_back(plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, plot_rows));
+        const auto first = static_cast<std::size_t>(std::clamp(spec.x.lo * rate, 0.0, static_cast<double>(pyramid->size())));
+        const auto last = std::max(first + 1, static_cast<std::size_t>(std::clamp(spec.x.hi * rate, 0.0, static_cast<double>(pyramid->size()))));
+        spec.envelopes.push_back(Envelope{{}, th.trace[0], [pyramid, first, last](int cols) { return pyramid->query(first, last, static_cast<std::size_t>(cols)); }});
+        auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, plot_rows);
+        rows.push_back(probe_zoom_.track("probe_time", std::move(spec), std::move(drawn)));
     } else if (probe_.samples && !probe_.db.empty()) {
         PlotSpec spec;
-        spec.x = {std::max(1.0, probe_.freqs.size() > 1 ? probe_.freqs[1] : 1.0), probe_.rate / 2, AxisScale::log10};
+        spec.x = probe_zoom_.axis("probe_spectrum", {std::max(1.0, probe_.freqs.size() > 1 ? probe_.freqs[1] : 1.0), probe_.rate / 2, AxisScale::log10}).axis();
         const double top = *std::max_element(probe_.db.begin(), probe_.db.end());
         spec.y = {top - 100, top + 3};
         spec.traces.push_back({probe_.db, probe_.freqs, th.trace[0]});
-        rows.push_back(plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, plot_rows));
+        auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, plot_rows);
+        rows.push_back(probe_zoom_.track("probe_spectrum", std::move(spec), std::move(drawn)));
     } else {
         rows.push_back(filler());
     }
@@ -494,23 +655,29 @@ ftxui::Element PipelineScreen::probe_panel(int height) {
             if (const auto it = run.nodes.find(g->nodes[p->source.node].id); it != run.nodes.end() && it->second.status.state == pipeline::NodeState::cached)
                 info += " · " + tr("tui.pipeline.cached") + " #" + std::to_string(run.number);
     }
-    rows.push_back(text(info) | fg(th.dim, ui_));
+    rows.push_back(text(ellipsize(info, std::max(10, width), ascii)) | fg(th.dim, ui_));
     return frame_panel(kProbe, vbox(std::move(rows)), {}, tr("tui.pipeline.probe") + " · " + probe_.name);
 }
 
-ftxui::Element PipelineScreen::text_panel(int height) {
+ftxui::Element PipelineScreen::text_panel(int width, int height) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     Elements rows;
     std::istringstream in{pipeline::write_sig(model_->doc())};
     const auto& sel = model_->selection;
+    std::optional<std::size_t> chosen_row;
     for (std::string line; std::getline(in, line);) {
         const bool chosen = sel.kind == Selection::Kind::node && line.starts_with("node " + sel.node + " ");
-        auto e = text(line) | fg(chosen ? th.accent : th.dim, ui_);
-        rows.push_back(chosen ? e | bold | focus : e);
+        if (chosen && !chosen_row) chosen_row = rows.size();
+        for (const auto& part : wrap_codepoints(line, std::max(8, width), "    ")) {
+            auto e = text(part) | fg(chosen ? th.accent : th.dim, ui_);
+            rows.push_back(chosen ? e | bold : e);
+        }
     }
-    (void)height;
-    return frame_panel(kText, vbox(std::move(rows)) | yframe, {}, tr("tui.pipeline.text"));
+    const auto key = sel.kind == Selection::Kind::node ? sel.node : std::string{};
+    const auto follow = key != text_follow_ ? chosen_row : std::nullopt;
+    text_follow_ = key;
+    return frame_panel(kText, scrolled(std::move(rows), text_scroll_, std::max(1, height), follow, ui_), {}, tr("tui.pipeline.text"));
 }
 
 ftxui::Element PipelineScreen::OnRender() {
@@ -518,6 +685,7 @@ ftxui::Element PipelineScreen::OnRender() {
     panel_boxes_.fill(kNoBox);
     graph_box_ = kNoBox;
     picture_ = {};
+    probe_zoom_.begin_frame();
     if (!seeded_ && current_file_ && model_->doc().nodes.empty() && !model_->path())
         if (const auto file = current_file_()) {
             seeded_ = true;
@@ -532,18 +700,25 @@ ftxui::Element PipelineScreen::OnRender() {
         focus_ = p;
         switch (p) {
         case kGraph: return vbox({toolbar(), graph_panel(cols - 4, content - 3) | flex});
-        case kInspector: return vbox({toolbar(), (adding_ ? add_panel() : inspector_panel()) | flex});
-        case kRun: return vbox({toolbar(), run_panel() | flex});
-        case kProbe: return vbox({toolbar(), probe_panel(content - 3) | flex});
-        case kText: return vbox({toolbar(), text_panel(content - 3) | flex});
+        case kInspector: return vbox({toolbar(), (adding_ ? add_panel(cols - 4, content - 5) : inspector_panel(cols - 4, content - 5)) | flex});
+        case kRun: return vbox({toolbar(), run_panel(cols - 4, content - 5) | flex});
+        case kProbe: return vbox({toolbar(), probe_panel(cols - 4, content - 3) | flex});
+        case kText: return vbox({toolbar(), text_panel(cols - 4, content - 5) | flex});
         case panel_count: break;
         }
     }
     const int graph_w = cols - kRightWidth - 1 - 4, graph_h = content - 1 - kBottomHeight - 2;
-    auto bottom = hbox({probe_panel(kBottomHeight - 2) | flex, text(" "), text_panel(kBottomHeight - 2) | size(WIDTH, EQUAL, kTextWidth)});
+    auto bottom = hbox({probe_panel(cols - kTextWidth - 1 - 4, kBottomHeight - 2) | flex, text(" "), text_panel(kTextWidth - 4, kBottomHeight - 2) | size(WIDTH, EQUAL, kTextWidth)});
     auto left = vbox({graph_panel(graph_w, graph_h) | flex, bottom | size(HEIGHT, EQUAL, kBottomHeight)});
-    auto right = vbox({(adding_ ? add_panel() : inspector_panel()) | flex, run_panel() | size(HEIGHT, EQUAL, kRunHeight)});
+    auto right = vbox({(adding_ ? add_panel(kRightWidth - 4, content - 2 - kRunHeight) : inspector_panel(kRightWidth - 4, content - 2 - kRunHeight - 2)) | flex, run_panel(kRightWidth - 4, kRunHeight - 2) | size(HEIGHT, EQUAL, kRunHeight)});
     return vbox({toolbar(), hbox({left | flex, text(" "), right | size(WIDTH, EQUAL, kRightWidth)}) | flex});
+}
+
+std::optional<Axis> PipelineScreen::plot_view(std::string_view id) const { return probe_zoom_.view(id); }
+
+std::vector<MenuItem> PipelineScreen::context_menu(int x, int y) {
+    if (auto reset = probe_zoom_.reset_item(x, y)) return {*reset};
+    return {};
 }
 
 std::optional<std::pair<int, int>> PipelineScreen::to_picture(int x, int y) const {
@@ -557,6 +732,13 @@ ftxui::Box PipelineScreen::area(std::string_view id) const {
         return ftxui::Box{x, x, y, y};
     };
     if (id == "graph") return graph_box_;
+    if (id == "inspector") return panel_boxes_[kInspector];
+    if (id == "text_panel") return panel_boxes_[kText];
+    if (id == "probe_time_plot") return probe_zoom_.box("probe_time");
+    if (id == "probe_spectrum_plot") return probe_zoom_.box("probe_spectrum");
+    if (id == "run_panel") return panel_boxes_[kRun];
+    for (const auto& [type, row] : add_rows_)
+        if (id == "add:" + type) return row;
     for (const auto& n : picture_.nodes)
         if (id == "node:" + n.id) return ftxui::Box{graph_box_.x_min + n.x - ox_, graph_box_.x_min + n.x - ox_ + n.w - 1, graph_box_.y_min + n.y - oy_, graph_box_.y_min + n.y - oy_ + n.h - 1};
     for (const auto& p : picture_.ports)
@@ -604,15 +786,32 @@ void PipelineScreen::cycle_wires() {
 
 bool PipelineScreen::on_mouse(const ftxui::Mouse& m) {
     using ftxui::Mouse;
+    if (wheel_scroll(m, panel_boxes_[kText], text_scroll_) || wheel_scroll(m, panel_boxes_[kRun], run_scroll_) || wheel_scroll(m, panel_boxes_[kInspector], inspector_scroll_)) return true;
+    if (probe_zoom_.on_mouse(m)) return true;
+    if (m.button == Mouse::Left && m.motion == Mouse::Pressed && panel_boxes_[kProbe].Contain(m.x, m.y)) probe_zoom_.press(m.x, m.y);
+    if ((m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) && valid(graph_box_) && graph_box_.Contain(m.x, m.y)) {
+        const int step = m.button == Mouse::WheelDown ? 3 : -3;
+        if (m.shift) ox_ += 2 * step;
+        else oy_ += step;
+        clamp_view();
+        return true;
+    }
     if (m.button == Mouse::Left && m.motion == Mouse::Pressed) {
         for (int p = 0; p < panel_count; ++p)
             if (panel_boxes_[static_cast<std::size_t>(p)].Contain(m.x, m.y)) focus_ = static_cast<Panel>(p);
+        if (focus_ == kInspector)
+            for (std::size_t k = 0; k < param_boxes_.size(); ++k)
+                if (valid(param_boxes_[k]) && param_boxes_[k].Contain(m.x, m.y)) {
+                    if (k == param_) edit_param(0);
+                    param_ = k;
+                    return true;
+                }
         const auto at = to_picture(m.x, m.y);
         if (!at) return false;
         const auto [px, py] = *at;
         for (const auto& p : picture_.ports)
             if (p.x == px && p.y == py && p.output) {
-                drag_ = {Drag::Kind::wire, p, m.x, m.y};
+                drag_ = {Drag::Kind::wire, p, m.x, m.y, graph_box_};
                 return true;
             }
         for (const auto& n : picture_.nodes)
@@ -626,6 +825,11 @@ bool PipelineScreen::on_mouse(const ftxui::Mouse& m) {
                 return true;
             }
         drag_ = {Drag::Kind::pan, {}, m.x, m.y};
+        return true;
+    }
+    if (drag_.kind == Drag::Kind::wire && m.motion == Mouse::Moved) {
+        drag_.last_x = m.x;
+        drag_.last_y = m.y;
         return true;
     }
     if (drag_.kind == Drag::Kind::pan && m.motion == Mouse::Moved) {
@@ -684,6 +888,7 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
         else play(last_input_);
         return true;
     }
+    if (focus_ == kProbe && probe_zoom_.on_key(e, spectrum_ ? "probe_spectrum" : "probe_time")) return true;
     if (focus_ == kProbe && (e == Event::ArrowDown || e == Event::ArrowUp)) {
         const auto n = model_->run_view().probes.size();
         if (n > 0) probe_index_ = e == Event::ArrowDown ? (probe_index_ + 1) % n : (probe_index_ + n - 1) % n;
@@ -726,6 +931,29 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
             connecting_ = short_ref(n->id, n->type->outputs[k].name, n->type->outputs.size());
             notice_ = fmt::format(fmt::runtime(tr("tui.pipeline.connect_from")), fmt::arg("node", connecting_->port.empty() ? n->id : n->id + "." + connecting_->port));
         }
+        return true;
+    }
+    if (e == Event::Character('C') && ui_.choose) {
+        const auto* n = selected_node();
+        const auto* g = model_->graph();
+        if (!n || !g || n->type->outputs.empty()) return true;
+        std::vector<Command> items;
+        for (std::size_t o = 0; o < n->type->outputs.size(); ++o) {
+            const auto from = short_ref(n->id, n->type->outputs[o].name, n->type->outputs.size());
+            const auto from_name = from.port.empty() ? n->id : n->id + "." + from.port;
+            for (const auto& m : g->nodes) {
+                if (m.id == n->id) continue;
+                for (std::size_t i = 0; i < m.type->inputs.size(); ++i) {
+                    if (i < m.inputs.size() && m.inputs[i]) continue;
+                    if (m.type->inputs[i].type != n->type->outputs[o].type) continue;
+                    const auto to = short_ref(m.id, m.type->inputs[i].name, m.type->inputs.size());
+                    const auto to_name = to.port.empty() ? m.id : m.id + "." + to.port;
+                    items.push_back({from_name + "->" + to_name, from_name + " → " + to_name, [this, from, to] { report(model_->connect(from, to)); }});
+                }
+            }
+        }
+        if (items.empty()) notice_ = tr("tui.pipeline.no_free_inputs");
+        else ui_.choose(tr("tui.pipeline.connect_title"), std::move(items));
         return true;
     }
     if (connecting_ && e == Event::Escape) {
@@ -778,6 +1006,8 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
         notice_.clear();
         return true;
     }
+    if (focus_ == kRun && key_scroll(e, run_scroll_)) return true;
+    if (focus_ == kText && key_scroll(e, text_scroll_)) return true;
     if (e == Event::ArrowRight) return move_selection(1, 0), true;
     if (e == Event::ArrowLeft) return move_selection(-1, 0), true;
     if (e == Event::ArrowDown) return move_selection(0, 1), true;

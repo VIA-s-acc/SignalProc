@@ -60,7 +60,7 @@ private:
     ftxui::Element cascade_panel(const DesignerResult* r, bool dual);
     ftxui::Element clickable(std::string id, ftxui::Element e, std::function<void()> action);
     void save();
-    double zplane_extent(const DesignerData* d) const;
+    double zplane_base(const DesignerData* d) const;
     JobRunner* jobs() const { return ui_.jobs; }
 
     UiContext& ui_;
@@ -77,7 +77,7 @@ private:
     std::size_t group_cursor_ = 0, preset_index_ = 0, groups_first_ = 0;
     bool follow_group_ = true;
     PlotZoom zoom_;
-    double zplane_zoom_ = 1;
+    ZView zview_;
 };
 
 std::shared_ptr<TabScreen> make_designer_screen(UiContext& ui, std::shared_ptr<DesignerModel> model);

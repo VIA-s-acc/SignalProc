@@ -95,6 +95,19 @@ core::Result<void> PipelineModel::load(const std::filesystem::path& file) {
     return {};
 }
 
+core::Result<void> PipelineModel::load_text(std::string_view name, std::string_view text) {
+    auto doc = pipeline::parse_sig(text);
+    if (!doc) return std::unexpected{sig_failure(std::filesystem::path{std::string{name} + ".sig"}, doc.error())};
+    remember();
+    doc_ = std::move(*doc);
+    saved_ = {};
+    path_.reset();
+    dirty_ = true;
+    selection = {};
+    rebuild();
+    return {};
+}
+
 core::Result<void> PipelineModel::save(const std::filesystem::path& file) {
     std::error_code ec;
     const auto from = std::filesystem::weakly_canonical(std::filesystem::absolute(base_dir()), ec);

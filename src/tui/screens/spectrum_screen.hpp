@@ -48,6 +48,7 @@ public:
     bool log_axis() const { return log_; }
     double floor_db() const { return floor_db_; }
     std::pair<double, double> time_view() const { return {begin_, end_}; }
+    std::vector<MenuItem> context_menu(int x, int y) override;
 
 private:
     enum Panel { spectrogram_panel, spectrum_panel, cursor_panel, window_panel, measure_panel, list_panel, theory_panel, panel_count };

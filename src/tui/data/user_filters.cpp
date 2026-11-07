@@ -14,6 +14,7 @@
 #include <fmt/format.h>
 #include <toml++/toml.hpp>
 
+#include "core/design/families.hpp"
 #include "i18n/i18n.hpp"
 
 namespace signals::tui {
@@ -317,6 +318,32 @@ void set_user_banks(std::vector<UserBank> banks) {
 std::vector<UserBank> user_banks() {
     std::lock_guard lock{g_mutex};
     return *g_banks;
+}
+
+void install_user_wavelets() {
+    core::set_user_wavelets(
+        [](std::string_view name) -> std::optional<core::FilterBank> {
+            for (const auto& b : user_banks())
+                if (b.name == name)
+                    if (auto bank = core::make_bank<double>(b.name, b.h0, b.f0, 1e-9)) return std::move(*bank);
+            return std::nullopt;
+        },
+        [] {
+            std::vector<std::string> out;
+            for (const auto& b : user_banks()) out.push_back(b.name);
+            return out;
+        });
+    core::set_named_filters(
+        [](std::string_view name) -> std::optional<core::Laurent> {
+            for (const auto& f : user_filters())
+                if (f.name == name) return f.h;
+            return std::nullopt;
+        },
+        [] {
+            std::vector<std::string> out;
+            for (const auto& f : user_filters()) out.push_back(f.name);
+            return out;
+        });
 }
 
 void set_user_filters(std::vector<UserFilter> filters) {

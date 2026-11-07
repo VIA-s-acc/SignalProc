@@ -215,4 +215,25 @@ Result<Levinson> levinson_solve(std::span<const double> r, std::span<const doubl
     return out;
 }
 
+Result<Eigen::MatrixXd> toeplitz_inverse(std::span<const double> r) {
+    const auto n = r.size();
+    if (n == 0) return make_error(Errc::length_mismatch, "toeplitz_inverse: r is empty");
+    std::vector<double> e1(n, 0.0);
+    e1[0] = 1.0;
+    auto solved = levinson_solve(r, e1);
+    if (!solved) return std::unexpected{solved.error()};
+    const auto& x = solved->x;
+    if (!(std::abs(x[0]) > 0) || !std::isfinite(x[0])) return make_error(Errc::invalid_argument, "toeplitz_inverse: x0 = 0, the matrix is singular");
+    const auto size = static_cast<Eigen::Index>(n);
+    Eigen::MatrixXd a = Eigen::MatrixXd::Zero(size, size), b = Eigen::MatrixXd::Zero(size, size);
+    for (Eigen::Index i = 0; i < size; ++i)
+        for (Eigen::Index j = 0; j <= i; ++j) {
+            a(i, j) = x[static_cast<std::size_t>(i - j)];
+            b(i, j) = i == j ? 0.0 : x[n - static_cast<std::size_t>(i - j)];
+        }
+    Eigen::MatrixXd inv = (a * a.transpose() - b * b.transpose()) / x[0];
+    if (!inv.allFinite()) return make_error(Errc::invalid_argument, "toeplitz_inverse: the matrix is too close to singular");
+    return inv;
+}
+
 }  // namespace signals::core

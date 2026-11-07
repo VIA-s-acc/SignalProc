@@ -139,6 +139,8 @@ private:
         if (ins.empty()) fail(ref.line, ref.column, say("pipeline.graph.no_inputs", fmt::arg("node", n.id)));
         if (ref.port.empty()) {
             if (ins.size() == 1) return 0;
+            if (std::ranges::count_if(ins, [](const PortSpec& p) { return !p.optional; }) == 1)
+                return static_cast<std::size_t>(std::ranges::find_if(ins, [](const PortSpec& p) { return !p.optional; }) - ins.begin());
             fail(ref.line, ref.column, say("pipeline.graph.need_port", fmt::arg("node", n.id), fmt::arg("ports", join(names))));
         }
         for (std::size_t k = 0; k < ins.size(); ++k)

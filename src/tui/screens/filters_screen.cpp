@@ -22,6 +22,7 @@
 #include "tui/screens/publish_util.hpp"
 #include "tui/shell/palette.hpp"
 #include "tui/widgets/format.hpp"
+#include "tui/widgets/scroll.hpp"
 #include "tui/widgets/text_util.hpp"
 #include "tui/widgets/zplane.hpp"
 
@@ -142,6 +143,7 @@ std::vector<Hint> FiltersScreen::hints() const {
             {"/", tr("tui.filters.hint.search")},     {"Enter", tr("tui.filters.hint.add")},
             {"Space", tr("tui.filters.hint.visible")}, {"r", tr("tui.filters.hint.reference")},
             {"Del", tr("tui.filters.hint.remove")},    {"←→", tr("tui.filters.hint.cursor")},
+            {"PgUp/PgDn", tr("tui.hint.page")},
             {"b", tr("tui.signal.hint.cursor_b")},     {"+ − 0 < >", tr("tui.hint.plot_zoom")},
             {"[ ]", tr("tui.filters.hint.vertical")},  {"↑↓", tr("tui.filters.hint.focus_row")},
             {"l", tr("tui.filters.hint.log")},         {"d", tr("tui.filters.hint.db")},
@@ -247,6 +249,9 @@ ftxui::Box FiltersScreen::area(std::string_view id) const {
     if (id == "magnitude_plot") return plot_box(0);
     if (id == "phase_plot") return plot_box(1);
     if (id == "delay_plot") return plot_box(2);
+    if (id == "impulse_plot") return impulse_zoom_.box("impulse");
+    if (id == "zplane") return zplane_box_;
+    if (id == "roots_list") return roots_box_;
     return panel_boxes_[static_cast<std::size_t>(panel_of(std::string{id}))];
 }
 
@@ -369,7 +374,9 @@ ftxui::Element FiltersScreen::clickable(ftxui::Element e, std::function<void()> 
     return std::move(e) | ftxui::reflect(clickables_.back().box);
 }
 
-ftxui::Element FiltersScreen::chip_rows(std::vector<Item> items, int width, int indent) {
+ftxui::Element FiltersScreen::chip_rows(std::vector<Item> items, int width, int indent) { return ftxui::vbox(chip_lines(std::move(items), width, indent)); }
+
+std::vector<ftxui::Element> FiltersScreen::chip_lines(std::vector<Item> items, int width, int indent, std::optional<std::size_t>* on_line) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     Elements rows, row;
@@ -383,14 +390,15 @@ ftxui::Element FiltersScreen::chip_rows(std::vector<Item> items, int width, int 
             used = indent;
             if (indent) row.push_back(text(std::string(static_cast<std::size_t>(indent), ' ')));
         }
-        auto t = text(item.label);
+        if (item.on && on_line && !*on_line) *on_line = rows.size();
+        auto t = text(ellipsize(item.label, std::max(4, width - indent - 1), ui_.caps.glyphs == GlyphMode::ascii));
         t = item.on ? t | bold | fg(th.bg, ui_) | bg(th.trace[0], ui_) : t | fg(th.fg, ui_);
         row.push_back(clickable(t, std::move(item.action)));
         row.push_back(text(" "));
         used += w;
     }
     if (!row.empty()) rows.push_back(hbox(std::move(row)));
-    return vbox(std::move(rows));
+    return rows;
 }
 
 std::vector<const LibraryNode*> FiltersScreen::matches() const {
@@ -440,7 +448,7 @@ void FiltersScreen::add(const FilterRef& leaf) {
     if (ui_.jobs) set_->request(*ui_.jobs, kPoints);
 }
 
-ftxui::Element FiltersScreen::library_panel(int width) {
+ftxui::Element FiltersScreen::library_panel(int width, int height) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const int inner = std::max(10, width - 4);
@@ -451,12 +459,14 @@ ftxui::Element FiltersScreen::library_panel(int width) {
         for (const auto& c : n.children) count(c);
     };
     count(library_);
+    const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
     if (!custom_ && !notice_.empty() && breakpoint_ <= Breakpoint::small)
-        for (const auto& line : split_lines(notice_)) rows.push_back(text(line) | fg(th.warn, ui_));
+        for (const auto& line : split_lines(notice_))
+            for (const auto& part : wrap_words(line, inner)) rows.push_back(text(part) | fg(th.warn, ui_));
     if (custom_) {
         rows.push_back(hbox({text(tr("tui.filters.custom.prompt") + " " + query_) | fg(th.fg, ui_),
                              text(ui_.caps.glyphs == GlyphMode::ascii ? "_" : "▏") | fg(th.accent, ui_)}));
-        rows.push_back(text(tr("tui.filters.custom.hint")) | fg(th.dim, ui_));
+        for (const auto& part : wrap_words(tr("tui.filters.custom.hint"), inner)) rows.push_back(text(part) | fg(th.dim, ui_));
     } else if (searching_) {
         const auto m = matches();
         rows.push_back(hbox({text("/ " + query_) | fg(th.fg, ui_), text(ui_.caps.glyphs == GlyphMode::ascii ? "_" : "▏") | fg(th.accent, ui_), filler(),
@@ -478,20 +488,32 @@ ftxui::Element FiltersScreen::library_panel(int width) {
     };
     const auto open = std::string{ui_.caps.glyphs == GlyphMode::ascii ? "v" : "▾"};
     const auto closed = std::string{ui_.caps.glyphs == GlyphMode::ascii ? ">" : "▸"};
+    Elements list;
+    std::optional<std::size_t> follow;
+    const auto append = [&](Elements lines) {
+        for (auto& l : lines) list.push_back(std::move(l));
+    };
     if (searching_) {
         const auto m = matches();
         std::vector<Item> items;
         for (std::size_t i = 0; i < m.size(); ++i) items.push_back({m[i]->label, [this, n = m[i]] { add(*n->ref); searching_ = false; query_.clear(); }, i == match_index_});
-        if (items.empty()) rows.push_back(text(tr("tui.filters.nothing")) | fg(th.dim, ui_));
-        else rows.push_back(chip_rows(std::move(items), inner, 0));
+        if (items.empty()) {
+            list.push_back(text(tr("tui.filters.nothing")) | fg(th.dim, ui_));
+        } else {
+            std::optional<std::size_t> line;
+            append(chip_lines(std::move(items), inner, 0, &line));
+            if (match_index_ != match_follow_ || query_ != follow_query_) follow = line;
+            match_follow_ = match_index_;
+            follow_query_ = query_;
+        }
     } else {
         for (const auto& group : library_.children) {
             if (!group.later.empty()) {
-                rows.push_back(text(closed + " " + group.label + " · " + group.later) | fg(th.dim, ui_));
+                for (const auto& part : wrap_words(closed + " " + group.label + " · " + group.later, inner)) list.push_back(text(part) | fg(th.dim, ui_));
                 continue;
             }
             const bool collapsed = (std::find(collapsed_.begin(), collapsed_.end(), group.label) != collapsed_.end()) != group.folded;
-            rows.push_back(clickable(text((collapsed ? closed : open) + " " + group.label) | fg(th.fg, ui_), [this, label = group.label] {
+            list.push_back(clickable(text(ellipsize((collapsed ? closed : open) + " " + group.label, inner, ascii)) | fg(th.fg, ui_), [this, label = group.label] {
                 auto it = std::find(collapsed_.begin(), collapsed_.end(), label);
                 if (it == collapsed_.end()) collapsed_.push_back(label);
                 else collapsed_.erase(it);
@@ -505,21 +527,25 @@ ftxui::Element FiltersScreen::library_panel(int width) {
                     if (f.label == family_) chosen = &f;
                     families.push_back({f.label, [this, label = f.label] { family_ = label; }, f.label == family_});
                 }
-                rows.push_back(chip_rows(std::move(families), inner, 2));
+                append(chip_lines(std::move(families), inner, 2));
                 std::vector<Item> names;
                 for (const auto& n : chosen->children) names.push_back({n.label, [this, ref = *n.ref] { add(ref); }, in_set(*n.ref)});
-                rows.push_back(chip_rows(std::move(names), inner, 4));
+                append(chip_lines(std::move(names), inner, 4));
             } else {
                 std::vector<Item> leaves;
                 for (const auto& n : group.children)
                     if (n.ref) leaves.push_back({n.label, [this, ref = *n.ref] { add(ref); }, in_set(*n.ref)});
-                rows.push_back(chip_rows(std::move(leaves), inner, 2));
+                append(chip_lines(std::move(leaves), inner, 2));
             }
         }
     }
+    Elements foot;
+    for (const auto* key : {"tui.filters.mouse_hint.wheel", "tui.filters.mouse_hint.drag"})
+        for (const auto& part : wrap_words(tr(key), inner)) foot.push_back(text(part) | fg(th.dim, ui_));
+    const int budget = std::max(3, height - 2 - static_cast<int>(rows.size()) - static_cast<int>(foot.size()));
+    rows.push_back(scrolled(std::move(list), library_scroll_, budget, follow, ui_));
     rows.push_back(filler());
-    rows.push_back(text(tr("tui.filters.mouse_hint.wheel")) | fg(th.dim, ui_));
-    rows.push_back(text(tr("tui.filters.mouse_hint.drag")) | fg(th.dim, ui_));
+    for (auto& l : foot) rows.push_back(std::move(l));
     return frame_panel(library, vbox(std::move(rows)), {}, tr("tui.filters.library"));
 }
 
@@ -546,7 +572,8 @@ ftxui::Element FiltersScreen::comparison_panel(int width) {
         rows.push_back(hbox(std::move(line)) | reflect(row_boxes_[i]));
     }
     if (entries_.empty()) rows.push_back(text(tr("tui.filters.empty_set")) | fg(th.dim, ui_));
-    for (const auto& line : split_lines(notice_)) rows.push_back(text(line) | fg(th.warn, ui_));
+    for (const auto& line : split_lines(notice_))
+        for (const auto& part : wrap_words(line, std::max(8, width - 4))) rows.push_back(text(part) | fg(th.warn, ui_));
     rows.push_back(filler());
     
     return frame_panel(comparison, vbox(std::move(rows)), {},
@@ -698,7 +725,7 @@ ftxui::Element FiltersScreen::impulse_panel(int width) {
     const auto& h = e->analysis->h;
     PlotSpec spec;
     const double first = static_cast<double>(h.first()), last = static_cast<double>(h.last());
-    spec.x = {first - 0.5, last + 0.5};
+    spec.x = impulse_zoom_.axis("impulse", {first - 0.5, last + 0.5}).axis();
     double lo = 0, hi = 0;
     tui::Trace t{};
     t.stems = true;
@@ -715,7 +742,8 @@ ftxui::Element FiltersScreen::impulse_panel(int width) {
     std::string values;
     for (double c : h.coeffs) values += (values.empty() ? "" : " ") + std::string{c >= 0 ? "+" : ""} + format_fixed(c, 3);
     const auto color = color_of(set_->focus());
-    Elements body{plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex};
+    auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
+    Elements body{impulse_zoom_.track("impulse", std::move(spec), std::move(drawn)) | flex};
     if (h.coeffs.size() <= 8 && display_width(values) <= width - 4) body.push_back(text(values) | fg(color, ui_));
     return frame_panel(impulse, vbox(std::move(body)), {}, tr("tui.filters.impulse") + " · " + e->ref.label());
 }
@@ -734,22 +762,19 @@ ftxui::Element FiltersScreen::zeros_panel(int rows) {
     for (const auto& r : zero_roots) roots.emplace_back(false, r);
     for (const auto& r : pole_roots) roots.emplace_back(true, r);
     const int lines = std::max(1, rows - 2);
-    const int room = std::max(1, lines - (zp.poles_at_origin > 0 ? 1 : 0));
-    const bool clipped = static_cast<int>(roots.size()) > room;
-    const auto shown = clipped ? static_cast<std::size_t>(room - 1) : roots.size();
-    for (std::size_t i = 0; i < shown; ++i) {
-        const auto mark = roots[i].first ? std::string{ui_.caps.glyphs == GlyphMode::ascii ? "x " : "× "} : std::string{ui_.caps.glyphs == GlyphMode::ascii ? "o " : "○ "};
-        list.push_back(hbox({text(mark) | fg(color, ui_), text(root_text(roots[i].second)) | fg(th.fg, ui_)}));
+    for (const auto& [pole, root] : roots) {
+        const auto mark = pole ? std::string{ui_.caps.glyphs == GlyphMode::ascii ? "x " : "× "} : std::string{ui_.caps.glyphs == GlyphMode::ascii ? "o " : "○ "};
+        list.push_back(hbox({text(mark) | fg(color, ui_), text(root_text(root)) | fg(th.fg, ui_)}));
     }
-    if (clipped)
-        list.push_back(text(fmt::format(fmt::runtime(tr("tui.filters.more_roots")), fmt::arg("count", roots.size() - shown))) | fg(th.dim, ui_));
     if (zp.poles_at_origin > 0)
         list.push_back(hbox({text("× ") | fg(th.fg, ui_), text("0" + (zp.poles_at_origin > 1 ? " ×" + std::to_string(zp.poles_at_origin) : std::string{})) |
                                                                    fg(th.fg, ui_)}));
     const int plane = layout_.maximized() ? std::clamp(2 * lines, 8, 2 * lines) : std::clamp(2 * lines, 8, 16);
+    ZPlaneSpec spec{zp.zeros, zp.poles_at_origin, zp.poles};
+    zview_.apply(spec);
     return frame_panel(zeros,
-                       hbox({zplane(ZPlaneSpec{zp.zeros, zp.poles_at_origin, zp.poles}, th, ui_.caps.color, ui_.caps.glyphs) | size(WIDTH, EQUAL, plane),
-                             text(" "), vbox(std::move(list))}),
+                       hbox({zplane(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(WIDTH, EQUAL, plane) | reflect(zplane_box_), text(" "),
+                             scrolled(std::move(list), roots_scroll_, lines, std::nullopt, ui_) | reflect(roots_box_)}),
                        {}, tr("tui.filters.zeros"));
 }
 
@@ -914,7 +939,7 @@ ftxui::Element FiltersScreen::build(Panel p, int rows, int width) {
     case zeros: return zeros_panel(rows);
     case properties: return properties_panel();
     case measures: return measures_panel(width);
-    case library: return library_panel(width);
+    case library: return library_panel(width, rows);
     case comparison: return comparison_panel(width);
     case panel_count: break;
     }
@@ -927,6 +952,8 @@ ftxui::Element FiltersScreen::OnRender() {
     title_boxes_.fill(kNoBox);
     plot_boxes_.fill(kNoBox);
     clickables_.clear();
+    impulse_zoom_.begin_frame();
+    zplane_box_ = roots_box_ = kNoBox;
     if (ui_.jobs) {
         set_->request(*ui_.jobs, kPoints);
         if (lo_ > 0 || hi_ < span_) set_->request_view(*ui_.jobs, lo_, hi_, kPoints);
@@ -1016,7 +1043,10 @@ void FiltersScreen::pan(double delta) {
 
 bool FiltersScreen::on_mouse(const ftxui::Mouse& m) {
     using ftxui::Mouse;
+    const bool press = m.button == Mouse::Left && m.motion == Mouse::Pressed;
+    if (!press && (zview_.on_mouse(m, zplane_box_, ZPlaneSpec{}.extent) || impulse_zoom_.on_mouse(m))) return true;
     if (m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) {
+        if (wheel_scroll(m, panel_boxes_[library], library_scroll_) || wheel_scroll(m, roots_box_, roots_scroll_)) return true;
         const int p = plot_under(m.x, m.y);
         if (p < 0) return false;
         const double f = m.button == Mouse::WheelUp ? kWheelStep : 1 / kWheelStep;
@@ -1040,6 +1070,7 @@ bool FiltersScreen::on_mouse(const ftxui::Mouse& m) {
         bool hit = false;
         for (int p = 0; p < panel_count; ++p)
             if (panel_boxes_[static_cast<std::size_t>(p)].Contain(m.x, m.y)) focus_ = static_cast<Panel>(p), hit = true;
+        if (zview_.on_mouse(m, zplane_box_, ZPlaneSpec{}.extent) || impulse_zoom_.press(m.x, m.y)) return true;
         const int p = plot_under(m.x, m.y);
         if (p >= 0) {
             drag_ = {true, false, m.shift, p, m.x};
@@ -1068,7 +1099,17 @@ bool FiltersScreen::on_mouse(const ftxui::Mouse& m) {
     return true;
 }
 
+std::optional<Axis> FiltersScreen::plot_view(std::string_view id) const {
+    if (id == "zplane") {
+        const double ext = zview_.extent(ZPlaneSpec{}.extent);
+        return Axis{zview_.center().real() - ext, zview_.center().real() + ext};
+    }
+    return impulse_zoom_.view(id);
+}
+
 std::vector<MenuItem> FiltersScreen::context_menu(int x, int y) {
+    if (auto reset = impulse_zoom_.reset_item(x, y)) return {*reset};
+    if (zplane_box_.Contain(x, y) && zview_.zoomed()) return {{tr("tui.menu.reset_zoom"), "", [this] { zview_.reset(); }}};
     if (const int p = plot_under(x, y); p >= 0) {
         const double w = omega_at(p == 1 ? "phase" : p == 2 ? "delay" : "magnitude", x);
         return {{tr("tui.menu.cursor_a"), tr("tui.signal.key.click"), [this, w] { cursor_a_ = w; }},
@@ -1200,10 +1241,18 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (e.is_mouse()) return on_mouse(e.mouse());
+    if (focus_ == impulse && impulse_zoom_.on_key(e, "impulse")) return true;
+    if (focus_ == library && key_scroll(e, library_scroll_, false)) return true;
+    if (focus_ == zeros && zview_.on_key(e, ZPlaneSpec{}.extent)) return true;
+    if (focus_ == zeros && (e == Event::PageDown || e == Event::PageUp)) {
+        roots_scroll_.first = e == Event::PageDown ? roots_scroll_.first + 5 : roots_scroll_.first > 5 ? roots_scroll_.first - 5 : 0;
+        return true;
+    }
     if (e == Event::Character('/')) {
         searching_ = true;
         query_.clear();
         match_index_ = 0;
+        match_follow_ = static_cast<std::size_t>(-1);
         if (breakpoint_ <= Breakpoint::small && !layout_.maximized())
             for (std::size_t k = 0; k < panel_count && layout_.small_index() % panel_count != library; ++k) layout_.next_panel(panel_count);
         return true;
@@ -1275,6 +1324,7 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
         searching_ = true;
         query_.clear();
         match_index_ = 0;
+        match_follow_ = static_cast<std::size_t>(-1);
         return true;
     }
     if (e == Event::Character('l')) {

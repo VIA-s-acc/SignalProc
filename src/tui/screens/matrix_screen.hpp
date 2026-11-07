@@ -16,6 +16,7 @@
 #include "tui/screens/matrix_model.hpp"
 #include "tui/shell/layout.hpp"
 #include "tui/shell/panel.hpp"
+#include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
 #include "tui/widgets/axis_zoom.hpp"
 
@@ -48,6 +49,7 @@ public:
     std::optional<std::pair<int, int>> menu_anchor() const override;
     bool numbers() const { return numbers_; }
     ftxui::Box area(std::string_view id) const;
+    std::optional<Axis> plot_view(std::string_view id) const { return sigma_zoom_.view(id); }
 
 private:
     enum Panel { controls, checks, main, origin, panel_count };
@@ -88,6 +90,8 @@ private:
     std::string notice_;
     std::optional<Panel> maximized_;
     AxisZoom row_zoom_, col_zoom_;
+    PlotZoom sigma_zoom_;
+    double origin_scroll_ = 0;
     Block block_;
     bool drag_ = false;
     int drag_x_ = 0, drag_y_ = 0;

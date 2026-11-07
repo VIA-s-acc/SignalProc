@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #include <ftxui/component/event.hpp>
@@ -425,4 +426,330 @@ TEST_CASE("Enter opens the inspector in a narrow window too", "[tui][pipeline_sc
     f.h.send(ftxui::Event::ArrowRight);
     const auto& thr = *std::find_if(f.model->doc().nodes.begin(), f.model->doc().nodes.end(), [](const auto& n) { return n.id == "thr"; });
     CHECK(thr.params.at("mode") == "hard");
+}
+
+namespace {
+
+ftxui::Event left_button(ftxui::Mouse::Motion motion, int x, int y) {
+    ftxui::Mouse m;
+    m.button = ftxui::Mouse::Left;
+    m.motion = motion;
+    m.x = x;
+    m.y = y;
+    return ftxui::Event::Mouse("", m);
+}
+
+std::string line_containing(const std::string& frame, const std::string& needle) {
+    std::istringstream in{frame};
+    for (std::string line; std::getline(in, line);)
+        if (line.find(needle) != std::string::npos) return line;
+    return {};
+}
+
+}  // namespace
+
+TEST_CASE("dragging a wire shows it on the way and names both ends", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    f.model->add_node("gen");
+    f.model->add_node("dwt");
+    f.model->add_node("idwt");
+    REQUIRE(f.model->connect(port("gen"), port("dwt")));
+    const auto from = f.box("out:dwt.coeffs");
+    const auto to = f.box("in:idwt.in");
+    f.h.send(left_button(ftxui::Mouse::Pressed, from.x_min, from.y_min));
+    f.h.send(left_button(ftxui::Mouse::Moved, to.x_min, to.y_min));
+    const auto frame = f.h.frame();
+    CHECK(frame.find("dwt.coeffs → idwt.in") != std::string::npos);
+    CHECK(frame.find("····") != std::string::npos);
+    f.h.send(left_button(ftxui::Mouse::Released, to.x_min, to.y_min));
+    CHECK(f.model->doc().edges.size() == 2);
+    CHECK(f.h.frame().find("dwt.coeffs → idwt.in") == std::string::npos);
+}
+
+TEST_CASE("long values in the inspector and the .sig text keep their ends visible", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    const auto id = f.model->add_node("wav");
+    const std::string path = "/Users/someone/projects/signals/resources/samples/long-folder-name/test.wav";
+    REQUIRE(f.model->set_param(id, "path", path));
+    f.model->selection = {Selection::Kind::node, id, {}};
+    const auto frame = f.h.frame();
+    const auto inspector = line_containing(frame, "path ");
+    INFO(inspector);
+    CHECK(inspector.find("test.wav") != std::string::npos);
+    CHECK(inspector.find("…") != std::string::npos);
+    CHECK(frame.find("test.wav\")") != std::string::npos);
+}
+
+TEST_CASE("the wavelet parameter is picked from a list, and arrows step through it", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    std::string title;
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string t, std::vector<Command> list) {
+        title = std::move(t);
+        items = std::move(list);
+    };
+    const auto id = f.model->add_node("dwt");
+    f.model->selection = {Selection::Kind::node, id, {}};
+    f.h.frame();
+    const auto inspector = f.screen->area("inspector");
+    REQUIRE(inspector.x_max > inspector.x_min);
+    f.h.click(inspector.x_min + 2, inspector.y_min + 1);
+    f.h.send(ftxui::Event::Return);
+    REQUIRE(items.size() > 100);
+    CHECK(title.find("wavelet") != std::string::npos);
+    const auto sym8 = std::find_if(items.begin(), items.end(), [](const Command& c) { return c.title == "sym8"; });
+    REQUIRE(sym8 != items.end());
+    sym8->run();
+    CHECK(f.model->doc().nodes.back().params.at("wavelet") == "sym8");
+    f.h.send(ftxui::Event::ArrowRight);
+    CHECK(f.model->doc().nodes.back().params.at("wavelet") != "sym8");
+}
+
+TEST_CASE("the wheel scrolls the pipeline graph, shift scrolls it sideways", "[tui][pipeline_screen]") {
+    PipelineFixture f{80, 24, false};
+    f.model->add_node("gen");
+    for (int k = 0; k < 8; ++k) f.model->add_node("gain");
+    f.h.frame();
+    const auto graph = f.screen->area("graph");
+    REQUIRE(graph.x_max > graph.x_min);
+    const auto first = f.box("node:gen");
+    ftxui::Mouse m;
+    m.button = ftxui::Mouse::WheelDown;
+    m.motion = ftxui::Mouse::Pressed;
+    m.x = (graph.x_min + graph.x_max) / 2;
+    m.y = (graph.y_min + graph.y_max) / 2;
+    f.h.send(ftxui::Event::Mouse("", m));
+    f.h.send(ftxui::Event::Mouse("", m));
+    const auto moved = f.box("node:gen");
+    CHECK((moved.y_min < first.y_min || moved.x_max < moved.x_min));
+}
+
+TEST_CASE("the convolve filter is picked from a list of bank filters", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    const auto id = f.model->add_node("convolve");
+    f.model->selection = {Selection::Kind::node, id, {}};
+    f.h.frame();
+    const auto inspector = f.screen->area("inspector");
+    f.h.click(inspector.x_min + 2, inspector.y_min + 1);
+    f.h.send(ftxui::Event::Return);
+    const auto f1 = std::find_if(items.begin(), items.end(), [](const Command& c) { return c.title == "sym4.f1"; });
+    REQUIRE(f1 != items.end());
+    f1->run();
+    CHECK(f.model->doc().nodes.back().params.at("filter") == "sym4.f1");
+}
+
+TEST_CASE("the add-block list scrolls with the wheel and adds the clicked block", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    f.h.send(ftxui::Event::Character('a'));
+    f.h.frame();
+    const auto list = f.screen->area("inspector");
+    ftxui::Mouse m;
+    m.button = ftxui::Mouse::WheelDown;
+    m.motion = ftxui::Mouse::Pressed;
+    m.x = (list.x_min + list.x_max) / 2;
+    m.y = (list.y_min + list.y_max) / 2;
+    const auto last = std::string{signals::pipeline::block_types().back().id};
+    CHECK(f.h.frame().find(" " + last + " ") == std::string::npos);
+    for (int k = 0; k < 100; ++k) f.h.send(ftxui::Event::Mouse("", m));
+    const auto frame = f.h.frame();
+    CHECK(frame.find("▲") != std::string::npos);
+    const auto row = f.screen->area("add:" + last);
+    REQUIRE(row.x_max >= row.x_min);
+    f.h.click(row.x_min + 1, row.y_min);
+    REQUIRE_FALSE(f.model->doc().nodes.empty());
+    CHECK(f.model->doc().nodes.back().type == last);
+}
+
+TEST_CASE("C lists the free inputs a selected output can feed and connects the chosen one", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    f.model->add_node("gen");
+    const auto dwt = f.model->add_node("dwt");
+    f.model->add_node("idwt");
+    f.model->add_node("check");
+    REQUIRE(f.model->connect(port("gen"), port("dwt")));
+    f.model->selection = {Selection::Kind::node, dwt, {}};
+    f.h.frame();
+    f.h.send(ftxui::Event::Character('C'));
+    const auto it = std::find_if(items.begin(), items.end(), [](const Command& c) { return c.title.find("idwt") != std::string::npos; });
+    REQUIRE(it != items.end());
+    CHECK(std::none_of(items.begin(), items.end(), [](const Command& c) { return c.title.find("check") != std::string::npos; }));
+    it->run();
+    CHECK(f.model->doc().edges.size() == 2);
+    const auto hints = f.screen->hints();
+    CHECK(std::any_of(hints.begin(), hints.end(), [](const signals::tui::Hint& h) { return h.key == "c/C"; }));
+}
+
+TEST_CASE("the example command lists the built-in graphs and opens the chosen one", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    const auto commands = f.screen->commands();
+    const auto example = std::find_if(commands.begin(), commands.end(), [](const Command& c) { return c.id == "pipeline.example"; });
+    REQUIRE(example != commands.end());
+    example->run();
+    REQUIRE(items.size() >= 4);
+    const auto haar = std::find_if(items.begin(), items.end(), [](const Command& c) { return c.id == "haar_bank"; });
+    REQUIRE(haar != items.end());
+    CHECK(haar->title.find("Хаар") != std::string::npos);
+    haar->run();
+    const auto& nodes = f.model->doc().nodes;
+    CHECK(std::any_of(nodes.begin(), nodes.end(), [](const auto& n) { return n.type == "add"; }));
+    f.model->run(f.jobs);
+    for (int k = 0; k < 400 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    const auto run = f.model->run_view();
+    CHECK_FALSE(run.error);
+    REQUIRE_FALSE(run.reports.empty());
+    CHECK(run.reports.front().report.passed);
+}
+
+TEST_CASE("the .sig text and the run panel scroll with markers and the wheel", "[tui][pipeline_screen][scroll]") {
+    PipelineFixture f{150, 44, false};
+    f.model->add_node("gen");
+    std::string prev = "gen";
+    for (int k = 0; k < 18; ++k) {
+        const auto id = f.model->add_node("gain");
+        REQUIRE(f.model->connect(port(prev), port(id)));
+        prev = id;
+    }
+    f.model->run(f.jobs);
+    for (int k = 0; k < 400 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    f.model->selection = {};
+    auto frame = f.h.frame();
+    const auto text = f.screen->area("text_panel");
+    const auto run = f.screen->area("run_panel");
+    REQUIRE(text.x_max > text.x_min);
+    REQUIRE(run.x_max > run.x_min);
+    CHECK(frame.find("▼ ещё") != std::string::npos);
+    for (const auto box : {text, run}) {
+        ftxui::Mouse m;
+        m.button = ftxui::Mouse::WheelDown;
+        m.motion = ftxui::Mouse::Pressed;
+        m.x = (box.x_min + box.x_max) / 2;
+        m.y = (box.y_min + box.y_max) / 2;
+        for (int k = 0; k < 4; ++k) f.h.send(ftxui::Event::Mouse("", m));
+    }
+    frame = f.h.frame();
+    CHECK(frame.find("▲ ещё") != std::string::npos);
+}
+
+TEST_CASE("the probe plots zoom with the wheel and the add list explains the picked block", "[tui][pipeline_screen][scroll]") {
+    PipelineFixture f{150, 44, true};
+    f.model->run(f.jobs);
+    for (int k = 0; k < 2000 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    f.h.frame();
+    const auto b = f.screen->area("probe_time_plot");
+    REQUIRE(b.x_max > b.x_min);
+    const auto full = f.screen->plot_view("probe_time");
+    REQUIRE(full);
+    f.h.wheel(b.x_min + (b.x_max - b.x_min) / 3, (b.y_min + b.y_max) / 2, true);
+    f.h.wheel(b.x_min + (b.x_max - b.x_min) / 3, (b.y_min + b.y_max) / 2, true);
+    f.h.frame();
+    CHECK(f.screen->plot_view("probe_time")->hi - f.screen->plot_view("probe_time")->lo < 0.7 * (full->hi - full->lo));
+    CHECK_FALSE(f.screen->context_menu(b.x_min + 2, (b.y_min + b.y_max) / 2).empty());
+    f.h.send(ftxui::Event::Character('a'));
+    f.h.send(ftxui::Event::Character("idwt"));
+    const auto frame = f.h.frame();
+    CHECK(frame.find("in: coeffs → out: signal") != std::string::npos);
+}
+
+TEST_CASE("the inspector scrolls a long parameter list and follows the picked parameter", "[tui][pipeline_screen][scroll]") {
+    PipelineFixture f{80, 24, false};
+    const auto types = signals::pipeline::block_types();
+    const auto most = std::max_element(types.begin(), types.end(), [](const auto& a, const auto& b) { return a.params.size() < b.params.size(); });
+    REQUIRE(most->params.size() >= 6);
+    f.ui->terminal_size = [] { return std::pair{80, 14}; };
+    const auto id = f.model->add_node(most->id);
+    f.model->selection = {Selection::Kind::node, id, {}};
+    f.h.frame();
+    f.h.send(ftxui::Event::Return);
+    auto frame = f.h.frame();
+    CHECK(frame.find("▼") != std::string::npos);
+    for (std::size_t k = 0; k + 1 < most->params.size(); ++k) f.h.send(ftxui::Event::ArrowDown);
+    frame = f.h.frame();
+    CHECK(frame.find(most->params.back().name) != std::string::npos);
+    CHECK(frame.find("▲") != std::string::npos);
+}
+
+TEST_CASE("the wavelet and filter lists offer the user banks", "[tui][pipeline_screen][user_banks]") {
+    const auto db2 = signals::core::wavelet("db2");
+    REQUIRE(db2);
+    signals::core::set_user_wavelets([db2](std::string_view name) -> std::optional<signals::core::FilterBank> {
+        if (name != "my_bank") return std::nullopt;
+        auto b = *db2;
+        b.name = "my_bank";
+        return b;
+    }, [] { return std::vector<std::string>{"my_bank"}; });
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    for (const auto& [type, wanted] : {std::pair{"dwt", "my_bank"}, std::pair{"convolve", "my_bank.f0"}}) {
+        items.clear();
+        const auto id = f.model->add_node(type);
+        f.model->selection = {Selection::Kind::node, id, {}};
+        f.h.frame();
+        f.h.send(ftxui::Event::Return);
+        const auto* t = signals::pipeline::find_block_type(type);
+        const auto param = std::find_if(t->params.begin(), t->params.end(), [](const auto& p) { return p.name == "wavelet" || p.name == "filter"; });
+        REQUIRE(param != t->params.end());
+        for (auto k = t->params.begin(); k != param; ++k) f.h.send(ftxui::Event::ArrowDown);
+        f.h.send(ftxui::Event::Return);
+        const auto it = std::find_if(items.begin(), items.end(), [&](const Command& c) { return c.title == wanted; });
+        REQUIRE(it != items.end());
+        it->run();
+        CHECK(f.model->doc().nodes.back().params.at(param->name) == wanted);
+        f.h.send(ftxui::Event::Escape);
+    }
+    signals::core::set_user_wavelets({}, {});
+}
+
+TEST_CASE("mra component and check delay are picked from lists", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    for (const auto& [type, param, wanted] : {std::tuple{"mra", "component", "d3"}, std::tuple{"check", "delay", "auto"}}) {
+        items.clear();
+        const auto id = f.model->add_node(type);
+        f.model->selection = {Selection::Kind::node, id, {}};
+        f.h.frame();
+        f.h.send(ftxui::Event::Return);
+        const auto* t = signals::pipeline::find_block_type(type);
+        const auto p = std::find_if(t->params.begin(), t->params.end(), [&](const auto& s) { return s.name == param; });
+        REQUIRE(p != t->params.end());
+        for (auto k = t->params.begin(); k != p; ++k) f.h.send(ftxui::Event::ArrowDown);
+        f.h.send(ftxui::Event::Return);
+        const auto it = std::find_if(items.begin(), items.end(), [&](const Command& c) { return c.title == wanted; });
+        REQUIRE(it != items.end());
+        it->run();
+        CHECK(f.model->doc().nodes.back().params.at(param) == wanted);
+        f.h.send(ftxui::Event::Escape);
+    }
+}
+
+TEST_CASE("the run panel and the .sig text scroll from the keyboard when focused", "[tui][pipeline_screen][scroll]") {
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    const auto commands = f.screen->commands();
+    std::find_if(commands.begin(), commands.end(), [](const Command& c) { return c.id == "pipeline.example"; })->run();
+    std::find_if(items.begin(), items.end(), [](const Command& c) { return c.id == "haar_two_levels"; })->run();
+    f.model->run(f.jobs);
+    for (int k = 0; k < 2000 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    f.h.frame();
+    for (const char* id : {"run_panel", "text_panel"}) {
+        const auto box = f.screen->area(id);
+        REQUIRE(box.x_max > box.x_min);
+        f.h.click(box.x_min + 2, box.y_max - 1);
+        const auto before = f.h.frame();
+        f.h.send(ftxui::Event::PageDown);
+        f.h.send(ftxui::Event::PageDown);
+        const auto after = f.h.frame();
+        CHECK(after != before);
+        std::size_t ups = 0;
+        for (auto at = after.find("▲ ещё"); at != std::string::npos; at = after.find("▲ ещё", at + 1)) ++ups;
+        CHECK(ups >= 1);
+    }
 }

@@ -13,6 +13,7 @@
 #include "tui/harness.hpp"
 #include "tui/shell/layout.hpp"
 #include "tui/shell/overlays.hpp"
+#include "tui/shell/palette.hpp"
 #include "core/version.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/shell/shell.hpp"
@@ -369,4 +370,67 @@ TEST_CASE("m7c: ellipsize measures display width, not codepoints", "[tui][shell]
     CHECK(signals::tui::ellipsize("Φ̃ab", 3, false) == "Φ̃ab");
     CHECK(signals::tui::ellipsize("Φ̃abcd", 3, false) == "Φ̃a…");
     CHECK(signals::tui::ellipsize("abcdef", 4, true) == "abc~");
+}
+
+TEST_CASE("wrap_words breaks at spaces and splits only words wider than the line", "[tui][text_util]") {
+    using signals::tui::wrap_words;
+    CHECK(wrap_words("выберите узел или провод", 14) == std::vector<std::string>{"выберите узел", "или провод"});
+    CHECK(wrap_words("abcdefghij kl", 4) == std::vector<std::string>{"abcd", "efgh", "ij", "kl"});
+    CHECK(wrap_words("", 10) == std::vector<std::string>{""});
+    CHECK(wrap_words("a  b", 10) == std::vector<std::string>{"a  b"});
+}
+
+TEST_CASE("a panel title that does not fit ends with an ellipsis and keeps the last chip", "[tui][shell]") {
+    auto ui = signals::test::make_ui(80, 24);
+    auto element = panel("Очень длинный заголовок панели с подробностями", {{"Tab 1/6", false}}, ftxui::text("x"), true, *ui);
+    auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(36), ftxui::Dimension::Fixed(3));
+    ftxui::Render(screen, element);
+    const auto top = screen.ToString().substr(0, screen.ToString().find('\n'));
+    CHECK(top.find("…") != std::string::npos);
+    CHECK(top.find("Tab 1/6") != std::string::npos);
+    CHECK(screen.CellAt(35, 0).character == "╮");
+}
+
+TEST_CASE("ellipsize drops the spaces before the ellipsis", "[tui][text_util]") {
+    CHECK(signals::tui::ellipsize("ошибка от K", 8, false) == "ошибка…");
+    CHECK(signals::tui::ellipsize("ab   cd", 5, true) == "ab~");
+}
+
+TEST_CASE("the status line keeps every figure at 80 columns by switching to its short form", "[tui][shell]") {
+    auto ui = signals::test::make_ui(80, 24);
+    ResourceSnapshot r;
+    r.cpu_one_core_pct = 103.12;
+    r.cpu_all_cores_pct = 12.89;
+    r.core_load_pct.assign(16, 0.0);
+    r.rss = 1'820'000'000;
+    r.peak_rss = 2'400'000'000;
+    r.threads = 12;
+    r.fps = 60;
+    const auto full = signals::test::render_text(status_line(*ui, r, 200), 200, 1);
+    CHECK(full.find("пик") != std::string::npos);
+    const auto narrow = signals::test::render_text(status_line(*ui, r, 80), 80, 1);
+    CHECK(narrow.find("CPU 103") != std::string::npos);
+    CHECK(narrow.find("ГБ") != std::string::npos);
+    CHECK(narrow.find("60") != std::string::npos);
+    CHECK(narrow.find("к/с") != std::string::npos);
+}
+
+TEST_CASE("the palette and the context menu stay inside an 80-column screen", "[tui][shell][overlay]") {
+    auto ui = signals::test::make_ui(80, 24);
+    const std::string long_title = "Очень длинная команда с подробным описанием того, что она делает с сигналом и фильтром";
+    Palette p;
+    p.open({{"long", long_title, [] {}}, {"short", "коротко", [] {}}});
+    auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(80), ftxui::Dimension::Fixed(12));
+    ftxui::Render(screen, p.render(*ui, 80));
+    CHECK(screen.ToString().find("…") != std::string::npos);
+    CHECK(screen.ToString().find("коротко") != std::string::npos);
+
+    ContextMenu menu;
+    menu.open({{long_title, "Shift+клик", [] {}}}, 70, 3);
+    auto menu_screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(80), ftxui::Dimension::Fixed(12));
+    ftxui::Render(menu_screen, menu.render(*ui, 80, 12));
+    std::string row;
+    for (int x = 0; x < 80; ++x) row += menu_screen.CellAt(x, 5).character;
+    CHECK(row.find("…") != std::string::npos);
+    CHECK(row.find("Shift+клик") != std::string::npos);
 }

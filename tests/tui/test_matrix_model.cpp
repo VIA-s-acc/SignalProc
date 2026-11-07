@@ -162,6 +162,8 @@ TEST_CASE("toeplitz plus hankel is diagonal in the dct-ii basis for a symmetric 
     CHECK(*d->dct_error < 1e-12);
     REQUIRE(d->levinson_error);
     CHECK(*d->levinson_error < 1e-9);
+    REQUIRE(d->gohberg_error);
+    CHECK(*d->gohberg_error < 1e-9);
     CHECK(d->singular.size() == 32);
     o.gram = true;
     m.set(o, jobs);
@@ -193,4 +195,32 @@ TEST_CASE("m6h review: the levinson check is relative and passes for db8 at N = 
     REQUIRE(d);
     REQUIRE(d->levinson_error);
     CHECK(*d->levinson_error < 1e-10);
+    REQUIRE(d->gohberg_error);
+    CHECK(std::isfinite(*d->gohberg_error));
+}
+
+TEST_CASE("a single user filter builds the convolution matrices and is refused for a filter bank", "[tui][matrix][user_banks]") {
+    signals::core::set_named_filters([](std::string_view name) -> std::optional<signals::core::Laurent> {
+        if (name != "my lowpass") return std::nullopt;
+        return signals::core::Laurent{{0.5, 0.5}, 0};
+    }, [] { return std::vector<std::string>{"my lowpass"}; });
+    JobRunner jobs{[] {}, std::chrono::milliseconds{0}, true};
+    MatrixModel m;
+    MatrixOptions o;
+    o.wavelet = "my lowpass";
+    o.n = 8;
+    o.op = MatrixOp::convolution;
+    m.set(o, jobs);
+    auto d = m.data();
+    REQUIRE(d);
+    CHECK_FALSE(d->error);
+    CHECK(d->m.rows() > 0);
+    CHECK(d->m(1, 0) == 0.5);
+    o.op = MatrixOp::analysis;
+    m.set(o, jobs);
+    d = m.data();
+    REQUIRE(d);
+    REQUIRE(d->error);
+    CHECK(d->error->find("my lowpass") != std::string::npos);
+    signals::core::set_named_filters({}, {});
 }

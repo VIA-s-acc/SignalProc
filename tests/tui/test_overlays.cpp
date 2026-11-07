@@ -47,17 +47,17 @@ TEST_CASE("palette scrolls to keep the selection visible", "[tui][palette]") {
     Palette p;
     p.open(all);
     for (int i = 0; i < 20; ++i) p.on_event(ftxui::Event::ArrowDown);
-    auto text = signals::test::render_text(p.render(*ui), 80, 20);
+    auto text = signals::test::render_text(p.render(*ui, 80), 80, 20);
     CHECK(text.find("Команда 20") != std::string::npos);
     CHECK(text.find("Команда 00") == std::string::npos);
     CHECK(text.find("21 / 30") != std::string::npos);
     for (int i = 0; i < 20; ++i) p.on_event(ftxui::Event::ArrowUp);
-    text = signals::test::render_text(p.render(*ui), 80, 20);
+    text = signals::test::render_text(p.render(*ui, 80), 80, 20);
     CHECK(text.find("Команда 00") != std::string::npos);
     p.on_event(ftxui::Event::PageDown);
     p.on_event(ftxui::Event::PageDown);
     p.on_event(ftxui::Event::PageDown);
-    text = signals::test::render_text(p.render(*ui), 80, 20);
+    text = signals::test::render_text(p.render(*ui, 80), 80, 20);
     CHECK(text.find("Команда 29") != std::string::npos);
     CHECK(text.find("30 / 30") != std::string::npos);
 }
@@ -227,4 +227,19 @@ TEST_CASE("in English the palette shows and finds English commands", "[tui][pale
     type(r.h, {"l", "i", "g", "h", "t"});
     r.h.send(ftxui::Event::Return);
     CHECK(r.ui->theme.name == "light");
+}
+
+TEST_CASE("text prompts keep a space between the prompt and the typed value", "[tui][palette]") {
+    auto ui = signals::test::make_ui(150, 44);
+    for (const auto& [prompt, shown] : {std::pair{std::string{"сохранить .sig как"}, std::string{"сохранить .sig как: out.sig"}},
+                                        std::pair{std::string{"gain.db"}, std::string{"gain.db: out.sig"}},
+                                        std::pair{std::string{"Имя банка: "}, std::string{"Имя банка: out.sig"}}}) {
+        INFO(prompt);
+        Palette p;
+        p.ask_text(prompt, "", [](std::string) {});
+        p.on_event(ftxui::Event::Character("out.sig"));
+        const auto frame = signals::test::render_text(p.render(*ui, 80), 80, 6);
+        CHECK(frame.find(shown) != std::string::npos);
+        CHECK(frame.find("Enter — открыть") == std::string::npos);
+    }
 }

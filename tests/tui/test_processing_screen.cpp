@@ -1,6 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+
 #include <chrono>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <thread>
@@ -8,6 +11,7 @@
 
 #include <ftxui/component/event.hpp>
 
+#include "core/design/families.hpp"
 #include "audio/manual_sink.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
@@ -224,4 +228,94 @@ TEST_CASE("m7d: a λ drag that starts at the limit still undoes in one step", "[
     f.h.send(ftxui::Event::Character('u'));
     CHECK(f.model->options().scale == 10);
     CHECK(f.model->options().rule == signals::core::ShrinkRule::visu);
+}
+
+TEST_CASE("the listening panel says what A, B and X play", "[tui][processing]") {
+    ProcessingFixture f;
+    const auto frame = f.h.frame();
+    CHECK(frame.find("звучат 4,00 с") != std::string::npos);
+}
+
+TEST_CASE("every processing plot zooms with the wheel and resets with 0", "[tui][processing][panels]") {
+    ProcessingFixture f;
+    f.h.frame();
+    for (const char* id : {"signal", "curve", "eq", "coeffs"}) {
+        INFO(id);
+        const auto b = f.screen->area(std::string{id} + "_plot");
+        REQUIRE(b.x_max > b.x_min);
+        const auto full = f.screen->plot_view(id);
+        REQUIRE(full);
+        const int x = b.x_min + (b.x_max - b.x_min) / 3, y = (b.y_min + b.y_max) / 2;
+        f.h.wheel(x, y, true);
+        f.h.wheel(x, y, true);
+        f.h.frame();
+        const auto zoomed = f.screen->plot_view(id);
+        REQUIRE(zoomed);
+        const bool log = full->scale == signals::tui::AxisScale::log10;
+        const double span = log ? std::log(zoomed->hi / zoomed->lo) : zoomed->hi - zoomed->lo;
+        const double whole = log ? std::log(full->hi / full->lo) : full->hi - full->lo;
+        CHECK(span < 0.7 * whole);
+        CHECK_FALSE(f.screen->context_menu(x, y).empty());
+        const double scale = f.model->options().scale;
+        f.h.click(x, y);
+        f.h.send(ftxui::Event::Character('0'));
+        f.h.frame();
+        const auto reset = f.screen->plot_view(id);
+        REQUIRE(reset);
+        CHECK(reset->lo == full->lo);
+        CHECK(reset->hi == full->hi);
+        CHECK(f.model->options().scale == scale);
+    }
+}
+
+TEST_CASE("every coefficient band stays reachable: the list scrolls with markers and the wheel", "[tui][processing][scroll]") {
+    ProcessingFixture f{120, 40};
+    for (int k = 0; k < 6; ++k) f.h.send(ftxui::Event::Character('j'));
+    REQUIRE(f.model->options().levels == 10);
+    auto frame = f.h.frame();
+    CHECK(frame.find("▼ ещё") != std::string::npos);
+    const auto panel = f.screen->area("coeffs_panel");
+    REQUIRE(panel.x_max > panel.x_min);
+    for (int k = 0; k < 10; ++k) f.h.wheel(panel.x_min + 3, (panel.y_min + panel.y_max) / 2, false);
+    frame = f.h.frame();
+    CHECK(frame.find("▲ ещё") != std::string::npos);
+    CHECK(frame.find("d₁ ") != std::string::npos);
+}
+
+TEST_CASE("the processing wavelet is picked from a list that includes the user banks", "[tui][processing][user_banks]") {
+    const auto db2 = signals::core::wavelet("db2");
+    REQUIRE(db2);
+    signals::core::set_user_wavelets([db2](std::string_view name) -> std::optional<signals::core::FilterBank> {
+        if (name != "my_bank") return std::nullopt;
+        auto b = *db2;
+        b.name = "my_bank";
+        return b;
+    }, [] { return std::vector<std::string>{"my_bank"}; });
+    ProcessingFixture f;
+    std::string filter;
+    f.ui->open_palette = [&](std::string text) { filter = std::move(text); };
+    f.h.send(ftxui::Event::Character('w'));
+    CHECK(filter == signals::tr("tui.processing.cmd.wavelet"));
+    const auto commands = f.screen->commands();
+    const auto mine = std::find_if(commands.begin(), commands.end(), [](const Command& c) { return c.id == "processing.wavelet.my_bank"; });
+    REQUIRE(mine != commands.end());
+    CHECK(std::any_of(commands.begin(), commands.end(), [](const Command& c) { return c.id == "processing.wavelet.sym8"; }));
+    mine->run();
+    CHECK(f.model->options().wavelet == "my_bank");
+    REQUIRE(f.model->result());
+    CHECK(f.model->result()->options.wavelet == "my_bank");
+    CHECK(f.h.frame().find("my_bank ▾") != std::string::npos);
+    signals::core::set_user_wavelets({}, {});
+}
+
+TEST_CASE("the coefficient bands scroll from the keyboard when the panel has focus", "[tui][processing][scroll]") {
+    ProcessingFixture f{120, 40};
+    for (int k = 0; k < 6; ++k) f.h.send(ftxui::Event::Character('j'));
+    f.h.frame();
+    const auto panel = f.screen->area("coeffs_panel");
+    f.h.click(panel.x_min + 3, panel.y_min + 1);
+    f.h.send(ftxui::Event::PageDown);
+    CHECK(f.h.frame().find("▲ ещё") != std::string::npos);
+    f.h.send(ftxui::Event::Home);
+    CHECK(f.h.frame().find("▲ ещё") == std::string::npos);
 }
