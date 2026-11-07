@@ -1280,5 +1280,6 @@
   "tui.pipeline.example.haar_bank": "Haar bank: analysis and synthesis, as in «Explain»",
   "tui.pipeline.example.haar_two_levels": "Haar bank on two levels",
   "tui.pipeline.example.dwt_levels": "db4 DWT on 3 levels with a probe on every band",
-  "tui.pipeline.example.denoise": "Denoise a file: DWT, threshold, IDWT"
+  "tui.pipeline.example.denoise": "Denoise a file: DWT, threshold, IDWT",
+  "pipeline.error.rates": "{block}: the inputs have different sample rates — {a} and {b} Hz; bring them to one with the resample block"
 }
