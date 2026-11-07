@@ -10,7 +10,11 @@
 
 namespace signals::tui {
 
+struct SubTabKeys {
+    char previous = '[', next = ']';
+};
+
 std::shared_ptr<TabScreen> make_subtabs(std::string label, std::vector<std::pair<std::string, std::shared_ptr<TabScreen>>> children,
-                                        std::size_t initial = 0);
+                                        std::size_t initial = 0, SubTabKeys keys = {});
 
 }  // namespace signals::tui
