@@ -853,6 +853,10 @@ ftxui::Element DecompositionScreen::OnRender() {
     if (view_ == View::packets) {
         model_->request_packets(*ui_.jobs);
         packets = model_->packets();
+        if (packets) {
+            pk_level_ = std::min(pk_level_, packets->tree.levels());
+            pk_pos_ = std::min(pk_pos_, (std::size_t{1} << pk_level_) - 1);
+        }
     }
     if (view_ == View::scalogram) {
         model_->request_scalogram(*ui_.jobs);

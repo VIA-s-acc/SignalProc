@@ -52,6 +52,7 @@ struct DecompositionData {
     DecompositionOptions options;
     double fs = 0;
     std::vector<double> x;
+    std::weak_ptr<const SignalData> source;
     std::vector<float> x_float;
     std::optional<MinMaxPyramid> x_pyramid;
     core::BasicCoeffs<double> coeffs;
@@ -118,7 +119,8 @@ struct ScalogramData {
     core::TrackedBytes memory;
 };
 
-core::Result<ScalogramData> compute_scalogram(std::span<const double> x, double fs, std::size_t cols, core::ProgressSink* progress = nullptr);
+core::Result<ScalogramData> compute_scalogram(std::span<const double> x, double fs, std::size_t cols, core::ProgressSink* progress = nullptr,
+                                              std::size_t budget = 0);
 
 enum class ClipKind { original, enabled, difference, band };
 

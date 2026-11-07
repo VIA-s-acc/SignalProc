@@ -164,6 +164,7 @@ void DecompositionModel::compute(JobRunner& jobs) {
         gen = ++data_gen_;
         ++recon_gen_;
         recon_pending_ = false;
+        packets_.reset();
         cancelled_ = false;
     }
     const auto bank = core::wavelet(options_.wavelet);
@@ -186,6 +187,7 @@ void DecompositionModel::compute(JobRunner& jobs) {
         {"DWT", tr("tui.decomposition.stage.tiles"), tr("tui.decomposition.stage.recon"), "MRA"},
         [this, s, opts, gen, bank = *bank, budget = budget_](JobContext& ctx) {
             auto d = std::make_shared<DecompositionData>();
+            d->source = s;
             d->options = opts;
             d->fs = s->info.sample_rate;
             ctx.begin(0);
@@ -511,8 +513,9 @@ void DecompositionModel::request_packets(JobRunner& jobs) {
         packets_error_.reset();
         packets_for_ = d;
         gen = ++packets_gen_;
-        const auto need = (d->options.levels + 1) * d->x.size() * sizeof(double);
-        if (need > budget_) {
+        const auto values = (d->options.levels + 1) * d->x.size();
+        const auto need = 2 * values * sizeof(double);
+        if (need > budget_ || values > (std::size_t{1} << 28)) {
             packets_error_ = fmt::format(fmt::runtime(tr("tui.decomposition.packets_memory")), fmt::arg("need", format_si(static_cast<double>(need), tr("unit.byte"))),
                                          fmt::arg("budget", format_si(static_cast<double>(budget_), tr("unit.byte"))));
             return;
@@ -629,7 +632,7 @@ double DecompositionModel::basis_pr_error() const {
     return basis_pr_;
 }
 
-core::Result<ScalogramData> compute_scalogram(std::span<const double> x, double fs, std::size_t cols, core::ProgressSink* progress) {
+core::Result<ScalogramData> compute_scalogram(std::span<const double> x, double fs, std::size_t cols, core::ProgressSink* progress, std::size_t budget) {
     constexpr std::size_t kMaxSamples = std::size_t{1} << 20;
     constexpr double kVoicesPerOctave = 8, kLowestHz = 20, kFloorDb = -48;
     if (x.size() < 64 || !(fs > 0) || cols == 0) return core::make_error(core::Errc::invalid_argument, tr("tui.decomposition.scalogram_short"));
@@ -637,9 +640,20 @@ core::Result<ScalogramData> compute_scalogram(std::span<const double> x, double 
     out.decimation = (x.size() + kMaxSamples - 1) / kMaxSamples;
     std::vector<double> signal;
     if (out.decimation > 1) {
-        auto down = core::decimate(x, out.decimation, core::MultirateOptions{});
-        if (!down) return std::unexpected{down.error()};
-        signal = std::move(*down);
+        core::MultirateOptions aa;
+        aa.attenuation_db = 60;
+        const auto h = core::anti_alias_filter(out.decimation, aa).coeffs;
+        const auto delay = (h.size() - 1) / 2;
+        signal.resize((x.size() + out.decimation - 1) / out.decimation);
+        for (std::size_t k = 0; k < signal.size(); ++k) {
+            if (progress && (k & 0xFFFF) == 0 && progress->cancelled()) return core::make_error(core::Errc::cancelled, "scalogram: cancelled");
+            const auto centre = k * out.decimation + delay;
+            const auto first = centre >= x.size() ? centre - x.size() + 1 : 0;
+            const auto last = std::min(h.size(), centre + 1);
+            double acc = 0;
+            for (std::size_t j = first; j < last; ++j) acc += h[j] * x[centre - j];
+            signal[k] = acc;
+        }
     } else {
         signal.assign(x.begin(), x.end());
     }
@@ -651,6 +665,12 @@ core::Result<ScalogramData> compute_scalogram(std::span<const double> x, double 
     if (!(lo < hi)) return core::make_error(core::Errc::invalid_argument, tr("tui.decomposition.scalogram_short"));
     out.rows = std::clamp<std::size_t>(static_cast<std::size_t>(std::ceil(kVoicesPerOctave * std::log2(hi / lo))) + 1, 2, 128);
     out.cols = std::min(cols, n);
+    const auto longest = static_cast<std::size_t>(16 * fc * rate / lo) + 2;
+    const auto need = 56 * (n + longest) + out.rows * out.cols * (2 * sizeof(double) + 1);
+    if (budget > 0 && need > budget)
+        return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("tui.decomposition.scalogram_memory")),
+                                                                          fmt::arg("need", format_si(static_cast<double>(need), tr("unit.byte"))),
+                                                                          fmt::arg("budget", format_si(static_cast<double>(budget), tr("unit.byte")))));
     std::vector<double> scales(out.rows);
     for (std::size_t r = 0; r < out.rows; ++r) {
         out.freq_hz.push_back(hi * std::pow(lo / hi, static_cast<double>(r) / static_cast<double>(out.rows - 1)));
@@ -690,7 +710,9 @@ void DecompositionModel::request_scalogram(JobRunner& jobs) {
     std::uint64_t gen = 0;
     {
         std::lock_guard lock{mutex_};
+        if (d->source.lock() != s) return;
         if (scalogram_for_.lock() == s && scalogram_channel_ == d->options.channel) return;
+        scalogram_.reset();
         if (scalogram_job_) jobs.cancel(*scalogram_job_);
         scalogram_job_.reset();
         scalogram_error_.reset();
@@ -699,9 +721,9 @@ void DecompositionModel::request_scalogram(JobRunner& jobs) {
         gen = ++scalogram_gen_;
     }
     constexpr std::size_t kScalogramColumns = 512;
-    const auto id = jobs.submit(tr("tui.decomposition.job_scalogram"), {tr("tui.decomposition.stage.scalogram")}, [this, d, s, gen](JobContext& ctx) {
+    const auto id = jobs.submit(tr("tui.decomposition.job_scalogram"), {tr("tui.decomposition.stage.scalogram")}, [this, d, s, gen, budget = budget_](JobContext& ctx) {
         ctx.begin(0);
-        auto out = compute_scalogram(d->x, d->fs, kScalogramColumns, &ctx);
+        auto out = compute_scalogram(d->x, d->fs, kScalogramColumns, &ctx, budget);
         if (!out) {
             ctx.fail(out.error().message);
             std::lock_guard lock{mutex_};

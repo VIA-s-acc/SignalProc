@@ -12,6 +12,8 @@
 #include <ftxui/component/event.hpp>
 
 #include "audio/manual_sink.hpp"
+#include "core/memory.hpp"
+#include "io/wav.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/decomposition_screen.hpp"
@@ -644,3 +646,101 @@ TEST_CASE("clicking the active transform chip keeps the band choices", "[tui][de
     f.h.frame();
     CHECK(f.model->enabled() == before);
 }
+
+TEST_CASE("a new file never shows the previous file's scalogram", "[tui][decomposition][scalogram][review]") {
+    JobRunner inline_jobs{[] {}, 0ms, true};
+    JobRunner jobs{[] {}, 0ms, false};
+    auto signal = std::make_shared<SignalModel>();
+    signal->open(signals::test::sample("test.wav"), inline_jobs);
+    DecompositionModel model{signal};
+    auto idle = [&] {
+        for (int i = 0; i < 3000 && model.job(); ++i) std::this_thread::sleep_for(5ms);
+    };
+    model.sync(jobs);
+    idle();
+    model.request_scalogram(jobs);
+    idle();
+    REQUIRE(model.scalogram());
+    signals::core::AudioBuffer tone;
+    tone.sample_rate = 8000;
+    tone.channels.emplace_back(24000);
+    for (std::size_t k = 0; k < 24000; ++k) tone.channels[0][k] = 0.5 * std::sin(2 * std::numbers::pi * 700 * static_cast<double>(k) / 8000);
+    const auto path = signals::test::temp_path("scalogram-switch.wav");
+    REQUIRE(signals::io::write_wav(path, tone, {}));
+    signal->open(path, inline_jobs);
+    for (int i = 0; i < 5; ++i) {
+        model.sync(jobs);
+        if (model.data()) model.request_scalogram(jobs);
+        idle();
+    }
+    const auto d = model.data();
+    REQUIRE(d);
+    REQUIRE(d->fs == 8000);
+    const auto shown = model.scalogram();
+    REQUIRE(shown);
+    const auto fresh = compute_scalogram(d->x, d->fs, 512);
+    REQUIRE(fresh);
+    REQUIRE(shown->db.size() == fresh->db.size());
+    CHECK(shown->db == fresh->db);
+}
+
+TEST_CASE("the scalogram of a long file decimates within a memory budget", "[tui][decomposition][scalogram][review]") {
+    const double fs = 8000;
+    std::vector<double> x((std::size_t{1} << 21) + 1000);
+    for (std::size_t k = 0; k < x.size(); ++k) x[k] = std::sin(2 * std::numbers::pi * 500 * static_cast<double>(k) / fs);
+    CHECK_FALSE(compute_scalogram(x, fs, 64, nullptr, std::size_t{1} << 20));
+    const auto s = compute_scalogram(x, fs, 64, nullptr, std::size_t{1} << 30);
+    REQUIRE(s);
+    CHECK(s->decimation == 3);
+    std::size_t best = 0;
+    double best_power = -1;
+    for (std::size_t r = 0; r < s->rows; ++r) {
+        double power = 0;
+        for (std::size_t c = 16; c < 48; ++c) power += std::pow(10.0, s->db[r * s->cols + c] / 10);
+        if (power > best_power) best_power = power, best = r;
+    }
+    CHECK(std::abs(std::log2(s->freq_hz[best] / 500)) < 0.2);
+}
+
+TEST_CASE("the packet selection follows a smaller J", "[tui][decomposition][packets][review]") {
+    DecompositionFixture f;
+    auto o = f.model->options();
+    o.levels = 10;
+    f.model->set_options(o, f.jobs);
+    f.screen->set_view(DecompositionScreen::View::packets);
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    for (int i = 0; i < 10; ++i) f.h.send(ftxui::Event::ArrowDown);
+    CHECK(f.screen->packet_selection().level == 10);
+    o.levels = 5;
+    f.model->set_options(o, f.jobs);
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    CHECK(f.screen->packet_selection().level == 5);
+    f.h.send(ftxui::Event::Return);
+    const auto b = f.model->basis();
+    CHECK(std::ranges::find(b, f.screen->packet_selection()) != b.end());
+}
+
+TEST_CASE("a recomputed decomposition releases the old packet tree", "[tui][decomposition][packets][review]") {
+    DecompositionFixture f;
+    const auto coefficients = [] { return signals::core::tracked_memory()[static_cast<std::size_t>(signals::core::MemoryCategory::coefficients)]; };
+    const auto before = coefficients();
+    f.screen->set_view(DecompositionScreen::View::packets);
+    f.h.frame();
+    std::size_t tree = 0;
+    {
+        const auto p = f.model->packets();
+        REQUIRE(p);
+        tree = p->memory.bytes();
+    }
+    REQUIRE(tree > 0);
+    CHECK(coefficients() >= before + tree);
+    f.screen->set_view(DecompositionScreen::View::subbands);
+    auto o = f.model->options();
+    o.wavelet = "db4";
+    f.model->set_options(o, f.jobs);
+    f.h.frame();
+    CHECK(coefficients() + tree / 2 < before + tree);
+}
+

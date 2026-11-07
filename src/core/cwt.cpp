@@ -102,25 +102,23 @@ Result<void> cwt_rows(std::span<const double> x, std::span<const double> scales,
         int_psi[i] = w.complex() ? std::conj(run * step) : run * step;
     }
     const auto n = x.size();
-    std::vector<std::vector<std::size_t>> picks(scales.size());
+    std::vector<std::size_t> lengths(scales.size());
     std::size_t longest = 0;
+    auto pick = [&](std::size_t i, std::size_t k) { return static_cast<std::size_t>(static_cast<double>(k) / (scales[i] * step)); };
     for (std::size_t i = 0; i < scales.size(); ++i) {
         const double s = scales[i];
         if (!std::isfinite(s) || s <= 0) return make_error(Errc::invalid_argument, "cwt: scales must be positive");
         const double count = std::ceil(s * (f.x.back() - f.x.front()) + 1);
         if (count > static_cast<double>(kMaxLength)) return make_error(Errc::invalid_argument, "cwt: scale too large");
-        const double denom = s * step;
-        for (std::size_t k = 0; k < static_cast<std::size_t>(count); ++k) {
-            const auto j = static_cast<std::size_t>(static_cast<double>(k) / denom);
-            if (j < int_psi.size()) picks[i].push_back(j);
-        }
-        if (picks[i].size() < 2) return make_error(Errc::invalid_argument, "cwt: scale " + std::to_string(s) + " too small");
-        longest = std::max(longest, picks[i].size());
+        for (std::size_t k = 0; k < static_cast<std::size_t>(count); ++k)
+            if (pick(i, k) < int_psi.size()) ++lengths[i];
+        if (lengths[i] < 2) return make_error(Errc::invalid_argument, "cwt: scale " + std::to_string(s) + " too small");
+        longest = std::max(longest, lengths[i]);
     }
     if (n + longest - 1 > kMaxLength) return make_error(Errc::invalid_argument, "cwt: signal and wavelet too long");
     std::vector<std::complex<double>> row(n);
     auto emit = [&](std::size_t i, auto&& conv_at) {
-        const auto offset = (picks[i].size() - 2) / 2;
+        const auto offset = (lengths[i] - 2) / 2;
         const double gain = -std::sqrt(scales[i]);
         for (std::size_t t = 0; t < n; ++t) row[t] = gain * (conv_at(t + offset + 1) - conv_at(t + offset));
         out(i, row);
@@ -136,9 +134,9 @@ Result<void> cwt_rows(std::span<const double> x, std::span<const double> scales,
         pocketfft::r2c(shape, real_stride, complex_stride, 0, pocketfft::FORWARD, buffer.data(), spectrum.data(), 1.0);
         for (std::size_t i = 0; i < scales.size(); ++i) {
             if (progress && progress->cancelled()) return std::unexpected{cancelled_error("cwt")};
-            const auto& j = picks[i];
+            const auto len = lengths[i];
             std::fill(buffer.begin(), buffer.end(), 0.0);
-            for (std::size_t k = 0; k < j.size(); ++k) buffer[k] = int_psi[j[j.size() - 1 - k]].real();
+            for (std::size_t k = 0; k < len; ++k) buffer[len - 1 - k] = int_psi[pick(i, k)].real();
             pocketfft::r2c(shape, real_stride, complex_stride, 0, pocketfft::FORWARD, buffer.data(), kernel.data(), 1.0);
             for (std::size_t k = 0; k < kernel.size(); ++k) kernel[k] *= spectrum[k];
             pocketfft::c2r(shape, complex_stride, real_stride, 0, pocketfft::BACKWARD, kernel.data(), buffer.data(), 1.0 / static_cast<double>(m));
@@ -154,9 +152,9 @@ Result<void> cwt_rows(std::span<const double> x, std::span<const double> scales,
     pocketfft::c2c(shape, stride, stride, {0}, pocketfft::FORWARD, conv.data(), spectrum.data(), 1.0);
     for (std::size_t i = 0; i < scales.size(); ++i) {
         if (progress && progress->cancelled()) return std::unexpected{cancelled_error("cwt")};
-        const auto& j = picks[i];
+        const auto len = lengths[i];
         std::fill(conv.begin(), conv.end(), std::complex<double>{});
-        for (std::size_t k = 0; k < j.size(); ++k) conv[k] = int_psi[j[j.size() - 1 - k]];
+        for (std::size_t k = 0; k < len; ++k) conv[len - 1 - k] = int_psi[pick(i, k)];
         pocketfft::c2c(shape, stride, stride, {0}, pocketfft::FORWARD, conv.data(), kernel.data(), 1.0);
         for (std::size_t k = 0; k < m; ++k) kernel[k] *= spectrum[k];
         pocketfft::c2c(shape, stride, stride, {0}, pocketfft::BACKWARD, kernel.data(), conv.data(), 1.0 / static_cast<double>(m));

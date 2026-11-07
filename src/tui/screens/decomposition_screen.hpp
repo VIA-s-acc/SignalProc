@@ -43,6 +43,7 @@ public:
     View view() const { return view_; }
     void set_view(View v) { view_ = v; }
     std::optional<int> packet_row(std::size_t level) const;
+    core::PacketNode packet_selection() const { return {pk_level_, core::natural_index_at(pk_level_, pk_pos_)}; }
     std::size_t selected_band() const { return selected_; }
     std::optional<double> cursor() const { return cursor_; }
     void set_cursor(double t);

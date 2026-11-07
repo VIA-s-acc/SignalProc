@@ -670,6 +670,7 @@
   "tui.decomposition.stage.tiles": "energy and tiles",
   "tui.decomposition.stage.recon": "reconstruction",
   "tui.decomposition.mra_skipped": "MRA skipped: need {need}, more than half of memory",
+  "tui.decomposition.scalogram_memory": "The scalogram does not fit in memory: needs {need}, {budget} available",
   "tui.decomposition.scalogram_short": "The signal is too short for a scalogram",
   "tui.decomposition.job_scalogram": "CWT scalogram",
   "tui.decomposition.stage.scalogram": "Morlet scales",
