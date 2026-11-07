@@ -14,6 +14,7 @@
 #include "tui/screens/filters_screen.hpp"
 #include "tui/screens/matrix_screen.hpp"
 #include "tui/screens/signal_screen.hpp"
+#include "tui/screens/spectrum_screen.hpp"
 #include "tui/screens/theory_screen.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/shell/subtabs.hpp"
@@ -23,6 +24,7 @@ namespace signals::tui {
 AppModels make_app_models() {
     AppModels m;
     m.signal = std::make_shared<SignalModel>();
+    m.spectrum = std::make_shared<SpectrumModel>(m.signal);
     m.comparison = std::make_shared<ComparisonSet>();
     for (auto role : {FilterRole::h0, FilterRole::h1}) (void)m.comparison->add({FilterRef::Kind::bank, "db2", role});
     m.designer = std::make_shared<DesignerModel>();
@@ -36,6 +38,7 @@ AppModels make_app_models() {
 std::vector<std::shared_ptr<TabScreen>> make_app_screens(UiContext& ui, AppModels& models) {
     auto screens = placeholder_screens(ui);
     screens[0] = make_signal_screen(ui, models.signal);
+    screens[1] = make_spectrum_screen(ui, models.spectrum);
     screens[2] = make_filters_screen(ui, models.comparison);
     if (ui.jobs) models.designer->set_p(3, *ui.jobs);
     screens[3] = make_subtabs(tr("tui.tab.bank"), {{tr("tui.sub.designer"), make_designer_screen(ui, models.designer)},

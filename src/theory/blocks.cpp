@@ -44,6 +44,7 @@ constexpr std::array<V, 1> kDelay{"block.samples"};
 constexpr std::array<V, 0> kNone{};
 constexpr std::array<V, 2> kCut{"block.begin", "block.end"};
 constexpr std::array<V, 3> kListen{"block.clip", "block.rate", "metric.position"};
+constexpr std::array<V, 7> kStft{"block.n", "block.hop", "block.overlap", "block.rate", "metric.dt", "metric.df", "metric.frames"};
 
 constexpr std::array kCatalog{
     BlockSpec{"halfband", "Half-band P(z) and its splits", "fb-maxflat", Tier::core, kHalfband},
@@ -75,6 +76,7 @@ constexpr std::array kCatalog{
     BlockSpec{"reverse", "Time reversal", "conv-signals", Tier::core, kNone},
     BlockSpec{"cut", "Cut a fragment", "conv-signals", Tier::core, kCut},
     BlockSpec{"listen", "Listening", "num-formats", Tier::core, kListen},
+    BlockSpec{"stft", "STFT spectrogram", "stft", Tier::v1, kStft},
 };
 
 }  // namespace

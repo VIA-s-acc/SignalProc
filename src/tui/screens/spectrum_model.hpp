@@ -49,6 +49,7 @@ struct GridSpec {
     bool log = true;
     double fmin = 30, floor_db = -90;
     double t0 = 0, t1 = 0;
+    friend bool operator==(const GridSpec&, const GridSpec&) = default;
 };
 
 std::vector<double> spectrogram_grid(const SpectrogramData& s, const GridSpec& g);

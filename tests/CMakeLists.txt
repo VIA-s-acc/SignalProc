@@ -68,6 +68,7 @@ add_executable(signals_tests
   tui/test_decomposition_model.cpp
   tui/test_decomposition_screen.cpp
   tui/test_spectrum_model.cpp
+  tui/test_spectrum_screen.cpp
   tui/test_matrix_model.cpp
   tui/test_matrix_screen.cpp
   tui/test_app_screens.cpp
