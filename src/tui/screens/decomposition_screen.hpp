@@ -22,7 +22,7 @@ namespace signals::tui {
 
 class DecompositionScreen final : public TabScreen {
 public:
-    enum class View { subbands, mra, tiles };
+    enum class View { subbands, mra, tiles, packets, scalogram };
 
     DecompositionScreen(UiContext& ui, std::shared_ptr<DecompositionModel> model);
 
@@ -41,6 +41,9 @@ public:
 
     ftxui::Box area(std::string_view id) const;
     View view() const { return view_; }
+    void set_view(View v) { view_ = v; }
+    std::optional<int> packet_row(std::size_t level) const;
+    core::PacketNode packet_selection() const { return {pk_level_, core::natural_index_at(pk_level_, pk_pos_)}; }
     std::size_t selected_band() const { return selected_; }
     std::optional<double> cursor() const { return cursor_; }
     void set_cursor(double t);
@@ -61,6 +64,11 @@ private:
     ftxui::Element more_row(bool up, std::size_t count) const;
     ftxui::Element time_axis(int width) const;
     ftxui::Element energy_panel(const DecompositionData& d, int max_rows, int width, bool wide);
+    ftxui::Element packets_body(const PacketData& p, int width, int max_rows);
+    ftxui::Element scalogram_body(const ScalogramData& s, int width, int max_rows);
+    ftxui::Element packets_energy(const PacketData& p, int max_rows, int width);
+    void pick_packet(core::PacketNode n);
+    bool packet_key(const ftxui::Event& e, const PacketData& p);
     ftxui::Element cursor_body(const DecompositionData& d, const Reconstruction* r, int max_rows);
     void select(std::size_t band);
     ftxui::Element denoise_panel(const DecompositionData& d, const Reconstruction* r);
@@ -93,6 +101,9 @@ private:
     std::size_t band_first_ = 0, energy_first_ = 0, cursor_first_ = 0;
     bool follow_ = true;
     std::vector<ftxui::Box> label_boxes_;
+    std::vector<ftxui::Box> packet_boxes_;
+    std::vector<std::size_t> packet_levels_;
+    std::size_t packet_first_ = 0, pk_level_ = 0, pk_pos_ = 0;
     Processing draft_;
     std::string notice_;
     struct Drag {

@@ -5,12 +5,15 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "audio/player.hpp"
 #include "core/extension.hpp"
+#include "core/packets.hpp"
+#include "core/progress.hpp"
 #include "core/memory.hpp"
 #include "core/process/shrink.hpp"
 #include "core/process/threshold.hpp"
@@ -49,6 +52,7 @@ struct DecompositionData {
     DecompositionOptions options;
     double fs = 0;
     std::vector<double> x;
+    std::weak_ptr<const SignalData> source;
     std::vector<float> x_float;
     std::optional<MinMaxPyramid> x_pyramid;
     core::BasicCoeffs<double> coeffs;
@@ -87,6 +91,37 @@ struct Reconstruction {
     core::TrackedBytes memory;
 };
 
+struct PacketNodeInfo {
+    core::PacketNode node;
+    double lo_hz = 0, hi_hz = 0, energy_pct = 0, cost = 0;
+};
+
+struct PacketData {
+    DecompositionOptions options;
+    std::weak_ptr<const DecompositionData> source;
+    core::PacketTree tree;
+    std::vector<std::vector<PacketNodeInfo>> table;
+    std::vector<double> level_cost;
+    std::vector<core::PacketNode> best;
+    double best_cost = 0, dwt_cost = 0, root_cost = 0, norm2 = 0;
+    core::TrackedBytes memory;
+    const PacketNodeInfo& info(core::PacketNode n) const { return table[n.level][core::freq_position(n)]; }
+};
+
+struct ScalogramData {
+    std::size_t rows = 0, cols = 0;
+    std::vector<double> db;
+    std::vector<std::uint8_t> coi;
+    std::vector<double> freq_hz;
+    std::size_t decimation = 1;
+    std::weak_ptr<const SignalData> signal;
+    int channel = -1;
+    core::TrackedBytes memory;
+};
+
+core::Result<ScalogramData> compute_scalogram(std::span<const double> x, double fs, std::size_t cols, core::ProgressSink* progress = nullptr,
+                                              std::size_t budget = 0);
+
 enum class ClipKind { original, enabled, difference, band };
 
 class DecompositionModel {
@@ -113,6 +148,19 @@ public:
     std::shared_ptr<const SignalData> source() const { return source_->data(); }
     std::optional<audio::Clip> clip(ClipKind kind, std::size_t band = 0) const;
 
+    void request_packets(JobRunner& jobs);
+    std::shared_ptr<const PacketData> packets() const;
+    std::optional<std::string> packets_error() const;
+    std::vector<core::PacketNode> basis() const;
+    bool set_basis(std::vector<core::PacketNode> b);
+    void make_leaf(core::PacketNode n);
+    double basis_cost() const;
+    double basis_pr_error() const;
+
+    void request_scalogram(JobRunner& jobs);
+    std::shared_ptr<const ScalogramData> scalogram() const;
+    std::optional<std::string> scalogram_error() const;
+
 private:
     void compute(JobRunner& jobs);
     void reconstruct(JobRunner& jobs);
@@ -132,6 +180,19 @@ private:
     std::optional<std::uint64_t> data_job_, recon_job_;
     std::uint64_t data_gen_ = 0, recon_gen_ = 0, data_done_ = 0, recon_done_ = 0;
     bool recon_pending_ = false, cancelled_ = false;
+    std::shared_ptr<const PacketData> packets_;
+    std::vector<core::PacketNode> basis_;
+    double basis_pr_ = 0;
+    std::optional<std::string> packets_error_;
+    std::weak_ptr<const DecompositionData> packets_for_;
+    std::optional<std::uint64_t> packets_job_;
+    std::uint64_t packets_gen_ = 0, packets_done_ = 0;
+    std::shared_ptr<const ScalogramData> scalogram_;
+    std::optional<std::string> scalogram_error_;
+    std::weak_ptr<const SignalData> scalogram_for_;
+    int scalogram_channel_ = -1;
+    std::optional<std::uint64_t> scalogram_job_;
+    std::uint64_t scalogram_gen_ = 0, scalogram_done_ = 0;
 };
 
 }  // namespace signals::tui

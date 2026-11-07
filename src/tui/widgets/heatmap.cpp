@@ -34,18 +34,23 @@ public:
         for (int cy = 0; cy < H; ++cy)
             for (int cx = 0; cx < W; ++cx) {
                 const auto top = level(cx, 2 * cy, W, H), bottom = level(cx, 2 * cy + 1, W, H);
+                const bool top_shaded = shaded_at(cx, 2 * cy, W, H), bottom_shaded = shaded_at(cx, 2 * cy + 1, W, H);
                 auto& cell = screen.CellAt(box_.x_min + cx, box_.y_min + cy);
                 const bool shaded = glyphs_ == GlyphMode::ascii || depth_ == ColorDepth::ansi16 || depth_ == ColorDepth::none;
                 if (shaded) {
                     const double t = top && bottom ? (*top + *bottom) / 2 : top ? *top : bottom ? *bottom : 0.0;
                     cell.character = glyphs_ == GlyphMode::ascii ? ascii[static_cast<std::size_t>(std::lround(t * 9))]
                                                                  : shades[static_cast<std::size_t>(std::lround(t * 4))];
-                    cell.foreground_color = to_color(theme_.fg, depth_);
+                    cell.foreground_color = to_color(top_shaded ? theme_.dim : theme_.fg, depth_);
                     continue;
                 }
+                auto paint = [&](const std::optional<double>& v, bool dim) {
+                    if (!v) return theme_.bg;
+                    return dim ? tint(viridis(*v), theme_.bg, 0.5) : viridis(*v);
+                };
                 cell.character = "▀";
-                cell.foreground_color = to_color(top ? viridis(*top) : theme_.bg, depth_);
-                cell.background_color = to_color(bottom ? viridis(*bottom) : theme_.bg, depth_);
+                cell.foreground_color = to_color(paint(top, top_shaded), depth_);
+                cell.background_color = to_color(paint(bottom, bottom_shaded), depth_);
             }
     }
 
@@ -82,6 +87,12 @@ private:
                 out.foreground_color = to_color(colour(r0, c0), depth_);
                 out.background_color = to_color(colour(r1, c1), depth_);
             }
+    }
+
+    bool shaded_at(int cx, int py, int W, int H) const {
+        if (spec_.shade.size() < spec_.rows * spec_.cols) return false;
+        const auto [row, col] = cell(cx, py, W, H);
+        return spec_.shade[row * spec_.cols + col] != 0;
     }
 
     std::optional<double> level(int cx, int py, int W, int H) const {

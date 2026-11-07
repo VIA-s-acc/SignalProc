@@ -146,6 +146,20 @@ void bench_tui(const std::filesystem::path& ten_minutes) {
     b.run("frame «Разложение» while playing B", [&] { draw(decomposition_shell); });
     player.stop();
     ui->player = nullptr;
+    decomposition->set_view(DecompositionScreen::View::packets);
+    draw(decomposition_shell);
+    b.run("frame «Разложение», packets J = 6", [&] { draw(decomposition_shell); });
+    {
+        const auto samples = decomposition_model->data()->x;
+        const double rate = decomposition_model->data()->fs;
+        ankerl::nanobench::Bench once;
+        once.title("Scalogram, release").epochs(1).epochIterations(3);
+        once.run("Morlet scalogram of test.wav, 512 columns", [&] { ankerl::nanobench::doNotOptimizeAway(compute_scalogram(samples, rate, 512)); });
+    }
+    decomposition->set_view(DecompositionScreen::View::scalogram);
+    draw(decomposition_shell);
+    b.run("frame «Разложение», scalogram", [&] { draw(decomposition_shell); });
+    decomposition->set_view(DecompositionScreen::View::subbands);
 
     auto matrix_model = std::make_shared<MatrixModel>();
     auto matrix_shell = make_shell(*ui, {std::make_shared<MatrixScreen>(*ui, matrix_model)}, [] {});

@@ -2,6 +2,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
+#include <cmath>
+#include <numbers>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -10,6 +12,8 @@
 #include <ftxui/component/event.hpp>
 
 #include "audio/manual_sink.hpp"
+#include "core/memory.hpp"
+#include "io/wav.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/decomposition_screen.hpp"
@@ -88,7 +92,7 @@ TEST_CASE("arrows and enter toggle the selected band", "[tui][decomposition]") {
     CHECK(f.h.frame().find("☐ d₃") != std::string::npos);
 }
 
-TEST_CASE("v cycles subbands, MRA and tiles", "[tui][decomposition]") {
+TEST_CASE("v cycles subbands, MRA, tiles, packets and the scalogram", "[tui][decomposition]") {
     DecompositionFixture f;
     CHECK(f.screen->view() == DecompositionScreen::View::subbands);
     f.h.send(ftxui::Event::Character('v'));
@@ -97,6 +101,12 @@ TEST_CASE("v cycles subbands, MRA and tiles", "[tui][decomposition]") {
     f.h.send(ftxui::Event::Character('v'));
     CHECK(f.screen->view() == DecompositionScreen::View::tiles);
     CHECK(f.h.frame().find("Плитки t–f") != std::string::npos);
+    f.h.send(ftxui::Event::Character('v'));
+    CHECK(f.screen->view() == DecompositionScreen::View::packets);
+    CHECK(f.h.frame().find("Пакеты · клик по узлу") != std::string::npos);
+    f.h.send(ftxui::Event::Character('v'));
+    CHECK(f.screen->view() == DecompositionScreen::View::scalogram);
+    CHECK(f.h.frame().find("Скалограмма · CWT") != std::string::npos);
     f.h.send(ftxui::Event::Character('v'));
     CHECK(f.screen->view() == DecompositionScreen::View::subbands);
 }
@@ -128,11 +138,6 @@ TEST_CASE("b plays the enabled bands from the cursor and a and x switch in place
     CHECK(f.player.state() == signals::audio::PlayState::stopped);
 }
 
-TEST_CASE("M6 chips explain when they arrive", "[tui][decomposition]") {
-    DecompositionFixture f;
-    f.click("chip_packets");
-    CHECK(f.h.frame().find("появится в M6") != std::string::npos);
-}
 
 TEST_CASE("wheel zooms time and a click sets the cursor", "[tui][decomposition]") {
     DecompositionFixture f;
@@ -398,6 +403,180 @@ TEST_CASE("the denoise panel works on SWT bands", "[tui][decomposition][swt]") {
     CHECK(r->energy_kept_pct < 100);
 }
 
+TEST_CASE("the packets chip shows the packet table with the best basis", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    f.click("chip_packets");
+    CHECK(f.screen->view() == DecompositionScreen::View::packets);
+    f.h.frame();
+    const auto p = f.model->packets();
+    REQUIRE(p);
+    const auto J = f.model->options().levels;
+    CHECK(p->table.size() == J + 1);
+    for (std::size_t j = 0; j <= J; ++j) CHECK(p->table[j].size() == (std::size_t{1} << j));
+    CHECK(f.model->basis() == p->best);
+    CHECK(signals::core::admissible(f.model->basis(), J));
+    CHECK(p->best_cost <= p->dwt_cost + 1e-12);
+    CHECK(p->best_cost <= p->root_cost + 1e-12);
+    CHECK(f.model->basis_pr_error() < 1e-9);
+    const auto frame = f.h.frame();
+    CHECK(frame.find("L0") != std::string::npos);
+    CHECK(frame.find("L" + std::to_string(J)) != std::string::npos);
+}
+
+TEST_CASE("make_leaf keeps the basis admissible and B, W restore presets", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    f.click("chip_packets");
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    const auto J = f.model->options().levels;
+    f.model->make_leaf({1, 0});
+    auto b = f.model->basis();
+    CHECK(signals::core::admissible(b, J));
+    CHECK(std::ranges::find(b, signals::core::PacketNode{1, 0}) != b.end());
+    CHECK(f.model->basis_pr_error() < 1e-9);
+    const signals::core::PacketNode deep{J, (std::size_t{1} << J) - 1};
+    f.model->make_leaf(deep);
+    b = f.model->basis();
+    CHECK(signals::core::admissible(b, J));
+    CHECK(std::ranges::find(b, deep) != b.end());
+    CHECK(std::ranges::find(b, signals::core::PacketNode{1, 0}) != b.end());
+    f.h.send(ftxui::Event::Character('W'));
+    CHECK(f.model->basis() == signals::core::dwt_basis(J));
+    CHECK(f.model->basis_pr_error() < 1e-9);
+    f.h.send(ftxui::Event::Character('B'));
+    CHECK(f.model->basis() == f.model->packets()->best);
+    CHECK_FALSE(f.model->set_basis({{1, 0}}));
+}
+
+TEST_CASE("arrows and Enter pick a packet node on the keyboard", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    f.click("chip_packets");
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    f.h.send(ftxui::Event::ArrowDown);
+    f.h.send(ftxui::Event::ArrowRight);
+    f.h.send(ftxui::Event::Return);
+    const auto b = f.model->basis();
+    CHECK(std::ranges::find(b, signals::core::PacketNode{1, signals::core::natural_index_at(1, 1)}) != b.end());
+}
+
+TEST_CASE("a click on a narrow packet table picks the node under the mouse", "[tui][decomposition][packets]") {
+    DecompositionFixture f{true, 80, 24};
+    auto o = f.model->options();
+    o.levels = 12;
+    f.model->set_options(o, f.jobs);
+    f.h.frame();
+    f.screen->set_view(DecompositionScreen::View::packets);
+    const auto frame = f.h.frame();
+    REQUIRE(f.model->packets());
+    CHECK(frame.find("L12") != std::string::npos);
+    const auto table = f.screen->area("packet_table");
+    REQUIRE(table.x_max > table.x_min);
+    CHECK(table.x_max < 80);
+    const int width = table.x_max - table.x_min + 1;
+    const auto row = f.screen->packet_row(12);
+    REQUIRE(row);
+    f.h.click(table.x_min + 2, *row);
+    const auto k = (2 * (std::size_t{1} << 12) + (std::size_t{1} << 11)) / static_cast<std::size_t>(width);
+    const auto b = f.model->basis();
+    CHECK(std::ranges::find(b, signals::core::PacketNode{12, signals::core::natural_index_at(12, k)}) != b.end());
+}
+
+TEST_CASE("a new wavelet recomputes packets and hides the stale table", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    f.click("chip_packets");
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    auto o = f.model->options();
+    o.wavelet = "db4";
+    f.model->set_options(o, f.jobs);
+    CHECK_FALSE(f.model->packets());
+    f.h.frame();
+    const auto p = f.model->packets();
+    REQUIRE(p);
+    CHECK(p->options.wavelet == "db4");
+}
+
+
+TEST_CASE("the scalogram peaks at the tone and marks the cone of influence", "[tui][decomposition][scalogram]") {
+    const double fs = 8000;
+    std::vector<double> x(16000);
+    for (std::size_t k = 0; k < x.size(); ++k) x[k] = std::sin(2 * std::numbers::pi * 1000 * static_cast<double>(k) / fs);
+    const auto s = compute_scalogram(x, fs, 64);
+    REQUIRE(s);
+    CHECK(s->cols == 64);
+    REQUIRE(s->rows == s->freq_hz.size());
+    REQUIRE(s->rows > 8);
+    REQUIRE(s->db.size() == s->rows * s->cols);
+    REQUIRE(s->coi.size() == s->rows * s->cols);
+    for (const double v : s->db) {
+        CHECK(std::isfinite(v));
+        CHECK(v <= 0);
+        CHECK(v >= -48);
+    }
+    CHECK(s->freq_hz.front() == Catch::Approx(0.4 * fs));
+    CHECK(s->freq_hz.front() > s->freq_hz.back());
+    std::size_t best = 0, nearest = 0;
+    double best_power = -1;
+    for (std::size_t r = 0; r < s->rows; ++r) {
+        double power = 0;
+        for (std::size_t c = 16; c < 48; ++c) power += std::pow(10.0, s->db[r * s->cols + c] / 10);
+        if (power > best_power) best_power = power, best = r;
+        if (std::abs(std::log(s->freq_hz[r] / 1000)) < std::abs(std::log(s->freq_hz[nearest] / 1000))) nearest = r;
+    }
+    CHECK((best > nearest ? best - nearest : nearest - best) <= 1);
+    const auto last = s->rows - 1;
+    CHECK(s->coi[last * s->cols] == 1);
+    CHECK(s->coi[last * s->cols + s->cols - 1] == 1);
+    CHECK(s->coi[s->cols / 2] == 0);
+    CHECK_FALSE(compute_scalogram(std::vector<double>(10, 1.0), fs, 64));
+}
+
+TEST_CASE("the scalogram chip shows the CWT heat map", "[tui][decomposition][scalogram]") {
+    DecompositionFixture f;
+    f.click("chip_scalogram");
+    CHECK(f.screen->view() == DecompositionScreen::View::scalogram);
+    const auto frame = f.h.frame();
+    REQUIRE(f.model->scalogram());
+    CHECK(frame.find("Скалограмма · CWT") != std::string::npos);
+    CHECK(f.screen->theory_link()->id == "cwt");
+}
+
+TEST_CASE("the scalogram survives a new wavelet and follows a new channel", "[tui][decomposition][scalogram]") {
+    DecompositionFixture f;
+    f.screen->set_view(DecompositionScreen::View::scalogram);
+    f.h.frame();
+    const auto first = f.model->scalogram();
+    REQUIRE(first);
+    auto o = f.model->options();
+    o.wavelet = "db4";
+    f.model->set_options(o, f.jobs);
+    f.h.frame();
+    CHECK(f.model->scalogram() == first);
+    o.channel = 0;
+    f.model->set_options(o, f.jobs);
+    CHECK_FALSE(f.model->scalogram());
+    f.h.frame();
+    const auto second = f.model->scalogram();
+    REQUIRE(second);
+    CHECK(second != first);
+    CHECK(second->channel == 0);
+}
+
+TEST_CASE("the scalogram fits a small terminal and zooms in time", "[tui][decomposition][scalogram]") {
+    DecompositionFixture f{true, 80, 24};
+    f.screen->set_view(DecompositionScreen::View::scalogram);
+    f.h.frame();
+    REQUIRE(f.model->scalogram());
+    const auto box = f.screen->area("view_plot");
+    REQUIRE(box.x_max > box.x_min);
+    CHECK(box.x_max < 80);
+    const auto [b0, e0] = f.screen->time_view();
+    f.h.wheel((box.x_min + box.x_max) / 2, (box.y_min + box.y_max) / 2, true);
+    const auto [b1, e1] = f.screen->time_view();
+    CHECK(e1 - b1 < e0 - b0);
+}
+
 TEST_CASE("swt energy shares and parseval match modwt", "[tui][decomposition][swt][review]") {
     DecompositionFixture f;
     f.h.send(ftxui::Event::Character('t'));
@@ -467,3 +646,106 @@ TEST_CASE("clicking the active transform chip keeps the band choices", "[tui][de
     f.h.frame();
     CHECK(f.model->enabled() == before);
 }
+
+TEST_CASE("a new file never shows the previous file's scalogram", "[tui][decomposition][scalogram][review]") {
+    JobRunner inline_jobs{[] {}, 0ms, true};
+    JobRunner jobs{[] {}, 0ms, false};
+    auto tone = [](double f, std::size_t n, const std::string& name) {
+        signals::core::AudioBuffer a;
+        a.sample_rate = 8000;
+        a.channels.emplace_back(n);
+        for (std::size_t k = 0; k < n; ++k) a.channels[0][k] = 0.5 * std::sin(2 * std::numbers::pi * f * static_cast<double>(k) / 8000);
+        const auto path = signals::test::temp_path(name);
+        REQUIRE(signals::io::write_wav(path, a, {}));
+        return path;
+    };
+    const auto first = tone(300, 16000, "scalogram-switch-a.wav");
+    const auto second = tone(700, 24000, "scalogram-switch-b.wav");
+    auto signal = std::make_shared<SignalModel>();
+    signal->open(first, inline_jobs);
+    DecompositionModel model{signal};
+    auto idle = [&] {
+        for (int i = 0; i < 12000 && model.job(); ++i) std::this_thread::sleep_for(5ms);
+    };
+    model.sync(jobs);
+    idle();
+    model.request_scalogram(jobs);
+    idle();
+    REQUIRE(model.scalogram());
+    signal->open(second, inline_jobs);
+    for (int i = 0; i < 5; ++i) {
+        model.sync(jobs);
+        if (model.data()) model.request_scalogram(jobs);
+        idle();
+    }
+    const auto d = model.data();
+    REQUIRE(d);
+    REQUIRE(d->x.size() == 24000);
+    const auto shown = model.scalogram();
+    REQUIRE(shown);
+    const auto fresh = compute_scalogram(d->x, d->fs, 512);
+    REQUIRE(fresh);
+    REQUIRE(shown->db.size() == fresh->db.size());
+    CHECK(shown->db == fresh->db);
+}
+
+TEST_CASE("the scalogram of a long file decimates within a memory budget", "[tui][decomposition][scalogram][review]") {
+    const double fs = 8000;
+    std::vector<double> x((std::size_t{1} << 21) + 1000);
+    for (std::size_t k = 0; k < x.size(); ++k) x[k] = std::sin(2 * std::numbers::pi * 500 * static_cast<double>(k) / fs);
+    CHECK_FALSE(compute_scalogram(x, fs, 64, nullptr, std::size_t{1} << 20));
+    const auto s = compute_scalogram(x, fs, 64, nullptr, std::size_t{1} << 30);
+    REQUIRE(s);
+    CHECK(s->decimation == 3);
+    std::size_t best = 0;
+    double best_power = -1;
+    for (std::size_t r = 0; r < s->rows; ++r) {
+        double power = 0;
+        for (std::size_t c = 16; c < 48; ++c) power += std::pow(10.0, s->db[r * s->cols + c] / 10);
+        if (power > best_power) best_power = power, best = r;
+    }
+    CHECK(std::abs(std::log2(s->freq_hz[best] / 500)) < 0.2);
+}
+
+TEST_CASE("the packet selection follows a smaller J", "[tui][decomposition][packets][review]") {
+    DecompositionFixture f;
+    auto o = f.model->options();
+    o.levels = 10;
+    f.model->set_options(o, f.jobs);
+    f.screen->set_view(DecompositionScreen::View::packets);
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    for (int i = 0; i < 10; ++i) f.h.send(ftxui::Event::ArrowDown);
+    CHECK(f.screen->packet_selection().level == 10);
+    o.levels = 5;
+    f.model->set_options(o, f.jobs);
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    CHECK(f.screen->packet_selection().level == 5);
+    f.h.send(ftxui::Event::Return);
+    const auto b = f.model->basis();
+    CHECK(std::ranges::find(b, f.screen->packet_selection()) != b.end());
+}
+
+TEST_CASE("a recomputed decomposition releases the old packet tree", "[tui][decomposition][packets][review]") {
+    DecompositionFixture f;
+    const auto coefficients = [] { return signals::core::tracked_memory()[static_cast<std::size_t>(signals::core::MemoryCategory::coefficients)]; };
+    const auto before = coefficients();
+    f.screen->set_view(DecompositionScreen::View::packets);
+    f.h.frame();
+    std::size_t tree = 0;
+    {
+        const auto p = f.model->packets();
+        REQUIRE(p);
+        tree = p->memory.bytes();
+    }
+    REQUIRE(tree > 0);
+    CHECK(coefficients() >= before + tree);
+    f.screen->set_view(DecompositionScreen::View::subbands);
+    auto o = f.model->options();
+    o.wavelet = "db4";
+    f.model->set_options(o, f.jobs);
+    f.h.frame();
+    CHECK(coefficients() + tree / 2 < before + tree);
+}
+

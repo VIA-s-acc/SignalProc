@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -20,6 +21,7 @@ struct HeatmapSpec {
     HeatScale scale = HeatScale::viridis;
     std::optional<std::size_t> highlight_row = {};
     double zero = 1e-12;
+    std::vector<std::uint8_t> shade = {};
 };
 
 Rgb diverging_color(double v, double limit, const Theme& theme);
