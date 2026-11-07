@@ -58,17 +58,26 @@ std::string markdown_cell(std::string_view text) {
 
 std::string blocks_markdown() {
     std::string out = "# " + tr("docs.blocks.title") + "\n\n" + tr("docs.blocks.generated") + "\n\n";
-    out += "| " + tr("docs.blocks.col.block") + " | " + tr("docs.blocks.col.name") + " | " + tr("docs.blocks.col.inputs") + " | " +
-           tr("docs.blocks.col.outputs") + " | " + tr("docs.blocks.col.params") + " |\n|---|---|---|---|---|\n";
+    out += "| " + tr("docs.blocks.col.block") + " | " + tr("docs.blocks.col.name") + " | " + tr("docs.blocks.col.about") + " | " + tr("docs.blocks.col.inputs") +
+           " | " + tr("docs.blocks.col.outputs") + " | " + tr("docs.blocks.col.params") + " |\n|---|---|---|---|---|---|\n";
     for (const auto& b : block_types())
-        out += "| `" + markdown_cell(b.id) + "` | " + markdown_cell(block_title(b)) + " | " + markdown_cell(ports(b.inputs)) + " | " +
-               markdown_cell(ports(b.outputs)) + " | " + markdown_cell(params(b)) + " |\n";
+        out += "| `" + markdown_cell(b.id) + "` | " + markdown_cell(block_title(b)) + " | " + markdown_cell(tr_opt("pipeline.about." + b.id).value_or("—")) + " | " +
+               markdown_cell(ports(b.inputs)) + " | " + markdown_cell(ports(b.outputs)) + " | " + markdown_cell(params(b)) + " |\n";
+    out += "\n## " + tr("docs.blocks.params_title") + "\n";
+    for (const auto& b : block_types()) {
+        if (b.params.empty()) continue;
+        out += "\n### `" + b.id + "` — " + block_title(b) + "\n\n";
+        for (const auto& p : b.params) {
+            out += "- `" + p.name + "` — " + tr_opt("pipeline.param." + b.id + "." + p.name).value_or("—") + "\n";
+            for (const auto& v : p.choices) out += "  - `" + v + "` — " + tr_opt("pipeline.param." + b.id + "." + p.name + "." + v).value_or("—") + "\n";
+        }
+    }
     return out;
 }
 
 std::string blocks_text() {
     std::string out;
-    for (const auto& b : block_types()) out += fmt::format("{:<14} {}\n", b.id, block_title(b));
+    for (const auto& b : block_types()) out += fmt::format("{:<18} {} — {}\n", b.id, block_title(b), tr_opt("pipeline.about." + b.id).value_or(""));
     return out;
 }
 

@@ -30,6 +30,7 @@
 #include "tui/harness.hpp"
 #include "tui/screens/pipeline_model.hpp"
 #include "tui/screens/pipeline_canvas.hpp"
+#include "tui/widgets/text_util.hpp"
 #include "tui/screens/pipeline_screen.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/ui_fixture.hpp"
@@ -864,12 +865,18 @@ TEST_CASE("the inspector explains the picked parameter and its value, and the pi
     f.model->selection = {Selection::Kind::node, id, {}};
     f.h.frame();
     f.h.send(ftxui::Event::Return);
+    const auto start = [](const std::string& s) {
+        const auto cps = signals::tui::split_codepoints(s);
+        std::string out;
+        for (std::size_t k = 0; k < std::min<std::size_t>(cps.size(), 12); ++k) out += cps[k];
+        return out;
+    };
     auto frame = f.h.frame();
-    CHECK(frame.find(signals::tr("pipeline.param.check.kind")) != std::string::npos);
-    CHECK(frame.find(signals::tr("pipeline.param.check.kind.pr")) != std::string::npos);
+    CHECK(frame.find(start(signals::tr("pipeline.param.check.kind"))) != std::string::npos);
+    CHECK(frame.find(start(signals::tr("pipeline.param.check.kind.pr"))) != std::string::npos);
     f.h.send(ftxui::Event::ArrowRight);
     frame = f.h.frame();
-    CHECK(frame.find(signals::tr("pipeline.param.check.kind.error")) != std::string::npos);
+    CHECK(frame.find(start(signals::tr("pipeline.param.check.kind.error"))) != std::string::npos);
     std::vector<Command> items;
     f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
     f.h.send(ftxui::Event::ArrowDown);

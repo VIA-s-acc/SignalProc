@@ -695,3 +695,10 @@ TEST_CASE("a user filter named like a bank with an unknown role still resolves",
     CHECK(y.channels[0][0] == 0.25);
     core::set_named_filters({}, {});
 }
+
+TEST_CASE("cut with end 0 keeps the signal to its end", "[pipeline][explain]") {
+    const auto x = audio(run("samples", {}, {{"values", "1 2 3 4 5 6 7 8"}, {"rate", "8"}})[0]);
+    CHECK(audio(run("cut", {x}, {})[0]).channels[0].size() == 8);
+    CHECK(audio(run("cut", {x}, {{"begin", "2"}})[0]).channels[0] == std::vector<double>{3, 4, 5, 6, 7, 8});
+    CHECK(audio(run("cut", {x}, {{"begin", "2"}, {"end", "4"}})[0]).channels[0] == std::vector<double>{3, 4});
+}

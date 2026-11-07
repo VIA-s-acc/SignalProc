@@ -230,7 +230,7 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                        core::AudioBuffer result;
                        result.sample_rate = a.sample_rate;
                        for (const auto& c : a.channels) {
-                           auto piece = core::cut(c, *b, *e);
+                           auto piece = core::cut(c, *b, *e == 0 ? c.size() : *e);
                            if (!piece) return std::unexpected{piece.error()};
                            result.channels.push_back(std::move(*piece));
                        }
