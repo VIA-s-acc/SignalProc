@@ -196,6 +196,8 @@ ftxui::Element MatrixScreen::checks_panel(const MatrixData* d) {
         rows.push_back(hbox({paragraph(fmt::format(fmt::runtime(tr("tui.matrix.levinson_check")), fmt::arg("value", check_value(d->levinson_error)))) | flex, mark(d->levinson_error, 1e-10)}));
     if (d->gohberg_error)
         rows.push_back(hbox({paragraph(fmt::format(fmt::runtime(tr("tui.matrix.gohberg_check")), fmt::arg("value", check_value(d->gohberg_error)))) | flex, mark(d->gohberg_error, 1e-8)}));
+    else if (d->gohberg_refusal)
+        rows.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.matrix.gohberg_refused")), fmt::arg("reason", *d->gohberg_refusal))) | fg(th.warn, ui_));
     if (!d->singular.empty())
         rows.push_back(paragraph(fmt::format(fmt::runtime(tr("tui.matrix.singular")), fmt::arg("hi", format_number(d->singular.front())),
                                         fmt::arg("lo", format_number(d->singular.back())), fmt::arg("cond", format_number(d->cond)))) |

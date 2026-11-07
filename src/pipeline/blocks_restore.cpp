@@ -35,6 +35,8 @@ void register_restore_blocks(std::vector<BlockType>& out) {
                    [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
                        const auto& x = audio_in(in, 0);
                        const auto& d = audio_in(in, 1);
+                       if (x.channels.empty()) return core::make_error(core::Errc::invalid_argument, "lms: input x has no channels");
+                       if (d.channels.empty()) return core::make_error(core::Errc::invalid_argument, "lms: input d has no channels");
                        if (auto ok = same_rate("lms", d, x); !ok) return std::unexpected{ok.error()};
                        const auto rule = param_text(p, "rule") == "lms" ? core::AdaptiveRule::lms : core::AdaptiveRule::nlms;
                        core::AudioBuffer e, y;

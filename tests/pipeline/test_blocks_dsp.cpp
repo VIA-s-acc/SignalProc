@@ -665,3 +665,33 @@ TEST_CASE("a built-in bank role wins over a user filter with the same name", "[p
     CHECK(y.channels[0][0] == Catch::Approx(core::wavelet("db2")->h0.coeffs[0]));
     core::set_named_filters({}, {});
 }
+
+TEST_CASE("check fails when the test does not cover the whole reference", "[pipeline][teaching][review]") {
+    const auto x = audio(run("samples", {}, {{"values", "4 6 10 12 8 6 5 5"}, {"rate", "8"}})[0]);
+    core::AudioBuffer late = x;
+    late.channels[0].insert(late.channels[0].begin(), 0.0);
+    for (const char* delay : {"12", "5"}) {
+        INFO(delay);
+        const auto report = std::get<Report>(run("check", {x, late}, {{"kind", "pr"}, {"delay", delay}})[0]);
+        CHECK_FALSE(report.passed);
+    }
+    core::AudioBuffer shorter = x;
+    shorter.channels[0].resize(5);
+    for (const char* delay : {"0", "auto"}) {
+        INFO(delay);
+        CHECK_FALSE(std::get<Report>(run("check", {x, shorter}, {{"kind", "pr"}, {"delay", delay}})[0]).passed);
+        CHECK_FALSE(std::get<Report>(run("check", {x, shorter}, {{"kind", "snr"}, {"tol", "20"}, {"delay", delay}})[0]).passed);
+    }
+    CHECK(std::get<Report>(run("check", {x, late}, {{"kind", "pr"}, {"delay", "1"}})[0]).passed);
+}
+
+TEST_CASE("a user filter named like a bank with an unknown role still resolves", "[pipeline][user_banks][review]") {
+    core::set_named_filters([](std::string_view name) -> std::optional<core::Laurent> {
+        if (name != "haar.smooth") return std::nullopt;
+        return core::Laurent{{0.25, 0.75}, 0};
+    }, [] { return std::vector<std::string>{"haar.smooth"}; });
+    const auto x = audio(run("samples", {}, {{"values", "1 0 0 0"}, {"rate", "8"}})[0]);
+    const auto y = audio(run("convolve", {x}, {{"filter", "haar.smooth"}, {"method", "direct"}})[0]);
+    CHECK(y.channels[0][0] == 0.25);
+    core::set_named_filters({}, {});
+}

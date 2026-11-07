@@ -502,8 +502,9 @@ ftxui::Element FiltersScreen::library_panel(int width, int height) {
         } else {
             std::optional<std::size_t> line;
             append(chip_lines(std::move(items), inner, 0, &line));
-            if (match_index_ != match_follow_) follow = line;
+            if (match_index_ != match_follow_ || query_ != follow_query_) follow = line;
             match_follow_ = match_index_;
+            follow_query_ = query_;
         }
     } else {
         for (const auto& group : library_.children) {
@@ -1251,6 +1252,7 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
         searching_ = true;
         query_.clear();
         match_index_ = 0;
+        match_follow_ = static_cast<std::size_t>(-1);
         if (breakpoint_ <= Breakpoint::small && !layout_.maximized())
             for (std::size_t k = 0; k < panel_count && layout_.small_index() % panel_count != library; ++k) layout_.next_panel(panel_count);
         return true;
@@ -1322,6 +1324,7 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
         searching_ = true;
         query_.clear();
         match_index_ = 0;
+        match_follow_ = static_cast<std::size_t>(-1);
         return true;
     }
     if (e == Event::Character('l')) {

@@ -143,6 +143,7 @@ private:
     std::deque<Clickable> clickables_;
     Scroll library_scroll_, roots_scroll_;
     std::size_t match_follow_ = static_cast<std::size_t>(-1);
+    std::string follow_query_;
     PlotZoom impulse_zoom_;
     ZView zview_;
     ftxui::Box zplane_box_{}, roots_box_{};

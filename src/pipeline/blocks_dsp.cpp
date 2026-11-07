@@ -71,6 +71,7 @@ core::Result<core::Laurent> filter_of(const std::string& spec) {
     if (role == "h1") return bank->h1;
     if (role == "f0") return bank->f0;
     if (role == "f1") return bank->f1;
+    if (auto mine = core::named_filter(spec)) return std::move(*mine);
     return core::make_error(core::Errc::invalid_argument, "filter role must be h0, h1, f0 or f1");
 }
 
@@ -672,8 +673,10 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                                return core::make_error(core::Errc::invalid_argument, "check: delay must be auto or a non-negative number of samples, got '" + delay + "'");
                            shift = parsed;
                        }
+                       bool covered = true;
                        for (std::size_t ch = 0; ch < std::min(ref.channels.size(), test.channels.size()); ++ch) {
                            const auto n = test.channels[ch].size() > shift ? std::min(ref.channels[ch].size(), test.channels[ch].size() - shift) : 0;
+                           if (n < ref.channels[ch].size()) covered = false;
                            const std::span<const double> a{ref.channels[ch].data(), n}, b{test.channels[ch].data() + std::min(shift, test.channels[ch].size()), n};
                            worst = std::max(worst, core::max_abs_error(a, b));
                            rms = std::max(rms, core::rms_error(a, b));
@@ -684,7 +687,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        r.fields = {{"max_abs", worst}, {"rms", rms}, {"snr_db", snr}};
                        if (delay != "0") r.fields.push_back({"delay", static_cast<double>(shift)});
                        r.passed = kind == "snr" ? snr >= tol : worst <= tol;
-                       if (ref.channels.size() != test.channels.size()) r.passed = false;
+                       if (ref.channels.size() != test.channels.size() || !covered) r.passed = false;
                        return std::vector<Value>{std::move(r)};
                    }});
     out.push_back({"wav_out",

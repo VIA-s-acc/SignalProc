@@ -195,6 +195,8 @@ void MatrixModel::set(MatrixOptions o, JobRunner& jobs) {
                 for (std::size_t i = 0; i < o.n; ++i)
                     for (std::size_t j = 0; j < o.n; ++j) t(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(j)) = r[i > j ? i - j : j - i];
                 d->gohberg_error = (t * *inv - Eigen::MatrixXd::Identity(t.rows(), t.cols())).cwiseAbs().maxCoeff();
+            } else {
+                d->gohberg_refusal = inv.error().message;
             }
             for (Eigen::Index k = 0; k < a.rows(); ++k) {
                 d->row_names.push_back("y" + sub(static_cast<std::size_t>(k)));

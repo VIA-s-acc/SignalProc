@@ -594,3 +594,23 @@ TEST_CASE("the library scrolls from the keyboard and the search keeps the highli
     CHECK(frame.find("▲ ещё") != std::string::npos);
     CHECK(frame.find("▼ ещё") == std::string::npos);
 }
+
+TEST_CASE("a new search starts with its first match in view after the library was scrolled", "[tui][filters][scroll][review]") {
+    Fixture f{120, 40};
+    Harness h{f.screen, 120, 37};
+    auto frame = h.frame();
+    for (const auto* header : {"▸ Спектры", "▸ CWT", "▸ Пакеты"}) {
+        const auto at = signals::test::locate(frame, header);
+        if (!at) continue;
+        h.click(at->first + 2, at->second);
+        frame = h.frame();
+    }
+    h.send(ftxui::Event::Character('/'));
+    h.send(ftxui::Event::Escape);
+    const auto box = f.screen->area("library");
+    h.click(box.x_min + 2, box.y_max - 1);
+    for (int k = 0; k < 3; ++k) h.send(ftxui::Event::PageDown);
+    REQUIRE(h.frame().find("▲") != std::string::npos);
+    h.send(ftxui::Event::Character('/'));
+    CHECK(h.frame().find("▲ ещё") == std::string::npos);
+}

@@ -960,6 +960,7 @@
   "tui.matrix.dct_check": "C(T+H)Cᵀ вне диагонали = {value}",
   "tui.matrix.levinson_check": "Левинсон–Дурбин: ‖T(r)·x − e₁‖ / (‖T‖·‖x‖) = {value}",
   "tui.matrix.gohberg_check": "T⁻¹ по Гохбергу–Семенцулу: max|T·T⁻¹ − I| = {value}",
+  "tui.matrix.gohberg_refused": "T⁻¹ по Гохбергу–Семенцулу не построена: {reason}",
   "tui.matrix.single_filter": "«{name}» — одиночный фильтр: для него есть свёртка, циркулянт и «Тёплиц + Ганкель»; для анализа и синтеза нужен банк",
   "tui.matrix.spectrum_title": "Сингулярные числа σᵢ · {name} · {count} шт.",
   "tui.matrix.hint.spectrum": "спектр σ",
