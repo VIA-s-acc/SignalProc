@@ -26,6 +26,7 @@ add_library(signals_core STATIC
   design/window_fir.cpp
   design/elliptic.cpp
   design/iir.cpp
+  design/fir.cpp
   matrix.cpp
   wavelet/regularity.cpp
   wavelet/cascade.cpp

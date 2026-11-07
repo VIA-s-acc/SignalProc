@@ -533,6 +533,28 @@ def iir_json():
                                 "mag": floats(np.abs(h))})
     return {"special": special, "prototypes": prototypes, "digital": digital}
 
+def fir_json():
+    remez = []
+    for numtaps, bands, desired, weight, kind in [
+        (31, [0, 0.2, 0.3, 0.5], [1, 0], None, "bandpass"),
+        (32, [0, 0.2, 0.3, 0.5], [1, 0], [1, 10], "bandpass"),
+        (45, [0, 0.1, 0.15, 0.3, 0.35, 0.5], [0, 1, 0], [10, 1, 10], "bandpass"),
+        (31, [0.05, 0.45], [1], None, "hilbert"),
+        (30, [0.05, 0.45], [1], None, "hilbert"),
+        (21, [0, 0.4], [1], None, "differentiator"),
+    ]:
+        h = scipy.signal.remez(numtaps, bands, desired, weight=weight, type=kind, fs=1.0)
+        remez.append({"numtaps": numtaps, "bands": bands, "desired": desired, "weight": weight, "type": kind, "h": floats(h)})
+    firls = []
+    for numtaps, bands, desired, weight in [
+        (31, [0, 0.3, 0.4, 1], [1, 1, 0, 0], None),
+        (41, [0, 0.2, 0.25, 0.5, 0.55, 1], [0, 0, 1, 1, 0, 0], [10, 1, 10]),
+        (21, [0, 1], [0, 1], None),
+    ]:
+        h = scipy.signal.firls(numtaps, bands, desired, weight=weight)
+        firls.append({"numtaps": numtaps, "bands": bands, "desired": desired, "weight": weight, "h": floats(h)})
+    return {"remez": remez, "firls": firls}
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path)
@@ -552,7 +574,7 @@ def main():
                                ("spectral.json", spectral_json), ("swt.json", swt_json),
                                ("packets.json", packets_json), ("cwt.json", cwt_json),
                                ("processing.json", lambda: processing_json(sample_wav)),
-                               ("iir.json", iir_json)]:
+                               ("iir.json", iir_json), ("fir.json", fir_json)]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)

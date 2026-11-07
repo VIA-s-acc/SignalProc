@@ -22,6 +22,7 @@ add_executable(signals_tests
   core/test_signal_ops.cpp
   core/test_window_fir.cpp
   core/test_iir.cpp
+  core/test_fir.cpp
   core/test_multirate.cpp
   core/test_freq.cpp
   core/test_freq_bank.cpp
