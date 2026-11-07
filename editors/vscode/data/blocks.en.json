@@ -5431,5 +5431,161 @@
    }
   ],
   "title": "Coefficient statistics"
+ },
+ {
+  "about": "Changes the duration and keeps the pitch: rate = 2 is twice as fast and short, 0.5 twice as slow",
+  "id": "time_stretch",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "How many times faster: above 1 is shorter, below 1 longer; the pitch stays",
+    "choices": [],
+    "default": "1.25",
+    "max": 10.0,
+    "min": 0.1,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "How to stretch",
+    "choices": [
+     "vocoder",
+     "locked",
+     "wsola"
+    ],
+    "default": "vocoder",
+    "name": "method",
+    "values": {
+     "locked": "vocoder with phase locking (Laroche–Dolson): bins around a peak take the peak's phase — less phasiness, a fuller sound",
+     "vocoder": "phase vocoder as in librosa: STFT magnitudes are interpolated, phases accumulated; smooth on tones, smears transients",
+     "wsola": "WSOLA in time: signal pieces shift within hop to join by shape; keeps transients, good for a single voice"
+    }
+   },
+   {
+    "about": "STFT window length (the piece length for WSOLA), samples, even: longer is sharper in frequency, blurrier in time",
+    "choices": [],
+    "default": "2048",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "n_fft",
+    "values": {}
+   },
+   {
+    "about": "Window step, samples, at most n_fft/2: smaller is smoother and slower; for WSOLA also the piece shift limit",
+    "choices": [],
+    "default": "512",
+    "max": 32768.0,
+    "min": 1.0,
+    "name": "hop",
+    "values": {}
+   }
+  ],
+  "title": "Time stretch"
+ },
+ {
+  "about": "Shifts the pitch by n semitones and keeps the duration: stretch by 2^(n/12), then resample back",
+  "id": "pitch_shift",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Shift in semitones, fractions allowed: 12 is an octave up, −12 an octave down, 7 a fifth",
+    "choices": [],
+    "default": "3",
+    "max": 24.0,
+    "min": -24.0,
+    "name": "semitones",
+    "values": {}
+   },
+   {
+    "about": "How to stretch",
+    "choices": [
+     "vocoder",
+     "locked",
+     "wsola"
+    ],
+    "default": "vocoder",
+    "name": "method",
+    "values": {
+     "locked": "vocoder with phase locking (Laroche–Dolson): bins around a peak take the peak's phase — less phasiness, a fuller sound",
+     "vocoder": "phase vocoder as in librosa: STFT magnitudes are interpolated, phases accumulated; smooth on tones, smears transients",
+     "wsola": "WSOLA in time: signal pieces shift within hop to join by shape; keeps transients, good for a single voice"
+    }
+   },
+   {
+    "about": "STFT window length (the piece length for WSOLA), samples, even: longer is sharper in frequency, blurrier in time",
+    "choices": [],
+    "default": "2048",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "n_fft",
+    "values": {}
+   },
+   {
+    "about": "Window step, samples, at most n_fft/2: smaller is smoother and slower; for WSOLA also the piece shift limit",
+    "choices": [],
+    "default": "512",
+    "max": 32768.0,
+    "min": 1.0,
+    "name": "hop",
+    "values": {}
+   }
+  ],
+  "title": "Pitch shift"
+ },
+ {
+  "about": "Changes the speed like a record: tempo and pitch together; rate = 2 is twice as fast and an octave higher",
+  "id": "speed",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "How many times faster; the pitch moves with the speed: 2 is an octave up, 0.5 an octave down",
+    "choices": [],
+    "default": "1.25",
+    "max": 10.0,
+    "min": 0.1,
+    "name": "rate",
+    "values": {}
+   }
+  ],
+  "title": "Speed, like a record"
  }
 ]

@@ -32,6 +32,7 @@ const std::vector<BlockType>& registry() {
         register_effect_blocks(out);
         register_spectral_blocks(out);
         register_analysis_blocks(out);
+        register_tempo_blocks(out);
         return out;
     }();
     return all;

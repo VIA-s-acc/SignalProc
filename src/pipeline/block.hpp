@@ -105,5 +105,6 @@ void register_coeff_blocks(std::vector<BlockType>& out);
 void register_effect_blocks(std::vector<BlockType>& out);
 void register_spectral_blocks(std::vector<BlockType>& out);
 void register_analysis_blocks(std::vector<BlockType>& out);
+void register_tempo_blocks(std::vector<BlockType>& out);
 
 }  // namespace signals::pipeline
