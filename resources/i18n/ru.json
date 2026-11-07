@@ -886,7 +886,7 @@
   "tui.decomposition.parseval_note": "отклонение {error}",
   "tui.decomposition.warn1": "⚠ выключено полос: {n}. В DWT с ↓2",
   "tui.decomposition.warn2": "  правка полос даёт наложение.",
-  "tui.decomposition.warn3": "смягчить: SWT (M6) · Объяснение, шаг 12",
+  "tui.decomposition.warn3": "смягчить: SWT или MODWT (t) · Объяснение, шаг 12",
   "tui.decomposition.all_on": "все полосы включены: x̂ = x",
   "tui.decomposition.all_on_hint": "правка полос — клик по ☑ слева",
   "tui.decomposition.summary": "Итог",

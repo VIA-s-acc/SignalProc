@@ -932,7 +932,7 @@
   "tui.decomposition.parseval_note": "deviation {error}",
   "tui.decomposition.warn1": "⚠ bands switched off: {n}. In DWT with ↓2",
   "tui.decomposition.warn2": "  editing bands causes aliasing.",
-  "tui.decomposition.warn3": "mitigate: SWT (M6) · Explain, step 12",
+  "tui.decomposition.warn3": "mitigate: SWT or MODWT (t) · Explain, step 12",
   "tui.decomposition.all_on": "all bands on: x̂ = x",
   "tui.decomposition.all_on_hint": "to edit bands, click ☑ on the left",
   "tui.decomposition.summary": "Summary",
