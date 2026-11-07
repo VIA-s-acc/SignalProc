@@ -239,3 +239,23 @@ TEST_CASE("explain steps follow the up and down arrows, the story wraps and the 
     const auto zoomed = f.screen->plot_axis("freq");
     CHECK(zoomed.hi - zoomed.lo < full.hi - full.lo);
 }
+
+TEST_CASE("hovering the walkthrough controls explains them", "[tui][explain_screen][explain]") {
+    ExplainFixture f;
+    auto at = [&](std::string_view id) {
+        const auto b = f.screen->area(id);
+        return f.screen->explain_at((b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2);
+    };
+    auto over = [&](const std::string& frame, const std::string& needle) -> std::optional<std::string> {
+        const auto p = signals::test::locate(frame, needle);
+        return p ? f.screen->explain_at(p->first, p->second) : std::nullopt;
+    };
+    f.h.frame();
+    CHECK(at("prev") == signals::tr("tui.explain.explain.prev"));
+    CHECK(at("auto") == signals::tr("tui.explain.explain.auto"));
+    CHECK(at("step_3") == signals::tr("tui.explain.explain.step"));
+    const auto targets = f.screen->jump_targets();
+    const auto bank = std::find_if(targets.begin(), targets.end(), [](const JumpTarget& t) { return t.label == "bank"; });
+    REQUIRE(bank != targets.end());
+    CHECK(f.screen->explain_at(bank->box.x_min, bank->box.y_min) == signals::tr("tui.explain.explain.bank.haar"));
+}

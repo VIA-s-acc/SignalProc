@@ -195,3 +195,42 @@ TEST_CASE("tab 8 is the pipeline editor", "[tui][shell][app]") {
     CHECK(frame.find(signals::tr("tui.placeholder.pipeline.text")) == std::string::npos);
 }
 
+
+TEST_CASE("every control on every screen explains itself on hover in both languages", "[tui][app][explain]") {
+    JobRunner jobs{[] {}, 0ms, true};
+    signals::test::ManualSink* raw = nullptr;
+    auto player = signals::test::manual_player(raw);
+    auto ui = signals::test::make_ui(150, 44);
+    ui->jobs = &jobs;
+    ui->player = &player;
+    auto models = make_app_models();
+    models.signal->open(signals::test::sample("test.wav"), jobs);
+    auto screens = make_app_screens(*ui, models);
+    // Sub-tab switches are jump targets too; their label already names the screen they open.
+    std::vector<std::string> allowed;
+    for (const char* key : {"tui.sub.spectrogram", "tui.sub.resample", "tui.sub.designer", "tui.sub.diagram", "tui.sub.explain", "tui.sub.under_the_hood",
+                            "tui.sub.tutorial"})
+        allowed.push_back(signals::tr(key));
+    const std::pair<std::size_t, std::size_t> tabs[]{{0, 1}, {1, 2}, {2, 1}, {3, 2}, {4, 1}, {5, 1}, {6, 1}, {8, 3}};
+    std::size_t checked = 0;
+    for (const auto& [tab, subtabs] : tabs) {
+        auto& screen = *screens[tab];
+        signals::test::Harness h{screens[tab], 150, 41};
+        for (std::size_t s = 0; s < subtabs; ++s) {
+            screen.select_child(s);
+            h.frame();
+            h.frame();
+            for (const auto& t : screen.jump_targets()) {
+                if (t.box.x_max < t.box.x_min || t.box.y_max < t.box.y_min) continue;
+                if (std::find(allowed.begin(), allowed.end(), t.label) != allowed.end()) continue;
+                const int x = (t.box.x_min + t.box.x_max) / 2, y = (t.box.y_min + t.box.y_max) / 2;
+                INFO("tab " << tab << " sub " << s << " target " << t.label << " at " << x << "," << y);
+                CHECK(screen.explain_at(x, y).has_value());
+                const signals::LanguageScope en{signals::Language::en};
+                CHECK(screen.explain_at(x, y).has_value());
+                ++checked;
+            }
+        }
+    }
+    CHECK(checked > 150);
+}

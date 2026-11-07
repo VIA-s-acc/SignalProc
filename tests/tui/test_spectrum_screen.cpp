@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <optional>
+
 #include <chrono>
 #include <memory>
 #include <sstream>
@@ -253,4 +255,22 @@ TEST_CASE("the right-click menu resets the spectrogram zoom", "[tui][spectrum][m
     REQUIRE(menu.size() == 1);
     menu.front().action();
     CHECK(f.screen->time_view() == full);
+}
+
+TEST_CASE("hovering spectrum toolbar chips explains window, axis and folding", "[tui][spectrum][explain]") {
+    SpectrumFixture f;
+    auto at = [&](std::string_view id) {
+        const auto b = f.screen->area(id);
+        return f.screen->explain_at((b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2);
+    };
+    auto over = [&](const std::string& frame, const std::string& needle) -> std::optional<std::string> {
+        const auto p = signals::test::locate(frame, needle);
+        return p ? f.screen->explain_at(p->first, p->second) : std::nullopt;
+    };
+    const auto frame = f.h.frame();
+    CHECK(at("preset_narrow") == signals::tr("tui.explain.spectrum.preset.narrow"));
+    CHECK(at("axis_log") == signals::tr("tui.explain.spectrum.axis.log"));
+    CHECK(at("fold_0") == signals::tr("tui.explain.spectrum.fold.0"));
+    CHECK(at("fold_4") == signals::tr("tui.explain.spectrum.fold"));
+    CHECK(over(frame, signals::tr("tui.spectrum.fold")) == signals::tr("tui.explain.spectrum.fold"));
 }

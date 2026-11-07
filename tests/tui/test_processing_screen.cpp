@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <optional>
+
 #include <algorithm>
 
 #include <chrono>
@@ -318,4 +320,24 @@ TEST_CASE("the coefficient bands scroll from the keyboard when the panel has foc
     CHECK(f.h.frame().find("▲ ещё") != std::string::npos);
     f.h.send(ftxui::Event::Home);
     CHECK(f.h.frame().find("▲ ещё") == std::string::npos);
+}
+
+TEST_CASE("hovering processing controls explains the rule, mode, view and presets", "[tui][processing][explain]") {
+    ProcessingFixture f;
+    auto at = [&](std::string_view id) {
+        const auto b = f.screen->area(id);
+        return f.screen->explain_at((b.x_min + b.x_max) / 2, (b.y_min + b.y_max) / 2);
+    };
+    auto over = [&](const std::string& frame, const std::string& needle) -> std::optional<std::string> {
+        const auto p = signals::test::locate(frame, needle);
+        return p ? f.screen->explain_at(p->first, p->second) : std::nullopt;
+    };
+    const auto frame = f.h.frame();
+    CHECK(at("rule_SureShrink") == signals::tr("tui.explain.common.rule.sureshrink"));
+    CHECK(at("rule_Minimax") == signals::tr("tui.explain.common.rule.minimax"));
+    CHECK(at("mode_hard") == signals::tr("tui.explain.common.mode.hard"));
+    CHECK(at("view_x") == signals::tr("tui.explain.processing.view.x"));
+    CHECK(at("eq_2") == signals::tr("tui.explain.processing.eq.no_d1"));
+    CHECK(at("scale_1,50") == signals::tr("tui.explain.processing.scale"));
+    CHECK(over(frame, "λ ×") == signals::tr("tui.explain.processing.scale"));
 }
