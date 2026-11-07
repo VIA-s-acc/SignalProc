@@ -128,7 +128,8 @@ TEST_CASE("savgol matches scipy savgol_filter in every edge mode", "[pipeline][b
     CHECK_FALSE(attempt("savgol", {buffer(0, {{1, 2, 3, 4, 5}})}, {{"window", "5"}, {"deriv", "1"}}));
     std::vector<double> ramp(50);
     for (std::size_t i = 0; i < ramp.size(); ++i) ramp[i] = 0.5 * static_cast<double>(i) / 1000;
-    for (const double v : mono(run("savgol", {buffer(1000, {ramp})}, {{"deriv", "1"}})[0])) CHECK(std::abs(v - 0.5) < 1e-10);
+    const auto slope = run("savgol", {buffer(1000, {ramp})}, {{"deriv", "1"}});
+    for (const double v : mono(slope[0])) CHECK(std::abs(v - 0.5) < 1e-10);
 }
 
 TEST_CASE("hilbert gives the imaginary part and the phase of scipy hilbert", "[pipeline][blocks][analysis]") {
