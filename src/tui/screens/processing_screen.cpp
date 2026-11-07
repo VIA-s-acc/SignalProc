@@ -150,13 +150,13 @@ ftxui::Element ProcessingScreen::toolbar(bool two_rows) {
         parts.push_back(chip("rule_" + std::string{core::shrink_rule_name(rule)}, std::string{core::shrink_rule_name(rule)}, o.rule == rule,
                              [this, rule] { change([rule](ProcessingOptions& p) { p.rule = rule; }); }));
     parts.push_back(text(" │") | fg(th.dim, ui_));
-    for (const auto [mode, name] : {std::pair{core::ThresholdMode::soft, "soft"}, std::pair{core::ThresholdMode::hard, "hard"}})
+    for (const auto& [mode, name] : {std::pair{core::ThresholdMode::soft, "soft"}, std::pair{core::ThresholdMode::hard, "hard"}})
         parts.push_back(chip(std::string{"mode_"} + name, name, o.threshold == mode, [this, mode] { change([mode](ProcessingOptions& p) { p.threshold = mode; }); }));
     Elements second{text((two_rows ? "" : " │ ") + std::string{"λ ×"}) | fg(th.dim, ui_)};
     for (const double s : kScales)
         second.push_back(chip("scale_" + format_fixed(s, 2), format_number(s, 2), std::abs(o.scale - s) < 1e-9, [this, s] { set_scale(s); }));
     second.push_back(text(" │ " + tr("tui.processing.view") + " ") | fg(th.dim, ui_));
-    for (const auto [v, key, id] : {std::tuple{View::a, "tui.processing.view.a", "view_a"}, std::tuple{View::b, "tui.processing.view.b", "view_b"},
+    for (const auto& [v, key, id] : {std::tuple{View::a, "tui.processing.view.a", "view_a"}, std::tuple{View::b, "tui.processing.view.b", "view_b"},
                                     std::tuple{View::x, "tui.processing.view.x", "view_x"}})
         second.push_back(chip(id, tr(key), view_ == v, [this, v] { view_ = v; }));
     second.push_back(text(" │ " + tr("tui.decomposition.edges") + " " + std::string{core::to_string(o.mode)}) | fg(th.dim, ui_));
@@ -277,7 +277,7 @@ ftxui::Element ProcessingScreen::listen_body() {
     using namespace ftxui;
     const auto& th = ui_.theme;
     Elements buttons;
-    for (const auto [v, key, id] : {std::tuple{View::a, "tui.processing.play.a", "play_a"}, std::tuple{View::b, "tui.processing.play.b", "play_b"},
+    for (const auto& [v, key, id] : {std::tuple{View::a, "tui.processing.play.a", "play_a"}, std::tuple{View::b, "tui.processing.play.b", "play_b"},
                                     std::tuple{View::x, "tui.processing.play.x", "play_x"}})
         buttons.push_back(clickable(id, text("▶ " + tr(key) + " ") | fg(view_ == v ? th.accent : th.fg, ui_), [this, v] { play(v); }));
     Elements rows{hbox(std::move(buttons)), text(tr("tui.processing.seamless")) | fg(th.dim, ui_)};
