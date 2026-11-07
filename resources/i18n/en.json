@@ -75,7 +75,7 @@
   "cli.dwt.bands_dir": "Folder for band WAV files (band sample rate is fs/2^j)",
   "cli.denoise.description": "Wavelet-threshold denoising (BayesShrink or VisuShrink)",
   "cli.denoise.levels": "Number of levels (default: maximum minus 3, as in scikit-image)",
-  "cli.denoise.rule": "Threshold rule: bayes or visu",
+  "cli.denoise.rule": "Threshold rule: bayes, visu, sure or minimax",
   "cli.denoise.mode": "Threshold kind: soft, hard or garrote",
   "cli.denoise.reference": "Clean WAV for computing SNR before and after",
   "cli.filter.response.description": "Magnitude, phase, group delay and metrics of a filter or band",
@@ -1254,5 +1254,7 @@
   "unit.times.many": "{n}",
   "unit.section.one": "{n} section",
   "unit.section.few": "{n} sections",
-  "unit.section.many": "{n} sections"
+  "unit.section.many": "{n} sections",
+  "tui.resample.filter_off_line_up": "filter bypassed — spectral images remain",
+  "tui.filters.custom.saved": "saved as “{name}” — {file}"
 }

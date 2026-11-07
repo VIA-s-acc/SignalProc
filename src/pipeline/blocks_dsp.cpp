@@ -26,6 +26,12 @@
 namespace signals::pipeline {
 namespace {
 
+std::string_view inverse_of(std::string_view transform) {
+    if (transform == "swt") return "iswt";
+    if (transform == "lift53" || transform == "lift53i") return "ilift53";
+    return "idwt";
+}
+
 using Kind = ParamSpec::Kind;
 using Out = core::Result<std::vector<Value>>;
 
@@ -233,7 +239,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    {{"wavelet", Kind::text, "auto"}, {"ext", Kind::choice, "auto", kExtensionsOrAuto}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                        const auto& c = in_coeffs(in);
-                       if (c.transform != "dwt") return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", "iswt")));
+                       if (c.transform != "dwt") return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", inverse_of(c.transform))));
                        const auto& wavelet = param_text(p, "wavelet");
                        const auto& ext = param_text(p, "ext");
                        if (wavelet != "auto" && wavelet != c.wavelet)
@@ -364,7 +370,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    {{"wavelet", Kind::text, "auto"}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                        const auto& c = in_coeffs(in);
-                       if (c.transform != "swt") return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", "idwt")));
+                       if (c.transform != "swt") return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", inverse_of(c.transform))));
                        const auto& wavelet = param_text(p, "wavelet");
                        if (wavelet != "auto" && wavelet != c.wavelet)
                            return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.idwt_wavelet")), fmt::arg("coeffs", c.wavelet), fmt::arg("wavelet", wavelet)));

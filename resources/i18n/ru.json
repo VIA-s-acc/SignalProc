@@ -75,7 +75,7 @@
   "cli.dwt.bands_dir": "Папка для WAV-файлов полос (частота полосы — fs/2^j)",
   "cli.denoise.description": "Подавление шума вейвлет-порогом (BayesShrink или VisuShrink)",
   "cli.denoise.levels": "Число уровней (по умолчанию максимум минус 3, как в scikit-image)",
-  "cli.denoise.rule": "Правило порога: bayes или visu",
+  "cli.denoise.rule": "Правило порога: bayes, visu, sure или minimax",
   "cli.denoise.mode": "Вид порога: soft, hard или garrote",
   "cli.denoise.reference": "Чистый WAV для расчёта SNR до и после",
   "cli.filter.response.description": "АЧХ, ФЧХ, групповая задержка и метрики фильтра или полосы",
@@ -1254,5 +1254,7 @@
   "unit.times.many": "{n} раз",
   "unit.section.one": "{n} раздел",
   "unit.section.few": "{n} раздела",
-  "unit.section.many": "{n} разделов"
+  "unit.section.many": "{n} разделов",
+  "tui.resample.filter_off_line_up": "фильтр обойдён — остаются изображения спектра",
+  "tui.filters.custom.saved": "сохранён как «{name}» — {file}"
 }

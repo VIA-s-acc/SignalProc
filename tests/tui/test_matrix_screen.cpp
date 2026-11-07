@@ -202,3 +202,30 @@ TEST_CASE("s shows the singular spectrum and v reaches toeplitz plus hankel", "[
     CHECK(frame.find("C(T+H)Cᵀ") != std::string::npos);
     CHECK(frame.find("Левинсон") != std::string::npos);
 }
+
+TEST_CASE("m7b: the singular spectrum names the matrix whose values it shows", "[tui][matrix]") {
+    MatrixFixture f;
+    f.h.send(ftxui::Event::Character('t'));
+    f.h.send(ftxui::Event::Character('s'));
+    f.h.frame();
+    const auto frame = f.h.frame();
+    CHECK(frame.find("σᵢ · A = [L; B]") != std::string::npos);
+    CHECK(frame.find("σᵢ · AᵀA") == std::string::npos);
+}
+
+TEST_CASE("m7b: the matrix card does not call square matrices non-square", "[tui][matrix][toeplitz_hankel]") {
+    MatrixFixture f;
+    for (int k = 0; k < 6; ++k) {
+        f.h.frame();
+        const auto op = f.model->options().op;
+        if (op == MatrixOp::circulant || op == MatrixOp::toeplitz_hankel) {
+            INFO(static_cast<int>(op));
+            signals::theory::LiveValues v;
+            f.screen->publish(v);
+            const auto* check = v.find("check.ata_identity");
+            REQUIRE(check);
+            CHECK(check->text != signals::tr("tui.theory.value.not_square"));
+        }
+        f.h.send(ftxui::Event::Character('v'));
+    }
+}

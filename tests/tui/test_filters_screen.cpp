@@ -450,13 +450,21 @@ TEST_CASE("c types a custom filter, adds it and saves a named one", "[tui][filte
     CHECK(std::filesystem::exists(dir));
     auto frame = h.frame();
     CHECK(frame.find("Свойства · треуг") != std::string::npos);
+    CHECK(frame.find("сохранён как «треуг»") != std::string::npos);
+    h.send(ftxui::Event::Character('c'));
+    h.send(ftxui::Event::Character("треуг = 0.5 0.5"));
+    h.send(ftxui::Event::Return);
+    REQUIRE(user_filters().size() == 2);
+    CHECK(h.frame().find("сохранён как «треуг-2»") != std::string::npos);
+    REQUIRE(f.set->entries().size() == 2);
+    f.set->remove(1);
     CHECK(frame.find("ортогональный") == std::string::npos);
     h.send(ftxui::Event::Character('c'));
     h.send(ftxui::Event::Character("z: -1 -1"));
     h.send(ftxui::Event::Return);
     REQUIRE(f.set->entries().size() == 2);
     CHECK(f.set->entries()[1].ref.label() == "свой фильтр, 3 отсч.");
-    CHECK(user_filters().size() == 1);
+    CHECK(user_filters().size() == 2);
     set_user_filters({});
     std::filesystem::remove_all(dir);
 }

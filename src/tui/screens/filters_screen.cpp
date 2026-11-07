@@ -1151,18 +1151,21 @@ bool FiltersScreen::on_custom(ftxui::Event e) {
             notice_ = parsed.error().message;
             return true;
         }
+        std::string saved_notice;
         if (!parsed->name.empty()) {
             UserFilter f{parsed->name, parsed->h, ""};
             const auto dir = ui_.user_filters.empty() ? user_filters_dir(process_env()) : ui_.user_filters;
             if (auto saved = save_user_filter(dir, f); !saved) {
-                notice_ = error_text(saved.error());
+                saved_notice = error_text(saved.error());
             } else {
                 set_user_filters(load_user_banks(dir).filters);
                 library_wavelet_.clear();
+                saved_notice = fmt::format(fmt::runtime(tr("tui.filters.custom.saved")), fmt::arg("name", f.name), fmt::arg("file", saved->filename().string()));
             }
             parsed->name = f.name;
         }
         add(custom_ref(parsed->h, parsed->name));
+        if (notice_.empty()) notice_ = std::move(saved_notice);
         return true;
     }
     if (e.is_character()) query_ += e.character();

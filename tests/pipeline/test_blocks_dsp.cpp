@@ -6,6 +6,7 @@
 #include <fstream>
 #include <variant>
 #include <sstream>
+#include <tuple>
 #include <vector>
 
 #include <nlohmann/json.hpp>
@@ -419,4 +420,18 @@ TEST_CASE("m6g review: the cepstrum of silence is zero and gen scales the test s
     const auto y = audio(run("gen", {}, {{"kind", "bumps"}, {"rate", "1024"}, {"duration", "1"}, {"amplitude", "0.1"}})[0]);
     const auto ref = io::donoho_johnstone(io::DonohoJohnstone::bumps, 1024);
     for (std::size_t n = 0; n < ref.size(); n += 97) CHECK(y.channels[0][n] == 0.1 * ref[n]);
+}
+
+TEST_CASE("m7b: idwt and iswt name the inverse that fits the coefficients", "[pipeline][lifting]") {
+    const auto x = test_wav();
+    const std::vector<std::tuple<const char*, const char*, const char*>> cases{
+        {"lift53", "idwt", "ilift53"}, {"lift53", "iswt", "ilift53"}, {"swt", "idwt", "iswt"}, {"dwt", "iswt", "idwt"}};
+    for (const auto& [forward, inverse, expected] : cases) {
+        INFO(forward << " → " << inverse);
+        const auto c = run(forward, {x}, {{"levels", "3"}});
+        const auto* block = find_block_type(inverse);
+        const auto r = block->run(RunContext{}, c, *resolve_params(*block, {}));
+        REQUIRE_FALSE(r);
+        CHECK(r.error().message.find(std::string{"нужен "} + expected) != std::string::npos);
+    }
 }

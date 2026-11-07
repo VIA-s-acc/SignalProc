@@ -117,3 +117,14 @@ TEST_CASE("an unexpected exception exits with 2 and a localized message", "[cli]
     CHECK(signals::cli::run_cli(args, out, err) == 2);
     CHECK(err.str().find("непредвиденная ошибка (boom)") != std::string::npos);
 }
+
+TEST_CASE("m7b: denoise --help names every threshold rule it accepts", "[cli]") {
+    for (const auto language : {signals::Language::ru, signals::Language::en}) {
+        const signals::LanguageScope scope{language};
+        const auto description = signals::tr("cli.denoise.rule");
+        for (const char* rule : {"bayes", "visu", "sure", "minimax"}) {
+            INFO(description << " / " << rule);
+            CHECK(description.find(rule) != std::string::npos);
+        }
+    }
+}
