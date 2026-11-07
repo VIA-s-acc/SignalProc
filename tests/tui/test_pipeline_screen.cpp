@@ -426,3 +426,55 @@ TEST_CASE("Enter opens the inspector in a narrow window too", "[tui][pipeline_sc
     const auto& thr = *std::find_if(f.model->doc().nodes.begin(), f.model->doc().nodes.end(), [](const auto& n) { return n.id == "thr"; });
     CHECK(thr.params.at("mode") == "hard");
 }
+
+namespace {
+
+ftxui::Event left_button(ftxui::Mouse::Motion motion, int x, int y) {
+    ftxui::Mouse m;
+    m.button = ftxui::Mouse::Left;
+    m.motion = motion;
+    m.x = x;
+    m.y = y;
+    return ftxui::Event::Mouse("", m);
+}
+
+std::string line_containing(const std::string& frame, const std::string& needle) {
+    std::istringstream in{frame};
+    for (std::string line; std::getline(in, line);)
+        if (line.find(needle) != std::string::npos) return line;
+    return {};
+}
+
+}  // namespace
+
+TEST_CASE("dragging a wire shows it on the way and names both ends", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    f.model->add_node("gen");
+    f.model->add_node("dwt");
+    f.model->add_node("idwt");
+    REQUIRE(f.model->connect(port("gen"), port("dwt")));
+    const auto from = f.box("out:dwt.coeffs");
+    const auto to = f.box("in:idwt.in");
+    f.h.send(left_button(ftxui::Mouse::Pressed, from.x_min, from.y_min));
+    f.h.send(left_button(ftxui::Mouse::Moved, to.x_min, to.y_min));
+    const auto frame = f.h.frame();
+    CHECK(frame.find("dwt.coeffs → idwt.in") != std::string::npos);
+    CHECK(frame.find("····") != std::string::npos);
+    f.h.send(left_button(ftxui::Mouse::Released, to.x_min, to.y_min));
+    CHECK(f.model->doc().edges.size() == 2);
+    CHECK(f.h.frame().find("dwt.coeffs → idwt.in") == std::string::npos);
+}
+
+TEST_CASE("long values in the inspector and the .sig text keep their ends visible", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    const auto id = f.model->add_node("wav");
+    const std::string path = "/Users/someone/projects/signals/resources/samples/long-folder-name/test.wav";
+    REQUIRE(f.model->set_param(id, "path", path));
+    f.model->selection = {Selection::Kind::node, id, {}};
+    const auto frame = f.h.frame();
+    const auto inspector = line_containing(frame, "path ");
+    INFO(inspector);
+    CHECK(inspector.find("test.wav") != std::string::npos);
+    CHECK(inspector.find("…") != std::string::npos);
+    CHECK(frame.find("test.wav\")") != std::string::npos);
+}

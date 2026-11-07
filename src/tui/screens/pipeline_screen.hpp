@@ -50,7 +50,7 @@ private:
     ftxui::Element frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title);
     ftxui::Element toolbar() const;
     ftxui::Element graph_panel(int width, int height);
-    ftxui::Element inspector_panel();
+    ftxui::Element inspector_panel(int width);
     ftxui::Element add_panel();
     bool on_add_key(const ftxui::Event& e);
     bool on_inspector_key(const ftxui::Event& e);
@@ -62,7 +62,7 @@ private:
     void refresh_probe(const RunView& run);
     void play(bool input);
     std::optional<double> playhead() const;
-    ftxui::Element text_panel(int height);
+    ftxui::Element text_panel(int width, int height);
     void follow_selection();
     void clamp_view();
     void move_selection(int dx, int dy);
@@ -86,6 +86,7 @@ private:
         enum class Kind { none, wire, pan } kind = Kind::none;
         PortHit from;
         int last_x = 0, last_y = 0;
+        ftxui::Box box{};
     } drag_;
     std::string notice_;
     std::function<std::optional<std::filesystem::path>()> current_file_;

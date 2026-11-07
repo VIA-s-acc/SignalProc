@@ -157,6 +157,26 @@ ftxui::Element PipelineScreen::graph_panel(int width, int height) {
         default: return th.fg;
         }
     };
+    std::map<std::pair<int, int>, std::pair<std::string, CellStyle>> overlay;
+    std::string wire_note;
+    if (drag_.kind == Drag::Kind::wire) {
+        const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
+        std::optional<std::pair<int, int>> end;
+        if (valid(drag_.box) && drag_.box.Contain(drag_.last_x, drag_.last_y))
+            end = std::pair{drag_.last_x - drag_.box.x_min + ox_, drag_.last_y - drag_.box.y_min + oy_};
+        const int fx = drag_.from.x, fy = drag_.from.y;
+        const int tx = end ? end->first : fx, ty = end ? end->second : fy;
+        const PortHit* target = nullptr;
+        for (const auto& p : picture_.ports)
+            if (!p.output && end && p.x == tx && p.y == ty) target = &p;
+        const auto dot = std::string{ascii ? "." : "·"};
+        for (int x = std::min(fx + 1, tx); x <= std::max(fx + 1, tx); ++x) overlay[{x, fy}] = {dot, CellStyle::accent};
+        for (int y = std::min(fy, ty); y <= std::max(fy, ty); ++y) overlay[{tx, y}] = {dot, CellStyle::accent};
+        if (target) overlay[{tx, ty}] = {picture_.glyph(tx, ty), CellStyle::ok};
+        else if (end) overlay[{tx, ty}] = {ascii ? "*" : "●", CellStyle::accent};
+        const auto name = [](const PortHit& p) { return p.port.empty() ? p.node : p.node + "." + p.port; };
+        wire_note = fmt::format(fmt::runtime(tr("tui.pipeline.wire_drag")), fmt::arg("from", name(drag_.from)), fmt::arg("to", target ? name(*target) : std::string{"…"}));
+    }
     Elements rows;
     for (int y = oy_; y < oy_ + view_h_; ++y) {
         Elements segments;
@@ -171,12 +191,13 @@ ftxui::Element PipelineScreen::graph_panel(int width, int height) {
         };
         for (int x = ox_; x < ox_ + view_w_; ++x) {
             const bool inside = x < picture_.width && y < picture_.height;
-            const auto s = inside ? picture_.style(x, y) : CellStyle::plain;
+            const auto over = overlay.find({x, y});
+            const auto s = over != overlay.end() ? over->second.second : inside ? picture_.style(x, y) : CellStyle::plain;
             if (s != style) {
                 flush();
                 style = s;
             }
-            run += inside ? picture_.glyph(x, y) : " ";
+            run += over != overlay.end() ? over->second.first : inside ? picture_.glyph(x, y) : " ";
         }
         flush();
         rows.push_back(hbox(std::move(segments)));
@@ -197,11 +218,11 @@ ftxui::Element PipelineScreen::graph_panel(int width, int height) {
     add(right, ascii ? ">" : "▸");
     add(above, ascii ? "^" : "▴");
     add(below, ascii ? "v" : "▾");
-    auto body = vbox({vbox(std::move(rows)) | reflect(graph_box_), text(more) | fg(th.dim, ui_)});
+    auto body = vbox({vbox(std::move(rows)) | reflect(graph_box_), wire_note.empty() ? text(more) | fg(th.dim, ui_) : text(wire_note) | fg(th.accent, ui_)});
     return frame_panel(kGraph, std::move(body), {}, tr("tui.pipeline.graph"));
 }
 
-ftxui::Element PipelineScreen::inspector_panel() {
+ftxui::Element PipelineScreen::inspector_panel(int width) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     const auto& sel = model_->selection;
@@ -210,13 +231,16 @@ ftxui::Element PipelineScreen::inspector_panel() {
     if (sel.kind == Selection::Kind::node && g) {
         const auto it = std::find_if(g->nodes.begin(), g->nodes.end(), [&](const auto& n) { return n.id == sel.node; });
         if (it != g->nodes.end()) {
-            rows.push_back(text(it->id + " · " + block_name(it->type->id)) | bold | fg(th.fg, ui_));
+            rows.push_back(text(ellipsize(it->id + " · " + block_name(it->type->id), width, ui_.caps.glyphs == GlyphMode::ascii)) | bold | fg(th.fg, ui_));
             param_ = std::min(param_, it->type->params.empty() ? 0 : it->type->params.size() - 1);
             for (std::size_t k = 0; k < it->type->params.size(); ++k) {
                 const auto& spec = it->type->params[k];
                 const auto value = it->params.count(spec.name) ? it->params.at(spec.name) : spec.fallback;
                 const bool choice = spec.kind == pipeline::ParamSpec::Kind::choice;
-                auto row = hbox({text(pad_right(spec.name, 14)) | fg(th.dim, ui_), text(choice ? "◂ " + value + " ▸" : value) | fg(th.fg, ui_), filler()});
+                const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
+                const int room = std::max(4, width - 14);
+                const auto shown = choice ? "◂ " + value + " ▸" : spec.kind == pipeline::ParamSpec::Kind::path ? ellipsize_start(value, room, ascii) : ellipsize(value, room, ascii);
+                auto row = hbox({text(pad_right(spec.name, 14)) | fg(th.dim, ui_), text(shown) | fg(th.fg, ui_), filler()});
                 if (focus_ == kInspector && k == param_) row = row | bg(tint(th.bg, th.accent, 0.3), ui_);
                 rows.push_back(std::move(row));
             }
@@ -498,7 +522,7 @@ ftxui::Element PipelineScreen::probe_panel(int height) {
     return frame_panel(kProbe, vbox(std::move(rows)), {}, tr("tui.pipeline.probe") + " · " + probe_.name);
 }
 
-ftxui::Element PipelineScreen::text_panel(int height) {
+ftxui::Element PipelineScreen::text_panel(int width, int height) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     Elements rows;
@@ -506,8 +530,13 @@ ftxui::Element PipelineScreen::text_panel(int height) {
     const auto& sel = model_->selection;
     for (std::string line; std::getline(in, line);) {
         const bool chosen = sel.kind == Selection::Kind::node && line.starts_with("node " + sel.node + " ");
-        auto e = text(line) | fg(chosen ? th.accent : th.dim, ui_);
-        rows.push_back(chosen ? e | bold | focus : e);
+        bool head = true;
+        for (const auto& part : wrap_codepoints(line, std::max(8, width), "    ")) {
+            auto e = text(part) | fg(chosen ? th.accent : th.dim, ui_);
+            if (chosen) e = e | bold;
+            rows.push_back(chosen && head ? e | focus : e);
+            head = false;
+        }
     }
     (void)height;
     return frame_panel(kText, vbox(std::move(rows)) | yframe, {}, tr("tui.pipeline.text"));
@@ -532,17 +561,17 @@ ftxui::Element PipelineScreen::OnRender() {
         focus_ = p;
         switch (p) {
         case kGraph: return vbox({toolbar(), graph_panel(cols - 4, content - 3) | flex});
-        case kInspector: return vbox({toolbar(), (adding_ ? add_panel() : inspector_panel()) | flex});
+        case kInspector: return vbox({toolbar(), (adding_ ? add_panel() : inspector_panel(cols - 4)) | flex});
         case kRun: return vbox({toolbar(), run_panel() | flex});
         case kProbe: return vbox({toolbar(), probe_panel(content - 3) | flex});
-        case kText: return vbox({toolbar(), text_panel(content - 3) | flex});
+        case kText: return vbox({toolbar(), text_panel(cols - 4, content - 3) | flex});
         case panel_count: break;
         }
     }
     const int graph_w = cols - kRightWidth - 1 - 4, graph_h = content - 1 - kBottomHeight - 2;
-    auto bottom = hbox({probe_panel(kBottomHeight - 2) | flex, text(" "), text_panel(kBottomHeight - 2) | size(WIDTH, EQUAL, kTextWidth)});
+    auto bottom = hbox({probe_panel(kBottomHeight - 2) | flex, text(" "), text_panel(kTextWidth - 4, kBottomHeight - 2) | size(WIDTH, EQUAL, kTextWidth)});
     auto left = vbox({graph_panel(graph_w, graph_h) | flex, bottom | size(HEIGHT, EQUAL, kBottomHeight)});
-    auto right = vbox({(adding_ ? add_panel() : inspector_panel()) | flex, run_panel() | size(HEIGHT, EQUAL, kRunHeight)});
+    auto right = vbox({(adding_ ? add_panel() : inspector_panel(kRightWidth - 4)) | flex, run_panel() | size(HEIGHT, EQUAL, kRunHeight)});
     return vbox({toolbar(), hbox({left | flex, text(" "), right | size(WIDTH, EQUAL, kRightWidth)}) | flex});
 }
 
@@ -612,7 +641,7 @@ bool PipelineScreen::on_mouse(const ftxui::Mouse& m) {
         const auto [px, py] = *at;
         for (const auto& p : picture_.ports)
             if (p.x == px && p.y == py && p.output) {
-                drag_ = {Drag::Kind::wire, p, m.x, m.y};
+                drag_ = {Drag::Kind::wire, p, m.x, m.y, graph_box_};
                 return true;
             }
         for (const auto& n : picture_.nodes)
@@ -626,6 +655,11 @@ bool PipelineScreen::on_mouse(const ftxui::Mouse& m) {
                 return true;
             }
         drag_ = {Drag::Kind::pan, {}, m.x, m.y};
+        return true;
+    }
+    if (drag_.kind == Drag::Kind::wire && m.motion == Mouse::Moved) {
+        drag_.last_x = m.x;
+        drag_.last_y = m.y;
         return true;
     }
     if (drag_.kind == Drag::Kind::pan && m.motion == Mouse::Moved) {

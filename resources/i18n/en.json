@@ -1269,5 +1269,6 @@
   "unit.node.one": "{n} node",
   "unit.node.few": "{n} nodes",
   "unit.node.many": "{n} nodes",
-  "tui.processing.heard": "plays {span} s ({from}–{to} s)"
+  "tui.processing.heard": "plays {span} s ({from}–{to} s)",
+  "tui.pipeline.wire_drag": "wire {from} → {to} · release on an input ○"
 }

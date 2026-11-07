@@ -32,13 +32,13 @@
 │ p — щуп на выбранном проводе, r — запуск               │ │ pipeline "denoise" v1                      │ │                                          │
 │                                                        │ │                                            │ │                                          │
 │                                                        │ │ node src  = wav(path="../resources/samples │ │                                          │
+│                                                        │ │     /test.wav")                            │ │                                          │
 │                                                        │ │ node dwt  = dwt(wavelet=sym8, levels=0, ex │ │                                          │
+│                                                        │ │     t=symmetric)                           │ │                                          │
 │                                                        │ │ node thr  = threshold(rule=bayes, mode=sof │ │                                          │
-│                                                        │ │ node idwt = idwt()                         │ │                                          │
-│                                                        │ │ node chk  = check(kind=snr, tol=0)         │ │                                          │
-│                                                        │ │ node out  = wav_out(path="denoised.wav", b │ │                                          │
-│                                                        │ │                                            │ │ $ signals run denoise.sig                │
-│                                                        │ │ src -> dwt -> thr -> idwt -> out           │ │  r  запуск   Esc  прервать               │
+│                                                        │ │     t, levels=1..64, sigma=mad_d1)         │ │                                          │
+│                                                        │ │ node idwt = idwt()                         │ │ $ signals run denoise.sig                │
+│                                                        │ │ node chk  = check(kind=snr, tol=0)         │ │  r  запуск   Esc  прервать               │
 ╰────────────────────────────────────────────────────────╯ ╰────────────────────────────────────────────╯ ╰──────────────────────────────────────────╯
  Tab  панель   z  весь экран   a  добавить блок   Enter  параметры   ←→↑↓  узлы   1–9  вкладки   :  команды   R  ресурсы   ?  клавиши   q  выход
 CPU 3,1 % (0,39 % от 8 ядер) · память 182 МБ (пик 240 МБ) · потоков 4 · 60 к/с

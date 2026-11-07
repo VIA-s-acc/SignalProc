@@ -56,6 +56,43 @@ inline int display_width(const std::string& s) {
     return width;
 }
 
+inline std::string ellipsize_start(const std::string& s, int width, bool ascii) {
+    if (width <= 0) return {};
+    if (display_width(s) <= width) return s;
+    const auto cps = split_codepoints(s);
+    std::size_t first = cps.size();
+    int used = 0;
+    while (first > 0) {
+        const bool mark = is_combining_mark(cps[first - 1]);
+        if (!mark && used + 1 >= width) break;
+        --first;
+        if (!mark) ++used;
+    }
+    while (first < cps.size() && is_combining_mark(cps[first])) ++first;
+    std::string out = ascii ? "~" : "…";
+    for (std::size_t i = first; i < cps.size(); ++i) out += cps[i];
+    return out;
+}
+
+inline std::vector<std::string> wrap_codepoints(const std::string& s, int width, const std::string& indent) {
+    std::vector<std::string> out;
+    const auto cps = split_codepoints(s);
+    std::string line;
+    int used = 0, room = std::max(1, width);
+    for (const auto& cp : cps) {
+        if (!is_combining_mark(cp) && used >= room) {
+            out.push_back(std::move(line));
+            line = indent;
+            used = display_width(indent);
+            room = std::max(used + 1, width);
+        }
+        line += cp;
+        if (!is_combining_mark(cp)) ++used;
+    }
+    out.push_back(std::move(line));
+    return out;
+}
+
 inline std::string ellipsize(const std::string& s, int width, bool ascii) {
     if (width <= 0) return {};
     if (display_width(s) <= width) return s;
