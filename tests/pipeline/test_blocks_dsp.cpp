@@ -537,7 +537,7 @@ TEST_CASE("a bank from the user library works in dwt, idwt and convolve", "[pipe
         return b;
     }, [] { return std::vector<std::string>{"my_bank"}; });
     CHECK(core::user_wavelet_names() == std::vector<std::string>{"my_bank"});
-    CHECK(core::all_wavelet_names().back() == "my_bank");
+    CHECK(core::all_wavelet_names().front() == "my_bank");
     const auto x = audio(run("samples", {}, {{"values", "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16"}, {"rate", "16"}})[0]);
     const auto c = run("dwt", {x}, {{"wavelet", "my_bank"}, {"levels", "2"}});
     const auto back = audio(run("idwt", {c[0]}, {{"wavelet", "my_bank"}})[0]);
@@ -599,4 +599,22 @@ TEST_CASE("m8a: the wiener, spectral_subtract and deconvolve blocks match the co
     const std::vector<Value> too_short{x, core::AudioBuffer{}};
     const auto r = sub->run(RunContext{}, too_short, *resolve_params(*sub, {{"n", "4096"}}));
     REQUIRE_FALSE(r);
+}
+
+TEST_CASE("a single filter from the user library works in convolve by its name", "[pipeline][user_banks]") {
+    core::set_named_filters([](std::string_view name) -> std::optional<core::Laurent> {
+        if (name != "my lowpass") return std::nullopt;
+        return core::Laurent{{0.5, 0.5}, 0};
+    }, [] { return std::vector<std::string>{"my lowpass"}; });
+    CHECK(core::named_filter_names() == std::vector<std::string>{"my lowpass"});
+    const auto x = audio(run("samples", {}, {{"values", "2 4 6 8"}, {"rate", "8"}})[0]);
+    const auto y = audio(run("convolve", {x}, {{"filter", "my lowpass"}, {"method", "direct"}})[0]);
+    REQUIRE(y.channels[0].size() >= 4);
+    CHECK(y.channels[0][0] == 1.0);
+    CHECK(y.channels[0][1] == 3.0);
+    core::set_named_filters({}, {});
+    const auto* t = find_block_type("convolve");
+    auto params = resolve_params(*t, {{"filter", "my lowpass"}});
+    REQUIRE(params);
+    CHECK_FALSE(t->run(RunContext{std::filesystem::temp_directory_path()}, std::vector<Value>{x}, *params));
 }

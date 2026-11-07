@@ -32,6 +32,11 @@ using WaveletResolver = std::function<std::optional<FilterBank>(std::string_view
 void set_user_wavelets(WaveletResolver resolve, std::function<std::vector<std::string>()> names);
 std::vector<std::string> user_wavelet_names();
 std::vector<std::string> all_wavelet_names();
+
+using FilterResolver = std::function<std::optional<Laurent>(std::string_view name)>;
+void set_named_filters(FilterResolver resolve, std::function<std::vector<std::string>()> names);
+std::optional<Laurent> named_filter(std::string_view name);
+std::vector<std::string> named_filter_names();
 Result<Regularity> wavelet_regularity(std::string_view name);
 std::span<const std::string_view> wavelet_names();
 Result<WaveletInfo> wavelet_info(std::string_view name);

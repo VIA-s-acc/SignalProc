@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #include <ftxui/component/event.hpp>
@@ -703,4 +704,27 @@ TEST_CASE("the wavelet and filter lists offer the user banks", "[tui][pipeline_s
         f.h.send(ftxui::Event::Escape);
     }
     signals::core::set_user_wavelets({}, {});
+}
+
+TEST_CASE("mra component and check delay are picked from lists", "[tui][pipeline_screen]") {
+    PipelineFixture f{150, 44, false};
+    std::vector<Command> items;
+    f.ui->choose = [&](std::string, std::vector<Command> list) { items = std::move(list); };
+    for (const auto& [type, param, wanted] : {std::tuple{"mra", "component", "d3"}, std::tuple{"check", "delay", "auto"}}) {
+        items.clear();
+        const auto id = f.model->add_node(type);
+        f.model->selection = {Selection::Kind::node, id, {}};
+        f.h.frame();
+        f.h.send(ftxui::Event::Return);
+        const auto* t = signals::pipeline::find_block_type(type);
+        const auto p = std::find_if(t->params.begin(), t->params.end(), [&](const auto& s) { return s.name == param; });
+        REQUIRE(p != t->params.end());
+        for (auto k = t->params.begin(); k != p; ++k) f.h.send(ftxui::Event::ArrowDown);
+        f.h.send(ftxui::Event::Return);
+        const auto it = std::find_if(items.begin(), items.end(), [&](const Command& c) { return c.title == wanted; });
+        REQUIRE(it != items.end());
+        it->run();
+        CHECK(f.model->doc().nodes.back().params.at(param) == wanted);
+        f.h.send(ftxui::Event::Escape);
+    }
 }

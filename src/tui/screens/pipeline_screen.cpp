@@ -382,12 +382,18 @@ void PipelineScreen::add_block(const std::string& type) {
 }
 
 std::vector<std::string> PipelineScreen::param_values(const pipeline::BlockType& type, const pipeline::ParamSpec& spec) const {
-    (void)type;
     std::vector<std::string> out;
+    if (type.id == "mra" && spec.name == "component") {
+        out.emplace_back("a");
+        for (int k = 1; k <= 16; ++k) out.push_back("d" + std::to_string(k));
+        return out;
+    }
+    if (type.id == "check" && spec.name == "delay") return {"0", "auto"};
     if (spec.name == "wavelet") {
         if (spec.fallback == "auto") out.emplace_back("auto");
         for (auto& name : core::all_wavelet_names()) out.push_back(std::move(name));
     } else if (spec.name == "filter" && spec.fallback.find('.') != std::string::npos) {
+        for (auto& name : core::named_filter_names()) out.push_back(std::move(name));
         for (const auto& name : core::all_wavelet_names())
             for (const char* role : {".h0", ".h1", ".f0", ".f1"}) out.push_back(std::string{name} + role);
     }

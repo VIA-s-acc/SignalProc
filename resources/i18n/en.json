@@ -1006,6 +1006,7 @@
   "tui.matrix.dct_check": "C(T+H)Cᵀ off the diagonal = {value}",
   "tui.matrix.levinson_check": "Levinson–Durbin: ‖T(r)·x − e₁‖ / (‖T‖·‖x‖) = {value}",
   "tui.matrix.gohberg_check": "T⁻¹ by Gohberg–Semencul: max|T·T⁻¹ − I| = {value}",
+  "tui.matrix.single_filter": "«{name}» is a single filter: it has convolution, circulant and «Toeplitz + Hankel»; analysis and synthesis need a bank",
   "tui.matrix.spectrum_title": "Singular values σᵢ · {name} · {count}",
   "tui.matrix.hint.spectrum": "σ spectrum",
   "tui.matrix.edges": "edges",

@@ -103,6 +103,18 @@ std::shared_ptr<const UserWavelets> user_wavelets() {
     return g_user;
 }
 
+struct NamedFilters {
+    FilterResolver resolve;
+    std::function<std::vector<std::string>()> names;
+};
+
+std::shared_ptr<const NamedFilters> g_filters = std::make_shared<const NamedFilters>();
+
+std::shared_ptr<const NamedFilters> named_filters() {
+    std::lock_guard lock{g_user_mutex};
+    return g_filters;
+}
+
 }  // namespace
 
 void set_user_wavelets(WaveletResolver resolve, std::function<std::vector<std::string>()> names) {
@@ -117,11 +129,26 @@ std::vector<std::string> user_wavelet_names() {
 }
 
 std::vector<std::string> all_wavelet_names() {
-    std::vector<std::string> out;
-    for (const auto name : wavelet_names()) out.emplace_back(name);
-    for (auto& name : user_wavelet_names())
-        if (std::find(out.begin(), out.end(), name) == out.end()) out.push_back(std::move(name));
+    std::vector<std::string> out = user_wavelet_names();
+    for (const auto name : wavelet_names())
+        if (std::find(out.begin(), out.end(), name) == out.end()) out.emplace_back(name);
     return out;
+}
+
+void set_named_filters(FilterResolver resolve, std::function<std::vector<std::string>()> names) {
+    auto next = std::make_shared<const NamedFilters>(NamedFilters{std::move(resolve), std::move(names)});
+    std::lock_guard lock{g_user_mutex};
+    g_filters = std::move(next);
+}
+
+std::optional<Laurent> named_filter(std::string_view name) {
+    const auto filters = named_filters();
+    return filters->resolve ? filters->resolve(name) : std::nullopt;
+}
+
+std::vector<std::string> named_filter_names() {
+    const auto filters = named_filters();
+    return filters->names ? filters->names() : std::vector<std::string>{};
 }
 
 Result<FilterBank> wavelet(std::string_view name) {

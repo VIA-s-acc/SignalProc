@@ -333,6 +333,17 @@ void install_user_wavelets() {
             for (const auto& b : user_banks()) out.push_back(b.name);
             return out;
         });
+    core::set_named_filters(
+        [](std::string_view name) -> std::optional<core::Laurent> {
+            for (const auto& f : user_filters())
+                if (f.name == name) return f.h;
+            return std::nullopt;
+        },
+        [] {
+            std::vector<std::string> out;
+            for (const auto& f : user_filters()) out.push_back(f.name);
+            return out;
+        });
 }
 
 void set_user_filters(std::vector<UserFilter> filters) {

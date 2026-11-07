@@ -71,8 +71,14 @@ void MatrixModel::set(MatrixOptions o, JobRunner& jobs) {
             data_ = std::move(d);
             job_.reset();
         };
-        const auto bank = core::wavelet(o.wavelet);
-        if (!bank) return fail(bank.error().message);
+        auto bank = core::wavelet(o.wavelet);
+        if (!bank) {
+            const auto single = core::named_filter(o.wavelet);
+            if (!single) return fail(bank.error().message);
+            if (o.op != MatrixOp::convolution && o.op != MatrixOp::circulant && o.op != MatrixOp::toeplitz_hankel)
+                return fail(fmt::format(fmt::runtime(tr("tui.matrix.single_filter")), fmt::arg("name", o.wavelet)));
+            bank = core::FilterBank{o.wavelet, *single, *single, *single, *single};
+        }
         d->filter_length = core::trim(bank->h0, 0.0).coeffs.size();
         d->orthogonal_bank = core::check_orthogonality(*bank, 1e-9).passed();
         const core::DwtOptions dwt{o.mode, false};
