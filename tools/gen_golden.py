@@ -753,6 +753,131 @@ def toeplitz_json():
     return {"cases": cases}
 
 
+FREEVERB_COMBS = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617]
+FREEVERB_ALLPASSES = [556, 441, 341, 225]
+
+
+def fx_phase(n, rate, fs):
+    return 2 * np.pi * rate * np.arange(n) / fs
+
+
+def tremolo(x, fs, rate, depth, shape):
+    ph = fx_phase(len(x), rate, fs)
+    lfo = {"sine": np.sin(ph), "triangle": scipy.signal.sawtooth(ph, 0.5), "square": scipy.signal.square(ph)}[shape]
+    return x * (1 - depth * (1 - lfo) / 2)
+
+
+def modulated_delay(x, fs, mode, rate, depth_ms, base_ms, feedback, mix):
+    fb = feedback if mode == "flanger" else 0.0
+    m = 1.0 if mode == "vibrato" else mix
+    buf, y = np.zeros(len(x)), np.zeros(len(x))
+    for k in range(len(x)):
+        d = max(1.0, (base_ms + depth_ms * (1 + math.sin(2 * math.pi * rate * k / fs)) / 2) * fs / 1000)
+        pos = k - d
+        i0 = math.floor(pos)
+        frac = pos - i0
+        a = buf[i0] if i0 >= 0 else 0.0
+        b = buf[i0 + 1] if frac > 0 and i0 + 1 >= 0 else 0.0
+        wet = (1 - frac) * a + frac * b
+        buf[k] = x[k] + fb * wet
+        y[k] = (1 - m) * x[k] + m * wet
+    return y
+
+
+def phaser(x, fs, stages, rate, min_hz, max_hz, feedback, mix):
+    xs, ys = np.zeros(stages), np.zeros(stages)
+    last, y = 0.0, np.zeros(len(x))
+    for k in range(len(x)):
+        fc = min_hz * (max_hz / min_hz) ** ((1 - math.cos(2 * math.pi * rate * k / fs)) / 2)
+        t = math.tan(math.pi * fc / fs)
+        a = (t - 1) / (t + 1)
+        u = x[k] + feedback * last
+        for s in range(stages):
+            v = a * (u - ys[s]) + xs[s]
+            xs[s], ys[s], u = u, v, v
+        last = u
+        y[k] = (1 - mix) * x[k] + mix * u
+    return y
+
+
+def reverb(x, fs, room_size, damping, wet, dry):
+    scale = lambda length: max(1, math.floor(length * fs / 44100 + 0.5))
+    fb, damp = 0.28 * room_size + 0.7, 0.4 * damping
+    acc = np.zeros(len(x))
+    for length in map(scale, FREEVERB_COMBS):
+        buf, idx, store = np.zeros(length), 0, 0.0
+        for k in range(len(x)):
+            out = buf[idx]
+            store = out * (1 - damp) + store * damp
+            buf[idx] = 0.015 * x[k] + store * fb
+            idx = (idx + 1) % length
+            acc[k] += out
+    for length in map(scale, FREEVERB_ALLPASSES):
+        buf, idx = np.zeros(length), 0
+        for k in range(len(x)):
+            held = buf[idx]
+            buf[idx] = acc[k] + held * 0.5
+            acc[k] = held - acc[k]
+            idx = (idx + 1) % length
+    return dry * x + wet * 3 * acc
+
+
+def shifted(c, d):
+    y = np.zeros(len(c))
+    for k in range(len(c)):
+        if 0 <= k - d < len(c):
+            y[k] = c[k - d]
+    return y
+
+
+def blocks_fx_json():
+    """Effect, modulation, math and channel blocks: numpy/scipy references and the exact equations where scipy has none."""
+    fs, n = 8000.0, 400
+    t = np.arange(n) / fs
+    rng = np.random.default_rng(37)
+    x = np.sin(2 * np.pi * 300 * t) + 0.4 * np.sin(2 * np.pi * 1700 * t) + 0.2 * rng.standard_normal(n)
+    r = 0.7 * np.cos(2 * np.pi * 500 * t) + 0.2 * rng.standard_normal(n)
+    positive = np.abs(x) + 0.1
+    trem = [{"shape": s, "rate": 7.0, "depth": 0.8, "y": floats(tremolo(x, fs, 7.0, 0.8, s))} for s in ["sine", "triangle", "square"]]
+    mdelay = [{"mode": m, "rate": rate, "depth_ms": dm, "base_ms": bm, "feedback": fb, "mix": mix,
+               "y": floats(modulated_delay(x, fs, m, rate, dm, bm, fb, mix))}
+              for m, rate, dm, bm, fb, mix in [("chorus", 1.5, 4.0, 10.0, 0.6, 0.5), ("flanger", 3.0, 2.0, 0.5, 0.7, 0.5),
+                                               ("vibrato", 6.0, 3.0, 1.0, 0.0, 0.3), ("flanger", 2.0, 1.0, 0.0, -0.8, 0.7)]]
+    phasers = [{"stages": s, "rate": rate, "min_hz": lo, "max_hz": hi, "feedback": fb, "mix": mix,
+                "y": floats(phaser(x, fs, s, rate, lo, hi, fb, mix))}
+               for s, rate, lo, hi, fb, mix in [(4, 2.0, 200.0, 2000.0, 0.5, 0.5), (12, 5.0, 3000.0, 100.0, -0.7, 0.8)]]
+    reverbs = [{"room_size": rs, "damping": dp, "wet": w, "dry": d, "y": floats(reverb(x, fs, rs, dp, w, d))}
+               for rs, dp, w, d in [(0.5, 0.5, 0.33, 0.7), (0.95, 0.1, 1.0, 0.0)]]
+    u = 3.0 * x
+    v = np.mod(u + 1, 4)
+    folds = {"triangle": floats(np.where(v < 2, v - 1, 3 - v)), "sine": floats(np.sin(np.pi / 2 * u))}
+    ph = fx_phase(n, 1200.0, fs)
+    integral = np.concatenate([[0.0], np.cumsum(x)[:-1]])
+    gp_t = (np.arange(321) - 320 / 2) / fs
+    pulses = [{"fc": fc, "bw": bw, "bwr": bwr, "y": floats(0.8 * scipy.signal.gausspulse(gp_t, fc=fc, bw=bw, bwr=bwr))}
+              for fc, bw, bwr in [(1000.0, 0.5, -6.0), (2500.0, 0.2, -20.0)]]
+    train = np.zeros(int(0.05 * fs))
+    train[7::33] = 0.5
+    math_ops = {"log": np.log(positive), "log10": np.log10(positive), "exp": np.exp(x), "sqrt": np.sqrt(positive),
+                "pow": positive ** 2.5, "sign": np.sign(np.round(x, 1)), "reciprocal": 1 / positive}
+    short = r[:300]
+    padded = np.concatenate([short, np.zeros(n - len(short))])
+    exponent = 0.5 + np.abs(np.sin(2 * np.pi * 90 * t))
+    binary = {"divide": floats(x / (np.abs(r) + 0.05)), "min": floats(np.minimum(x, padded)), "max": floats(np.maximum(x, padded)),
+              "hypot": floats(np.hypot(x, padded)), "pow": floats(positive ** exponent)}
+    mid, side = (x + r) / 2, (x - r) / 2
+    hold = x[np.arange(n) // 5 * 5]
+    return {"fs": fs, "x": floats(x), "r": floats(r), "positive": floats(positive), "exponent": floats(exponent),
+            "tremolo": trem, "modulated_delay": mdelay, "phaser": phasers, "reverb": reverbs, "wavefold": folds,
+            "am": floats((1 + 0.6 * x) * np.cos(ph)), "fm": floats(np.cos(ph + 2 * np.pi * 150.0 * integral / fs)),
+            "gausspulse": pulses, "impulse_train": floats(train), "affine": floats(-1.5 * x + 0.25),
+            "math": {k: floats(v) for k, v in math_ops.items()}, "sign_input": floats(np.round(x, 1)), "binary": binary,
+            "repeat": floats(np.tile(x[:50], 3)), "channel_delay": [floats(shifted(x, 0)), floats(shifted(r, 12)), floats(shifted(x, -5))],
+            "stereo_width": [floats(mid + 0.4 * side), floats(mid - 0.4 * side)],
+            "balance": [floats(np.sqrt(1 - 0.6) * x), floats(np.sqrt(1 + 0.6) * r)], "sample_hold": floats(hold),
+            "dc_block": floats(scipy.signal.lfilter([1.0, -1.0], [1.0, -0.99], x + 0.5))}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path)
@@ -773,7 +898,8 @@ def main():
                                ("packets.json", packets_json), ("cwt.json", cwt_json),
                                ("processing.json", lambda: processing_json(sample_wav)),
                                ("iir.json", iir_json), ("fir.json", fir_json), ("ops.json", ops_json), ("analysis.json", analysis_json),
-                               ("blocks.json", blocks_json), ("adaptive.json", adaptive_json), ("restoration.json", restoration_json), ("toeplitz.json", toeplitz_json)]:
+                               ("blocks.json", blocks_json), ("adaptive.json", adaptive_json), ("restoration.json", restoration_json), ("toeplitz.json", toeplitz_json),
+                               ("blocks_fx.json", blocks_fx_json)]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)
