@@ -10,6 +10,7 @@
 #include "tui/data/user_filters.hpp"
 #include "tui/screens/decomposition_screen.hpp"
 #include "tui/screens/designer_screen.hpp"
+#include "tui/screens/diagram_screen.hpp"
 #include "tui/screens/explain_screen.hpp"
 #include "tui/screens/filters_screen.hpp"
 #include "tui/screens/matrix_screen.hpp"
@@ -44,8 +45,7 @@ std::vector<std::shared_ptr<TabScreen>> make_app_screens(UiContext& ui, AppModel
     screens[2] = make_filters_screen(ui, models.comparison);
     if (ui.jobs) models.designer->set_p(3, *ui.jobs);
     screens[3] = make_subtabs(tr("tui.tab.bank"), {{tr("tui.sub.designer"), make_designer_screen(ui, models.designer)},
-                                                  {tr("tui.sub.diagram"), make_placeholder(tr("tui.sub.diagram"), tr("tui.placeholder.diagram.title"),
-                                                                                           tr("tui.placeholder.diagram.text"), "M6", &ui)}});
+                                                  {tr("tui.sub.diagram"), make_diagram_screen(ui, models.designer, models.signal)}});
     screens[4] = make_decomposition_screen(ui, models.decomposition);
     screens[5] = make_matrix_screen(ui, models.matrix);
     screens[6] = make_processing_screen(ui, models.processing);

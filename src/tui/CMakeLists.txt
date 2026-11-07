@@ -41,6 +41,8 @@ add_library(signals_tui STATIC
   screens/filters_model.cpp
   screens/filters_screen.cpp
   screens/explain_model.cpp
+  screens/diagram_model.cpp
+  screens/diagram_screen.cpp
   screens/explain_screen.cpp
   screens/theory_navigator.cpp
   screens/theory_screen.cpp
