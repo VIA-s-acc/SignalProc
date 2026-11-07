@@ -3061,5 +3061,861 @@
    }
   ],
   "title": "Деконволюция"
+ },
+ {
+  "about": "Тремоло: периодически меняет громкость с частотой rate_hz",
+  "id": "tremolo",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Частота модуляции громкости, Гц: 2–10 Гц — классическое тремоло",
+    "choices": [],
+    "default": "5",
+    "max": 20000.0,
+    "min": 0.0,
+    "name": "rate_hz",
+    "values": {}
+   },
+   {
+    "about": "Глубина: 0 — без эффекта, 1 — громкость опускается до нуля",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "depth",
+    "values": {}
+   },
+   {
+    "about": "Форма низкочастотного генератора (LFO), задающего громкость",
+    "choices": [
+     "sine",
+     "triangle",
+     "square"
+    ],
+    "default": "sine",
+    "name": "shape",
+    "values": {
+     "sine": "синус: плавное покачивание",
+     "square": "меандр: резкое переключение между полной и пониженной громкостью",
+     "triangle": "треугольник: линейные подъём и спад"
+    }
+   }
+  ],
+  "title": "Тремоло"
+ },
+ {
+  "about": "Хорус, флэнджер или вибрато: задержка, которую качает LFO",
+  "id": "modulated_delay",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Эффект: как смешиваются задержанный и исходный сигналы",
+    "choices": [
+     "chorus",
+     "flanger",
+     "vibrato"
+    ],
+    "default": "chorus",
+    "name": "mode",
+    "values": {
+     "chorus": "хорус: задержка 10–30 мс вместе с исходным, без обратной связи",
+     "flanger": "флэнджер: задержка 0–5 мс с обратной связью, гребёнка бегущих провалов",
+     "vibrato": "вибрато: только задержанный сигнал — колеблется высота тона"
+    }
+   },
+   {
+    "about": "Частота LFO, Гц: как быстро качается задержка",
+    "choices": [],
+    "default": "0.8",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "rate_hz",
+    "values": {}
+   },
+   {
+    "about": "Размах качания, мс: задержка ходит от base_ms до base_ms + depth_ms",
+    "choices": [],
+    "default": "3",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "depth_ms",
+    "values": {}
+   },
+   {
+    "about": "Наименьшая задержка, мс; короче одного отсчёта она не становится",
+    "choices": [],
+    "default": "12",
+    "max": 1000.0,
+    "min": 0.0,
+    "name": "base_ms",
+    "values": {}
+   },
+   {
+    "about": "Доля задержанного сигнала, подаваемая обратно на вход задержки; только flanger",
+    "choices": [],
+    "default": "0.5",
+    "max": 0.99,
+    "min": -0.99,
+    "name": "feedback",
+    "values": {}
+   },
+   {
+    "about": "Доля задержанного сигнала в выходе: 0 — только исходный; у vibrato всегда 1",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "mix",
+    "values": {}
+   }
+  ],
+  "title": "Модулированная задержка"
+ },
+ {
+  "about": "Фэйзер: цепочка фазовых звеньев, LFO двигает провалы по спектру",
+  "id": "phaser",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Число фазовых звеньев первого порядка: каждые два дают один провал АЧХ",
+    "choices": [],
+    "default": "4",
+    "max": 12.0,
+    "min": 2.0,
+    "name": "stages",
+    "values": {}
+   },
+   {
+    "about": "Частота LFO, Гц: как быстро движутся провалы",
+    "choices": [],
+    "default": "0.5",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "rate_hz",
+    "values": {}
+   },
+   {
+    "about": "Нижний край качания частоты излома звеньев, Гц; ниже частоты Найквиста",
+    "choices": [],
+    "default": "200",
+    "max": 1000000.0,
+    "min": 1.0,
+    "name": "min_hz",
+    "values": {}
+   },
+   {
+    "about": "Верхний край качания, Гц; ниже частоты Найквиста; качание идёт по октавам",
+    "choices": [],
+    "default": "2000",
+    "max": 1000000.0,
+    "min": 1.0,
+    "name": "max_hz",
+    "values": {}
+   },
+   {
+    "about": "Доля выхода цепочки, подаваемая обратно на вход: острее провалы, сильнее резонанс",
+    "choices": [],
+    "default": "0.5",
+    "max": 0.99,
+    "min": -0.99,
+    "name": "feedback",
+    "values": {}
+   },
+   {
+    "about": "Доля обработанного сигнала в выходе: 0,5 даёт самые глубокие провалы",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "mix",
+    "values": {}
+   }
+  ],
+  "title": "Фэйзер"
+ },
+ {
+  "about": "Реверберация Freeverb: гребенчатые фильтры с затуханием и фазовые звенья",
+  "id": "reverb",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Размер комнаты: больше — длиннее хвост (обратная связь гребёнок 0,7…0,98)",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "room_size",
+    "values": {}
+   },
+   {
+    "about": "Затухание высоких частот в хвосте: больше — темнее звук",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "damping",
+    "values": {}
+   },
+   {
+    "about": "Уровень реверберации; длина входа сохраняется — чтобы услышать хвост, добавьте pad",
+    "choices": [],
+    "default": "0.33",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "wet",
+    "values": {}
+   },
+   {
+    "about": "Уровень исходного сигнала в выходе",
+    "choices": [],
+    "default": "0.7",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "dry",
+    "values": {}
+   }
+  ],
+  "title": "Реверберация"
+ },
+ {
+  "about": "Складывание волны: всё, что выходит за ±1, отражается обратно",
+  "id": "wavefold",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Усиление перед складыванием: больше — больше складок и обертонов",
+    "choices": [],
+    "default": "2",
+    "max": 1000.0,
+    "min": 0.01,
+    "name": "drive",
+    "values": {}
+   },
+   {
+    "about": "Как складывается сигнал",
+    "choices": [
+     "triangle",
+     "sine"
+    ],
+    "default": "triangle",
+    "name": "shape",
+    "values": {
+     "sine": "y = sin(π/2·drive·x): плавные складки",
+     "triangle": "отражение от уровней ±1: треугольная передаточная характеристика"
+    }
+   }
+  ],
+  "title": "Складывание волны"
+ },
+ {
+  "about": "АМ: y = (1 + depth·x)·cos(2π·carrier_hz·t); вход — модулирующий сигнал",
+  "id": "am",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Частота несущей, Гц; выше половины частоты дискретизации даёт наложение",
+    "choices": [],
+    "default": "1000",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "carrier_hz",
+    "values": {}
+   },
+   {
+    "about": "Индекс модуляции: где |depth·x| > 1, огибающая переходит через ноль (перемодуляция)",
+    "choices": [],
+    "default": "0.5",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "depth",
+    "values": {}
+   }
+  ],
+  "title": "Амплитудная модуляция"
+ },
+ {
+  "about": "ЧМ: мгновенная частота carrier_hz + deviation_hz·x; вход — модулирующий сигнал",
+  "id": "fm",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Частота несущей, Гц; выше половины частоты дискретизации даёт наложение",
+    "choices": [],
+    "default": "1000",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "carrier_hz",
+    "values": {}
+   },
+   {
+    "about": "Девиация частоты на единицу входа, Гц: насколько далеко уходит частота",
+    "choices": [],
+    "default": "100",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "deviation_hz",
+    "values": {}
+   }
+  ],
+  "title": "Частотная модуляция"
+ },
+ {
+  "about": "Гауссов радиоимпульс: косинус под гауссовой огибающей, как scipy gausspulse",
+  "id": "gausspulse",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Центральная частота, Гц",
+    "choices": [],
+    "default": "1000",
+    "max": 1000000.0,
+    "min": 0.001,
+    "name": "fc",
+    "values": {}
+   },
+   {
+    "about": "Относительная ширина полосы по уровню bwr, доля fc: меньше — длиннее импульс",
+    "choices": [],
+    "default": "0.5",
+    "max": 100.0,
+    "min": 0.001,
+    "name": "bw",
+    "values": {}
+   },
+   {
+    "about": "Уровень, на котором измеряется ширина полосы, дБ; отрицательный",
+    "choices": [],
+    "default": "-6",
+    "max": -0.001,
+    "min": -200.0,
+    "name": "bwr",
+    "values": {}
+   },
+   {
+    "about": "Пиковая амплитуда; отрицательная меняет полярность",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "amplitude",
+    "values": {}
+   },
+   {
+    "about": "Частота дискретизации, Гц; частоты выше её половины дадут наложение",
+    "choices": [],
+    "default": "44100",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "Длительность сигнала, с; импульс стоит в середине",
+    "choices": [],
+    "default": "0.01",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "duration",
+    "values": {}
+   }
+  ],
+  "title": "Гауссов импульс"
+ },
+ {
+  "about": "Единичные импульсы через каждые period отсчётов, между ними нули",
+  "id": "impulse_train",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Период в отсчётах или в секундах с суффиксом s (0.01s)",
+    "choices": [],
+    "default": "100",
+    "name": "period",
+    "values": {}
+   },
+   {
+    "about": "Положение первого импульса: отсчёты или секунды с суффиксом s",
+    "choices": [],
+    "default": "0",
+    "name": "offset",
+    "values": {}
+   },
+   {
+    "about": "Высота импульсов; отрицательная меняет полярность",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "amplitude",
+    "values": {}
+   },
+   {
+    "about": "Частота дискретизации, Гц",
+    "choices": [],
+    "default": "44100",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "Длительность сигнала, с",
+    "choices": [],
+    "default": "1",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "duration",
+    "values": {}
+   }
+  ],
+  "title": "Серия импульсов"
+ },
+ {
+  "about": "y = scale·x + offset: масштаб и сдвиг за один шаг",
+  "id": "affine",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Множитель; отрицательный меняет полярность",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "scale",
+    "values": {}
+   },
+   {
+    "about": "Постоянная, прибавляемая после умножения",
+    "choices": [],
+    "default": "0",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "offset",
+    "values": {}
+   }
+  ],
+  "title": "Масштаб и сдвиг"
+ },
+ {
+  "about": "Функция от каждого отсчёта: логарифм, экспонента, корень, степень, знак, 1/x",
+  "id": "math",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Функция; вне области определения блок останавливается с ошибкой, а не выдаёт NaN",
+    "choices": [
+     "log",
+     "log10",
+     "exp",
+     "sqrt",
+     "pow",
+     "sign",
+     "reciprocal"
+    ],
+    "default": "log",
+    "name": "op",
+    "values": {
+     "exp": "экспонента eˣ; при x > 709 переполнение",
+     "log": "натуральный логарифм ln x; нужно x > 0",
+     "log10": "десятичный логарифм; нужно x > 0; 20·log10 от модуля — уровень в дБ",
+     "pow": "степень xᵖ; при x < 0 p должно быть целым, при x = 0 — неотрицательным",
+     "reciprocal": "обратная величина 1/x; нужно x ≠ 0",
+     "sign": "знак: −1, 0 или 1",
+     "sqrt": "квадратный корень; нужно x ≥ 0"
+    }
+   },
+   {
+    "about": "Показатель степени; только pow",
+    "choices": [],
+    "default": "2",
+    "max": 1000.0,
+    "min": -1000.0,
+    "name": "p",
+    "values": {}
+   }
+  ],
+  "title": "Функция"
+ },
+ {
+  "about": "Операция над отсчётами a и b: деление, минимум, максимум, степень, гипотенуза",
+  "id": "binary",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Операция; более короткий вход дополняется нулями, как в add",
+    "choices": [
+     "divide",
+     "min",
+     "max",
+     "pow",
+     "hypot"
+    ],
+    "default": "divide",
+    "name": "op",
+    "values": {
+     "divide": "a / b; ноль в b, в том числе в дополнении, — ошибка",
+     "hypot": "√(a² + b²) без переполнения: модуль по двум составляющим",
+     "max": "большее из a и b",
+     "min": "меньшее из a и b",
+     "pow": "aᵇ; при a < 0 b должно быть целым, при a = 0 — неотрицательным"
+    }
+   }
+  ],
+  "title": "Операция над двумя"
+ },
+ {
+  "about": "Повторяет весь сигнал подряд: в выходе times копий",
+  "id": "repeat",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Сколько копий в выходе; 1 оставляет сигнал как есть",
+    "choices": [],
+    "default": "2",
+    "max": 100000.0,
+    "min": 1.0,
+    "name": "times",
+    "values": {}
+   }
+  ],
+  "title": "Повтор"
+ },
+ {
+  "about": "Оставляет один канал с номером index",
+  "id": "select_channel",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Номер канала с нуля: 0 — левый, 1 — правый",
+    "choices": [],
+    "default": "0",
+    "max": 1023.0,
+    "min": 0.0,
+    "name": "index",
+    "values": {}
+   }
+  ],
+  "title": "Выбор канала"
+ },
+ {
+  "about": "Сдвигает каждый канал на своё число отсчётов; длина сохраняется",
+  "id": "channel_delay",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Задержки каналов в отсчётах через пробел или запятую: 0 12; последняя повторяется, отрицательная опережает",
+    "choices": [],
+    "default": "0",
+    "name": "delays",
+    "values": {}
+   }
+  ],
+  "title": "Задержка каналов"
+ },
+ {
+  "about": "Ширина стереобазы через сумму и разность: разностный сигнал умножается на width",
+  "id": "stereo_width",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Множитель разностного сигнала: 0 — моно, 1 — без изменений, 2 — вдвое шире",
+    "choices": [],
+    "default": "1.5",
+    "max": 2.0,
+    "min": 0.0,
+    "name": "width",
+    "values": {}
+   }
+  ],
+  "title": "Ширина стерео"
+ },
+ {
+  "about": "Баланс стерео с постоянной мощностью: L·√(1−p), R·√(1+p)",
+  "id": "balance",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Положение p: −1 — только левый (+3 дБ), 0 — без изменений, 1 — только правый",
+    "choices": [],
+    "default": "0",
+    "max": 1.0,
+    "min": -1.0,
+    "name": "position",
+    "values": {}
+   }
+  ],
+  "title": "Баланс"
+ },
+ {
+  "about": "Выборка-хранение: каждый hold-й отсчёт держится до следующего; длина сохраняется",
+  "id": "sample_hold",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Шаг удержания: отсчёты или секунды с суффиксом s; частота отсчётов падает до fs/hold",
+    "choices": [],
+    "default": "4",
+    "name": "hold",
+    "values": {}
+   }
+  ],
+  "title": "Выборка-хранение"
+ },
+ {
+  "about": "ФВЧ первого порядка y[n] = x[n] − x[n−1] + r·y[n−1]: убирает постоянную",
+  "id": "dc_block",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Полюс: ближе к 1 — ниже частота среза, около (1−r)·fs/2π, и дольше установление",
+    "choices": [],
+    "default": "0.995",
+    "max": 0.999999,
+    "min": 0.0,
+    "name": "r",
+    "values": {}
+   }
+  ],
+  "title": "Блокировка DC"
  }
 ]

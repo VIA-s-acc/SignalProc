@@ -3061,5 +3061,861 @@
    }
   ],
   "title": "Deconvolution"
+ },
+ {
+  "about": "Tremolo: modulates the level periodically at rate_hz",
+  "id": "tremolo",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Level modulation frequency, Hz: 2–10 Hz is a classic tremolo",
+    "choices": [],
+    "default": "5",
+    "max": 20000.0,
+    "min": 0.0,
+    "name": "rate_hz",
+    "values": {}
+   },
+   {
+    "about": "Depth: 0 leaves the signal unchanged, 1 dips the level to zero",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "depth",
+    "values": {}
+   },
+   {
+    "about": "Shape of the low-frequency oscillator (LFO) that sets the level",
+    "choices": [
+     "sine",
+     "triangle",
+     "square"
+    ],
+    "default": "sine",
+    "name": "shape",
+    "values": {
+     "sine": "sine: a smooth swell",
+     "square": "square: hard switching between the full and the reduced level",
+     "triangle": "triangle: a linear rise and fall"
+    }
+   }
+  ],
+  "title": "Tremolo"
+ },
+ {
+  "about": "Chorus, flanger or vibrato: a delay swept by an LFO",
+  "id": "modulated_delay",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Effect: how the delayed and the original signals combine",
+    "choices": [
+     "chorus",
+     "flanger",
+     "vibrato"
+    ],
+    "default": "chorus",
+    "name": "mode",
+    "values": {
+     "chorus": "chorus: a 10–30 ms delay mixed with the original, no feedback",
+     "flanger": "flanger: a 0–5 ms delay with feedback, a comb of sweeping notches",
+     "vibrato": "vibrato: the delayed signal alone, so the pitch wobbles"
+    }
+   },
+   {
+    "about": "LFO frequency, Hz: how fast the delay sweeps",
+    "choices": [],
+    "default": "0.8",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "rate_hz",
+    "values": {}
+   },
+   {
+    "about": "Sweep width, ms: the delay moves from base_ms to base_ms + depth_ms",
+    "choices": [],
+    "default": "3",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "depth_ms",
+    "values": {}
+   },
+   {
+    "about": "Shortest delay, ms; it never gets shorter than one sample",
+    "choices": [],
+    "default": "12",
+    "max": 1000.0,
+    "min": 0.0,
+    "name": "base_ms",
+    "values": {}
+   },
+   {
+    "about": "Share of the delayed signal fed back into the delay; flanger only",
+    "choices": [],
+    "default": "0.5",
+    "max": 0.99,
+    "min": -0.99,
+    "name": "feedback",
+    "values": {}
+   },
+   {
+    "about": "Share of the delayed signal in the output: 0 is dry only; vibrato always uses 1",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "mix",
+    "values": {}
+   }
+  ],
+  "title": "Modulated delay"
+ },
+ {
+  "about": "Phaser: a chain of allpass stages whose notches an LFO sweeps across the spectrum",
+  "id": "phaser",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Number of first-order allpass stages: every two give one notch in the response",
+    "choices": [],
+    "default": "4",
+    "max": 12.0,
+    "min": 2.0,
+    "name": "stages",
+    "values": {}
+   },
+   {
+    "about": "LFO frequency, Hz: how fast the notches move",
+    "choices": [],
+    "default": "0.5",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "rate_hz",
+    "values": {}
+   },
+   {
+    "about": "Lower end of the stages' break-frequency sweep, Hz; below Nyquist",
+    "choices": [],
+    "default": "200",
+    "max": 1000000.0,
+    "min": 1.0,
+    "name": "min_hz",
+    "values": {}
+   },
+   {
+    "about": "Upper end of the sweep, Hz; below Nyquist; the sweep is even in octaves",
+    "choices": [],
+    "default": "2000",
+    "max": 1000000.0,
+    "min": 1.0,
+    "name": "max_hz",
+    "values": {}
+   },
+   {
+    "about": "Share of the chain output fed back to its input: sharper notches, more resonance",
+    "choices": [],
+    "default": "0.5",
+    "max": 0.99,
+    "min": -0.99,
+    "name": "feedback",
+    "values": {}
+   },
+   {
+    "about": "Share of the processed signal in the output: 0.5 gives the deepest notches",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "mix",
+    "values": {}
+   }
+  ],
+  "title": "Phaser"
+ },
+ {
+  "about": "Freeverb reverb: damped comb filters followed by allpass stages",
+  "id": "reverb",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Room size: larger means a longer tail (comb feedback 0.7…0.98)",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "room_size",
+    "values": {}
+   },
+   {
+    "about": "High-frequency damping in the tail: higher sounds darker",
+    "choices": [],
+    "default": "0.5",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "damping",
+    "values": {}
+   },
+   {
+    "about": "Level of the reverberation; the input length is kept, so pad it to hear the tail",
+    "choices": [],
+    "default": "0.33",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "wet",
+    "values": {}
+   },
+   {
+    "about": "Level of the original signal in the output",
+    "choices": [],
+    "default": "0.7",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "dry",
+    "values": {}
+   }
+  ],
+  "title": "Reverb"
+ },
+ {
+  "about": "Wavefolder: whatever exceeds ±1 is reflected back inside",
+  "id": "wavefold",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Gain before folding: higher gives more folds and overtones",
+    "choices": [],
+    "default": "2",
+    "max": 1000.0,
+    "min": 0.01,
+    "name": "drive",
+    "values": {}
+   },
+   {
+    "about": "How the signal folds",
+    "choices": [
+     "triangle",
+     "sine"
+    ],
+    "default": "triangle",
+    "name": "shape",
+    "values": {
+     "sine": "y = sin(π/2·drive·x): smooth folds",
+     "triangle": "reflection off ±1: a triangular transfer curve"
+    }
+   }
+  ],
+  "title": "Wavefolder"
+ },
+ {
+  "about": "AM: y = (1 + depth·x)·cos(2π·carrier_hz·t); the input is the message",
+  "id": "am",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Carrier frequency, Hz; above half the sample rate it aliases",
+    "choices": [],
+    "default": "1000",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "carrier_hz",
+    "values": {}
+   },
+   {
+    "about": "Modulation index: where |depth·x| > 1 the envelope crosses zero (overmodulation)",
+    "choices": [],
+    "default": "0.5",
+    "max": 100.0,
+    "min": 0.0,
+    "name": "depth",
+    "values": {}
+   }
+  ],
+  "title": "Amplitude modulation"
+ },
+ {
+  "about": "FM: instantaneous frequency carrier_hz + deviation_hz·x; the input is the message",
+  "id": "fm",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Carrier frequency, Hz; above half the sample rate it aliases",
+    "choices": [],
+    "default": "1000",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "carrier_hz",
+    "values": {}
+   },
+   {
+    "about": "Frequency deviation per unit of input, Hz: how far the frequency swings",
+    "choices": [],
+    "default": "100",
+    "max": 1000000.0,
+    "min": 0.0,
+    "name": "deviation_hz",
+    "values": {}
+   }
+  ],
+  "title": "Frequency modulation"
+ },
+ {
+  "about": "Gaussian-modulated sinusoid, as scipy gausspulse",
+  "id": "gausspulse",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Centre frequency, Hz",
+    "choices": [],
+    "default": "1000",
+    "max": 1000000.0,
+    "min": 0.001,
+    "name": "fc",
+    "values": {}
+   },
+   {
+    "about": "Fractional bandwidth at level bwr, a share of fc: smaller gives a longer pulse",
+    "choices": [],
+    "default": "0.5",
+    "max": 100.0,
+    "min": 0.001,
+    "name": "bw",
+    "values": {}
+   },
+   {
+    "about": "Level at which the bandwidth is measured, dB; negative",
+    "choices": [],
+    "default": "-6",
+    "max": -0.001,
+    "min": -200.0,
+    "name": "bwr",
+    "values": {}
+   },
+   {
+    "about": "Peak amplitude; a negative value flips the polarity",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "amplitude",
+    "values": {}
+   },
+   {
+    "about": "Sample rate, Hz; frequencies above half of it alias",
+    "choices": [],
+    "default": "44100",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "Signal length, s; the pulse sits in the middle",
+    "choices": [],
+    "default": "0.01",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "duration",
+    "values": {}
+   }
+  ],
+  "title": "Gaussian pulse"
+ },
+ {
+  "about": "Unit impulses every period samples, with zeros in between",
+  "id": "impulse_train",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Period in samples, or seconds with an s suffix (0.01s)",
+    "choices": [],
+    "default": "100",
+    "name": "period",
+    "values": {}
+   },
+   {
+    "about": "Position of the first impulse: samples, or seconds with an s suffix",
+    "choices": [],
+    "default": "0",
+    "name": "offset",
+    "values": {}
+   },
+   {
+    "about": "Impulse height; a negative value flips the polarity",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "amplitude",
+    "values": {}
+   },
+   {
+    "about": "Sample rate, Hz",
+    "choices": [],
+    "default": "44100",
+    "max": 768000.0,
+    "min": 1.0,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "Signal length, s",
+    "choices": [],
+    "default": "1",
+    "max": 3600.0,
+    "min": 0.0,
+    "name": "duration",
+    "values": {}
+   }
+  ],
+  "title": "Impulse train"
+ },
+ {
+  "about": "y = scale·x + offset: scale and shift in one step",
+  "id": "affine",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Multiplier; a negative value flips the polarity",
+    "choices": [],
+    "default": "1",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "scale",
+    "values": {}
+   },
+   {
+    "about": "Constant added after the multiplication",
+    "choices": [],
+    "default": "0",
+    "max": 1000000.0,
+    "min": -1000000.0,
+    "name": "offset",
+    "values": {}
+   }
+  ],
+  "title": "Scale and offset"
+ },
+ {
+  "about": "Sample-wise function: logarithm, exponential, root, power, sign, 1/x",
+  "id": "math",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Function; outside its domain the block stops with an error instead of giving NaN",
+    "choices": [
+     "log",
+     "log10",
+     "exp",
+     "sqrt",
+     "pow",
+     "sign",
+     "reciprocal"
+    ],
+    "default": "log",
+    "name": "op",
+    "values": {
+     "exp": "exponential eˣ; overflows above x = 709",
+     "log": "natural logarithm ln x; needs x > 0",
+     "log10": "base-10 logarithm; needs x > 0; 20·log10 of the magnitude is the level in dB",
+     "pow": "power xᵖ; for x < 0 p must be whole, for x = 0 not negative",
+     "reciprocal": "reciprocal 1/x; needs x ≠ 0",
+     "sign": "sign: −1, 0 or 1",
+     "sqrt": "square root; needs x ≥ 0"
+    }
+   },
+   {
+    "about": "Exponent; pow only",
+    "choices": [],
+    "default": "2",
+    "max": 1000.0,
+    "min": -1000.0,
+    "name": "p",
+    "values": {}
+   }
+  ],
+  "title": "Function"
+ },
+ {
+  "about": "Sample-wise operation on a and b: divide, min, max, power, hypotenuse",
+  "id": "binary",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Operation; the shorter input is padded with zeros, as in add",
+    "choices": [
+     "divide",
+     "min",
+     "max",
+     "pow",
+     "hypot"
+    ],
+    "default": "divide",
+    "name": "op",
+    "values": {
+     "divide": "a / b; a zero in b, padding included, is an error",
+     "hypot": "√(a² + b²) without overflow: the magnitude of two components",
+     "max": "the larger of a and b",
+     "min": "the smaller of a and b",
+     "pow": "aᵇ; for a < 0 b must be whole, for a = 0 not negative"
+    }
+   }
+  ],
+  "title": "Binary operation"
+ },
+ {
+  "about": "Repeats the whole signal back to back: times copies in all",
+  "id": "repeat",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "How many copies the output holds; 1 leaves the signal as is",
+    "choices": [],
+    "default": "2",
+    "max": 100000.0,
+    "min": 1.0,
+    "name": "times",
+    "values": {}
+   }
+  ],
+  "title": "Repeat"
+ },
+ {
+  "about": "Keeps the one channel with number index",
+  "id": "select_channel",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Channel number from zero: 0 is left, 1 is right",
+    "choices": [],
+    "default": "0",
+    "max": 1023.0,
+    "min": 0.0,
+    "name": "index",
+    "values": {}
+   }
+  ],
+  "title": "Select channel"
+ },
+ {
+  "about": "Shifts each channel by its own number of samples; the length is kept",
+  "id": "channel_delay",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Channel delays in samples, space- or comma-separated: 0 12; the last repeats, a negative one advances",
+    "choices": [],
+    "default": "0",
+    "name": "delays",
+    "values": {}
+   }
+  ],
+  "title": "Channel delay"
+ },
+ {
+  "about": "Stereo width via mid/side: the side signal is scaled by width",
+  "id": "stereo_width",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Side-signal factor: 0 is mono, 1 changes nothing, 2 is twice as wide",
+    "choices": [],
+    "default": "1.5",
+    "max": 2.0,
+    "min": 0.0,
+    "name": "width",
+    "values": {}
+   }
+  ],
+  "title": "Stereo width"
+ },
+ {
+  "about": "Constant-power stereo balance: L·√(1−p), R·√(1+p)",
+  "id": "balance",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Position p: −1 keeps the left only (+3 dB), 0 changes nothing, 1 keeps the right only",
+    "choices": [],
+    "default": "0",
+    "max": 1.0,
+    "min": -1.0,
+    "name": "position",
+    "values": {}
+   }
+  ],
+  "title": "Balance"
+ },
+ {
+  "about": "Sample and hold: every hold-th sample is held until the next; the length is kept",
+  "id": "sample_hold",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Hold length: samples, or seconds with an s suffix; the effective rate drops to fs/hold",
+    "choices": [],
+    "default": "4",
+    "name": "hold",
+    "values": {}
+   }
+  ],
+  "title": "Sample and hold"
+ },
+ {
+  "about": "First-order high-pass y[n] = x[n] − x[n−1] + r·y[n−1]: removes DC",
+  "id": "dc_block",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Pole: closer to 1 lowers the cutoff, about (1−r)·fs/2π, and slows settling",
+    "choices": [],
+    "default": "0.995",
+    "max": 0.999999,
+    "min": 0.0,
+    "name": "r",
+    "values": {}
+   }
+  ],
+  "title": "DC blocker"
  }
 ]
