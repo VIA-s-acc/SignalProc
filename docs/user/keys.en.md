@@ -222,6 +222,8 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `r` | run |
 | `A/B` | A input, B probe |
 | `Space` | listen |
+| `+ − 0` | graph zoom |
+| `O` | examples |
 | `PgUp/PgDn` | page |
 | `v` | time or spectrum |
 | `L` | layout and view |
