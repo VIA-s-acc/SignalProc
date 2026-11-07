@@ -104,7 +104,7 @@ std::string note_text(double f) {
 
 SpectrumScreen::SpectrumScreen(UiContext& ui, std::shared_ptr<SpectrumModel> model) : ui_{ui}, model_{std::move(model)} { panel_boxes_.fill(kNoBox); }
 
-std::string SpectrumScreen::tab_label() const { return tr("tui.tab.spectrum"); }
+std::string SpectrumScreen::tab_label() const { return tr("tui.sub.spectrogram"); }
 
 std::vector<Hint> SpectrumScreen::hints() const {
     return {{"Tab", tr("tui.explain.hint.tab")},       {"z", tr("tui.signal.hint.zoom")},   {tr("tui.spectrum.key.click"), tr("tui.spectrum.hint.cursor")},
