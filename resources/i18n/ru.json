@@ -1325,5 +1325,6 @@
   "tui.pipeline.example.haar_two_levels": "Банк Хаара в два уровня",
   "tui.pipeline.example.dwt_levels": "DWT db4 на 3 уровня со щупами на полосах",
   "tui.pipeline.example.denoise": "Шумоподавление файла: DWT, порог, IDWT",
+  "tui.pipeline.example.effects_chain": "Цепочка: чирп, модуляция, БИХ и КИХ, измерения, лифтинг 9/7",
   "pipeline.error.rates": "{block}: у входов разная частота дискретизации — {a} и {b} Гц; приведите их к одной блоком resample"
 }

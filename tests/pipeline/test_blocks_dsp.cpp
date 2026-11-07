@@ -15,6 +15,7 @@
 #include "commands/cli.hpp"
 #include "core/analysis.hpp"
 #include "i18n/i18n.hpp"
+#include "pipeline/examples.hpp"
 #include "core/check.hpp"
 #include "core/conv.hpp"
 #include "core/design/families.hpp"
@@ -516,6 +517,10 @@ TEST_CASE("m7e: every example graph runs and passes its checks", "[pipeline][tea
         INFO(out.str() << err.str());
         CHECK(code == 0);
     }
-    for (const char* name : {"haar_bank.sig", "haar_two_levels.sig", "dwt_levels.sig"})
+    for (const char* name : {"haar_bank.sig", "haar_two_levels.sig", "dwt_levels.sig", "effects_chain.sig"})
         CHECK(std::filesystem::exists(std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples" / name));
+    for (const auto& ex : signals::pipeline::examples()) {
+        const auto key = "tui.pipeline.example." + std::string{ex.name};
+        CHECK(signals::tr(key) != key);
+    }
 }

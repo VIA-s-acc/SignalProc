@@ -41,7 +41,14 @@ PipelineScreen::PipelineScreen(UiContext& ui, std::shared_ptr<PipelineModel> mod
 std::optional<TheoryLink> PipelineScreen::theory_link() const {
     const auto* n = selected_node();
     if (!n) return std::nullopt;
-    static const std::map<std::string, std::string, std::less<>> cards{{"wav", "wav_in"}, {"gen", "generator"}, {"check", "error"}, {"resample", "upsample"}, {"lift53", "lifting"}, {"ilift53", "lifting"}};
+    static const std::map<std::string, std::string, std::less<>> cards{
+        {"wav", "wav_in"},         {"gen", "generator"},         {"samples", "generator"},  {"chirp", "generator"},   {"osc", "generator"},
+        {"check", "error"},        {"resample", "upsample"},     {"lift53", "lifting"},     {"ilift53", "lifting"},   {"lift97", "lifting"},
+        {"ilift97", "lifting"},    {"mra", "dwt"},               {"iir", "iir_design"},     {"fir", "fir_design"},    {"moving_average", "fir_design"},
+        {"preemphasis", "fir_design"}, {"deemphasis", "iir_design"}, {"add", "filter_bank"}, {"multiply", "gain"},   {"invert", "gain"},
+        {"pad", "delay"},          {"concat", "cut"},            {"trim_silence", "cut"},   {"merge", "split"},       {"swap", "split"},
+        {"duplicate", "split"},    {"pan", "mixdown"},           {"add_noise", "snr"},      {"dc_offset", "remove_dc"}, {"stats", "band_energy"},
+        {"loudness", "band_energy"}};
     if (n->type->id == "swt" || n->type->id == "iswt") return TheoryLink{TheoryLink::Kind::section, "swt-modwt", block_name(n->type->id)};
     const auto it = cards.find(n->type->id);
     return TheoryLink{TheoryLink::Kind::card, it == cards.end() ? n->type->id : it->second, block_name(n->type->id)};
