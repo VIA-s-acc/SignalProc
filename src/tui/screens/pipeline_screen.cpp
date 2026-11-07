@@ -700,9 +700,13 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
         if (const auto* r = std::get_if<pipeline::Report>(&value)) {
             lines.push_back(text(std::string{glyph(r->passed ? Glyph::check : Glyph::cross, ui_.caps.glyphs)} + " " + tr(r->passed ? "tui.pipeline.report.passed" : "tui.pipeline.report.failed")) |
                             fg(r->passed ? th.ok : th.err, ui_));
+            int key_width = 1;
+            for (const auto& [key, field] : r->fields) key_width = std::max(key_width, display_width(key));
+            key_width = std::min(key_width, std::max(4, width / 2));
             for (const auto& [key, field] : r->fields) {
                 const auto shown = std::holds_alternative<double>(field) ? format_number(std::get<double>(field), 4) : std::get<std::string>(field);
-                lines.push_back(hbox({text(pad_right(key, 14)) | fg(th.dim, ui_), text(shown) | fg(th.fg, ui_)}));
+                lines.push_back(hbox({text(pad_right(ellipsize(key, key_width, ascii), key_width + 1)) | fg(th.dim, ui_),
+                                      text(ellipsize(shown, std::max(4, width - key_width - 1), ascii)) | fg(th.fg, ui_)}));
             }
         } else if (const auto* number = std::get_if<double>(&value)) {
             lines.push_back(text(format_number(*number, 6)) | bold | fg(th.fg, ui_));
@@ -718,11 +722,14 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
             double total = 0;
             for (const auto& b : bands)
                 for (double v : b) total += v * v;
+            int name_width = 4;
+            for (std::size_t k = 0; k < bands.size(); ++k) name_width = std::max(name_width, display_width(pipeline::band_label(*coeffs, k)));
+            name_width = std::min(name_width, std::max(4, width - 20));
             for (std::size_t k = 0; k < bands.size(); ++k) {
                 double e = 0;
                 for (double v : bands[k]) e += v * v;
-                const auto name = pipeline::band_label(*coeffs, k);
-                lines.push_back(hbox({text(pad_right(name, 5)) | fg(th.trace[0], ui_), text(pad_left(group(bands[k].size()), 9)) | fg(th.dim, ui_),
+                const auto name = ellipsize(pipeline::band_label(*coeffs, k), name_width, ascii);
+                lines.push_back(hbox({text(pad_right(name, name_width + 1)) | fg(th.trace[0], ui_), text(pad_left(group(bands[k].size()), 9)) | fg(th.dim, ui_),
                                       text(pad_left(format_fixed(total > 0 ? 100 * e / total : 0, 2) + " %", 10)) | fg(th.fg, ui_)}));
             }
         }

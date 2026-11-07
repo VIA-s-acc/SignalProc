@@ -965,3 +965,25 @@ TEST_CASE("the probe footer fits its panel or ends with an ellipsis", "[tui][pip
         CHECK(seen);
     }
 }
+
+TEST_CASE("long report field names keep a gap before their values", "[tui][pipeline_screen][fit]") {
+    PipelineFixture f{150, 44, false};
+    REQUIRE(f.model->load_text("stats", "pipeline \"stats\" v1\n"
+                                        "node x = osc(freq=440, duration=0.2, rate=8000)\n"
+                                        "node st = duplicate()\n"
+                                        "node m = stats()\n"
+                                        "x -> st -> m\n"
+                                        "probe m as \"m\"\n"));
+    f.model->run(f.jobs);
+    for (int k = 0; k < 2000 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    f.h.frame();
+    f.h.send(ftxui::Event::Tab);
+    f.h.send(ftxui::Event::Character('z'));
+    const auto frame = f.h.frame();
+    for (const std::string key : {"centroid_hz_ch0", "dominant_hz_ch1", "zcr_per_s_ch0"}) {
+        const auto at = frame.find(key);
+        REQUIRE(at != std::string::npos);
+        INFO(frame.substr(at, 40));
+        CHECK(frame[at + key.size()] == ' ');
+    }
+}
