@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "core/error.hpp"
+#include "core/freq.hpp"
 
 namespace signals::core {
 
@@ -35,6 +36,8 @@ std::vector<Sos> zpk_to_sos(const Zpk& zpk);
 std::vector<std::complex<double>> zpk_response(const Zpk& zpk, std::span<const double> w);
 std::vector<std::complex<double>> sos_response(std::span<const Sos> sos, std::span<const double> w);
 bool is_stable(const Zpk& zpk);
+FrequencyResponse zpk_frequency_response(const Zpk& zpk, std::span<const double> omega);
+std::vector<double> sos_impulse(std::span<const Sos> sos, std::size_t n);
 std::optional<IirFamily> parse_iir_family(std::string_view name);
 std::optional<BandType> parse_band_type(std::string_view name);
 

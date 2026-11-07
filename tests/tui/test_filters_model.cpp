@@ -72,7 +72,7 @@ TEST_CASE("library lists every wavelet once and marks later groups", "[tui][filt
         collect(g, none);
         CHECK(none.empty());
     }
-    CHECK(later == 4);
+    CHECK(later == 3);
 }
 
 TEST_CASE("filter refs label bank roles with subscripts", "[tui][filters]") {
@@ -230,4 +230,53 @@ TEST_CASE("view responses cover the zoomed band", "[tui][filters]") {
     CHECK(e.view_hi == 0.6);
     CHECK(e.view->omega.size() == 512);
     CHECK_FALSE(set.view_pending());
+}
+
+TEST_CASE("the classical group designs Butterworth, Chebyshev, elliptic, Bessel and FIR filters", "[tui][filters][classic]") {
+    const auto lib = build_library();
+    const auto* classic = child(lib, "Классические КИХ / БИХ");
+    REQUIRE(classic);
+    std::vector<FilterRef> refs;
+    collect(*classic, refs);
+    REQUIRE(refs.size() == 10);
+    for (const auto& r : refs) {
+        INFO(r.label());
+        CHECK(r.kind == Kind::classical);
+        const auto a = analyze(r, 512);
+        REQUIRE(a);
+        CHECK(a->response.omega.size() == 512);
+        if (a->zpk) CHECK(a->stable.value_or(false));
+    }
+    CHECK(refs[0].label() == "Баттерворт ФНЧ 4 · 0,25π");
+    const auto butter = analyze(refs[0], 512);
+    REQUIRE(butter);
+    CHECK(butter->response.magnitude[128] == Catch::Approx(std::sqrt(0.5)).margin(1e-9));
+    CHECK(butter->response.magnitude[0] == Catch::Approx(1).margin(1e-9));
+    REQUIRE(butter->zp);
+    CHECK(butter->zp->poles.size() == 4);
+    double dc = 0;
+    for (double v : butter->h.coeffs) dc += v;
+    CHECK(dc == Catch::Approx(1).margin(1e-3));
+    const auto remez = analyze(refs[8], 512);
+    REQUIRE(remez);
+    CHECK(remez->h.coeffs.size() == 31);
+    CHECK(remez->linear_phase);
+}
+
+TEST_CASE("classical steps change the order and the cutoff", "[tui][filters][classic]") {
+    ClassicalSpec s;
+    const auto ref = classical_ref(s);
+    const auto up = classical_step(ref, 1, 1.0);
+    REQUIRE(up);
+    CHECK(parse_classical(up->wavelet)->order == 5);
+    const auto wide = classical_step(ref, 0, 1.1);
+    REQUIRE(wide);
+    CHECK(parse_classical(wide->wavelet)->edges[0] == Catch::Approx(0.275));
+    ClassicalSpec fir;
+    fir.method = ClassicalSpec::Method::remez;
+    fir.order = 31;
+    fir.edges = {0.4, 0.5};
+    CHECK(parse_classical(classical_step(classical_ref(fir), 1, 1.0)->wavelet)->order == 33);
+    CHECK_FALSE(classical_step(FilterRef{Kind::bank, "db2"}, 1, 1.0));
+    CHECK_FALSE(parse_classical("iir/oops/lowpass/4/0.25"));
 }

@@ -44,6 +44,8 @@ constexpr std::array<V, 1> kDelay{"block.samples"};
 constexpr std::array<V, 0> kNone{};
 constexpr std::array<V, 2> kCut{"block.begin", "block.end"};
 constexpr std::array<V, 3> kListen{"block.clip", "block.rate", "metric.position"};
+constexpr std::array<V, 5> kIirDesign{"block.filter", "block.order", "block.cutoff", "metric.poles", "check.stable"};
+constexpr std::array<V, 5> kFirDesign{"block.filter", "block.length", "block.cutoff", "metric.ripple_db", "metric.attenuation_db"};
 constexpr std::array<V, 7> kStft{"block.n", "block.hop", "block.overlap", "block.rate", "metric.dt", "metric.df", "metric.frames"};
 
 constexpr std::array kCatalog{
@@ -77,6 +79,8 @@ constexpr std::array kCatalog{
     BlockSpec{"cut", "Cut a fragment", "conv-signals", Tier::core, kCut},
     BlockSpec{"listen", "Listening", "num-formats", Tier::core, kListen},
     BlockSpec{"stft", "STFT spectrogram", "stft", Tier::v1, kStft},
+    BlockSpec{"iir_design", "IIR design", "cls-iir-prototypes", Tier::v1, kIirDesign},
+    BlockSpec{"fir_design", "FIR design", "cls-parks-mcclellan", Tier::v1, kFirDesign},
 };
 
 }  // namespace

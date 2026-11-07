@@ -3,18 +3,22 @@
 #include "core/wavelet/regularity.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <complex>
 #include <limits>
 #include <new>
 #include <numbers>
+#include <sstream>
 
 #include <fmt/format.h>
 
 #include "core/bank.hpp"
 #include "core/design/families.hpp"
+#include "core/design/fir.hpp"
 #include "i18n/i18n.hpp"
 #include "tui/shell/errors.hpp"
+#include "tui/widgets/format.hpp"
 #include "tui/widgets/text_util.hpp"
 
 namespace signals::tui {
@@ -47,13 +51,83 @@ bool analysis_side(FilterRole r) { return r == FilterRole::h0 || r == FilterRole
 
 }  // namespace
 
+std::string ClassicalSpec::key() const {
+    std::string out = method == Method::iir ? "iir" : method == Method::remez ? "remez" : "firls";
+    static constexpr std::array<const char*, 5> families{"butter", "cheby1", "cheby2", "ellip", "bessel"};
+    static constexpr std::array<const char*, 4> types{"lowpass", "highpass", "bandpass", "bandstop"};
+    out += std::string{"/"} + families[static_cast<std::size_t>(family)] + "/" + types[static_cast<std::size_t>(type)] + "/" + std::to_string(order);
+    for (const double e : edges) out += "/" + fmt::format("{:.6g}", e);
+    out += "/rp" + fmt::format("{:.6g}", rp) + "/rs" + fmt::format("{:.6g}", rs);
+    return out;
+}
+
+std::string ClassicalSpec::label() const {
+    static constexpr std::array<const char*, 5> families{"tui.filters.classic.butter", "tui.filters.classic.cheby1", "tui.filters.classic.cheby2",
+                                                         "tui.filters.classic.ellip", "tui.filters.classic.bessel"};
+    static constexpr std::array<const char*, 4> types{"tui.filters.classic.lowpass", "tui.filters.classic.highpass", "tui.filters.classic.bandpass",
+                                                      "tui.filters.classic.bandstop"};
+    const auto name = method == Method::iir ? tr(families[static_cast<std::size_t>(family)]) : tr(method == Method::remez ? "tui.filters.classic.remez" : "tui.filters.classic.firls");
+    std::string range;
+    for (std::size_t i = 0; i < edges.size(); ++i) range += (i ? "–" : "") + format_fixed(edges[i], 2);
+    return name + " " + tr(types[static_cast<std::size_t>(type)]) + " " + std::to_string(order) + " · " + range + "π";
+}
+
+std::optional<ClassicalSpec> parse_classical(std::string_view key) {
+    std::vector<std::string> parts;
+    std::string part;
+    std::istringstream in{std::string{key}};
+    while (std::getline(in, part, '/')) parts.push_back(part);
+    if (parts.size() < 7) return std::nullopt;
+    ClassicalSpec s;
+    if (parts[0] == "iir") s.method = ClassicalSpec::Method::iir;
+    else if (parts[0] == "remez") s.method = ClassicalSpec::Method::remez;
+    else if (parts[0] == "firls") s.method = ClassicalSpec::Method::firls;
+    else return std::nullopt;
+    const auto family = core::parse_iir_family(parts[1]);
+    const auto type = core::parse_band_type(parts[2]);
+    if (!family || !type) return std::nullopt;
+    s.family = *family;
+    s.type = *type;
+    s.edges.clear();
+    try {
+        s.order = std::stoi(parts[3]);
+        for (std::size_t i = 4; i < parts.size(); ++i) {
+            if (parts[i].starts_with("rp")) s.rp = std::stod(parts[i].substr(2));
+            else if (parts[i].starts_with("rs")) s.rs = std::stod(parts[i].substr(2));
+            else s.edges.push_back(std::stod(parts[i]));
+        }
+    } catch (...) {
+        return std::nullopt;
+    }
+    if (s.edges.empty()) return std::nullopt;
+    return s;
+}
+
+FilterRef classical_ref(const ClassicalSpec& spec) { return FilterRef{FilterRef::Kind::classical, spec.key(), FilterRole::h0}; }
+
+std::optional<FilterRef> classical_step(const FilterRef& ref, int order_step, double edge_factor) {
+    if (ref.kind != FilterRef::Kind::classical) return std::nullopt;
+    auto s = parse_classical(ref.wavelet);
+    if (!s) return std::nullopt;
+    const bool fir = s->method != ClassicalSpec::Method::iir;
+    s->order = std::clamp(s->order + order_step * (fir ? 2 : 1), fir ? 5 : 1, fir ? 255 : 20);
+    if (fir && s->order % 2 == 0) ++s->order;
+    for (auto& e : s->edges) e = std::clamp(e * edge_factor, 0.01, 0.98);
+    return classical_ref(*s);
+}
+
 std::string FilterRef::label() const {
+    if (kind == Kind::classical) {
+        const auto s = parse_classical(wavelet);
+        return s ? s->label() : wavelet;
+    }
     switch (kind) {
     case Kind::bank:
     case Kind::user: return std::string{role_name(role)} + " " + wavelet;
     case Kind::equivalent: return (detail ? "d" : "a") + subscript_count(level) + " " + wavelet;
     case Kind::distortion: return "T(z) " + wavelet;
     case Kind::alias: return "A(z) " + wavelet;
+    case Kind::classical: break;
     }
     return wavelet;
 }
@@ -82,7 +156,20 @@ LibraryNode build_library(std::string_view equivalent_wavelet, std::size_t level
         chain.children.push_back({r.label(), {}, r});
     }
     root.children.push_back(std::move(wavelets));
-    root.children.push_back({tr("tui.filters.group.classic"), {}, {}, "M6"});
+    LibraryNode classic{tr("tui.filters.group.classic")};
+    using M = ClassicalSpec::Method;
+    using F = core::IirFamily;
+    using T = core::BandType;
+    for (const auto& spec : {ClassicalSpec{M::iir, F::butterworth, T::lowpass, 4, {0.25}}, ClassicalSpec{M::iir, F::chebyshev1, T::lowpass, 4, {0.25}, 1, 40},
+                             ClassicalSpec{M::iir, F::chebyshev2, T::lowpass, 4, {0.25}, 1, 40}, ClassicalSpec{M::iir, F::elliptic, T::lowpass, 4, {0.25}, 1, 40},
+                             ClassicalSpec{M::iir, F::bessel, T::lowpass, 4, {0.25}}, ClassicalSpec{M::iir, F::butterworth, T::highpass, 4, {0.5}},
+                             ClassicalSpec{M::iir, F::butterworth, T::bandpass, 4, {0.2, 0.4}}, ClassicalSpec{M::iir, F::butterworth, T::bandstop, 4, {0.3, 0.5}},
+                             ClassicalSpec{M::remez, F::butterworth, T::lowpass, 31, {0.4, 0.5}}, ClassicalSpec{M::firls, F::butterworth, T::lowpass, 31, {0.4, 0.5}}}) {
+        const auto ref = classical_ref(spec);
+        classic.children.push_back({ref.label(), {}, ref});
+    }
+    root.children.push_back(std::move(wavelets));
+    root.children.push_back(std::move(classic));
     root.children.push_back(std::move(equivalent));
     root.children.push_back(std::move(chain));
     root.children.push_back({tr("tui.filters.group.cwt"), {}, {}, "M6"});
@@ -108,7 +195,53 @@ core::Result<core::FilterBank> bank_of(const FilterRef& ref) {
     return core::make_error(core::Errc::invalid_argument, "no user bank named " + ref.wavelet);
 }
 
+namespace {
+
+core::Result<FilterAnalysis> analyze_classical(const FilterRef& ref, std::size_t points) {
+    const auto spec = parse_classical(ref.wavelet);
+    if (!spec) return core::make_error(core::Errc::invalid_argument, "unknown classical filter " + ref.wavelet);
+    FilterAnalysis a;
+    a.ref = ref;
+    const double edge = spec->edges.front();
+    if (spec->method == ClassicalSpec::Method::iir) {
+        core::IirSpec s{spec->family, spec->type, spec->order, spec->edges, spec->rp, spec->rs};
+        auto zpk = core::iir_design(s);
+        if (!zpk) return std::unexpected{zpk.error()};
+        std::vector<double> omega(points);
+        for (std::size_t k = 0; k < points; ++k) omega[k] = std::numbers::pi * static_cast<double>(k) / static_cast<double>(points);
+        a.response = core::zpk_frequency_response(*zpk, omega);
+        const auto sos = core::zpk_to_sos(*zpk);
+        a.h = core::Laurent{core::sos_impulse(sos, 128), 0};
+        a.zp = core::ZerosPoles{zpk->z, 0, zpk->p};
+        a.stable = core::is_stable(*zpk);
+        a.zpk = std::move(*zpk);
+    } else {
+        core::Result<std::vector<double>> h = core::make_error(core::Errc::invalid_argument, "fir");
+        const double stop = spec->edges.size() > 1 ? spec->edges[1] : std::min(0.99, edge + 0.1);
+        if (spec->method == ClassicalSpec::Method::remez) {
+            core::RemezSpec r;
+            r.numtaps = spec->order;
+            r.bands = {0, edge / 2, stop / 2, 0.5};
+            r.desired = {1, 0};
+            h = core::remez(r);
+        } else {
+            h = core::firls(spec->order, std::vector<double>{0, edge, stop, 1}, std::vector<double>{1, 1, 0, 0}, std::vector<double>{});
+        }
+        if (!h) return std::unexpected{h.error()};
+        a.h = core::Laurent{std::move(*h), 0};
+        a.response = core::frequency_response(a.h, points);
+        if (auto zp = core::zeros_poles(a.h)) a.zp = std::move(*zp);
+        a.linear_phase = core::is_linear_phase(a.h, kLinearPhaseTol);
+    }
+    if (spec->type == core::BandType::lowpass) a.metrics = core::band_metrics(a.response, std::max(0.01, 0.8 * edge), std::min(0.99, spec->edges.size() > 1 ? spec->edges[1] : 1.3 * edge));
+    else a.metrics = core::band_metrics(a.response, -1.0, 2.0);
+    return a;
+}
+
+}  // namespace
+
 core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points) {
+    if (ref.kind == FilterRef::Kind::classical) return analyze_classical(ref, points);
     const auto bank = bank_of(ref);
     if (!bank) return std::unexpected(bank.error());
     FilterAnalysis a;
@@ -130,6 +263,7 @@ core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points) {
     }
     case FilterRef::Kind::distortion: a.h = core::distortion_transfer(*bank), lo = -1; break;
     case FilterRef::Kind::alias: a.h = core::alias_transfer(*bank), lo = -1; break;
+    case FilterRef::Kind::classical: break;
     }
     a.response = core::frequency_response(a.h, points);
     a.metrics = lo == 0 ? core::band_metrics(a.response, hi / 2, std::min(1.0, 1.5 * hi)) : core::band_metrics(a.response, -1.0, 2.0);
@@ -214,6 +348,16 @@ core::Result<void> ComparisonSet::add(FilterRef ref) {
     if (entries_.size() >= kCapacity)
         return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("tui.filters.full")), fmt::arg("count", kCapacity)));
     entries_.push_back({std::move(ref)});
+    return {};
+}
+
+core::Result<void> ComparisonSet::replace(std::size_t i, FilterRef ref) {
+    std::lock_guard lock{mutex_};
+    if (i >= entries_.size()) return core::make_error(core::Errc::invalid_argument, "replace: no such entry");
+    if (std::any_of(entries_.begin(), entries_.end(), [&](const Entry& e) { return e.ref == ref; })) return {};
+    const bool visible = entries_[i].visible;
+    entries_[i] = Entry{std::move(ref)};
+    entries_[i].visible = visible;
     return {};
 }
 
@@ -333,7 +477,15 @@ void ComparisonSet::request_view(JobRunner& jobs, double lo, double hi, std::siz
         } clear{*this};
         ctx.begin(0);
         for (std::size_t i = 0; i < todo.size() && !ctx.cancelled(); ++i) {
-            auto r = std::make_shared<const core::FrequencyResponse>(range_response(todo[i].second->h, lo, hi, points, &todo[i].second->response));
+            std::shared_ptr<const core::FrequencyResponse> r;
+            if (todo[i].second->zpk) {
+                std::vector<double> omega(points);
+                for (std::size_t k = 0; k < points; ++k)
+                    omega[k] = std::numbers::pi * (points > 1 ? lo + (hi - lo) * static_cast<double>(k) / static_cast<double>(points - 1) : lo);
+                r = std::make_shared<const core::FrequencyResponse>(core::zpk_frequency_response(*todo[i].second->zpk, omega));
+            } else {
+                r = std::make_shared<const core::FrequencyResponse>(range_response(todo[i].second->h, lo, hi, points, &todo[i].second->response));
+            }
             std::lock_guard lock{mutex_};
             for (auto& e : entries_)
                 if (e.ref == todo[i].first) e.view = r, e.view_lo = lo, e.view_hi = hi;

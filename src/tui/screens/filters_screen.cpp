@@ -66,6 +66,7 @@ std::string describe(const FilterRef& r) {
     case FilterRef::Kind::equivalent: return tr("tui.filters.role.equivalent");
     case FilterRef::Kind::distortion: return tr("tui.filters.role.distortion");
     case FilterRef::Kind::alias: return tr("tui.filters.role.alias");
+    case FilterRef::Kind::classical: return tr("tui.filters.role.classical");
     }
     return {};
 }
@@ -125,6 +126,7 @@ std::vector<Hint> FiltersScreen::hints() const {
             {"[ ]", tr("tui.filters.hint.vertical")},  {"↑↓", tr("tui.filters.hint.focus_row")},
             {"l", tr("tui.filters.hint.log")},         {"d", tr("tui.filters.hint.db")},
             {"n", tr("tui.filters.hint.normalise")},   {"t", tr("tui.filters.hint.role")},
+            {"o/O", tr("tui.filters.hint.order")},      {"f/F", tr("tui.filters.hint.edge")},
             {"F1", tr("tui.filters.hint.f1")},         {tr("tui.signal.key.wheel"), tr("tui.filters.hint.zoom")},
             {tr("tui.signal.key.click"), tr("tui.signal.hint.click")}};
 }
@@ -134,6 +136,10 @@ std::string FiltersScreen::context() const { return tr("tui.filters.context"); }
 std::optional<TheoryLink> FiltersScreen::theory_link() const {
     const auto* e = focused();
     const bool equivalent = e && e->ref.kind == FilterRef::Kind::equivalent;
+    if (e && e->ref.kind == FilterRef::Kind::classical) {
+        const auto spec = parse_classical(e->ref.wavelet);
+        return TheoryLink{TheoryLink::Kind::card, spec && spec->method != ClassicalSpec::Method::iir ? "fir_design" : "iir_design"};
+    }
     return TheoryLink{TheoryLink::Kind::card, equivalent ? "equivalent_filters" : "freq_response"};
 }
 
@@ -145,6 +151,14 @@ void FiltersScreen::publish(theory::LiveValues& v) const {
     const auto pi = [](double w) { return format_fixed(w, 3) + "π"; };
     v.set("block.filter", e->ref.label());
     v.set("block.length", std::to_string(a.h.coeffs.size()));
+    if (const auto spec = e->ref.kind == FilterRef::Kind::classical ? parse_classical(e->ref.wavelet) : std::nullopt) {
+        v.set("block.order", std::to_string(spec->order));
+        std::string cutoff;
+        for (const double w : spec->edges) cutoff += (cutoff.empty() ? "" : "–") + pi(w);
+        v.set("block.cutoff", cutoff);
+        if (a.zpk) v.set("metric.poles", std::to_string(a.zpk->p.size()));
+        if (a.stable) v.set("check.stable", yes_no(*a.stable));
+    }
     v.set("block.points", std::to_string(a.response.omega.size()));
     v.set("block.zeros_at_minus_one", a.zeros_at_minus_one ? std::to_string(*a.zeros_at_minus_one) : std::string{"—"});
     v.set("block.linear_phase", yes_no(a.linear_phase));
@@ -699,7 +713,13 @@ ftxui::Element FiltersScreen::properties_panel() {
     const auto g = ui_.caps.glyphs;
     auto mark = [&](bool ok) { return text(" " + std::string{glyph(ok ? Glyph::check : Glyph::cross, g)}) | fg(ok ? th.ok : th.err, ui_); };
     Elements rows;
-    rows.push_back(text(fmt::format(fmt::runtime(tr("tui.filters.prop.fir")), fmt::arg("taps", a.h.coeffs.size()))) | fg(th.fg, ui_));
+    if (a.zpk) {
+        rows.push_back(hbox({text(fmt::format(fmt::runtime(tr("tui.filters.prop.iir")), fmt::arg("poles", a.zpk->p.size()), fmt::arg("sections", (a.zpk->p.size() + 1) / 2))) |
+                                 fg(th.fg, ui_),
+                             text(" · " + tr(a.stable.value_or(false) ? "tui.filters.stable" : "tui.filters.unstable")) | fg(th.fg, ui_), mark(a.stable.value_or(false))}));
+    } else {
+        rows.push_back(text(fmt::format(fmt::runtime(tr("tui.filters.prop.fir")), fmt::arg("taps", a.h.coeffs.size()))) | fg(th.fg, ui_));
+    }
     Elements orth;
     if (a.orth_error) {
         orth.push_back(text(tr("tui.filters.prop.orthogonal")) | fg(th.fg, ui_));
@@ -1115,6 +1135,17 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
     }
     if (e == Event::Character('d')) {
         decibels_ = !decibels_;
+        return true;
+    }
+    if (e == Event::Character('o') || e == Event::Character('O') || e == Event::Character('f') || e == Event::Character('F')) {
+        const auto entries = set_->entries();
+        const auto i = set_->focus();
+        if (i >= entries.size()) return false;
+        const int step = e == Event::Character('o') ? 1 : e == Event::Character('O') ? -1 : 0;
+        const double factor = e == Event::Character('f') ? 1.1 : e == Event::Character('F') ? 1 / 1.1 : 1.0;
+        const auto next = classical_step(entries[i].ref, step, factor);
+        if (!next) return false;
+        (void)set_->replace(i, *next);
         return true;
     }
     if (e == Event::Character('n')) {

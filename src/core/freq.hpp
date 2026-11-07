@@ -17,12 +17,14 @@ struct FrequencyResponse {
 };
 
 FrequencyResponse frequency_response(const Laurent& h, std::size_t points = 512);
+std::vector<double> unwrap_phase(const std::vector<double>& p);
 
 std::vector<double> step_response(const Laurent& h);
 
 struct ZerosPoles {
     std::vector<std::complex<double>> zeros;
     std::ptrdiff_t poles_at_origin;
+    std::vector<std::complex<double>> poles = {};
 };
 
 Result<ZerosPoles> zeros_poles(const Laurent& h);

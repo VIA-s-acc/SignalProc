@@ -284,3 +284,24 @@ TEST_CASE("the measures table keeps the reference deltas in a narrow terminal", 
     CHECK(frame.find("Δ ") != std::string::npos);
     CHECK(frame.find("скрыто столбцов") != std::string::npos);
 }
+
+TEST_CASE("a classical IIR filter shows its poles and o, f retune it", "[tui][filters][classic]") {
+    Fixture f;
+    signals::test::Harness h{f.screen, 150, 41};
+    REQUIRE(f.set->add(classical_ref(ClassicalSpec{})));
+    f.set->set_focus(0);
+    h.frame();
+    auto frame = h.frame();
+    CHECK(frame.find("Баттерворт ФНЧ 4") != std::string::npos);
+    CHECK(frame.find("БИХ: 4 полюсов") != std::string::npos);
+    h.send(ftxui::Event::Character('o'));
+    h.frame();
+    CHECK(f.set->entries()[0].ref.label() == "Баттерворт ФНЧ 5 · 0,25π");
+    h.send(ftxui::Event::Character('f'));
+    h.frame();
+    CHECK(f.set->entries()[0].ref.label() == "Баттерворт ФНЧ 5 · 0,28π");
+    const auto e = f.set->entries()[0];
+    REQUIRE(e.analysis);
+    REQUIRE(e.analysis->zp);
+    CHECK(e.analysis->zp->poles.size() == 5);
+}

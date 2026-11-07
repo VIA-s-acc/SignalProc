@@ -31,6 +31,8 @@ std::vector<double> unwrap(const std::vector<double>& p) {
 
 }  // namespace
 
+std::vector<double> unwrap_phase(const std::vector<double>& p) { return unwrap(p); }
+
 FrequencyResponse frequency_response(const Laurent& h, std::size_t points) {
     FrequencyResponse r;
     r.omega.resize(points);

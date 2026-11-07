@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numbers>
 #include <numeric>
 
@@ -306,6 +307,44 @@ std::vector<C> sos_response(std::span<const Sos> sos, std::span<const double> w)
         out.push_back(h);
     }
     return out;
+}
+
+FrequencyResponse zpk_frequency_response(const Zpk& zpk, std::span<const double> omega) {
+    FrequencyResponse r;
+    r.omega.assign(omega.begin(), omega.end());
+    r.h = zpk_response(zpk, omega);
+    const auto n = omega.size();
+    r.magnitude.resize(n);
+    r.magnitude_db.resize(n);
+    r.phase.resize(n);
+    r.group_delay.resize(n);
+    for (std::size_t k = 0; k < n; ++k) {
+        r.magnitude[k] = std::abs(r.h[k]);
+        r.magnitude_db[k] = r.magnitude[k] > 0 ? std::max(-300.0, 20 * std::log10(r.magnitude[k])) : -300.0;
+        r.phase[k] = std::arg(r.h[k]);
+        const C e = std::exp(C{0, omega[k]});
+        double tau = 0;
+        for (const auto& z : zpk.z) tau -= (e / (e - z)).real();
+        for (const auto& p : zpk.p) tau += (e / (e - p)).real();
+        r.group_delay[k] = std::isfinite(tau) ? tau : std::numeric_limits<double>::quiet_NaN();
+    }
+    r.phase_unwrapped = unwrap_phase(r.phase);
+    return r;
+}
+
+std::vector<double> sos_impulse(std::span<const Sos> sos, std::size_t n) {
+    std::vector<double> x(n, 0.0);
+    if (n) x[0] = 1;
+    for (const auto& s : sos) {
+        double z1 = 0, z2 = 0;
+        for (auto& v : x) {
+            const double y = s[0] / s[3] * v + z1;
+            z1 = s[1] / s[3] * v - s[4] / s[3] * y + z2;
+            z2 = s[2] / s[3] * v - s[5] / s[3] * y;
+            v = y;
+        }
+    }
+    return x;
 }
 
 bool is_stable(const Zpk& zpk) {
