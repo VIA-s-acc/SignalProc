@@ -15,6 +15,7 @@ add_library(signals_core STATIC
   check.cpp
   bank.cpp
   wavedec.cpp
+  swt.cpp
   design/maxflat.cpp
   design/split.cpp
   design/tables.cpp
