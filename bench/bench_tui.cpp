@@ -20,6 +20,7 @@
 #include "audio/player.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/screens/decomposition_screen.hpp"
+#include "tui/screens/spectrum_screen.hpp"
 #include "tui/screens/designer_screen.hpp"
 #include "tui/screens/explain_screen.hpp"
 #include "tui/screens/matrix_screen.hpp"
@@ -136,6 +137,11 @@ void bench_tui(const std::filesystem::path& ten_minutes) {
 
     signals::audio::Player player{std::unique_ptr<signals::audio::Sink>{std::make_unique<NullSink>()}};
     ui->player = &player;
+    auto spectrum_model = std::make_shared<SpectrumModel>(model);
+    auto spectrum = std::make_shared<SpectrumScreen>(*ui, spectrum_model);
+    auto spectrum_shell = make_shell(*ui, {spectrum}, [] {});
+    draw(spectrum_shell);
+    b.run("frame «Спектр» with test.wav, N = 4096", [&] { draw(spectrum_shell); });
     auto decomposition_model = std::make_shared<DecompositionModel>(model);
     auto decomposition = std::make_shared<DecompositionScreen>(*ui, decomposition_model);
     auto decomposition_shell = make_shell(*ui, {decomposition}, [] {});

@@ -48,6 +48,8 @@ add_library(signals_tui STATIC
   screens/designer_model.cpp
   screens/designer_screen.cpp
   screens/decomposition_model.cpp
+  screens/spectrum_model.cpp
+  screens/spectrum_screen.cpp
   screens/pipeline_model.cpp
   screens/pipeline_canvas.cpp
   screens/pipeline_screen.cpp
