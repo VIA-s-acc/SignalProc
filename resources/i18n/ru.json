@@ -857,7 +857,7 @@
   "tui.decomposition.packets_wait": "Строю дерево пакетов…",
   "tui.decomposition.packets_dwt_only": "Пакеты строятся только на прореженном DWT",
   "tui.decomposition.packet_costs": "энтропия: лучший {best} · текущий {current} · DWT {dwt} · корень {root}",
-  "tui.decomposition.packet_basis": "Базис пакетов · узлов: {n}",
+  "tui.decomposition.packet_basis": "Базис пакетов · {n}",
   "tui.decomposition.packet_pr": "PR базиса",
   "tui.decomposition.hint.packets": "лучший / DWT базис",
   "tui.decomposition.packets_memory": "Пакеты не помещаются в память: нужно {need}, доступно {budget}. Уменьшите J",
@@ -1265,5 +1265,8 @@
   "unit.thread.many": "{n} потоков",
   "unit.sample_short.one": "{n} отсч.",
   "unit.sample_short.few": "{n} отсч.",
-  "unit.sample_short.many": "{n} отсч."
+  "unit.sample_short.many": "{n} отсч.",
+  "unit.node.one": "{n} узел",
+  "unit.node.few": "{n} узла",
+  "unit.node.many": "{n} узлов"
 }

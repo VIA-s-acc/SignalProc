@@ -481,3 +481,14 @@ TEST_CASE("m7c: a custom filter label counts taps in both languages", "[tui][fil
     CHECK(one.label() == "custom filter, 1 tap");
     CHECK(three.label() == "custom filter, 3 taps");
 }
+
+TEST_CASE("m7d: a custom filter keeps the offset of its first tap", "[tui][filters][custom]") {
+    const signals::core::Laurent h{{0.5, 0.5}, -1};
+    const auto ref = custom_ref(h, "");
+    const auto a = analyze(ref, 64);
+    REQUIRE(a);
+    CHECK(a->h == h);
+    CHECK(ref.label() == "свой фильтр, 2 отвода");
+    const auto plain = custom_ref(signals::core::Laurent{{0.5, 0.5}, 0}, "");
+    CHECK(plain.wavelet == "0.5,0.5");
+}

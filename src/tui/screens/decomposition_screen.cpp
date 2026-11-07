@@ -557,7 +557,7 @@ ftxui::Element DecompositionScreen::packets_energy(const PacketData& p, int max_
                                    fmt::arg("root", format_number(p.root_cost, 3)));
     rows.push_back(text(ellipsize(costs, width, ui_.caps.glyphs == GlyphMode::ascii)) | fg(th.dim, ui_));
     return frame_panel(energy, vbox(std::move(rows)), {},
-                       fmt::format(fmt::runtime(tr("tui.decomposition.packet_basis")), fmt::arg("n", basis.size())));
+                       fmt::format(fmt::runtime(tr("tui.decomposition.packet_basis")), fmt::arg("n", tr_count("unit.node", static_cast<long long>(basis.size())))));
 }
 
 ftxui::Element DecompositionScreen::scalogram_body(const ScalogramData& s, int width, int max_rows) {

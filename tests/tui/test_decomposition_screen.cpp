@@ -16,6 +16,7 @@
 #include "core/memory.hpp"
 #include "io/wav.hpp"
 #include "support/paths.hpp"
+#include "i18n/i18n.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/decomposition_screen.hpp"
 #include "tui/shell/shell.hpp"
@@ -877,4 +878,16 @@ TEST_CASE("m7c review: a cancelled scalogram does not swallow r in the packets v
     const auto before = f.model->data();
     f.h.send(ftxui::Event::Character('r'));
     CHECK(f.model->data() != before);
+}
+
+TEST_CASE("m7d: the English packet basis title counts one node", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    const signals::LanguageScope en{signals::Language::en};
+    f.click("chip_packets");
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    REQUIRE(f.model->set_basis({{0, 0}}, f.jobs));
+    const auto frame = f.h.frame();
+    CHECK(frame.find("Packet basis · 1 node") != std::string::npos);
+    CHECK(frame.find("1 nodes") == std::string::npos);
 }

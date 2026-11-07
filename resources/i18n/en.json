@@ -903,7 +903,7 @@
   "tui.decomposition.packets_wait": "Building the packet tree…",
   "tui.decomposition.packets_dwt_only": "Packets are built on the decimated DWT only",
   "tui.decomposition.packet_costs": "entropy: best {best} · current {current} · DWT {dwt} · root {root}",
-  "tui.decomposition.packet_basis": "Packet basis · {n} nodes",
+  "tui.decomposition.packet_basis": "Packet basis · {n}",
   "tui.decomposition.packet_pr": "basis PR",
   "tui.decomposition.hint.packets": "best / DWT basis",
   "tui.decomposition.packets_memory": "Packets do not fit in memory: need {need}, {budget} available. Lower J",
@@ -1265,5 +1265,8 @@
   "unit.thread.many": "{n} threads",
   "unit.sample_short.one": "{n} sample",
   "unit.sample_short.few": "{n} samples",
-  "unit.sample_short.many": "{n} samples"
+  "unit.sample_short.many": "{n} samples",
+  "unit.node.one": "{n} node",
+  "unit.node.few": "{n} nodes",
+  "unit.node.many": "{n} nodes"
 }
