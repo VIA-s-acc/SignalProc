@@ -11,6 +11,7 @@
 
 #include "audio/player.hpp"
 #include "core/extension.hpp"
+#include "core/packets.hpp"
 #include "core/memory.hpp"
 #include "core/process/shrink.hpp"
 #include "core/process/threshold.hpp"
@@ -87,6 +88,23 @@ struct Reconstruction {
     core::TrackedBytes memory;
 };
 
+struct PacketNodeInfo {
+    core::PacketNode node;
+    double lo_hz = 0, hi_hz = 0, energy_pct = 0, cost = 0;
+};
+
+struct PacketData {
+    DecompositionOptions options;
+    std::weak_ptr<const DecompositionData> source;
+    core::PacketTree tree;
+    std::vector<std::vector<PacketNodeInfo>> table;
+    std::vector<double> level_cost;
+    std::vector<core::PacketNode> best;
+    double best_cost = 0, dwt_cost = 0, root_cost = 0, norm2 = 0;
+    core::TrackedBytes memory;
+    const PacketNodeInfo& info(core::PacketNode n) const { return table[n.level][core::freq_position(n)]; }
+};
+
 enum class ClipKind { original, enabled, difference, band };
 
 class DecompositionModel {
@@ -113,6 +131,15 @@ public:
     std::shared_ptr<const SignalData> source() const { return source_->data(); }
     std::optional<audio::Clip> clip(ClipKind kind, std::size_t band = 0) const;
 
+    void request_packets(JobRunner& jobs);
+    std::shared_ptr<const PacketData> packets() const;
+    std::optional<std::string> packets_error() const;
+    std::vector<core::PacketNode> basis() const;
+    bool set_basis(std::vector<core::PacketNode> b);
+    void make_leaf(core::PacketNode n);
+    double basis_cost() const;
+    double basis_pr_error() const;
+
 private:
     void compute(JobRunner& jobs);
     void reconstruct(JobRunner& jobs);
@@ -132,6 +159,13 @@ private:
     std::optional<std::uint64_t> data_job_, recon_job_;
     std::uint64_t data_gen_ = 0, recon_gen_ = 0, data_done_ = 0, recon_done_ = 0;
     bool recon_pending_ = false, cancelled_ = false;
+    std::shared_ptr<const PacketData> packets_;
+    std::vector<core::PacketNode> basis_;
+    double basis_pr_ = 0;
+    std::optional<std::string> packets_error_;
+    std::weak_ptr<const DecompositionData> packets_for_;
+    std::optional<std::uint64_t> packets_job_;
+    std::uint64_t packets_gen_ = 0, packets_done_ = 0;
 };
 
 }  // namespace signals::tui

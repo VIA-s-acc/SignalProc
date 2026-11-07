@@ -71,7 +71,7 @@ std::optional<std::string> DecompositionModel::error() const {
 
 std::optional<std::uint64_t> DecompositionModel::job() const {
     std::lock_guard lock{mutex_};
-    return data_job_ ? data_job_ : recon_job_;
+    return data_job_ ? data_job_ : recon_job_ ? recon_job_ : packets_job_;
 }
 
 bool DecompositionModel::cancelled() const {
@@ -111,13 +111,19 @@ void DecompositionModel::set_options(DecompositionOptions o, JobRunner& jobs) {
 
 void DecompositionModel::cancel(JobRunner& jobs) {
     std::lock_guard lock{mutex_};
-    if (!data_job_ && !recon_job_) return;
+    if (!data_job_ && !recon_job_ && !packets_job_) return;
     if (data_job_) jobs.cancel(*data_job_);
     if (recon_job_) jobs.cancel(*recon_job_);
+    if (packets_job_) {
+        jobs.cancel(*packets_job_);
+        packets_error_ = tr("tui.decomposition.cancelled");
+    }
     data_job_.reset();
     recon_job_.reset();
+    packets_job_.reset();
     ++data_gen_;
     ++recon_gen_;
+    ++packets_gen_;
     recon_pending_ = false;
     cancelled_ = true;
 }
@@ -447,6 +453,152 @@ std::optional<audio::Clip> DecompositionModel::clip(ClipKind kind, std::size_t b
         break;
     }
     return c;
+}
+
+namespace {
+
+bool is_ancestor(core::PacketNode a, core::PacketNode n) { return a.level < n.level && (n.index >> (n.level - a.level)) == a.index; }
+
+double reconstruction_error(const PacketData& p, const std::vector<core::PacketNode>& basis, const DecompositionData& d) {
+    const auto bank = core::wavelet(p.options.wavelet);
+    if (!bank) return INFINITY;
+    const auto y = core::wp_reconstruct(p.tree, basis, *bank, p.options.mode);
+    return y ? core::max_abs_error(*y, d.x) : INFINITY;
+}
+
+}  // namespace
+
+void DecompositionModel::request_packets(JobRunner& jobs) {
+    const auto d = data();
+    if (!d) return;
+    const auto bank = core::wavelet(d->options.wavelet);
+    if (!bank) return;
+    std::uint64_t gen = 0;
+    {
+        std::lock_guard lock{mutex_};
+        if (packets_ && packets_->source.lock() == d) return;
+        if (packets_for_.lock() == d) return;
+        if (packets_job_) jobs.cancel(*packets_job_);
+        packets_job_.reset();
+        packets_error_.reset();
+        packets_for_ = d;
+        gen = ++packets_gen_;
+        const auto need = (d->options.levels + 1) * d->x.size() * sizeof(double);
+        if (need > budget_) {
+            packets_error_ = fmt::format(fmt::runtime(tr("tui.decomposition.packets_memory")), fmt::arg("need", format_si(static_cast<double>(need), tr("unit.byte"))),
+                                         fmt::arg("budget", format_si(static_cast<double>(budget_), tr("unit.byte"))));
+            return;
+        }
+    }
+    const auto opts = d->options;
+    const auto id = jobs.submit(tr("tui.decomposition.job_packets"), {tr("tui.decomposition.stage.packets")}, [this, d, gen, opts, bank = *bank](JobContext& ctx) {
+        ctx.begin(0);
+        auto tree = core::wp_decompose(d->x, bank, opts.levels, opts.mode, &ctx);
+        if (!tree) {
+            ctx.fail(tree.error().message);
+            std::lock_guard lock{mutex_};
+            if (gen != packets_gen_) return;
+            if (tree.error().code != core::Errc::cancelled) packets_error_ = tree.error().message;
+            packets_job_.reset();
+            packets_done_ = gen;
+            return;
+        }
+        auto p = std::make_shared<PacketData>();
+        p->options = opts;
+        p->source = d;
+        p->norm2 = energy(d->x);
+        const auto J = tree->levels();
+        std::size_t bytes = 0;
+        p->table.resize(J + 1);
+        p->level_cost.assign(J + 1, 0.0);
+        for (std::size_t j = 0; j <= J; ++j) {
+            const auto count = std::size_t{1} << j;
+            const double width = d->fs / 2 / static_cast<double>(count);
+            p->table[j].resize(count);
+            for (std::size_t k = 0; k < count; ++k) {
+                const core::PacketNode node{j, core::natural_index_at(j, k)};
+                const auto& c = tree->at(node);
+                bytes += c.size() * sizeof(double);
+                const double cost = core::packet_cost(c, core::PacketCost::shannon, p->norm2);
+                p->table[j][k] = {node, width * static_cast<double>(k), width * static_cast<double>(k + 1), p->norm2 > 0 ? 100 * energy(c) / p->norm2 : 0, cost};
+                p->level_cost[j] += cost;
+            }
+        }
+        p->best = core::best_basis(*tree, core::PacketCost::shannon);
+        p->tree = std::move(*tree);
+        for (const auto& n : p->best) p->best_cost += p->info(n).cost;
+        for (const auto& n : core::dwt_basis(J)) p->dwt_cost += p->info(n).cost;
+        p->root_cost = p->level_cost[0];
+        p->memory = core::TrackedBytes{core::MemoryCategory::coefficients, bytes};
+        ctx.finish(bytes);
+        if (ctx.cancelled()) return;
+        const double pr = reconstruction_error(*p, p->best, *d);
+        std::lock_guard lock{mutex_};
+        if (gen != packets_gen_) return;
+        packets_ = std::move(p);
+        basis_ = packets_->best;
+        basis_pr_ = pr;
+        packets_job_.reset();
+        packets_done_ = gen;
+    });
+    std::lock_guard lock{mutex_};
+    if (packets_done_ != gen && packets_gen_ == gen) packets_job_ = id;
+}
+
+std::shared_ptr<const PacketData> DecompositionModel::packets() const {
+    std::lock_guard lock{mutex_};
+    return packets_ && data_ && packets_->source.lock() == data_ ? packets_ : nullptr;
+}
+
+std::optional<std::string> DecompositionModel::packets_error() const {
+    std::lock_guard lock{mutex_};
+    return packets_for_.lock() == data_ ? packets_error_ : std::nullopt;
+}
+
+std::vector<core::PacketNode> DecompositionModel::basis() const {
+    std::lock_guard lock{mutex_};
+    return basis_;
+}
+
+bool DecompositionModel::set_basis(std::vector<core::PacketNode> b) {
+    const auto p = packets();
+    const auto d = data();
+    if (!p || !d || !core::admissible(b, p->tree.levels())) return false;
+    core::sort_by_frequency(b);
+    const double pr = reconstruction_error(*p, b, *d);
+    std::lock_guard lock{mutex_};
+    basis_ = std::move(b);
+    basis_pr_ = pr;
+    return true;
+}
+
+void DecompositionModel::make_leaf(core::PacketNode n) {
+    const auto p = packets();
+    if (!p || n.level > p->tree.levels() || n.index >= (std::size_t{1} << n.level)) return;
+    auto b = basis();
+    if (std::ranges::find(b, n) != b.end()) return;
+    std::optional<core::PacketNode> ancestor;
+    std::erase_if(b, [&](core::PacketNode m) {
+        if (is_ancestor(m, n)) ancestor = m;
+        return is_ancestor(m, n) || is_ancestor(n, m);
+    });
+    b.push_back(n);
+    if (ancestor)
+        for (std::size_t l = ancestor->level + 1; l <= n.level; ++l) b.push_back({l, (n.index >> (n.level - l)) ^ 1U});
+    set_basis(std::move(b));
+}
+
+double DecompositionModel::basis_cost() const {
+    const auto p = packets();
+    if (!p) return 0;
+    double total = 0;
+    for (const auto& n : basis()) total += p->info(n).cost;
+    return total;
+}
+
+double DecompositionModel::basis_pr_error() const {
+    std::lock_guard lock{mutex_};
+    return basis_pr_;
 }
 
 }  // namespace signals::tui

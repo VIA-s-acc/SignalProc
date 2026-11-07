@@ -7,6 +7,8 @@
 #include <fmt/format.h>
 #include <ftxui/component/mouse.hpp>
 #include <ftxui/dom/elements.hpp>
+#include <ftxui/dom/node.hpp>
+#include <ftxui/screen/screen.hpp>
 
 #include "core/design/families.hpp"
 #include "i18n/i18n.hpp"
@@ -21,6 +23,7 @@
 #include "tui/widgets/screen_util.hpp"
 #include "tui/widgets/list_window.hpp"
 #include "tui/widgets/text_util.hpp"
+#include "tui/theme/theme.hpp"
 
 namespace signals::tui {
 namespace {
@@ -33,6 +36,42 @@ constexpr std::array<core::Extension, 4> kModes{core::Extension::symmetric, core
                                                 core::Extension::reflect};
 
 std::string pct(double v) { return format_fixed(v, 2) + " %"; }
+
+constexpr double kPacketFloorDb = -48;
+constexpr int kPacketLabelWidth = 12;
+
+struct CellSpec {
+    std::string ch = " ";
+    Rgb fg{}, bg{};
+    bool has_bg = false;
+};
+
+class CellRowNode : public ftxui::Node {
+public:
+    CellRowNode(std::vector<CellSpec> cells, ColorDepth depth) : cells_{std::move(cells)}, depth_{depth} {}
+    void ComputeRequirement() override {
+        requirement_.min_x = 1;
+        requirement_.min_y = 1;
+        requirement_.flex_grow_x = 1;
+        requirement_.flex_shrink_x = 1;
+    }
+    void Render(ftxui::Screen& screen) override {
+        const int width = box_.x_max - box_.x_min + 1;
+        for (int i = 0; i < width && i < static_cast<int>(cells_.size()); ++i) {
+            auto& cell = screen.CellAt(box_.x_min + i, box_.y_min);
+            const auto& c = cells_[static_cast<std::size_t>(i)];
+            cell.character = c.ch;
+            cell.foreground_color = to_color(c.fg, depth_);
+            if (c.has_bg) cell.background_color = to_color(c.bg, depth_);
+        }
+    }
+
+private:
+    std::vector<CellSpec> cells_;
+    ColorDepth depth_;
+};
+
+std::string node_name(core::PacketNode n) { return n.level == 0 ? std::string{"x"} : core::packet_path(n); }
 
 }  // namespace
 
@@ -48,7 +87,7 @@ std::vector<Hint> DecompositionScreen::hints() const {
             {"↑↓ PgUp PgDn", tr("tui.decomposition.hint.band")}, {"Enter", tr("tui.decomposition.hint.toggle")},
             {"←→ Home End", tr("tui.decomposition.hint.cursor")}, {"+ − 0 < >", tr("tui.hint.plot_zoom")},
             {"j/J", tr("tui.decomposition.hint.levels")},  {"e/E", tr("tui.decomposition.hint.edges")},
-            {"t", tr("tui.decomposition.hint.transform")},
+            {"t", tr("tui.decomposition.hint.transform")}, {"B/W", tr("tui.decomposition.hint.packets")},
             {"w", tr("tui.decomposition.hint.wavelet")},
             {"Space", tr("tui.decomposition.hint.listen")}, {"a/b/x", tr("tui.decomposition.hint.ab")},
             {"v", tr("tui.decomposition.hint.view")},     {"u", tr("tui.decomposition.hint.undo")},
@@ -56,6 +95,7 @@ std::vector<Hint> DecompositionScreen::hints() const {
 }
 
 std::optional<TheoryLink> DecompositionScreen::theory_link() const {
+    if (view_ == View::packets && focus_ != denoise) return TheoryLink{TheoryLink::Kind::section, "wavelet-packets"};
     return TheoryLink{TheoryLink::Kind::card, focus_ == denoise ? "threshold" : "dwt"};
 }
 
@@ -258,18 +298,19 @@ ftxui::Element DecompositionScreen::toolbar(bool two_rows) {
         return clickable(std::move(id), e, std::move(action));
     };
     auto later = [this] { notice_ = tr("tui.decomposition.later"); };
+    const bool packets_view = view_ == View::packets;
     const auto o = model_->options();
     auto& jobs = *ui_.jobs;
     Elements parts{text(tr("tui.decomposition.view") + " ") | fg(th.dim, ui_),
                    chip("view_subbands", tr("tui.decomposition.view.subbands"), view_ == View::subbands, false, [this] { view_ = View::subbands; }),
                    chip("view_mra", "MRA", view_ == View::mra, false, [this] { view_ = View::mra; }),
                    chip("view_tiles", tr("tui.decomposition.view.tiles"), view_ == View::tiles, false, [this] { view_ = View::tiles; }),
-                   chip("chip_packets", tr("tui.decomposition.view.packets"), false, true, later),
+                   chip("chip_packets", tr("tui.decomposition.view.packets"), view_ == View::packets, false, [this] { view_ = View::packets; }),
                    chip("chip_scalogram", tr("tui.decomposition.view.scalogram"), false, true, later)};
     Elements second{text((two_rows ? "" : " │ ") + tr("tui.decomposition.transform") + " ") | fg(th.dim, ui_),
-                    chip("chip_dwt", "DWT", o.transform == Transform::dwt, false, [this, &jobs] { set_transform(Transform::dwt, jobs); }),
-                    chip("chip_swt", "SWT", o.transform == Transform::swt, false, [this, &jobs] { set_transform(Transform::swt, jobs); }),
-                    chip("chip_modwt", "MODWT", o.transform == Transform::modwt, false, [this, &jobs] { set_transform(Transform::modwt, jobs); }),
+                    chip("chip_dwt", "DWT", o.transform == Transform::dwt, packets_view, [this, &jobs] { set_transform(Transform::dwt, jobs); }),
+                    chip("chip_swt", "SWT", o.transform == Transform::swt, packets_view, [this, &jobs] { set_transform(Transform::swt, jobs); }),
+                    chip("chip_modwt", "MODWT", o.transform == Transform::modwt, packets_view, [this, &jobs] { set_transform(Transform::modwt, jobs); }),
                     text(" │ " + tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_),
                    clickable("wavelet", text(o.wavelet + " ▾") | fg(th.fg, ui_), [this] {
                        if (ui_.open_palette) ui_.open_palette(tr("tui.decomposition.cmd.wavelet"));
@@ -414,6 +455,134 @@ ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const 
     if (first + shown < bands) rows.push_back(label_pad(more_row(false, bands - first - shown)) | reflect(label_boxes_[bands + 2]));
     rows.push_back(hbox({text(std::string(kLabelWidth, ' ')), time_axis(plot_width)}));
     return vbox(std::move(rows));
+}
+
+ftxui::Element DecompositionScreen::packets_body(const PacketData& p, int width, int max_rows) {
+    using namespace ftxui;
+    const auto& th = ui_.theme;
+    const auto J = p.tree.levels();
+    const int cells = std::max(4, width - kPacketLabelWidth - 4);
+    const bool shaded = ui_.caps.glyphs == GlyphMode::ascii || ui_.caps.color == ColorDepth::ansi16 || ui_.caps.color == ColorDepth::none;
+    static constexpr std::array<const char*, 10> ramp{" ", ".", ":", "-", "=", "+", "*", "#", "%", "@"};
+    const auto basis = model_->basis();
+    std::vector<std::vector<bool>> in_basis(J + 1);
+    for (std::size_t j = 0; j <= J; ++j) in_basis[j].assign(std::size_t{1} << j, false);
+    for (const auto& n : basis)
+        if (n.level <= J) in_basis[n.level][core::freq_position(n)] = true;
+    packet_boxes_.clear();
+    packet_levels_.clear();
+    Elements rows;
+    const auto [first, shown] = list_window(packet_first_, J + 1, std::max(3, max_rows - 1), 1, follow_ ? std::optional{pk_level_} : std::nullopt);
+    if (first > 0) rows.push_back(more_row(true, first));
+    packet_boxes_.assign(shown, kNoBox);
+    for (std::size_t r = 0; r < shown; ++r) {
+        const auto j = first + r;
+        const auto count = std::size_t{1} << j;
+        const auto W = static_cast<std::size_t>(cells);
+        std::vector<CellSpec> row(W);
+        for (std::size_t c = 0; c < W; ++c) {
+            const auto k0 = c * count / W;
+            const auto k1 = std::max(k0, ((c + 1) * count - 1) / W);
+            std::size_t peak = k0;
+            bool basis_here = false;
+            for (std::size_t k = k0; k <= k1 && k < count; ++k) {
+                if (p.table[j][k].energy_pct > p.table[j][peak].energy_pct) peak = k;
+                basis_here = basis_here || in_basis[j][k];
+            }
+            const bool on_selected = j == pk_level_ && pk_pos_ >= k0 && pk_pos_ <= k1;
+            const auto sel_first = (pk_pos_ * W + count - 1) / count, sel_last = std::max(sel_first, ((pk_pos_ + 1) * W + count - 1) / count - 1);
+            const char* mark = !on_selected ? nullptr : sel_first == sel_last ? "•" : c == sel_first ? "[" : c == sel_last ? "]" : nullptr;
+            const bool selected = mark != nullptr;
+            const double e = p.table[j][peak].energy_pct;
+            const double db = e > 0 ? 10 * std::log10(e / 100) : kPacketFloorDb;
+            const double t = std::clamp((db - kPacketFloorDb) / -kPacketFloorDb, 0.0, 1.0);
+            const bool start = count * 2 <= W && k0 > 0 && c == (k0 * W + count - 1) / count && basis_here;
+            auto& cell = row[c];
+            if (shaded) {
+                cell.ch = selected ? (std::string_view{mark} == "•" ? "o" : mark) : start ? "|" : ramp[static_cast<std::size_t>(std::lround(t * 9))];
+                cell.fg = selected ? th.accent : basis_here ? th.fg : th.dim;
+                continue;
+            }
+            const auto heat = basis_here ? viridis(t) : tint(viridis(t), th.bg, 0.65);
+            cell.has_bg = true;
+            cell.bg = heat;
+            cell.ch = selected ? mark : start ? "▏" : " ";
+            cell.fg = selected ? (t > 0.6 ? th.bg : th.fg) : th.bg;
+        }
+        const auto label = pad_right("L" + std::to_string(j) + "  " + format_number(p.level_cost[j], 3), kPacketLabelWidth);
+        rows.push_back(hbox({text(label) | fg(j == pk_level_ ? th.accent : th.fg, ui_),
+                             Element{std::make_shared<CellRowNode>(std::move(row), ui_.caps.color)} | size(WIDTH, EQUAL, cells) | reflect(packet_boxes_[r])}));
+        packet_levels_.push_back(j);
+    }
+    if (first + shown < J + 1) rows.push_back(more_row(false, J + 1 - first - shown));
+    const auto source = model_->data();
+    const double nyquist = source ? source->fs / 2 : 0;
+    std::vector<std::string> axis(static_cast<std::size_t>(cells), " ");
+    auto put = [&](int at, const std::string& label) {
+        const auto cps = split_codepoints(label);
+        at = std::clamp(at, 0, std::max(0, cells - static_cast<int>(cps.size())));
+        for (std::size_t k = 0; k < cps.size() && at + static_cast<int>(k) < cells; ++k) axis[static_cast<std::size_t>(at) + k] = cps[k];
+    };
+    put(0, "0");
+    put(cells / 2 - 2, hz_text(nyquist / 2));
+    put(cells, hz_text(nyquist) + " " + tr("unit.hz"));
+    std::string line;
+    for (const auto& a : axis) line += a;
+    rows.push_back(hbox({text(std::string(kPacketLabelWidth, ' ')), text(line) | fg(th.dim, ui_)}));
+    return vbox(std::move(rows));
+}
+
+ftxui::Element DecompositionScreen::packets_energy(const PacketData& p, int max_rows, int width) {
+    using namespace ftxui;
+    const auto& th = ui_.theme;
+    const auto basis = model_->basis();
+    constexpr int kName = 9, kRange = 15, kPct = 9;
+    const int bar_width = std::clamp(width - kName - kRange - kPct, 3, 18);
+    Elements rows;
+    const auto [first, shown] = list_window(energy_first_, basis.size(), std::max(2, max_rows - 2), 1, std::nullopt);
+    if (first > 0) rows.push_back(more_row(true, first));
+    for (std::size_t i = first; i < first + shown; ++i) {
+        const auto& info = p.info(basis[i]);
+        const bool selected = basis[i].level == pk_level_ && core::freq_position(basis[i]) == pk_pos_;
+        rows.push_back(hbox({text(pad_right(node_name(basis[i]), kName)) | bold | fg(selected ? th.accent : th.trace[0], ui_),
+                             text(pad_right(hz_text(info.lo_hz) + "–" + hz_text(info.hi_hz), kRange)) | fg(th.dim, ui_),
+                             text(bar(info.energy_pct / 100, bar_width, ui_.caps.glyphs)) | fg(th.trace[0], ui_),
+                             text(pad_left(pct(info.energy_pct), kPct)) | fg(th.fg, ui_)}));
+    }
+    if (first + shown < basis.size()) rows.push_back(more_row(false, basis.size() - first - shown));
+    const auto costs = fmt::format(fmt::runtime(tr("tui.decomposition.packet_costs")), fmt::arg("best", format_number(p.best_cost, 3)),
+                                   fmt::arg("current", format_number(model_->basis_cost(), 3)), fmt::arg("dwt", format_number(p.dwt_cost, 3)),
+                                   fmt::arg("root", format_number(p.root_cost, 3)));
+    rows.push_back(text(ellipsize(costs, width, ui_.caps.glyphs == GlyphMode::ascii)) | fg(th.dim, ui_));
+    return frame_panel(energy, vbox(std::move(rows)), {},
+                       fmt::format(fmt::runtime(tr("tui.decomposition.packet_basis")), fmt::arg("n", basis.size())));
+}
+
+void DecompositionScreen::pick_packet(core::PacketNode n) {
+    pk_level_ = n.level;
+    pk_pos_ = core::freq_position(n);
+    follow_ = true;
+    model_->make_leaf(n);
+}
+
+bool DecompositionScreen::packet_key(const ftxui::Event& e, const PacketData& p) {
+    using ftxui::Event;
+    const auto J = p.tree.levels();
+    if (e == Event::ArrowDown && pk_level_ < J) return ++pk_level_, pk_pos_ *= 2, follow_ = true, true;
+    if (e == Event::ArrowUp && pk_level_ > 0) return --pk_level_, pk_pos_ /= 2, follow_ = true, true;
+    if (e == Event::ArrowRight) return pk_pos_ = std::min(pk_pos_ + 1, (std::size_t{1} << pk_level_) - 1), true;
+    if (e == Event::ArrowLeft) return pk_pos_ = pk_pos_ > 0 ? pk_pos_ - 1 : 0, true;
+    if (e == Event::ArrowUp || e == Event::ArrowDown) return true;
+    if (e == Event::Return) return model_->make_leaf({pk_level_, core::natural_index_at(pk_level_, pk_pos_)}), true;
+    if (e == Event::Character('B')) return model_->set_basis(p.best), true;
+    if (e == Event::Character('W')) return model_->set_basis(core::dwt_basis(J)), true;
+    return false;
+}
+
+std::optional<int> DecompositionScreen::packet_row(std::size_t level) const {
+    for (std::size_t i = 0; i < packet_levels_.size() && i < packet_boxes_.size(); ++i)
+        if (packet_levels_[i] == level && valid(packet_boxes_[i])) return packet_boxes_[i].y_min;
+    return std::nullopt;
 }
 
 ftxui::Element DecompositionScreen::energy_panel(const DecompositionData& d, int max_rows, int width, bool wide) {
@@ -591,6 +760,12 @@ ftxui::Element DecompositionScreen::summary_panel(const DecompositionData& d, co
                   text(std::string(13, ' ') + fmt::format(fmt::runtime(tr("tui.decomposition.parseval_note")), fmt::arg("error", format_number(d.parseval_error, 2)))) |
                       fg(th.dim, ui_),
                   separator() | fg(th.dim, ui_)};
+    if (view_ == View::packets && model_->packets()) {
+        const double err = model_->basis_pr_error();
+        const bool ok = err < 1e-9;
+        rows.insert(rows.end() - 1, hbox({label("tui.decomposition.packet_pr"), text(tr("tui.decomposition.error") + " " + (err < 1e-14 ? std::string{"< 10⁻¹⁴"} : format_number(err, 2)) + " ") | fg(th.fg, ui_),
+                                         text(std::string{glyph(ok ? Glyph::check : Glyph::cross, ui_.caps.glyphs)}) | fg(ok ? th.ok : th.err, ui_)}));
+    }
     if (off > 0) {
         rows.push_back(text(fmt::format(fmt::runtime(tr("tui.decomposition.warn1")), fmt::arg("n", off))) | fg(th.warn, ui_));
         rows.push_back(text(tr("tui.decomposition.warn2")) | fg(th.warn, ui_));
@@ -629,16 +804,38 @@ ftxui::Element DecompositionScreen::OnRender() {
     }
     const auto title = view_ == View::subbands ? tr("tui.decomposition.title.subbands")
                        : view_ == View::mra    ? fmt::format(fmt::runtime(tr("tui.decomposition.title.mra")), fmt::arg("a", band_label(d->bands.size() - 1)))
+                       : view_ == View::packets ? tr("tui.decomposition.title.packets")
                                                : tr("tui.decomposition.title.tiles");
-    const std::vector<Chip> view_chips{{tr(view_ == View::tiles ? "tui.decomposition.chip.tiles" : "tui.decomposition.chip.scale"), false}};
+    const auto chip_key = view_ == View::tiles ? "tui.decomposition.chip.tiles" : view_ == View::packets ? "tui.decomposition.chip.packets" : "tui.decomposition.chip.scale";
+    const std::vector<Chip> view_chips{{tr(chip_key), false}};
+    std::shared_ptr<const PacketData> packets;
+    if (view_ == View::packets) {
+        model_->request_packets(*ui_.jobs);
+        packets = model_->packets();
+    }
     const bool small = breakpoint_ <= Breakpoint::small || maximized_;
     const int main_width = small ? cols : cols - kRightWidth - 1;
     const bool two_rows = cols < 150;
     const int toolbar_rows = two_rows ? 2 : 1;
     const int total = std::max(8, rows - 3);
     const int body_rows = small ? total - toolbar_rows - 2 : std::max(6, total - toolbar_rows - 1 - 2 - 1 - 9);
-    const auto body = view_body(*d, r.get(), main_width, body_rows);
-    const int used = std::min(body_rows, static_cast<int>(2 * std::min(d->bands.size(), static_cast<std::size_t>(body_rows))) + 3);
+    Element body;
+    int used = std::min(body_rows, static_cast<int>(2 * std::min(d->bands.size(), static_cast<std::size_t>(body_rows))) + 3);
+    if (view_ != View::packets) {
+        body = view_body(*d, r.get(), main_width, body_rows);
+    } else {
+        plot_boxes_.clear();
+        label_boxes_.clear();
+        if (packets) {
+            body = packets_body(*packets, main_width, body_rows);
+            const int levels = static_cast<int>(packets->tree.levels()) + 1;
+            used = levels <= body_rows - 1 ? levels + 1 : body_rows;
+        } else {
+            const auto e = model_->packets_error();
+            body = text(e ? *e : tr("tui.decomposition.packets_wait")) | fg(e ? th.err : th.dim, ui_);
+            used = 3;
+        }
+    }
     const int energy_rows = small ? total - 2 : std::max(4, total - toolbar_rows - 1 - (used + 2) - 1 - 2);
     const int energy_width = small ? cols - 4 : main_width - 47;
     const bool wide = maximized_.has_value();
@@ -648,7 +845,7 @@ ftxui::Element DecompositionScreen::OnRender() {
         focus_ = p;
         switch (p) {
         case view_panel: return vbox({toolbar(two_rows), main | flex});
-        case energy: return energy_panel(*d, energy_rows, energy_width, wide);
+        case energy: return packets ? packets_energy(*packets, energy_rows, energy_width) : energy_panel(*d, energy_rows, energy_width, wide);
         case cursor_panel: return frame_panel(cursor_panel, cursor_body(*d, r.get(), total - 2), {}, tr("tui.decomposition.cursor"));
         case denoise: return denoise_panel(*d, r.get());
         case listen: return listen_panel(*d);
@@ -658,7 +855,7 @@ ftxui::Element DecompositionScreen::OnRender() {
     }
     const auto cursor_title = cursor_ ? fmt::format(fmt::runtime(tr("tui.decomposition.cursor_at")), fmt::arg("t", format_fixed(*cursor_, 3)))
                                       : tr("tui.decomposition.cursor");
-    auto bottom = hbox({energy_panel(*d, energy_rows, energy_width, wide) | flex, text(" "),
+    auto bottom = hbox({(packets ? packets_energy(*packets, energy_rows, energy_width) : energy_panel(*d, energy_rows, energy_width, wide)) | flex, text(" "),
                         frame_panel(cursor_panel, cursor_body(*d, r.get(), energy_rows), {}, cursor_title) | size(WIDTH, EQUAL, 42)});
     auto left = vbox({main, text(""), bottom | flex});
     auto right = vbox({denoise_panel(*d, r.get()), text(""), listen_panel(*d), text(""), summary_panel(*d, r.get()) | flex});
@@ -671,6 +868,10 @@ void DecompositionScreen::select(std::size_t band) {
 }
 
 void DecompositionScreen::set_transform(Transform t, JobRunner& jobs) {
+    if (view_ == View::packets) {
+        notice_ = tr("tui.decomposition.packets_dwt_only");
+        return;
+    }
     auto k = model_->options();
     k.transform = t;
     model_->set_options(k, jobs);
@@ -700,6 +901,17 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
             zoom(m.button == Mouse::WheelUp ? kWheelStep : 1 / kWheelStep, time_at(m.x));
             return true;
         }
+        if (m.button == Mouse::Left && m.motion == Mouse::Pressed && view_ == View::packets)
+            for (std::size_t i = 0; i < packet_boxes_.size() && i < packet_levels_.size(); ++i)
+                if (packet_boxes_[i].Contain(m.x, m.y)) {
+                    const auto j = packet_levels_[i];
+                    const auto width = static_cast<std::size_t>(packet_boxes_[i].x_max - packet_boxes_[i].x_min + 1);
+                    const auto col = static_cast<std::size_t>(m.x - packet_boxes_[i].x_min);
+                    const auto k = std::min(((2 * col + 1) << j) / (2 * width), (std::size_t{1} << j) - 1);
+                    focus_ = view_panel;
+                    pick_packet({j, core::natural_index_at(j, k)});
+                    return true;
+                }
         if (m.button == Mouse::Left && m.motion == Mouse::Pressed) {
             for (auto& c : clickables_)
                 if (c.box.Contain(m.x, m.y)) {
@@ -752,6 +964,8 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
         else cursor_first_ = cursor_first_ > 3 ? cursor_first_ - 3 : 0;
         return true;
     }
+    if (view_ == View::packets && focus_ != denoise)
+        if (const auto p = model_->packets(); p && packet_key(e, *p)) return true;
     if (e == Event::ArrowDown) return select(std::min(selected_ + 1, d->bands.size() - 1)), true;
     if (e == Event::ArrowUp) return select(selected_ > 0 ? selected_ - 1 : 0), true;
     if (e == Event::PageDown) return select(std::min(selected_ + 5, d->bands.size() - 1)), true;
@@ -806,7 +1020,7 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
     }
     if (e == Event::Character('u')) return model_->undo(jobs), true;
     if (e == Event::Character('v')) {
-        view_ = view_ == View::subbands ? View::mra : view_ == View::mra ? View::tiles : View::subbands;
+        view_ = view_ == View::subbands ? View::mra : view_ == View::mra ? View::tiles : view_ == View::tiles ? View::packets : View::subbands;
         return true;
     }
     if (e == Event::Character(' ')) {
@@ -838,6 +1052,12 @@ void DecompositionScreen::open_with(const NavArgs& args) {
 
 ftxui::Box DecompositionScreen::area(std::string_view id) const {
     if (id == "view_plot") return plot_area();
+    if (id == "packet_table") {
+        ftxui::Box out = kNoBox;
+        for (const auto& b : packet_boxes_)
+            if (valid(b)) out = valid(out) ? ftxui::Box::Union(out, b) : b;
+        return out;
+    }
     if (id == "denoise_panel") return panel_boxes_[denoise];
     if (id == "energy_panel") return panel_boxes_[energy];
     if (id == "cursor_panel") return panel_boxes_[cursor_panel];

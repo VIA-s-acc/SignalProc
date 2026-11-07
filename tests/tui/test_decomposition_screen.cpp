@@ -88,7 +88,7 @@ TEST_CASE("arrows and enter toggle the selected band", "[tui][decomposition]") {
     CHECK(f.h.frame().find("☐ d₃") != std::string::npos);
 }
 
-TEST_CASE("v cycles subbands, MRA and tiles", "[tui][decomposition]") {
+TEST_CASE("v cycles subbands, MRA, tiles and packets", "[tui][decomposition]") {
     DecompositionFixture f;
     CHECK(f.screen->view() == DecompositionScreen::View::subbands);
     f.h.send(ftxui::Event::Character('v'));
@@ -97,6 +97,9 @@ TEST_CASE("v cycles subbands, MRA and tiles", "[tui][decomposition]") {
     f.h.send(ftxui::Event::Character('v'));
     CHECK(f.screen->view() == DecompositionScreen::View::tiles);
     CHECK(f.h.frame().find("Плитки t–f") != std::string::npos);
+    f.h.send(ftxui::Event::Character('v'));
+    CHECK(f.screen->view() == DecompositionScreen::View::packets);
+    CHECK(f.h.frame().find("Пакеты · клик по узлу") != std::string::npos);
     f.h.send(ftxui::Event::Character('v'));
     CHECK(f.screen->view() == DecompositionScreen::View::subbands);
 }
@@ -130,7 +133,7 @@ TEST_CASE("b plays the enabled bands from the cursor and a and x switch in place
 
 TEST_CASE("M6 chips explain when they arrive", "[tui][decomposition]") {
     DecompositionFixture f;
-    f.click("chip_packets");
+    f.click("chip_scalogram");
     CHECK(f.h.frame().find("появится в M6") != std::string::npos);
 }
 
@@ -397,3 +400,98 @@ TEST_CASE("the denoise panel works on SWT bands", "[tui][decomposition][swt]") {
     CHECK(r->processing.rule);
     CHECK(r->energy_kept_pct < 100);
 }
+
+TEST_CASE("the packets chip shows the packet table with the best basis", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    f.click("chip_packets");
+    CHECK(f.screen->view() == DecompositionScreen::View::packets);
+    f.h.frame();
+    const auto p = f.model->packets();
+    REQUIRE(p);
+    const auto J = f.model->options().levels;
+    CHECK(p->table.size() == J + 1);
+    for (std::size_t j = 0; j <= J; ++j) CHECK(p->table[j].size() == (std::size_t{1} << j));
+    CHECK(f.model->basis() == p->best);
+    CHECK(signals::core::admissible(f.model->basis(), J));
+    CHECK(p->best_cost <= p->dwt_cost + 1e-12);
+    CHECK(p->best_cost <= p->root_cost + 1e-12);
+    CHECK(f.model->basis_pr_error() < 1e-9);
+    const auto frame = f.h.frame();
+    CHECK(frame.find("L0") != std::string::npos);
+    CHECK(frame.find("L" + std::to_string(J)) != std::string::npos);
+}
+
+TEST_CASE("make_leaf keeps the basis admissible and B, W restore presets", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    f.click("chip_packets");
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    const auto J = f.model->options().levels;
+    f.model->make_leaf({1, 0});
+    auto b = f.model->basis();
+    CHECK(signals::core::admissible(b, J));
+    CHECK(std::ranges::find(b, signals::core::PacketNode{1, 0}) != b.end());
+    CHECK(f.model->basis_pr_error() < 1e-9);
+    const signals::core::PacketNode deep{J, (std::size_t{1} << J) - 1};
+    f.model->make_leaf(deep);
+    b = f.model->basis();
+    CHECK(signals::core::admissible(b, J));
+    CHECK(std::ranges::find(b, deep) != b.end());
+    CHECK(std::ranges::find(b, signals::core::PacketNode{1, 0}) != b.end());
+    f.h.send(ftxui::Event::Character('W'));
+    CHECK(f.model->basis() == signals::core::dwt_basis(J));
+    CHECK(f.model->basis_pr_error() < 1e-9);
+    f.h.send(ftxui::Event::Character('B'));
+    CHECK(f.model->basis() == f.model->packets()->best);
+    CHECK_FALSE(f.model->set_basis({{1, 0}}));
+}
+
+TEST_CASE("arrows and Enter pick a packet node on the keyboard", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    f.click("chip_packets");
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    f.h.send(ftxui::Event::ArrowDown);
+    f.h.send(ftxui::Event::ArrowRight);
+    f.h.send(ftxui::Event::Return);
+    const auto b = f.model->basis();
+    CHECK(std::ranges::find(b, signals::core::PacketNode{1, signals::core::natural_index_at(1, 1)}) != b.end());
+}
+
+TEST_CASE("a click on a narrow packet table picks the node under the mouse", "[tui][decomposition][packets]") {
+    DecompositionFixture f{true, 80, 24};
+    auto o = f.model->options();
+    o.levels = 12;
+    f.model->set_options(o, f.jobs);
+    f.h.frame();
+    f.screen->set_view(DecompositionScreen::View::packets);
+    const auto frame = f.h.frame();
+    REQUIRE(f.model->packets());
+    CHECK(frame.find("L12") != std::string::npos);
+    const auto table = f.screen->area("packet_table");
+    REQUIRE(table.x_max > table.x_min);
+    CHECK(table.x_max < 80);
+    const int width = table.x_max - table.x_min + 1;
+    const auto row = f.screen->packet_row(12);
+    REQUIRE(row);
+    f.h.click(table.x_min + 2, *row);
+    const auto k = (2 * (std::size_t{1} << 12) + (std::size_t{1} << 11)) / static_cast<std::size_t>(width);
+    const auto b = f.model->basis();
+    CHECK(std::ranges::find(b, signals::core::PacketNode{12, signals::core::natural_index_at(12, k)}) != b.end());
+}
+
+TEST_CASE("a new wavelet recomputes packets and hides the stale table", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    f.click("chip_packets");
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    auto o = f.model->options();
+    o.wavelet = "db4";
+    f.model->set_options(o, f.jobs);
+    CHECK_FALSE(f.model->packets());
+    f.h.frame();
+    const auto p = f.model->packets();
+    REQUIRE(p);
+    CHECK(p->options.wavelet == "db4");
+}
+
