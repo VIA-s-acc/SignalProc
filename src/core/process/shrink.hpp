@@ -4,6 +4,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -23,7 +24,13 @@ double noise_sigma_mad(std::span<const double> finest_detail);
 double universal_threshold(double sigma, std::size_t n);
 double bayes_threshold(std::span<const double> detail, double sigma);
 
-enum class ShrinkRule { visu, bayes };
+enum class ShrinkRule { visu, bayes, sure, minimax };
+
+double sure_threshold(std::span<const double> detail, double sigma);
+double minimax_threshold(double sigma, std::size_t n);
+double rule_threshold(ShrinkRule rule, std::span<const double> detail, double sigma, std::size_t n);
+std::optional<ShrinkRule> parse_shrink_rule(std::string_view name);
+std::string_view shrink_rule_name(ShrinkRule rule);
 
 struct DenoiseOptions {
     std::string wavelet = "sym8";

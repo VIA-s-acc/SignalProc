@@ -48,6 +48,62 @@ double bayes_threshold(std::span<const double> detail, double sigma) {
     return var / std::sqrt(std::max(mean_square - var, DBL_EPSILON));
 }
 
+double sure_threshold(std::span<const double> detail, double sigma) {
+    const auto n = detail.size();
+    if (n == 0 || !(sigma > 0)) return 0.0;
+    std::vector<double> sx2(n);
+    double norm2 = 0;
+    for (std::size_t i = 0; i < n; ++i) {
+        const double v = detail[i] / sigma;
+        sx2[i] = v * v;
+        norm2 += v * v;
+    }
+    const double universal = std::sqrt(2 * std::log(static_cast<double>(n)));
+    const double nd = static_cast<double>(n);
+    if ((norm2 - nd) / nd < std::pow(std::log2(nd), 1.5) / std::sqrt(nd)) return sigma * universal;
+    std::ranges::sort(sx2);
+    double cumulative = 0, best_risk = INFINITY, best = 0;
+    for (std::size_t i = 0; i < n; ++i) {
+        cumulative += sx2[i];
+        const double risk = (nd - 2 * static_cast<double>(i + 1) + cumulative + static_cast<double>(n - 1 - i) * sx2[i]) / nd;
+        if (risk < best_risk) best_risk = risk, best = sx2[i];
+    }
+    return sigma * std::min(std::sqrt(best), universal);
+}
+
+double minimax_threshold(double sigma, std::size_t n) {
+    if (n <= 32 || !(sigma > 0)) return 0.0;
+    return sigma * (0.3936 + 0.1829 * std::log2(static_cast<double>(n)));
+}
+
+double rule_threshold(ShrinkRule rule, std::span<const double> detail, double sigma, std::size_t n) {
+    switch (rule) {
+    case ShrinkRule::bayes: return bayes_threshold(detail, sigma);
+    case ShrinkRule::visu: return universal_threshold(sigma, n);
+    case ShrinkRule::sure: return sure_threshold(detail, sigma);
+    case ShrinkRule::minimax: return minimax_threshold(sigma, n);
+    }
+    return 0.0;
+}
+
+std::optional<ShrinkRule> parse_shrink_rule(std::string_view name) {
+    if (name == "bayes") return ShrinkRule::bayes;
+    if (name == "visu") return ShrinkRule::visu;
+    if (name == "sure") return ShrinkRule::sure;
+    if (name == "minimax") return ShrinkRule::minimax;
+    return std::nullopt;
+}
+
+std::string_view shrink_rule_name(ShrinkRule rule) {
+    switch (rule) {
+    case ShrinkRule::bayes: return "BayesShrink";
+    case ShrinkRule::visu: return "VisuShrink";
+    case ShrinkRule::sure: return "SureShrink";
+    case ShrinkRule::minimax: return "Minimax";
+    }
+    return "?";
+}
+
 Result<std::pair<std::vector<double>, DenoiseReport>> denoise(std::span<const double> x, const DenoiseOptions& options) {
     const auto bank = wavelet(options.wavelet);
     if (!bank) return std::unexpected{bank.error()};
@@ -58,8 +114,7 @@ Result<std::pair<std::vector<double>, DenoiseReport>> denoise(std::span<const do
 
     DenoiseReport report{options.sigma.value_or(noise_sigma_mad(coeffs->bands.back())), levels, {}};
     for (std::size_t b = 1; b < coeffs->bands.size(); ++b) {
-        const double t = options.rule == ShrinkRule::bayes ? bayes_threshold(coeffs->bands[b], report.sigma)
-                                                           : universal_threshold(report.sigma, x.size());
+        const double t = rule_threshold(options.rule, coeffs->bands[b], report.sigma, x.size());
         report.thresholds.push_back(t);
     }
     if (report.sigma == 0) return std::pair{std::vector<double>(x.begin(), x.end()), std::move(report)};

@@ -154,7 +154,7 @@ void DecompositionScreen::publish(theory::LiveValues& v) const {
     v.set("block.bands", joined(names));
     v.set("metric.energies", joined(energies));
     const auto& p = r ? r->processing : Processing{};
-    v.set("block.rule", p.rule ? std::string{*p.rule == core::ShrinkRule::bayes ? "BayesShrink" : "VisuShrink"} : tr("tui.theory.value.none"));
+    v.set("block.rule", p.rule ? std::string{core::shrink_rule_name(*p.rule)} : tr("tui.theory.value.none"));
     v.set("block.mode", std::string{core::to_string(o.mode)});
     v.set("block.levels", std::to_string(J));
     std::vector<std::string> lambdas;
@@ -689,7 +689,7 @@ ftxui::Element DecompositionScreen::denoise_panel(const DecompositionData& d, co
     using namespace ftxui;
     const auto& th = ui_.theme;
     auto label = [&](const std::string& key) { return text(pad_right(tr(key), 9)) | fg(th.dim, ui_); };
-    const bool bayes = !draft_.rule || *draft_.rule == core::ShrinkRule::bayes;
+    const auto rule = draft_.rule.value_or(core::ShrinkRule::bayes);
     Elements modes;
     for (auto [mode, name] : {std::pair{core::ThresholdMode::soft, "soft"}, std::pair{core::ThresholdMode::hard, "hard"},
                               std::pair{core::ThresholdMode::garrote, "garrote"}}) {
@@ -705,14 +705,22 @@ ftxui::Element DecompositionScreen::denoise_panel(const DecompositionData& d, co
     if (r && r->processing.rule)
         for (double l : r->lambdas) lambdas += (lambdas.empty() ? "" : " ") + format_number(l, 2);
     Elements rows{
-        hbox({label("tui.decomposition.method"), clickable("rule", text((bayes ? std::string{"BayesShrink"} : std::string{"VisuShrink"}) + " ▾") | fg(th.fg, ui_),
-                                                           [this, bayes] { draft_.rule = bayes ? core::ShrinkRule::visu : core::ShrinkRule::bayes; })}),
+        hbox({label("tui.decomposition.method"), clickable("rule", text(std::string{core::shrink_rule_name(rule)} + " ▾") | fg(th.fg, ui_), [this, rule] {
+                  draft_.rule = rule == core::ShrinkRule::bayes  ? core::ShrinkRule::visu
+                                : rule == core::ShrinkRule::visu ? core::ShrinkRule::sure
+                                : rule == core::ShrinkRule::sure ? core::ShrinkRule::minimax
+                                                                 : core::ShrinkRule::bayes;
+              })}),
         hbox({label("tui.decomposition.rule"), hbox(std::move(modes))}),
         hbox({label("tui.decomposition.sigma"), text(format_number(d.sigma) + " ") | fg(th.fg, ui_), text("MAD(d₁)/" + format_fixed(0.6745, 4)) | fg(th.dim, ui_)}),
         hbox({label("tui.decomposition.levels"), text("d₁ … d" + subscript_count(std::min(draft_.last_level, J)) + " ") | fg(th.fg, ui_),
               clickable("levels_down", text("◂") | fg(th.accent, ui_), [this] { draft_.last_level = std::max<std::size_t>(1, draft_.last_level - 1); }),
               clickable("levels_up", text(" ▸") | fg(th.accent, ui_), [this, J] { draft_.last_level = std::min(J, draft_.last_level + 1); })}),
-        text(tr(bayes ? "tui.decomposition.lambda_bayes" : "tui.decomposition.lambda_visu")) | fg(th.dim, ui_),
+        text(tr(rule == core::ShrinkRule::bayes  ? "tui.decomposition.lambda_bayes"
+                : rule == core::ShrinkRule::visu ? "tui.decomposition.lambda_visu"
+                : rule == core::ShrinkRule::sure ? "tui.decomposition.lambda_sure"
+                                                 : "tui.decomposition.lambda_minimax")) |
+            fg(th.dim, ui_),
         lambdas.empty() ? emptyElement() : text(ellipsize("λ: " + lambdas, kRightWidth - 4, ui_.caps.glyphs == GlyphMode::ascii)) | fg(th.dim, ui_),
         separator() | fg(th.dim, ui_),
         hbox({label("tui.decomposition.compress"), text(tr("tui.decomposition.keep") + " "),
@@ -734,8 +742,11 @@ ftxui::Element DecompositionScreen::denoise_panel(const DecompositionData& d, co
         hbox({key_label(" Enter ", ui_), text(" " + tr("tui.decomposition.apply") + "  ") | fg(th.dim, ui_), key_label(" u ", ui_),
               text(" " + tr("tui.decomposition.hint.undo")) | fg(th.dim, ui_)})};
     ftxui::Box* link = nullptr;
-    clickables_.push_back({"processing_link", kNoBox, [this] {
-                               if (ui_.navigate) ui_.navigate("tab:7", {});
+    clickables_.push_back({"processing_link", kNoBox, [this, wavelet = d.options.wavelet, levels = d.options.levels] {
+                               NavArgs args;
+                               args.wavelet = wavelet;
+                               args.n = levels;
+                               if (ui_.navigate) ui_.navigate("tab:7", args);
                            }});
     link = &clickables_.back().box;
     return frame_panel(denoise, vbox(std::move(rows)), {{tr("tui.decomposition.processing_link"), false, link}}, tr("tui.decomposition.denoise"));

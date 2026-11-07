@@ -8,6 +8,7 @@
 #include "tui/screens/filters_model.hpp"
 #include "tui/screens/matrix_model.hpp"
 #include "tui/screens/pipeline_model.hpp"
+#include "tui/screens/processing_model.hpp"
 #include "tui/screens/theory_navigator.hpp"
 #include "tui/screens/signal_model.hpp"
 #include "tui/screens/spectrum_model.hpp"
@@ -18,6 +19,7 @@ namespace signals::tui {
 struct AppModels {
     std::shared_ptr<SignalModel> signal;
     std::shared_ptr<SpectrumModel> spectrum;
+    std::shared_ptr<ProcessingModel> processing;
     std::shared_ptr<ComparisonSet> comparison;
     std::shared_ptr<DesignerModel> designer;
     std::shared_ptr<DecompositionModel> decomposition;
