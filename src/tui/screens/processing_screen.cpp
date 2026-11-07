@@ -13,7 +13,9 @@
 #include "i18n/i18n.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/plot.hpp"
+#include "tui/widgets/list_window.hpp"
 #include "tui/widgets/screen_util.hpp"
+#include "tui/widgets/scroll.hpp"
 #include "tui/widgets/text_util.hpp"
 
 namespace signals::tui {
@@ -191,9 +193,9 @@ ftxui::Element ProcessingScreen::coeffs_body(const ProcessingResult& r, int widt
     const auto& th = ui_.theme;
     const int plot_width = std::max(10, width - kBandLabel - 4);
     Elements out;
-    const auto shown = std::min<std::size_t>(r.bands.size(), static_cast<std::size_t>(std::max(1, rows / 2)));
+    const auto window = list_window(bands_scroll_.first, r.bands.size(), std::max(2, rows), 2, std::nullopt);
     const auto view = coeff_zoom_.axis();
-    for (std::size_t b = 0; b < shown; ++b) {
+    for (std::size_t b = 0; b < r.bands.size(); ++b) {
         const auto& band = r.bands[b];
         const auto first = std::min(band.coeffs.size(), static_cast<std::size_t>(std::floor(view.lo * static_cast<double>(band.coeffs.size()))));
         const auto last = std::max(first + 1, std::min(band.coeffs.size(), static_cast<std::size_t>(std::ceil(view.hi * static_cast<double>(band.coeffs.size())))));
@@ -212,9 +214,9 @@ ftxui::Element ProcessingScreen::coeffs_body(const ProcessingResult& r, int widt
                                   text(info) | fg(th.dim, ui_)}) |
                                 size(WIDTH, EQUAL, kBandLabel),
                             plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, 2) | size(WIDTH, EQUAL, plot_width) |
-                                (b == 0 ? reflect(coeff_plot_box_) : nothing)}));
+                                (b == window.first ? reflect(coeff_plot_box_) : nothing)}));
     }
-    return vbox(std::move(out));
+    return scrolled(std::move(out), bands_scroll_, std::max(2, rows), std::nullopt, ui_, 2);
 }
 
 ftxui::Element ProcessingScreen::signal_body(const ProcessingResult& r, int width, int height) {
@@ -346,7 +348,8 @@ ftxui::Element ProcessingScreen::OnRender() {
                        fg(e ? th.err : stopped ? th.warn : th.dim, ui_)};
         return vbox({toolbar(two_rows, cols), frame_panel(coeffs_panel, centered(std::move(lines)), {}, tr("tui.processing.coeffs")) | flex});
     }
-    const int coeff_rows = small ? total - 4 : static_cast<int>(2 * r->bands.size());
+    const int coeff_room = total - (two_rows ? 2 : 1) - 1 - 2 - 2 - 1 - 9 - 5;
+    const int coeff_rows = small ? total - 4 : std::clamp(static_cast<int>(2 * r->bands.size()), 4, std::max(4, coeff_room));
     const int lower = small ? total / 2 : std::max(5, total - (two_rows ? 2 : 1) - 1 - (coeff_rows + 2) - 2 - 1 - 9);
     auto coeffs = frame_panel(coeffs_panel, coeffs_body(*r, main_width, coeff_rows), {{tr("tui.processing.coeffs_chip"), false}}, tr("tui.processing.coeffs"));
     const auto view_name = tr(view_ == View::a ? "tui.processing.view.a" : view_ == View::b ? "tui.processing.view.b" : "tui.processing.view.x");
@@ -393,6 +396,7 @@ bool ProcessingScreen::OnEvent(ftxui::Event e) {
             coeff_zoom_.zoom_at(m.button == Mouse::WheelUp ? kWheelStep : 1 / kWheelStep, coeff_plot_box_, m.x);
             return true;
         }
+        if (wheel_scroll(m, panel_boxes_[coeffs_panel], bands_scroll_, 1)) return true;
         if (m.button == Mouse::Left && m.motion == Mouse::Pressed) {
             for (auto& c : clickables_)
                 if (c.box.Contain(m.x, m.y)) {

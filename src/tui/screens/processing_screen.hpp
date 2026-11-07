@@ -18,6 +18,7 @@
 #include "tui/shell/panel.hpp"
 #include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/scroll.hpp"
 
 namespace signals::tui {
 
@@ -76,6 +77,7 @@ private:
     std::optional<Panel> maximized_;
     PlotZoom zoom_;
     AxisZoom coeff_zoom_{Axis{0, 1}};
+    Scroll bands_scroll_;
     ftxui::Box coeff_plot_box_{};
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::deque<Clickable> clickables_;

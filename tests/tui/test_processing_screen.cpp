@@ -264,3 +264,17 @@ TEST_CASE("every processing plot zooms with the wheel and resets with 0", "[tui]
         CHECK(f.model->options().scale == scale);
     }
 }
+
+TEST_CASE("every coefficient band stays reachable: the list scrolls with markers and the wheel", "[tui][processing][scroll]") {
+    ProcessingFixture f{120, 40};
+    for (int k = 0; k < 6; ++k) f.h.send(ftxui::Event::Character('j'));
+    REQUIRE(f.model->options().levels == 10);
+    auto frame = f.h.frame();
+    CHECK(frame.find("▼ ещё") != std::string::npos);
+    const auto panel = f.screen->area("coeffs_panel");
+    REQUIRE(panel.x_max > panel.x_min);
+    for (int k = 0; k < 10; ++k) f.h.wheel(panel.x_min + 3, (panel.y_min + panel.y_max) / 2, false);
+    frame = f.h.frame();
+    CHECK(frame.find("▲ ещё") != std::string::npos);
+    CHECK(frame.find("d₁ ") != std::string::npos);
+}

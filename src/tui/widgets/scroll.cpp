@@ -11,10 +11,10 @@
 
 namespace signals::tui {
 
-ftxui::Element scrolled(std::vector<ftxui::Element> rows, Scroll& scroll, int height, std::optional<std::size_t> follow, const UiContext& ui) {
+ftxui::Element scrolled(std::vector<ftxui::Element> rows, Scroll& scroll, int height, std::optional<std::size_t> follow, const UiContext& ui, int row_height) {
     using namespace ftxui;
     if (rows.empty()) return text("");
-    const auto window = list_window(scroll.first, rows.size(), std::max(1, height), 1, follow);
+    const auto window = list_window(scroll.first, rows.size(), std::max(1, height), std::max(1, row_height), follow);
     const bool ascii = ui.caps.glyphs == GlyphMode::ascii;
     auto marker = [&](bool up, std::size_t count) {
         const std::string arrow = ascii ? (up ? "^ " : "v ") : (up ? "▲ " : "▼ ");
