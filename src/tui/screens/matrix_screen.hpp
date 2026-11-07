@@ -81,6 +81,7 @@ private:
     ftxui::Box matrix_box_{};
     std::size_t row_ = 5, col_ = 0;
     bool numbers_ = false;
+    bool spectrum_ = false;
     bool animate_ = false;
     std::chrono::steady_clock::time_point last_step_{};
     int main_width_ = 100;

@@ -35,7 +35,7 @@ public:
     void publish(theory::LiveValues& v) const override;
     std::string context() const override;
     void set_breakpoint(Breakpoint b) override { breakpoint_ = b; }
-    bool capturing_text() const override { return searching_; }
+    bool capturing_text() const override { return searching_ || custom_; }
 
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event e) override;
@@ -114,6 +114,7 @@ private:
     void zoom(double factor, double anchor);
     void pan(double delta);
     std::vector<const LibraryNode*> matches() const;
+    bool on_custom(ftxui::Event e);
     std::string focus_wavelet() const;
     bool on_mouse(const ftxui::Mouse& m);
     bool on_search(ftxui::Event e);
@@ -144,7 +145,7 @@ private:
     std::string family_ = "db";
     std::vector<std::string> collapsed_;
     std::string notice_;
-    bool searching_ = false;
+    bool custom_ = false, searching_ = false;
     bool arrows_move_b_ = false;
     std::string query_;
     std::size_t match_index_ = 0;

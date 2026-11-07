@@ -555,7 +555,22 @@ def fir_json():
     ]:
         h = scipy.signal.firls(numtaps, bands, desired, weight=weight)
         firls.append({"numtaps": numtaps, "bands": bands, "desired": desired, "weight": weight, "h": floats(h)})
-    return {"remez": remez, "firls": firls}
+    firwin = []
+    for numtaps, cutoff, window, pass_zero in [
+        (31, [0.25], "hamming", True), (31, [0.25], "hann", True), (31, [0.25], "boxcar", True), (31, [0.25], "blackman", True),
+        (41, [0.3], ("kaiser", 5.0), True), (41, [0.5], "hamming", False), (51, [0.2, 0.4], "blackman", False),
+        (51, [0.3, 0.6], "hamming", True), (30, [0.4], "hann", True), (61, [0.1, 0.3, 0.5, 0.7], "hamming", True),
+        (33, [0.45], ("kaiser", 8.6), False), (21, [0.1, 0.9], "boxcar", False)]:
+        h = scipy.signal.firwin(numtaps, cutoff, window=window, pass_zero=pass_zero, fs=2.0)
+        name, beta = (window, 0.0) if isinstance(window, str) else window
+        firwin.append({"numtaps": numtaps, "cutoff": cutoff, "window": name, "beta": beta, "pass_zero": pass_zero, "h": floats(h)})
+    firwin2 = []
+    for numtaps, freq, gain, window in [
+        (33, [0, 0.4, 0.5, 1], [1, 1, 0, 0], "hamming"), (51, [0, 0.2, 0.25, 0.6, 0.65, 1], [0, 0, 1, 1, 0, 0], "hann"),
+        (31, [0, 1], [0, 1], "boxcar"), (64, [0, 0.3, 1], [1, 0.5, 0], "blackman")]:
+        h = scipy.signal.firwin2(numtaps, freq, gain, window=window, fs=2.0)
+        firwin2.append({"numtaps": numtaps, "freq": freq, "gain": gain, "window": window, "h": floats(h)})
+    return {"remez": remez, "firls": firls, "firwin": firwin, "firwin2": firwin2}
 
 def ops_json():
     x = np.concatenate([np.linspace(-1.5, 1.5, 61), [0.3333333333333333, -0.7071067811865476, 1e-9, -1e-9]])
@@ -575,7 +590,15 @@ def ops_json():
     def denoise(v):
         return _denoise._wavelet_threshold(v, "db4", method="BayesShrink", mode="soft", wavelet_levels=5)
     spun = cycle_spin(noisy, func=denoise, max_shifts=7, channel_axis=None)
-    return {"x": floats(x), "mulaw": floats(mulaw), "y": floats(y), "quantize": quant,
+    import scipy.linalg
+    levinson = []
+    rng2 = np.random.default_rng(17)
+    noise = rng2.standard_normal(400)
+    auto = np.correlate(noise, noise, mode="full")[399:399 + 20] / 400
+    for r, b in [([4.0, 1.0, 0.5, 0.25], [1.0, 2.0, 3.0, 4.0]), (list(auto), list(rng2.standard_normal(20))),
+                 ([2.0, -1.0, 0.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0, 0.0, 1.0])]:
+        levinson.append({"r": floats(np.array(r)), "b": floats(np.array(b)), "x": floats(scipy.linalg.solve_toeplitz(np.array(r), np.array(b)))})
+    return {"levinson": levinson, "x": floats(x), "mulaw": floats(mulaw), "y": floats(y), "quantize": quant,
             "cycle_spin": {"noisy": floats(noisy), "shifts": 8, "out": floats(spun)}}
 
 def analysis_json():

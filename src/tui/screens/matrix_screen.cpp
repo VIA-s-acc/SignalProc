@@ -13,6 +13,7 @@
 #include "tui/screens/publish_util.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/heatmap.hpp"
+#include "tui/widgets/plot.hpp"
 #include "tui/widgets/screen_util.hpp"
 #include "tui/widgets/text_util.hpp"
 
@@ -43,7 +44,8 @@ std::string MatrixScreen::tab_label() const { return tr("tui.tab.matrix"); }
 
 std::optional<TheoryLink> MatrixScreen::theory_link() const {
     const auto op = model_->options().op;
-    return TheoryLink{TheoryLink::Kind::card, op == MatrixOp::convolution || op == MatrixOp::circulant ? "toeplitz" : "bank_matrix"};
+    return TheoryLink{TheoryLink::Kind::card,
+                      op == MatrixOp::convolution || op == MatrixOp::circulant || op == MatrixOp::toeplitz_hankel ? "toeplitz" : "bank_matrix"};
 }
 
 void MatrixScreen::publish(theory::LiveValues& v) const {
@@ -71,6 +73,7 @@ std::vector<Hint> MatrixScreen::hints() const {
     return {{"Tab", tr("tui.explain.hint.tab")},   {"↑↓ PgUp PgDn Home End", tr("tui.matrix.hint.row")}, {"←→", tr("tui.matrix.hint.column")},
             {"v/V", tr("tui.matrix.hint.operation")}, {"+ − 0 < >", tr("tui.hint.plot_zoom")},
             {"Space", tr("tui.matrix.hint.animate")}, {"c", tr("tui.matrix.hint.numbers")},
+            {"s", tr("tui.matrix.hint.spectrum")},
             {"t", "AᵀA"},                           {"b", tr("tui.matrix.hint.edges")},       {"o", tr("tui.matrix.hint.order")},
             {"n/N", "N"},                           {tr("tui.signal.key.click"), tr("tui.matrix.hint.cell")},
             {"z", tr("tui.signal.hint.zoom")},      {tr("tui.signal.key.wheel"), tr("tui.zoom.hint")},
@@ -120,7 +123,8 @@ ftxui::Element MatrixScreen::controls_panel() {
                                                  {MatrixOp::multilevel, "multilevel"},
                                                  {MatrixOp::convolution, "convolution"},
                                                  {MatrixOp::circulant, "circulant"},
-                                                 {MatrixOp::synthesis_product, "product"}};
+                                                 {MatrixOp::synthesis_product, "product"},
+                                                 {MatrixOp::toeplitz_hankel, "toeplitz_hankel"}};
     for (const auto& [op, key] : ops)
         rows.push_back(hbox({text(" "), chip(std::string{"op_"} + key, tr(std::string{"tui.matrix.op."} + key), o.op == op, [this, op] {
                                  auto k = model_->options();
@@ -187,6 +191,9 @@ ftxui::Element MatrixScreen::checks_panel(const MatrixData* d) {
         else rows.push_back(text("‖S − Aᵀ‖ = " + check_value(d->transpose_error)) | fg(th.fg, ui_));
     }
     if (d->left_inverse_error) rows.push_back(hbox({text("‖S·A·x − x‖ = " + check_value(d->left_inverse_error)), mark(d->left_inverse_error, 1e-12)}));
+    if (d->dct_error) rows.push_back(hbox({text(fmt::format(fmt::runtime(tr("tui.matrix.dct_check")), fmt::arg("value", check_value(d->dct_error)))), mark(d->dct_error, 1e-12)}));
+    if (d->levinson_error)
+        rows.push_back(hbox({text(fmt::format(fmt::runtime(tr("tui.matrix.levinson_check")), fmt::arg("value", check_value(d->levinson_error)))), mark(d->levinson_error, 1e-10)}));
     if (!d->singular.empty())
         rows.push_back(text(fmt::format(fmt::runtime(tr("tui.matrix.singular")), fmt::arg("hi", format_number(d->singular.front())),
                                         fmt::arg("lo", format_number(d->singular.back())), fmt::arg("cond", format_number(d->cond)))) |
@@ -265,8 +272,30 @@ ftxui::Element MatrixScreen::main_panel(const MatrixData* d, int width, int heig
     case MatrixOp::convolution: name = "T(h₀)"; break;
     case MatrixOp::circulant: name = "C(h₀)"; break;
     case MatrixOp::synthesis_product: name = "S·A"; break;
+    case MatrixOp::toeplitz_hankel: name = "T + H"; break;
     }
-    if (d->options.gram) name = "AᵀA";
+    if (d->options.gram) name = d->options.op == MatrixOp::toeplitz_hankel ? "C(T+H)Cᵀ" : "AᵀA";
+    if (spectrum_ && !d->singular.empty()) {
+        tui::Trace t{};
+        t.stems = d->singular.size() <= 64;
+        t.color = th.trace[0];
+        double lo = 0, hi = -300;
+        for (std::size_t k = 0; k < d->singular.size(); ++k) {
+            const double v = std::log10(std::max(d->singular[k], 1e-300));
+            t.x.push_back(static_cast<double>(k));
+            t.y.push_back(v);
+            lo = std::min(lo, v);
+            hi = std::max(hi, v);
+        }
+        lo = std::max(lo, hi - 17);
+        for (auto& y : t.y) y = std::max(y, lo);
+        PlotSpec spec;
+        spec.x = {-0.5, static_cast<double>(d->singular.size()) - 0.5};
+        spec.y = {lo - 0.2, hi + 0.2};
+        spec.traces.push_back(std::move(t));
+        const auto title = fmt::format(fmt::runtime(tr("tui.matrix.spectrum_title")), fmt::arg("name", name), fmt::arg("count", d->singular.size()));
+        return frame_panel(main, vbox({text("log₁₀ σᵢ") | fg(th.dim, ui_), plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex}), {}, title);
+    }
     auto title = fmt::format(fmt::runtime(tr("tui.matrix.title")), fmt::arg("name", name), fmt::arg("rows", rows), fmt::arg("cols", cols),
                              fmt::arg("row", row_));
     if (zoomed)
@@ -519,7 +548,8 @@ bool MatrixScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (e == Event::Character('v') || e == Event::Character('V')) {
-        constexpr std::array ops{MatrixOp::analysis, MatrixOp::multilevel, MatrixOp::convolution, MatrixOp::circulant, MatrixOp::synthesis_product};
+        constexpr std::array ops{MatrixOp::analysis,  MatrixOp::multilevel,        MatrixOp::convolution,
+                                 MatrixOp::circulant, MatrixOp::synthesis_product, MatrixOp::toeplitz_hankel};
         auto k = model_->options();
         const auto it = std::find(ops.begin(), ops.end(), k.op);
         const auto i = static_cast<std::size_t>(it - ops.begin());
@@ -533,6 +563,7 @@ bool MatrixScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (e == Event::Character('c')) return numbers_ = !numbers_, true;
+    if (e == Event::Character('s')) return spectrum_ = !spectrum_, true;
     if (e == Event::Character('t')) {
         auto k = model_->options();
         k.gram = !k.gram;

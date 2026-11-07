@@ -8,6 +8,7 @@
 #include <string_view>
 #include <vector>
 
+#include "core/design/fir.hpp"
 #include "core/design/iir.hpp"
 #include "core/error.hpp"
 #include "core/freq.hpp"
@@ -19,25 +20,27 @@ namespace signals::tui {
 enum class FilterRole { h0, h1, f0, f1 };
 
 struct FilterRef {
-    enum class Kind { bank, equivalent, distortion, alias, user, classical, scaling, wavelet_fn, cwt, packet };
+    enum class Kind { bank, equivalent, distortion, alias, user, classical, scaling, wavelet_fn, cwt, packet, custom };
     Kind kind = Kind::bank;
     std::string wavelet;
     FilterRole role = FilterRole::h0;
     std::size_t level = 0;
     bool detail = false;
     std::size_t node = 0;
+    std::string title = {};
 
     std::string label() const;
     friend bool operator==(const FilterRef&, const FilterRef&) = default;
 };
 
 struct ClassicalSpec {
-    enum class Method { iir, remez, firls } method = Method::iir;
+    enum class Method { iir, remez, firls, window, freqsamp } method = Method::iir;
     core::IirFamily family = core::IirFamily::butterworth;
     core::BandType type = core::BandType::lowpass;
     int order = 4;
     std::vector<double> edges = {0.25};
     double rp = 1, rs = 40;
+    core::FirWindow window = core::FirWindow::hamming;
     std::string key() const;
     std::string label() const;
 };
@@ -47,6 +50,7 @@ FilterRef classical_ref(const ClassicalSpec& spec);
 std::optional<FilterRef> classical_step(const FilterRef& ref, int order_step, double edge_factor);
 std::optional<FilterRef> spectrum_step(const FilterRef& ref, int step);
 double span_of(const FilterRef& ref);
+FilterRef custom_ref(const core::Laurent& h, std::string title);
 
 struct LibraryNode {
     std::string label;

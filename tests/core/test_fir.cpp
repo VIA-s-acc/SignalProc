@@ -62,3 +62,39 @@ TEST_CASE("fir designs reject impossible specs", "[fir]") {
     const auto r = remez(narrow);
     if (!r) CHECK(r.error().code == Errc::no_convergence);
 }
+
+TEST_CASE("firwin matches scipy for every window and band type", "[fir][golden]") {
+    const auto g = signals::test::load_golden("fir.json");
+    for (const auto& c : g["firwin"]) {
+        const auto name = c["window"].get<std::string>();
+        INFO(name << " numtaps=" << c["numtaps"].get<int>() << " pass_zero=" << c["pass_zero"].get<bool>());
+        const auto window = parse_fir_window(name);
+        REQUIRE(window);
+        const auto h = firwin(c["numtaps"], c["cutoff"].get<std::vector<double>>(), *window, c["pass_zero"], c["beta"]);
+        INFO((h ? std::string{} : h.error().message));
+        REQUIRE(h);
+        CHECK(max_abs_error(*h, c["h"].get<std::vector<double>>()) <= 1e-12);
+    }
+}
+
+TEST_CASE("firwin2 matches scipy", "[fir][golden]") {
+    const auto g = signals::test::load_golden("fir.json");
+    for (const auto& c : g["firwin2"]) {
+        INFO(c["window"].get<std::string>() << " numtaps=" << c["numtaps"].get<int>());
+        const auto h = firwin2(c["numtaps"], c["freq"].get<std::vector<double>>(), c["gain"].get<std::vector<double>>(), *parse_fir_window(c["window"].get<std::string>()));
+        INFO((h ? std::string{} : h.error().message));
+        REQUIRE(h);
+        CHECK(max_abs_error(*h, c["h"].get<std::vector<double>>()) <= 1e-12);
+    }
+}
+
+TEST_CASE("firwin refuses what scipy refuses", "[fir]") {
+    const std::vector<double> half{0.5};
+    CHECK_FALSE(firwin(30, half, FirWindow::hamming, false));
+    CHECK_FALSE(firwin(31, std::vector<double>{0.6, 0.4}, FirWindow::hamming, true));
+    CHECK_FALSE(firwin(31, std::vector<double>{1.2}, FirWindow::hamming, true));
+    CHECK_FALSE(firwin(0, half, FirWindow::hamming, true));
+    CHECK_FALSE(firwin2(30, std::vector<double>{0, 1}, std::vector<double>{0, 1}, FirWindow::hamming));
+    CHECK_FALSE(firwin2(31, std::vector<double>{0, 0.6, 0.5, 1}, std::vector<double>{1, 1, 0, 0}, FirWindow::hamming));
+    CHECK_FALSE(parse_fir_window("triangle"));
+}

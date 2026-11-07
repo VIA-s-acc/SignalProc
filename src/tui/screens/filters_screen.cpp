@@ -1,4 +1,7 @@
 #include "tui/screens/filters_screen.hpp"
+#include "tui/data/user_filters.hpp"
+#include "tui/shell/errors.hpp"
+#include "tui/term/caps.hpp"
 
 #include <algorithm>
 #include <functional>
@@ -71,6 +74,7 @@ std::string describe(const FilterRef& r) {
     case FilterRef::Kind::wavelet_fn: return tr("tui.filters.role.wavelet_fn");
     case FilterRef::Kind::cwt: return tr("tui.filters.role.cwt");
     case FilterRef::Kind::packet: return tr("tui.filters.role.packet");
+    case FilterRef::Kind::custom: return tr("tui.filters.role.custom");
     }
     return {};
 }
@@ -131,6 +135,7 @@ std::vector<Hint> FiltersScreen::hints() const {
             {"l", tr("tui.filters.hint.log")},         {"d", tr("tui.filters.hint.db")},
             {"n", tr("tui.filters.hint.normalise")},   {"t", tr("tui.filters.hint.role")},
             {"o/O", tr("tui.filters.hint.order")},      {"f/F", tr("tui.filters.hint.edge")},
+            {"c", tr("tui.filters.hint.custom")},
             {"F1", tr("tui.filters.hint.f1")},         {tr("tui.signal.key.wheel"), tr("tui.filters.hint.zoom")},
             {tr("tui.signal.key.click"), tr("tui.signal.hint.click")}};
 }
@@ -398,7 +403,9 @@ std::vector<const LibraryNode*> FiltersScreen::matches() const {
 }
 
 std::string FiltersScreen::focus_wavelet() const {
-    auto bank_like = [](const FilterRef& r) { return r.kind != FilterRef::Kind::classical && r.kind != FilterRef::Kind::cwt && !r.wavelet.empty(); };
+    auto bank_like = [](const FilterRef& r) {
+        return r.kind != FilterRef::Kind::classical && r.kind != FilterRef::Kind::cwt && r.kind != FilterRef::Kind::custom && !r.wavelet.empty();
+    };
     const auto entries = set_->entries();
     const auto f = set_->focus();
     if (f < entries.size() && bank_like(entries[f].ref)) return entries[f].ref.wavelet;
@@ -432,7 +439,12 @@ ftxui::Element FiltersScreen::library_panel(int width) {
         for (const auto& c : n.children) count(c);
     };
     count(library_);
-    if (searching_) {
+    if (!custom_ && !notice_.empty() && breakpoint_ <= Breakpoint::small) rows.push_back(text(notice_) | fg(th.warn, ui_));
+    if (custom_) {
+        rows.push_back(hbox({text(tr("tui.filters.custom.prompt") + " " + query_) | fg(th.fg, ui_),
+                             text(ui_.caps.glyphs == GlyphMode::ascii ? "_" : "▏") | fg(th.accent, ui_)}));
+        rows.push_back(text(tr("tui.filters.custom.hint")) | fg(th.dim, ui_));
+    } else if (searching_) {
         const auto m = matches();
         rows.push_back(hbox({text("/ " + query_) | fg(th.fg, ui_), text(ui_.caps.glyphs == GlyphMode::ascii ? "_" : "▏") | fg(th.accent, ui_), filler(),
                              text(fmt::format(fmt::runtime(tr("tui.filters.found")), fmt::arg("count", m.size()), fmt::arg("total", total))) |
@@ -767,7 +779,7 @@ ftxui::Element FiltersScreen::properties_panel() {
     } else {
         rows.push_back(text(fmt::format(fmt::runtime(tr("tui.filters.prop.fir")), fmt::arg("taps", a.h.coeffs.size()))) | fg(th.fg, ui_));
     }
-    const bool classical = a.ref.kind == FilterRef::Kind::classical;
+    const bool classical = a.ref.kind == FilterRef::Kind::classical || a.ref.kind == FilterRef::Kind::custom;
     Elements orth;
     if (!classical && a.orth_error) {
         orth.push_back(text(tr("tui.filters.prop.orthogonal")) | fg(th.fg, ui_));
@@ -1118,9 +1130,56 @@ bool FiltersScreen::on_search(ftxui::Event e) {
     return true;
 }
 
+bool FiltersScreen::on_custom(ftxui::Event e) {
+    using ftxui::Event;
+    if (e.is_mouse()) return on_mouse(e.mouse());
+    if (e == Event::Escape) {
+        custom_ = false;
+        query_.clear();
+        return true;
+    }
+    if (e == Event::Backspace) {
+        pop_codepoint(query_);
+        return true;
+    }
+    if (e == Event::Return) {
+        custom_ = false;
+        notice_.clear();
+        auto parsed = parse_custom_filter(query_);
+        query_.clear();
+        if (!parsed) {
+            notice_ = parsed.error().message;
+            return true;
+        }
+        if (!parsed->name.empty()) {
+            UserFilter f{parsed->name, parsed->h, ""};
+            const auto dir = ui_.user_filters.empty() ? user_filters_dir(process_env()) : ui_.user_filters;
+            if (auto saved = save_user_filter(dir, f); !saved) {
+                notice_ = error_text(saved.error());
+            } else {
+                set_user_filters(load_user_banks(dir).filters);
+                library_wavelet_.clear();
+            }
+            parsed->name = f.name;
+        }
+        add(custom_ref(parsed->h, parsed->name));
+        return true;
+    }
+    if (e.is_character()) query_ += e.character();
+    return true;
+}
+
 bool FiltersScreen::OnEvent(ftxui::Event e) {
     using ftxui::Event;
     if (searching_) return on_search(e);
+    if (custom_) return on_custom(e);
+    if (e == Event::Character('c')) {
+        custom_ = true;
+        query_.clear();
+        if (breakpoint_ <= Breakpoint::small && !layout_.maximized())
+            for (std::size_t k = 0; k < panel_count && layout_.small_index() % panel_count != library; ++k) layout_.next_panel(panel_count);
+        return true;
+    }
     if (e.is_mouse()) return on_mouse(e.mouse());
     if (e == Event::Character('/')) {
         searching_ = true;

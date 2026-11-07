@@ -7,6 +7,7 @@
 #include <cmath>
 #include <complex>
 #include <limits>
+#include <locale>
 #include <new>
 #include <numbers>
 #include <sstream>
@@ -16,6 +17,7 @@
 #include "core/bank.hpp"
 #include "core/design/families.hpp"
 #include "core/design/fir.hpp"
+#include "core/design/window_fir.hpp"
 #include "core/packets.hpp"
 #include "core/wavelet/spectra.hpp"
 #include "i18n/i18n.hpp"
@@ -56,10 +58,13 @@ std::string factors_suffix(std::size_t factors) { return factors ? " · J=" + st
 }  // namespace
 
 std::string ClassicalSpec::key() const {
-    std::string out = method == Method::iir ? "iir" : method == Method::remez ? "remez" : "firls";
+    static constexpr std::array<const char*, 5> methods{"iir", "remez", "firls", "window", "freqsamp"};
+    std::string out = methods[static_cast<std::size_t>(method)];
     static constexpr std::array<const char*, 5> families{"butter", "cheby1", "cheby2", "ellip", "bessel"};
     static constexpr std::array<const char*, 4> types{"lowpass", "highpass", "bandpass", "bandstop"};
-    out += std::string{"/"} + families[static_cast<std::size_t>(family)] + "/" + types[static_cast<std::size_t>(type)] + "/" + std::to_string(order);
+    const bool windowed = method == Method::window || method == Method::freqsamp;
+    out += "/" + (windowed ? std::string{core::fir_window_name(window)} : std::string{families[static_cast<std::size_t>(family)]}) + "/" +
+           types[static_cast<std::size_t>(type)] + "/" + std::to_string(order);
     for (const double e : edges) out += "/" + fmt::format("{:.6g}", e);
     out += "/rp" + fmt::format("{:.6g}", rp) + "/rs" + fmt::format("{:.6g}", rs);
     return out;
@@ -70,7 +75,14 @@ std::string ClassicalSpec::label() const {
                                                          "tui.filters.classic.ellip", "tui.filters.classic.bessel"};
     static constexpr std::array<const char*, 4> types{"tui.filters.classic.lowpass", "tui.filters.classic.highpass", "tui.filters.classic.bandpass",
                                                       "tui.filters.classic.bandstop"};
-    const auto name = method == Method::iir ? tr(families[static_cast<std::size_t>(family)]) : tr(method == Method::remez ? "tui.filters.classic.remez" : "tui.filters.classic.firls");
+    std::string name;
+    switch (method) {
+    case Method::iir: name = tr(families[static_cast<std::size_t>(family)]); break;
+    case Method::remez: name = tr("tui.filters.classic.remez"); break;
+    case Method::firls: name = tr("tui.filters.classic.firls"); break;
+    case Method::window: name = tr("tui.filters.classic.window." + std::string{core::fir_window_name(window)}); break;
+    case Method::freqsamp: name = tr("tui.filters.classic.freqsamp"); break;
+    }
     std::string range;
     for (std::size_t i = 0; i < edges.size(); ++i) range += (i ? "–" : "") + format_fixed(edges[i], 2);
     return name + " " + tr(types[static_cast<std::size_t>(type)]) + " " + std::to_string(order) + " · " + range + "π";
@@ -86,11 +98,20 @@ std::optional<ClassicalSpec> parse_classical(std::string_view key) {
     if (parts[0] == "iir") s.method = ClassicalSpec::Method::iir;
     else if (parts[0] == "remez") s.method = ClassicalSpec::Method::remez;
     else if (parts[0] == "firls") s.method = ClassicalSpec::Method::firls;
+    else if (parts[0] == "window") s.method = ClassicalSpec::Method::window;
+    else if (parts[0] == "freqsamp") s.method = ClassicalSpec::Method::freqsamp;
     else return std::nullopt;
-    const auto family = core::parse_iir_family(parts[1]);
     const auto type = core::parse_band_type(parts[2]);
-    if (!family || !type) return std::nullopt;
-    s.family = *family;
+    if (!type) return std::nullopt;
+    if (s.method == ClassicalSpec::Method::window || s.method == ClassicalSpec::Method::freqsamp) {
+        const auto window = core::parse_fir_window(parts[1]);
+        if (!window) return std::nullopt;
+        s.window = *window;
+    } else {
+        const auto family = core::parse_iir_family(parts[1]);
+        if (!family) return std::nullopt;
+        s.family = *family;
+    }
     s.type = *type;
     s.edges.clear();
     try {
@@ -131,6 +152,14 @@ std::optional<FilterRef> spectrum_step(const FilterRef& ref, int step) {
     return next;
 }
 
+FilterRef custom_ref(const core::Laurent& h, std::string title) {
+    std::string key;
+    for (std::size_t k = 0; k < h.coeffs.size(); ++k) key += (k ? "," : "") + fmt::format("{:.17g}", h.coeffs[k]);
+    FilterRef r{FilterRef::Kind::custom, std::move(key), FilterRole::h0};
+    r.title = std::move(title);
+    return r;
+}
+
 double span_of(const FilterRef& ref) { return ref.kind == FilterRef::Kind::scaling || ref.kind == FilterRef::Kind::wavelet_fn ? 8.0 : 1.0; }
 
 std::string FilterRef::label() const {
@@ -148,6 +177,11 @@ std::string FilterRef::label() const {
     case Kind::wavelet_fn: return std::string{analysis_side(role) ? "Ψ̃ " : "Ψ "} + wavelet + factors_suffix(level);
     case Kind::cwt: return "Ψ̂ " + wavelet + " a=" + std::to_string(level);
     case Kind::packet: return core::packet_path({level, node}) + " " + wavelet;
+    case Kind::custom: {
+        if (!title.empty()) return title;
+        const auto taps = static_cast<std::size_t>(std::count(wavelet.begin(), wavelet.end(), ',')) + 1;
+        return fmt::format(fmt::runtime(tr("tui.filters.custom.label")), fmt::arg("taps", taps));
+    }
     case Kind::classical: break;
     }
     return wavelet;
@@ -185,7 +219,11 @@ LibraryNode build_library(std::string_view equivalent_wavelet, std::size_t level
                              ClassicalSpec{M::iir, F::chebyshev2, T::lowpass, 4, {0.25}, 1, 40}, ClassicalSpec{M::iir, F::elliptic, T::lowpass, 4, {0.25}, 1, 40},
                              ClassicalSpec{M::iir, F::bessel, T::lowpass, 4, {0.25}}, ClassicalSpec{M::iir, F::butterworth, T::highpass, 4, {0.5}},
                              ClassicalSpec{M::iir, F::butterworth, T::bandpass, 4, {0.2, 0.4}}, ClassicalSpec{M::iir, F::butterworth, T::bandstop, 4, {0.3, 0.5}},
-                             ClassicalSpec{M::remez, F::butterworth, T::lowpass, 31, {0.4, 0.5}}, ClassicalSpec{M::firls, F::butterworth, T::lowpass, 31, {0.4, 0.5}}}) {
+                             ClassicalSpec{M::remez, F::butterworth, T::lowpass, 31, {0.4, 0.5}}, ClassicalSpec{M::firls, F::butterworth, T::lowpass, 31, {0.4, 0.5}},
+                             ClassicalSpec{M::window, F::butterworth, T::lowpass, 31, {0.25}, 1, 40, core::FirWindow::hamming},
+                             ClassicalSpec{M::window, F::butterworth, T::highpass, 41, {0.5}, 1, 60, core::FirWindow::kaiser},
+                             ClassicalSpec{M::window, F::butterworth, T::bandpass, 51, {0.2, 0.4}, 1, 40, core::FirWindow::blackman},
+                             ClassicalSpec{M::freqsamp, F::butterworth, T::lowpass, 33, {0.4, 0.5}, 1, 40, core::FirWindow::hamming}}) {
         const auto ref = classical_ref(spec);
         classic.children.push_back({ref.label(), {}, ref});
     }
@@ -225,6 +263,7 @@ LibraryNode build_library(std::string_view equivalent_wavelet, std::size_t level
         }
         mine.children.push_back(std::move(node));
     }
+    for (const auto& f : user_filters()) mine.children.push_back({f.name, {}, custom_ref(f.h, f.name)});
     if (mine.children.empty()) mine.later = tr("tui.filters.mine_empty");
     root.children.push_back(std::move(mine));
     return root;
@@ -269,6 +308,24 @@ core::Result<FilterAnalysis> analyze_classical(const FilterRef& ref, std::size_t
             r.bands = {0, edge / 2, stop / 2, 0.5};
             r.desired = {1, 0};
             h = core::remez(r);
+        } else if (spec->method == ClassicalSpec::Method::window) {
+            const bool pass_zero = spec->type == core::BandType::lowpass || spec->type == core::BandType::bandstop;
+            h = core::firwin(spec->order, spec->edges, spec->window, pass_zero, spec->window == core::FirWindow::kaiser ? core::kaiser_beta(spec->rs) : 0.0);
+        } else if (spec->method == ClassicalSpec::Method::freqsamp) {
+            constexpr double kTransition = 0.05;
+            const double hi = spec->edges.back();
+            std::vector<double> f, g;
+            switch (spec->type) {
+            case core::BandType::lowpass: f = {0, edge, stop, 1}, g = {1, 1, 0, 0}; break;
+            case core::BandType::highpass: f = {0, std::max(0.001, edge - kTransition), edge, 1}, g = {0, 0, 1, 1}; break;
+            case core::BandType::bandpass:
+            case core::BandType::bandstop: {
+                f = {0, std::max(0.001, edge - kTransition), edge, hi, std::min(0.999, hi + kTransition), 1};
+                g = spec->type == core::BandType::bandpass ? std::vector<double>{0, 0, 1, 1, 0, 0} : std::vector<double>{1, 1, 0, 0, 1, 1};
+                break;
+            }
+            }
+            h = core::firwin2(spec->order, f, g, spec->window);
         } else {
             h = core::firls(spec->order, std::vector<double>{0, edge, stop, 1}, std::vector<double>{1, 1, 0, 0}, std::vector<double>{});
         }
@@ -417,8 +474,29 @@ core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points) {
 
 namespace {
 
+core::Result<FilterAnalysis> analyze_custom(const FilterRef& ref, std::size_t points) {
+    FilterAnalysis a;
+    a.ref = ref;
+    std::istringstream in{ref.wavelet};
+    in.imbue(std::locale::classic());
+    for (std::string part; std::getline(in, part, ',');) {
+        std::istringstream value{part};
+        value.imbue(std::locale::classic());
+        double v = 0;
+        if (!(value >> v)) return core::make_error(core::Errc::invalid_argument, "custom filter: bad coefficient " + part);
+        a.h.coeffs.push_back(v);
+    }
+    if (a.h.coeffs.empty()) return core::make_error(core::Errc::invalid_argument, "custom filter: no coefficients");
+    a.response = core::frequency_response(a.h, points);
+    a.metrics = core::band_metrics(a.response, -1.0, 2.0);
+    if (auto zp = core::zeros_poles(a.h)) a.zp = std::move(*zp);
+    a.linear_phase = core::is_linear_phase(a.h, kLinearPhaseTol);
+    return a;
+}
+
 core::Result<FilterAnalysis> analyze_any(const FilterRef& ref, std::size_t points) {
     if (ref.kind == FilterRef::Kind::classical) return analyze_classical(ref, points);
+    if (ref.kind == FilterRef::Kind::custom) return analyze_custom(ref, points);
     if (ref.kind == FilterRef::Kind::cwt) return analyze_cwt(ref, points);
     const auto bank = bank_of(ref);
     if (!bank) return std::unexpected(bank.error());
@@ -452,6 +530,7 @@ core::Result<FilterAnalysis> analyze_any(const FilterRef& ref, std::size_t point
         break;
     }
     case FilterRef::Kind::classical:
+    case FilterRef::Kind::custom:
     case FilterRef::Kind::scaling:
     case FilterRef::Kind::wavelet_fn:
     case FilterRef::Kind::cwt: break;

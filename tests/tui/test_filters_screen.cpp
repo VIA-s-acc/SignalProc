@@ -4,12 +4,14 @@
 #include <ftxui/component/event.hpp>
 
 #include <chrono>
+#include <filesystem>
 #include <cmath>
 #include <memory>
 #include <numbers>
 #include <sstream>
 #include <string>
 
+#include "tui/data/user_filters.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/filters_screen.hpp"
 #include "tui/shell/shell.hpp"
@@ -420,4 +422,64 @@ TEST_CASE("the axis follows visible spectra, also while they are recomputed", "[
     f.set->toggle(1);
     h.frame();
     CHECK(f.screen->view().second == 1);
+}
+
+TEST_CASE("c types a custom filter, adds it and saves a named one", "[tui][filters][custom]") {
+    Fixture f;
+    const auto dir = std::filesystem::temp_directory_path() / "signals-custom-screen";
+    std::filesystem::remove_all(dir);
+    f.ui->user_filters = dir;
+    set_user_filters({});
+    Harness h{f.screen, 150, 44};
+    h.frame();
+    h.send(ftxui::Event::Character('c'));
+    CHECK(f.screen->capturing_text());
+    h.send(ftxui::Event::Character("abc"));
+    h.send(ftxui::Event::Return);
+    CHECK_FALSE(f.screen->capturing_text());
+    CHECK(h.frame().find("Не число: «abc»") != std::string::npos);
+    CHECK(f.set->entries().empty());
+    h.send(ftxui::Event::Character('c'));
+    h.send(ftxui::Event::Character("треуг = 0.25 0.5 0.25"));
+    h.send(ftxui::Event::Return);
+    REQUIRE(f.set->entries().size() == 1);
+    CHECK(f.set->entries()[0].ref.label() == "треуг");
+    CHECK(f.set->entries()[0].analysis);
+    REQUIRE(user_filters().size() == 1);
+    CHECK(user_filters()[0].name == "треуг");
+    CHECK(std::filesystem::exists(dir));
+    auto frame = h.frame();
+    CHECK(frame.find("Свойства · треуг") != std::string::npos);
+    CHECK(frame.find("ортогональный") == std::string::npos);
+    h.send(ftxui::Event::Character('c'));
+    h.send(ftxui::Event::Character("z: -1 -1"));
+    h.send(ftxui::Event::Return);
+    REQUIRE(f.set->entries().size() == 2);
+    CHECK(f.set->entries()[1].ref.label() == "свой фильтр, 3 отсч.");
+    CHECK(user_filters().size() == 1);
+    set_user_filters({});
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("m6h review: a custom filter in focus keeps the wavelet groups, and c shows its prompt at 80×24", "[tui][filters][custom]") {
+    {
+        Fixture f;
+        Harness h{f.screen, 150, 44};
+        h.frame();
+        h.send(ftxui::Event::Character('c'));
+        h.send(ftxui::Event::Character("0.25 0.5 0.25"));
+        h.send(ftxui::Event::Return);
+        REQUIRE(f.set->entries().size() == 1);
+        const auto frame = h.frame();
+        CHECK(frame.find("Эквивалентные (db2") != std::string::npos);
+        CHECK(frame.find("0.25,0.5") == std::string::npos);
+    }
+    Fixture f{80, 24};
+    Harness h{f.screen, 80, 24};
+    h.frame();
+    h.send(ftxui::Event::Character('c'));
+    h.send(ftxui::Event::Character("abc"));
+    CHECK(h.frame().find("свой фильтр: abc") != std::string::npos);
+    h.send(ftxui::Event::Return);
+    CHECK(h.frame().find("Не число") != std::string::npos);
 }

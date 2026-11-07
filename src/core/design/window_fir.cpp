@@ -7,7 +7,6 @@
 #include "core/metrics.hpp"
 
 namespace signals::core {
-namespace {
 
 double bessel_i0(double x) {
     double sum = 1.0, term = 1.0;
@@ -19,6 +18,8 @@ double bessel_i0(double x) {
     }
     return sum;
 }
+
+namespace {
 
 double sinc(double x) {
     if (x == 0) return 1.0;

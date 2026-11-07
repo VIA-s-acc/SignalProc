@@ -187,3 +187,18 @@ TEST_CASE("matrix keys change N, walk rows and columns, cycle the operation and 
     f.h.frame();
     CHECK(f.screen->block().rows == full.rows);
 }
+
+TEST_CASE("s shows the singular spectrum and v reaches toeplitz plus hankel", "[tui][matrix][toeplitz_hankel]") {
+    MatrixFixture f;
+    f.h.frame();
+    f.h.send(ftxui::Event::Character('s'));
+    auto frame = f.h.frame();
+    CHECK(frame.find("σ") != std::string::npos);
+    CHECK(frame.find("Сингулярные числа") != std::string::npos);
+    f.h.send(ftxui::Event::Character('s'));
+    for (int k = 0; k < 5 && f.model->options().op != MatrixOp::toeplitz_hankel; ++k) f.h.send(ftxui::Event::Character('v'));
+    REQUIRE(f.model->options().op == MatrixOp::toeplitz_hankel);
+    frame = f.h.frame();
+    CHECK(frame.find("C(T+H)Cᵀ") != std::string::npos);
+    CHECK(frame.find("Левинсон") != std::string::npos);
+}
