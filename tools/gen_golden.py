@@ -590,7 +590,15 @@ def ops_json():
     def denoise(v):
         return _denoise._wavelet_threshold(v, "db4", method="BayesShrink", mode="soft", wavelet_levels=5)
     spun = cycle_spin(noisy, func=denoise, max_shifts=7, channel_axis=None)
-    return {"x": floats(x), "mulaw": floats(mulaw), "y": floats(y), "quantize": quant,
+    import scipy.linalg
+    levinson = []
+    rng2 = np.random.default_rng(17)
+    noise = rng2.standard_normal(400)
+    auto = np.correlate(noise, noise, mode="full")[399:399 + 20] / 400
+    for r, b in [([4.0, 1.0, 0.5, 0.25], [1.0, 2.0, 3.0, 4.0]), (list(auto), list(rng2.standard_normal(20))),
+                 ([2.0, -1.0, 0.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0, 0.0, 1.0])]:
+        levinson.append({"r": floats(np.array(r)), "b": floats(np.array(b)), "x": floats(scipy.linalg.solve_toeplitz(np.array(r), np.array(b)))})
+    return {"levinson": levinson, "x": floats(x), "mulaw": floats(mulaw), "y": floats(y), "quantize": quant,
             "cycle_spin": {"noisy": floats(noisy), "shifts": 8, "out": floats(spun)}}
 
 def analysis_json():

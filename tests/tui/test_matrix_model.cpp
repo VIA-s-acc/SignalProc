@@ -146,3 +146,37 @@ TEST_CASE("odd and out-of-range N are clamped", "[tui][matrix]") {
     r.m.set({.n = 1000}, r.jobs);
     CHECK(r.m.options().n == 256);
 }
+
+TEST_CASE("toeplitz plus hankel is diagonal in the dct-ii basis for a symmetric bank", "[tui][matrix][toeplitz_hankel]") {
+    JobRunner jobs{[] {}, std::chrono::milliseconds{0}, true};
+    MatrixModel m;
+    MatrixOptions o;
+    o.op = MatrixOp::toeplitz_hankel;
+    o.wavelet = "bior2.2";
+    o.n = 32;
+    m.set(o, jobs);
+    auto d = m.data();
+    REQUIRE(d);
+    REQUIRE_FALSE(d->error);
+    REQUIRE(d->dct_error);
+    CHECK(*d->dct_error < 1e-12);
+    REQUIRE(d->levinson_error);
+    CHECK(*d->levinson_error < 1e-9);
+    CHECK(d->singular.size() == 32);
+    o.gram = true;
+    m.set(o, jobs);
+    d = m.data();
+    REQUIRE(d);
+    Eigen::MatrixXd off = d->m;
+    off.diagonal().setZero();
+    CHECK(off.cwiseAbs().maxCoeff() < 1e-12);
+    o.gram = false;
+    o.wavelet = "db2";
+    m.set(o, jobs);
+    d = m.data();
+    REQUIRE(d);
+    CHECK(*d->dct_error > 1e-3);
+    o.op = MatrixOp::convolution;
+    m.set(o, jobs);
+    CHECK_FALSE(m.data()->singular.empty());
+}

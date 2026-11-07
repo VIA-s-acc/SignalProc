@@ -23,6 +23,15 @@ Result<Eigen::MatrixXd> multilevel_matrix(const FilterBank& bank, std::size_t n,
                                           const DwtOptions& options);
 
 std::vector<double> singular_values(const Eigen::MatrixXd& a);
+
+Eigen::MatrixXd symmetric_convolution_matrix(const Laurent& h, std::size_t n);
+Eigen::MatrixXd dct2_matrix(std::size_t n);
+double diagonalisation_error(const Eigen::MatrixXd& a, const Eigen::MatrixXd& basis);
+
+struct Levinson {
+    std::vector<double> x, reflection;
+};
+Result<Levinson> levinson_solve(std::span<const double> r, std::span<const double> b);
 double condition_number(std::span<const double> singular);
 CheckResult check_left_inverse(const Eigen::MatrixXd& s, const Eigen::MatrixXd& a, double tol);
 CheckResult check_orthogonal_matrix(const Eigen::MatrixXd& a, double tol);

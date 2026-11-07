@@ -8,10 +8,12 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/analysis.hpp"
 #include "core/conv.hpp"
 #include "core/design/families.hpp"
 #include "core/matrix.hpp"
 #include "support/banks.hpp"
+#include "support/golden.hpp"
 
 using namespace signals::core;
 
@@ -125,4 +127,60 @@ TEST_CASE("circulant times x equals FFT circular convolution", "[core][matrix]")
 TEST_CASE("a NaN filter fails the circulant check", "[core][matrix]") {
     signals::core::Laurent h{{1.0, std::numeric_limits<double>::quiet_NaN()}, 0};
     CHECK_FALSE(signals::core::check_circulant_fft(h, 16, 1e-12).passed());
+}
+
+TEST_CASE("the dct-ii matrix matches the fast transform and is orthogonal", "[matrix][toeplitz_hankel]") {
+    const auto c = dct2_matrix(9);
+    CHECK((c * c.transpose() - Eigen::MatrixXd::Identity(9, 9)).cwiseAbs().maxCoeff() < 1e-14);
+    std::vector<double> x(9);
+    for (std::size_t k = 0; k < x.size(); ++k) x[k] = std::sin(1.3 * static_cast<double>(k * k));
+    const Eigen::VectorXd y = c * Eigen::Map<const Eigen::VectorXd>(x.data(), 9);
+    const auto fast = dct2(x);
+    for (std::size_t k = 0; k < x.size(); ++k) CHECK(std::abs(y[static_cast<Eigen::Index>(k)] - fast[k]) < 1e-14);
+}
+
+TEST_CASE("toeplitz plus hankel of a symmetric filter is diagonalised by the dct-ii", "[matrix][toeplitz_hankel]") {
+    constexpr std::size_t n = 16;
+    const auto c = dct2_matrix(n);
+    for (const auto& h : {Laurent{{0.25, 0.5, 0.25}, -1}, Laurent{{-0.125, 0.25, 0.75, 0.25, -0.125}, -2}}) {
+        const auto a = symmetric_convolution_matrix(h, n);
+        const Eigen::MatrixXd d = c * a * c.transpose();
+        for (Eigen::Index i = 0; i < d.rows(); ++i)
+            for (Eigen::Index j = 0; j < d.cols(); ++j) {
+                if (i != j) {
+                    CHECK(std::abs(d(i, j)) < 1e-14);
+                    continue;
+                }
+                const double w = std::numbers::pi * static_cast<double>(i) / static_cast<double>(n);
+                double expected = 0;
+                for (std::size_t k = 0; k < h.coeffs.size(); ++k) expected += h.coeffs[k] * std::cos(w * static_cast<double>(h.offset + static_cast<std::ptrdiff_t>(k)));
+                CHECK(std::abs(d(i, i) - expected) < 1e-14);
+            }
+        CHECK(diagonalisation_error(a, c) < 1e-14);
+    }
+    const auto skew = symmetric_convolution_matrix(Laurent{{0.48296, 0.83652, 0.22414, -0.12941}, 0}, n);
+    CHECK(diagonalisation_error(skew, c) > 1e-2);
+    const Laurent box{{0.25, 0.5, 0.25}, -1};
+    const auto a = symmetric_convolution_matrix(box, n);
+    const auto t = convolution_matrix(box, n);
+    CHECK(std::abs(a(5, 4) - 0.25) < 1e-15);
+    CHECK(std::abs(a(0, 0) - 0.75) < 1e-15);
+    CHECK(t.rows() == static_cast<Eigen::Index>(n + 2));
+}
+
+TEST_CASE("levinson-durbin matches scipy solve_toeplitz", "[matrix][levinson][golden]") {
+    const auto g = signals::test::load_golden("ops.json");
+    for (const auto& c : g["levinson"]) {
+        const auto r = c["r"].get<std::vector<double>>();
+        const auto b = c["b"].get<std::vector<double>>();
+        const auto x = levinson_solve(r, b);
+        REQUIRE(x);
+        const auto expected = c["x"].get<std::vector<double>>();
+        REQUIRE(x->x.size() == expected.size());
+        for (std::size_t k = 0; k < expected.size(); ++k) CHECK(std::abs(x->x[k] - expected[k]) < 1e-10 * std::max(1.0, std::abs(expected[k])));
+        CHECK(x->reflection.size() == r.size() - 1);
+    }
+    CHECK_FALSE(levinson_solve(std::vector<double>{0.0, 1.0}, std::vector<double>{1.0, 1.0}));
+    CHECK_FALSE(levinson_solve(std::vector<double>{1.0, 1.0}, std::vector<double>{1.0, 2.0}));
+    CHECK_FALSE(levinson_solve(std::vector<double>{1.0, 0.5}, std::vector<double>{1.0}));
 }

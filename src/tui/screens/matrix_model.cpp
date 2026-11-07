@@ -163,6 +163,37 @@ void MatrixModel::set(MatrixOptions o, JobRunner& jobs) {
             }
             break;
         }
+        case MatrixOp::toeplitz_hankel: {
+            auto h = core::trim(bank->h0, 0.0);
+            h.offset = -static_cast<std::ptrdiff_t>((h.coeffs.size() - 1) / 2);
+            a = core::symmetric_convolution_matrix(h, o.n);
+            const auto c = core::dct2_matrix(o.n);
+            d->dct_error = core::diagonalisation_error(a, c);
+            std::vector<double> r(o.n, 0.0), e(o.n, 0.0);
+            for (std::size_t k = 0; k < o.n; ++k)
+                for (std::size_t i = 0; i + k < h.coeffs.size(); ++i) r[k] += h.coeffs[i] * h.coeffs[i + k];
+            e[0] = 1;
+            if (const auto lv = core::levinson_solve(r, e)) {
+                double worst = 0;
+                for (std::size_t i = 0; i < o.n; ++i) {
+                    double s = 0;
+                    for (std::size_t j = 0; j < o.n; ++j) s += r[i > j ? i - j : j - i] * lv->x[j];
+                    worst = std::max(worst, std::abs(s - e[i]));
+                }
+                d->levinson_error = worst;
+            }
+            for (Eigen::Index k = 0; k < a.rows(); ++k) {
+                d->row_names.push_back("y" + sub(static_cast<std::size_t>(k)));
+                d->outputs.push_back("y" + sub(static_cast<std::size_t>(k)));
+            }
+            d->detail_start = static_cast<std::size_t>(a.rows());
+            if (o.gram) {
+                d->singular = core::singular_values(a);
+                d->cond = core::condition_number(d->singular);
+                a = c * a * c.transpose();
+            }
+            break;
+        }
         case MatrixOp::convolution:
         case MatrixOp::circulant:
             a = o.op == MatrixOp::convolution ? core::convolution_matrix(bank->h0, o.n) : core::circulant_matrix(bank->h0, o.n);
@@ -173,17 +204,19 @@ void MatrixModel::set(MatrixOptions o, JobRunner& jobs) {
             d->detail_start = static_cast<std::size_t>(a.rows());
             break;
         }
-        if (o.op != MatrixOp::convolution && o.op != MatrixOp::circulant) {
+        const bool dct_view = o.op == MatrixOp::toeplitz_hankel && o.gram;
+        if (o.op != MatrixOp::convolution && o.op != MatrixOp::circulant && o.op != MatrixOp::toeplitz_hankel)
             d->orth_error = core::check_orthogonal_matrix(a, 0).value;
+        if (!dct_view) {
             d->singular = core::singular_values(a);
             d->cond = core::condition_number(d->singular);
         }
         d->x = test_signal(o.n);
         const Eigen::Map<const Eigen::VectorXd> xv(d->x.data(), static_cast<Eigen::Index>(d->x.size()));
-        const Eigen::VectorXd y = a * xv;
+        const Eigen::VectorXd y = dct_view ? Eigen::VectorXd::Zero(a.rows()) : Eigen::VectorXd{a * xv};
         d->y.assign(y.data(), y.data() + y.size());
         d->square = a.rows() == a.cols();
-        if (o.gram) {
+        if (o.gram && !dct_view) {
             a = a.transpose() * a;
             d->row_names.clear();
             d->outputs.clear();

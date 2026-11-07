@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <limits>
 #include <complex>
 
@@ -151,6 +152,67 @@ CheckResult check_circulant_fft(const Laurent& h, std::size_t n, double tol) {
         worst = std::isnan(diff) || std::isnan(worst) ? std::numeric_limits<double>::quiet_NaN() : std::max(worst, diff);
     }
     return {"check.circulant_fft", "h", worst, tol};
+}
+
+Eigen::MatrixXd symmetric_convolution_matrix(const Laurent& h, std::size_t n) {
+    Eigen::MatrixXd a = Eigen::MatrixXd::Zero(static_cast<Eigen::Index>(n), static_cast<Eigen::Index>(n));
+    if (n == 0) return a;
+    const auto size = static_cast<std::ptrdiff_t>(n);
+    auto reflect = [size](std::ptrdiff_t m) {
+        while (m < 0 || m >= size) m = m < 0 ? -m - 1 : 2 * size - 1 - m;
+        return m;
+    };
+    for (std::ptrdiff_t i = 0; i < size; ++i)
+        for (std::size_t k = 0; k < h.coeffs.size(); ++k) {
+            const auto m = reflect(i - (h.offset + static_cast<std::ptrdiff_t>(k)));
+            a(i, m) += h.coeffs[k];
+        }
+    return a;
+}
+
+Eigen::MatrixXd dct2_matrix(std::size_t n) {
+    Eigen::MatrixXd c(static_cast<Eigen::Index>(n), static_cast<Eigen::Index>(n));
+    for (std::size_t k = 0; k < n; ++k) {
+        const double scale = std::sqrt((k == 0 ? 1.0 : 2.0) / static_cast<double>(n));
+        for (std::size_t j = 0; j < n; ++j)
+            c(static_cast<Eigen::Index>(k), static_cast<Eigen::Index>(j)) =
+                scale * std::cos(std::numbers::pi * static_cast<double>(k) * (2.0 * static_cast<double>(j) + 1) / (2.0 * static_cast<double>(n)));
+    }
+    return c;
+}
+
+double diagonalisation_error(const Eigen::MatrixXd& a, const Eigen::MatrixXd& basis) {
+    Eigen::MatrixXd d = basis * a * basis.transpose();
+    d.diagonal().setZero();
+    return d.size() ? d.cwiseAbs().maxCoeff() : 0.0;
+}
+
+Result<Levinson> levinson_solve(std::span<const double> r, std::span<const double> b) {
+    const auto n = r.size();
+    if (n == 0 || b.size() != n) return make_error(Errc::length_mismatch, "levinson: r and b need the same nonzero length");
+    if (std::abs(r[0]) < 1e-300) return make_error(Errc::invalid_argument, "levinson: r[0] = 0, the first leading minor is singular");
+    Levinson out;
+    std::vector<double> f{1 / r[0]}, x{b[0] / r[0]};
+    for (std::size_t k = 1; k < n; ++k) {
+        double ef = 0, ex = 0;
+        for (std::size_t i = 0; i < k; ++i) {
+            ef += r[k - i] * f[i];
+            ex += r[k - i] * x[i];
+        }
+        const double denom = 1 - ef * ef;
+        if (std::abs(denom) < 1e-12) return make_error(Errc::invalid_argument, "levinson: a leading minor is singular (reflection coefficient ±1)");
+        std::vector<double> next(k + 1, 0.0);
+        for (std::size_t i = 0; i < k; ++i) {
+            next[i] += f[i] / denom;
+            next[i + 1] -= ef * f[k - 1 - i] / denom;
+        }
+        f = std::move(next);
+        x.push_back(0.0);
+        for (std::size_t i = 0; i <= k; ++i) x[i] += (b[k] - ex) * f[k - i];
+        out.reflection.push_back(-ef);
+    }
+    out.x = std::move(x);
+    return out;
 }
 
 }  // namespace signals::core
