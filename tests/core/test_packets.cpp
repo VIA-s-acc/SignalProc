@@ -175,3 +175,11 @@ TEST_CASE("packets deeper than the dwt limit still reconstruct", "[packets]") {
     CHECK_FALSE(wp_decompose(std::vector<double>{}, b, 2, Extension::symmetric));
     CHECK_FALSE(wp_decompose(x, b, 40, Extension::symmetric));
 }
+
+TEST_CASE("a signal above the tree cap is refused before anything is copied", "[packets][review]") {
+    static const double one = 1.0;
+    const std::span<const double> huge{&one, (std::size_t{1} << 28) + 1};
+    const auto tree = wp_decompose(huge, golden_bank("haar"), 1, Extension::periodization);
+    REQUIRE_FALSE(tree);
+    CHECK(tree.error().code == Errc::level_out_of_range);
+}

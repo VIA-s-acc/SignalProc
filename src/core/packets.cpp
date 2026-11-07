@@ -40,7 +40,7 @@ std::size_t freq_position(PacketNode n) {
 Result<PacketTree> wp_decompose(std::span<const double> x, const FilterBank& bank, std::size_t levels, Extension mode,
                                 ProgressSink* progress) {
     if (x.empty()) return make_error(Errc::invalid_argument, "packets: empty signal");
-    if (levels > kMaxLevels) return make_error(Errc::level_out_of_range, "packets: too many levels");
+    if (levels > kMaxLevels || x.size() > kMaxTreeValues) return make_error(Errc::level_out_of_range, "packets: too many levels for the signal length");
     PacketTree tree;
     tree.nodes.push_back({std::vector<double>(x.begin(), x.end())});
     std::size_t total = x.size();

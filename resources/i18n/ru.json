@@ -687,6 +687,7 @@
   "tui.decomposition.stage.tiles": "энергия и плитки",
   "tui.decomposition.stage.recon": "реконструкция",
   "tui.decomposition.mra_skipped": "MRA пропущено: нужно {need}, больше половины памяти",
+  "tui.decomposition.scalogram_memory": "Скалограмма не помещается в память: нужно {need}, доступно {budget}",
   "tui.decomposition.scalogram_short": "Сигнал слишком короткий для скалограммы",
   "tui.decomposition.job_scalogram": "Скалограмма CWT",
   "tui.decomposition.stage.scalogram": "масштабы Морле",
