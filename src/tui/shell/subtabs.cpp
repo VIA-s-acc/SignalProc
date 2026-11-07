@@ -14,15 +14,15 @@ namespace {
 
 class SubTabs final : public TabScreen {
 public:
-    SubTabs(std::string label, std::vector<std::pair<std::string, std::shared_ptr<TabScreen>>> children, std::size_t initial)
+    SubTabs(std::string label, std::vector<std::pair<std::string, std::shared_ptr<TabScreen>>> children, std::size_t initial, SubTabKeys keys)
         : label_{std::move(label)}, children_{std::move(children)}, boxes_(children_.size()),
-          active_{std::min(initial, children_.empty() ? std::size_t{0} : children_.size() - 1)} {}
+          active_{std::min(initial, children_.empty() ? std::size_t{0} : children_.size() - 1)}, keys_{keys} {}
 
     std::string tab_label() const override { return label_; }
 
     std::vector<Hint> hints() const override {
         auto out = child().hints();
-        out.insert(out.begin(), {"[ ]", tr("tui.subtabs.hint")});
+        out.insert(out.begin(), {std::string{keys_.previous} + " " + keys_.next, tr("tui.subtabs.hint")});
         return out;
     }
 
@@ -102,11 +102,11 @@ public:
             return child().OnEvent(e);
         }
         if (!child().capturing_text() && !children_.empty()) {
-            if (e == ftxui::Event::Character(']')) {
+            if (e == ftxui::Event::Character(keys_.next)) {
                 select_child((active_ + 1) % children_.size());
                 return true;
             }
-            if (e == ftxui::Event::Character('[')) {
+            if (e == ftxui::Event::Character(keys_.previous)) {
                 select_child((active_ + children_.size() - 1) % children_.size());
                 return true;
             }
@@ -121,14 +121,15 @@ private:
     std::vector<std::pair<std::string, std::shared_ptr<TabScreen>>> children_;
     std::vector<ftxui::Box> boxes_;
     std::size_t active_ = 0;
+    SubTabKeys keys_;
     Breakpoint breakpoint_ = Breakpoint::primary;
 };
 
 }  // namespace
 
 std::shared_ptr<TabScreen> make_subtabs(std::string label, std::vector<std::pair<std::string, std::shared_ptr<TabScreen>>> children,
-                                        std::size_t initial) {
-    return std::make_shared<SubTabs>(std::move(label), std::move(children), initial);
+                                        std::size_t initial, SubTabKeys keys) {
+    return std::make_shared<SubTabs>(std::move(label), std::move(children), initial, keys);
 }
 
 }  // namespace signals::tui

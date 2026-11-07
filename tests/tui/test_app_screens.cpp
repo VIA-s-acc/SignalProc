@@ -3,6 +3,7 @@
 #include <chrono>
 #include <memory>
 #include <regex>
+#include <tuple>
 #include <string>
 
 #include <ftxui/component/event.hpp>
@@ -31,17 +32,18 @@ TEST_CASE("every tab renders at both sizes without nan", "[tui][shell][app]") {
         auto models = make_app_models();
         models.signal->open(signals::test::sample("test.wav"), jobs);
         Harness shell{make_shell(*ui, make_app_screens(*ui, models), [] {}), w, h};
-        const std::pair<char, int> tabs[]{{'1', 1}, {'2', 1}, {'3', 1}, {'4', 2}, {'5', 1}, {'6', 1}, {'7', 1}, {'8', 1}, {'9', 3}};
-        for (const auto& [key, subtabs] : tabs) {
+        const std::tuple<char, int, char> tabs[]{{'1', 1, ']'}, {'2', 2, '}'}, {'3', 1, ']'}, {'4', 2, ']'}, {'5', 1, ']'},
+                                                 {'6', 1, ']'}, {'7', 1, ']'}, {'8', 1, ']'}, {'9', 3, ']'}};
+        for (const auto& [key, subtabs, next] : tabs) {
             shell.send(ftxui::Event::Character(key));
             for (int s = 0; s < subtabs; ++s) {
                 const auto frame = shell.frame();
                 INFO("size " << w << "x" << h << " tab " << key << " sub " << s);
                 CHECK(frame.find("nan") == std::string::npos);
                 CHECK(frame.find("inf") == std::string::npos);
-                CHECK_FALSE(std::regex_search(frame, std::regex{R"(\{[^#])"}));
+                CHECK_FALSE(std::regex_search(frame, std::regex{R"(\{[a-z_.]+\})"}));
                 CHECK_FALSE(std::regex_search(frame, std::regex{"M[0-4][ab]?\\."}));
-                shell.send(ftxui::Event::Character(']'));
+                shell.send(ftxui::Event::Character(next));
             }
         }
         CHECK(active_tab(shell.root) == 8);
