@@ -91,5 +91,11 @@ core::Result<std::size_t> checked_length(std::size_t n, std::size_t factor);
 
 void register_basic_blocks(std::vector<BlockType>& out);
 void register_dsp_blocks(std::vector<BlockType>& out);
+void register_level_blocks(std::vector<BlockType>& out);
+void register_source_blocks(std::vector<BlockType>& out);
+void register_filter_blocks(std::vector<BlockType>& out);
+void register_wavelet_blocks(std::vector<BlockType>& out);
+void register_channel_blocks(std::vector<BlockType>& out);
+void register_measure_blocks(std::vector<BlockType>& out);
 
 }  // namespace signals::pipeline
