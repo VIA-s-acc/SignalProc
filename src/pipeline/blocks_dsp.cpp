@@ -486,6 +486,8 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        const auto& a = in_audio(in, 0);
                        const auto& b = in_audio(in, 1);
                        if (b.channels.empty()) return core::make_error(core::Errc::invalid_argument, "xcorr: the second input has no channels");
+                       if (a.sample_rate != b.sample_rate)
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.xcorr_rates")), fmt::arg("a", a.sample_rate), fmt::arg("b", b.sample_rate)));
                        const auto& name = param_text(p, "mode");
                        const auto mode = name == "same" ? core::CorrelationMode::same : name == "valid" ? core::CorrelationMode::valid : core::CorrelationMode::full;
                        const bool normalize = param_text(p, "normalize") == "yes";

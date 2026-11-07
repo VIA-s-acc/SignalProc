@@ -36,7 +36,25 @@ inline std::vector<std::string> split_codepoints(const std::string& s) {
     return out;
 }
 
-inline int display_width(const std::string& s) { return static_cast<int>(split_codepoints(s).size()); }
+inline bool is_combining_mark(const std::string& cp) {
+    if (cp.size() == 2) {
+        const auto value = (static_cast<unsigned>(static_cast<unsigned char>(cp[0]) & 0x1F) << 6) | (static_cast<unsigned char>(cp[1]) & 0x3F);
+        return value >= 0x300 && value <= 0x36F;
+    }
+    if (cp.size() == 3) {
+        const auto value = (static_cast<unsigned>(static_cast<unsigned char>(cp[0]) & 0x0F) << 12) | ((static_cast<unsigned>(static_cast<unsigned char>(cp[1]) & 0x3F)) << 6) |
+                           (static_cast<unsigned char>(cp[2]) & 0x3F);
+        return (value >= 0x20D0 && value <= 0x20FF) || (value >= 0xFE20 && value <= 0xFE2F);
+    }
+    return false;
+}
+
+inline int display_width(const std::string& s) {
+    int width = 0;
+    for (const auto& cp : split_codepoints(s))
+        if (!is_combining_mark(cp)) ++width;
+    return width;
+}
 
 inline std::string ellipsize(const std::string& s, int width, bool ascii) {
     if (width <= 0) return {};

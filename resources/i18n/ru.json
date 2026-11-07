@@ -1256,5 +1256,6 @@
   "unit.section.few": "{n} раздела",
   "unit.section.many": "{n} разделов",
   "tui.resample.filter_off_line_up": "фильтр обойдён — остаются изображения спектра",
-  "tui.filters.custom.saved": "сохранён как «{name}» — {file}"
+  "tui.filters.custom.saved": "сохранён как «{name}» — {file}",
+  "pipeline.error.xcorr_rates": "xcorr: у входов разная частота дискретизации — {a} и {b} Гц; приведите их к одной блоком resample"
 }

@@ -84,7 +84,7 @@ void ProcessingScreen::publish(theory::LiveValues& v) const {
     v.set("block.thresholds", lambdas);
     v.set("metric.sigma", format_number(r->sigma, 4));
     v.set("metric.kept", group(r->kept) + " / " + group(r->total));
-    v.set("metric.energy_removed", format_fixed(100 - r->energy_pct, 1) + " %");
+    v.set("metric.energy_removed", format_fixed(r->energy_removed_pct, 1) + " %");
 }
 
 std::string ProcessingScreen::context() const {

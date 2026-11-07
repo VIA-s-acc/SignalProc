@@ -1256,5 +1256,6 @@
   "unit.section.few": "{n} sections",
   "unit.section.many": "{n} sections",
   "tui.resample.filter_off_line_up": "filter bypassed — spectral images remain",
-  "tui.filters.custom.saved": "saved as “{name}” — {file}"
+  "tui.filters.custom.saved": "saved as “{name}” — {file}",
+  "pipeline.error.xcorr_rates": "xcorr: the inputs have different sample rates — {a} and {b} Hz; bring them to one with the resample block"
 }

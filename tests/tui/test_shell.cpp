@@ -358,3 +358,9 @@ TEST_CASE("the tab bar shows the version and the question mark opens help", "[tu
     r.h.click(column, 0);
     CHECK(r.h.frame().find("фильтр:") != std::string::npos);
 }
+
+TEST_CASE("m7b: display_width does not count combining marks", "[tui][shell]") {
+    CHECK(signals::tui::display_width("Φ̃") == 1);
+    CHECK(signals::tui::display_width("x̂ · Ψ̂") == 5);
+    CHECK(signals::tui::display_width("абв") == 3);
+}

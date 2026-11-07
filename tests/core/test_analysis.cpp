@@ -168,3 +168,35 @@ TEST_CASE("thd refuses tones it cannot measure", "[analysis]") {
     REQUIRE(low);
     CHECK(std::abs(low->thd / 0.01 - 1) < 0.05);
 }
+
+TEST_CASE("m7b: onsets land on the start of each click", "[analysis]") {
+    constexpr double fs = 16000;
+    std::vector<double> x(32000, 0.0);
+    const std::vector<double> clicks{0.25, 0.75, 1.3, 1.6};
+    std::uint32_t state = 1;
+    for (double t0 : clicks)
+        for (std::size_t k = 0; k < 160; ++k) {
+            state = state * 1664525u + 1013904223u;
+            x[static_cast<std::size_t>(t0 * fs) + k] = (static_cast<double>(state >> 8) / 16777216.0 - 0.5) * std::exp(-static_cast<double>(k) / 40);
+        }
+    const auto found = onsets(x, fs, 1024, 256);
+    REQUIRE(found.size() == clicks.size());
+    for (std::size_t i = 0; i < clicks.size(); ++i) {
+        INFO(found[i] - clicks[i]);
+        CHECK(std::abs(found[i] - clicks[i]) <= (0.5 * 256 + 1) / fs);
+    }
+    CHECK(onsets(std::vector<double>(1500, 0.1), fs, 1024, 256).empty());
+}
+
+TEST_CASE("m7b: istft refuses a hop that breaks NOLA", "[analysis]") {
+    std::vector<double> x(512);
+    for (std::size_t i = 0; i < x.size(); ++i) x[i] = std::sin(0.05 * static_cast<double>(i));
+    const auto z = stft_complex(x, 64, 64);
+    REQUIRE(z);
+    const auto back = istft(*z);
+    REQUIRE_FALSE(back);
+    CHECK(back.error().message.find("NOLA") != std::string::npos);
+    const auto ok = stft_complex(x, 64, 16);
+    REQUIRE(ok);
+    CHECK(istft(*ok));
+}

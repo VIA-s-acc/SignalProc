@@ -56,7 +56,7 @@ struct ProcessingResult {
     std::size_t start = 0;
     std::vector<double> clean, noisy, out, residual;
     std::vector<BandResult> bands;
-    double sigma = 0, snr_in = 0, snr_out = 0, mse = 0, energy_pct = 0, err_db = 0;
+    double sigma = 0, snr_in = 0, snr_out = 0, mse = 0, energy_pct = 0, energy_removed_pct = 0, err_db = 0;
     std::size_t kept = 0, total = 0;
     std::vector<CurvePoint> curve;
     TransferCurves transfer;

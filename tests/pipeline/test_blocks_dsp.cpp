@@ -435,3 +435,16 @@ TEST_CASE("m7b: idwt and iswt name the inverse that fits the coefficients", "[pi
         CHECK(r.error().message.find(std::string{"нужен "} + expected) != std::string::npos);
     }
 }
+
+TEST_CASE("m7b: xcorr refuses inputs with different sample rates", "[pipeline]") {
+    core::AudioBuffer a, b;
+    a.sample_rate = 8000;
+    b.sample_rate = 16000;
+    a.channels.push_back(std::vector<double>(64, 0.5));
+    b.channels.push_back(std::vector<double>(64, 0.5));
+    const auto* block = find_block_type("xcorr");
+    const std::vector<Value> in{a, b};
+    const auto r = block->run(RunContext{}, in, *resolve_params(*block, {}));
+    REQUIRE_FALSE(r);
+    CHECK(r.error().message.find("8000") != std::string::npos);
+}

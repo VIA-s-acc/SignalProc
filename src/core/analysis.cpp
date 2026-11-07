@@ -170,9 +170,11 @@ Result<std::vector<double>> istft(const ComplexStft& z) {
             norm[m * z.hop + k] += window[k] * window[k];
         }
     }
-    for (std::size_t i = 0; i < total; ++i)
-        if (norm[i] > 1e-10) out[i] /= norm[i];
     const auto half = n / 2;
+    for (std::size_t i = 0; i < total; ++i) {
+        if (norm[i] > 1e-10) out[i] /= norm[i];
+        else if (i >= half && i + half < total) return make_error(Errc::invalid_argument, "istft: this window and hop break NOLA — the frames leave gaps; use a smaller hop");
+    }
     if (total <= 2 * half) return std::vector<double>{};
     return std::vector<double>(out.begin() + static_cast<std::ptrdiff_t>(half), out.end() - static_cast<std::ptrdiff_t>(half));
 }
@@ -258,7 +260,9 @@ std::vector<double> onsets(std::span<const double> x, double fs, std::size_t n, 
         std::nth_element(around.begin(), around.begin() + static_cast<std::ptrdiff_t>(around.size() / 2), around.end());
         const double threshold = 1.5 * around[around.size() / 2] + 0.1 * peak;
         if (flux[m] <= threshold || (last && m - *last < gap)) continue;
-        out.push_back((static_cast<double>(m * hop) + static_cast<double>(n) / 2) / fs);
+                // The flux of frame m is w(p) − w(p + hop) for a click p samples into the frame; it peaks where the Hann
+        // slope is steepest, p + hop/2 = 3n/4, so the click started 3n/4 − hop/2 after the frame start.
+        out.push_back((static_cast<double>(m * hop) + 0.75 * static_cast<double>(n) - 0.5 * static_cast<double>(hop)) / fs);
         last = m;
     }
     return out;
