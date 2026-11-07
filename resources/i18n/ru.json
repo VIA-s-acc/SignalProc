@@ -224,6 +224,7 @@
   "tui.processing.noise": "Оценка шума как в scikit-image",
   "tui.processing.listen": "Прослушивание A/B/X",
   "tui.processing.theory_text": "Разреженность: у сигнала мало больших коэффициентов, шум — ровный слой малых во всех полосах. soft: c − λ·sign c при |c| ≥ λ; hard: c при |c| ≥ λ, иначе 0. Разные усиления полос рвут отмену наложения: A(ω) ≠ 0.",
+  "tui.processing.cancelled": "Расчёт отменён — r, чтобы пересчитать",
   "tui.processing.job": "Шумоподавление фрагмента",
   "tui.processing.stage": "пороги и восстановление",
   "tui.processing.error": "Не удалось обработать фрагмент: {reason}",

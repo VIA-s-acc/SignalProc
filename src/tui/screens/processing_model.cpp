@@ -205,11 +205,31 @@ core::Result<TransferCurves> band_transfer(std::string_view wavelet, std::size_t
 ProcessingModel::ProcessingModel(std::shared_ptr<SignalModel> source) : source_{std::move(source)} {}
 
 void ProcessingModel::sync(JobRunner& jobs) {
+    constexpr std::size_t kMaxFragment = 65536;
     const auto s = source_->data();
+    bool changed = false;
     if (s && s != seen_) {
         seen_ = s;
-        compute(jobs);
+        selection_seen_.reset();
+        changed = true;
     }
+    if (const auto sel = source_->selection(); s && sel && sel != selection_seen_) {
+        selection_seen_ = sel;
+        const double fs = s->info.sample_rate;
+        options_.start = static_cast<std::size_t>(std::floor(sel->first * fs));
+        options_.length = std::clamp<std::size_t>(static_cast<std::size_t>(std::floor((sel->second - sel->first) * fs)), 64, kMaxFragment);
+        changed = true;
+    }
+    if (changed) compute(jobs);
+}
+
+bool ProcessingModel::cancelled() const {
+    std::lock_guard lock{mutex_};
+    return cancelled_;
+}
+
+void ProcessingModel::recompute(JobRunner& jobs) {
+    if (seen_) compute(jobs);
 }
 
 void ProcessingModel::set_options(ProcessingOptions o, JobRunner& jobs) {
@@ -255,6 +275,7 @@ std::optional<std::uint64_t> ProcessingModel::job() const {
 
 void ProcessingModel::cancel(JobRunner& jobs) {
     std::lock_guard lock{mutex_};
+    if (job_) cancelled_ = true;
     if (job_) jobs.cancel(*job_);
     job_.reset();
     ++gen_;
@@ -269,6 +290,7 @@ void ProcessingModel::compute(JobRunner& jobs) {
         if (job_) jobs.cancel(*job_);
         job_.reset();
         error_.reset();
+        cancelled_ = false;
         gen = ++gen_;
     }
     const auto o = options_;
@@ -292,6 +314,7 @@ void ProcessingModel::compute(JobRunner& jobs) {
         auto r = process_fragment(clean, noisy, s->info.sample_rate, o, &ctx);
         if (r) {
             r->source = s;
+            r->start = start;
             r->audio_noisy.assign(r->noisy.begin(), r->noisy.end());
             r->audio_out.assign(r->out.begin(), r->out.end());
             r->audio_residual.assign(r->residual.begin(), r->residual.end());

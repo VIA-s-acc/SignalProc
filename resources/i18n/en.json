@@ -224,6 +224,7 @@
   "tui.processing.noise": "Noise estimate as in scikit-image",
   "tui.processing.listen": "Listening A/B/X",
   "tui.processing.theory_text": "Sparsity: a signal has few large coefficients, noise is an even layer of small ones in every band. soft: c − λ·sign c when |c| ≥ λ; hard: c when |c| ≥ λ, else 0. Different band gains break alias cancellation: A(ω) ≠ 0.",
+  "tui.processing.cancelled": "Cancelled — press r to compute again",
   "tui.processing.job": "Fragment denoising",
   "tui.processing.stage": "thresholds and reconstruction",
   "tui.processing.error": "Could not process the fragment: {reason}",

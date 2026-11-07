@@ -35,6 +35,7 @@ public:
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event e) override;
     std::optional<std::pair<int, int>> menu_anchor() const override;
+    void open_with(const NavArgs& args) override;
 
     ftxui::Box area(std::string_view id) const;
     View view() const { return view_; }

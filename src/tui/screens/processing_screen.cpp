@@ -63,7 +63,7 @@ std::string ProcessingScreen::tab_label() const { return tr("tui.tab.processing"
 
 std::vector<Hint> ProcessingScreen::hints() const {
     return {{"Tab", tr("tui.explain.hint.tab")},       {"z", tr("tui.signal.hint.zoom")},          {"a/b/x", tr("tui.processing.hint.view")},
-            {"m", tr("tui.processing.hint.method")},  {"s", tr("tui.processing.hint.mode")},      {"[ ]", tr("tui.processing.hint.scale")},
+            {"j/J", tr("tui.decomposition.hint.levels")}, {"m", tr("tui.processing.hint.method")},  {"s", tr("tui.processing.hint.mode")},      {"[ ]", tr("tui.processing.hint.scale")},
             {tr("tui.spectrum.key.drag"), "±λ"},       {"e", tr("tui.processing.hint.eq")},        {"u", tr("tui.decomposition.hint.undo")},
             {"Space", tr("tui.processing.hint.stop")}, {"F1", tr("tui.processing.hint.f1")}};
 }
@@ -92,7 +92,7 @@ std::string ProcessingScreen::context() const {
     const auto r = model_->result();
     if (!s || !r) return {};
     const auto& o = r->options;
-    const double t0 = static_cast<double>(o.start) / r->fs, t1 = t0 + static_cast<double>(r->clean.size()) / r->fs;
+    const double t0 = static_cast<double>(r->start) / r->fs, t1 = t0 + static_cast<double>(r->clean.size()) / r->fs;
     return fmt::format(fmt::runtime(tr("tui.processing.context")), fmt::arg("file", s->path.filename().string()), fmt::arg("channel", o.channel == 1 ? "R" : "L"),
                        fmt::arg("t0", format_fixed(t0, 2)), fmt::arg("t1", format_fixed(t1, 2)), fmt::arg("snr", format_fixed(o.snr_db, 0)), fmt::arg("wavelet", o.wavelet),
                        fmt::arg("levels", o.levels));
@@ -129,7 +129,7 @@ void ProcessingScreen::play(View v) {
     if (!ui_.player) return;
     auto clip = model_->clip(v == View::a ? ProcessingModel::Clip::noisy : v == View::b ? ProcessingModel::Clip::out : ProcessingModel::Clip::residual);
     if (!clip) return;
-    if (ui_.player->state() == audio::PlayState::playing) {
+    if (ui_.player->state() == audio::PlayState::playing && ui_.player->tag().starts_with("processing")) {
         ui_.player->replace(std::move(*clip));
         return;
     }
@@ -301,7 +301,9 @@ ftxui::Element ProcessingScreen::OnRender() {
     const int main_width = small ? cols : cols - kRightWidth - 1;
     if (!r) {
         const auto e = model_->error();
-        Elements lines{text(e ? *e : model_->source() ? tr("tui.processing.computing") : tr("tui.processing.empty")) | fg(e ? th.err : th.dim, ui_)};
+        const bool stopped = model_->cancelled() && !model_->job();
+        Elements lines{text(e ? *e : stopped ? tr("tui.processing.cancelled") : model_->source() ? tr("tui.processing.computing") : tr("tui.processing.empty")) |
+                       fg(e ? th.err : stopped ? th.warn : th.dim, ui_)};
         return vbox({toolbar(two_rows), frame_panel(coeffs_panel, centered(std::move(lines)), {}, tr("tui.processing.coeffs")) | flex});
     }
     const int coeff_rows = small ? total - 4 : static_cast<int>(2 * r->bands.size());
@@ -423,6 +425,9 @@ bool ProcessingScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (e == Event::Character('e')) return set_preset(preset_ + 1), true;
+    if (e == Event::Character('j')) return change([](ProcessingOptions& o) { o.levels = std::min<std::size_t>(10, o.levels + 1); }), true;
+    if (e == Event::Character('J')) return change([](ProcessingOptions& o) { o.levels = std::max<std::size_t>(1, o.levels - 1); }), true;
+    if (e == Event::Character('r')) return model_->recompute(jobs), true;
     if (e == Event::Character('u')) return model_->undo(jobs), true;
     return false;
 }
@@ -433,6 +438,13 @@ ftxui::Box ProcessingScreen::area(std::string_view id) const {
     for (const auto& c : clickables_)
         if (c.id == id) return c.box;
     return kNoBox;
+}
+
+void ProcessingScreen::open_with(const NavArgs& args) {
+    change([&args](ProcessingOptions& o) {
+        if (!args.wavelet.empty()) o.wavelet = args.wavelet;
+        if (args.n) o.levels = std::clamp<std::size_t>(*args.n, 1, 10);
+    });
 }
 
 std::optional<std::pair<int, int>> ProcessingScreen::menu_anchor() const {
