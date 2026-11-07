@@ -902,3 +902,18 @@ TEST_CASE("the toolbar wraps to a third row at 80 columns instead of cutting the
     CHECK(frame.find("antisymmetric ▾") != std::string::npos);
     CHECK(frame.find("bior3.5 ▾") != std::string::npos);
 }
+
+TEST_CASE("the right-click menu resets the decomposition time zoom", "[tui][decomposition][menu]") {
+    DecompositionFixture f;
+    const auto full = f.screen->time_view();
+    const auto b = f.screen->area("view_plot");
+    REQUIRE(b.x_max > b.x_min);
+    const int x = (b.x_min + b.x_max) / 2, y = (b.y_min + b.y_max) / 2;
+    f.h.wheel(x, y, true);
+    f.h.frame();
+    REQUIRE(f.screen->time_view() != full);
+    const auto menu = f.screen->context_menu(x, y);
+    REQUIRE(menu.size() == 1);
+    menu.front().action();
+    CHECK(f.screen->time_view() == full);
+}

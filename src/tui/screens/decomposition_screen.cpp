@@ -216,6 +216,14 @@ void DecompositionScreen::sync_view(const std::shared_ptr<const DecompositionDat
     draft_.gains_db.assign(d->bands.size(), 0.0);
 }
 
+std::vector<MenuItem> DecompositionScreen::context_menu(int x, int y) {
+    const auto d = model_->data();
+    const auto plot = plot_area();
+    if (d && valid(plot) && plot.Contain(x, y) && (begin_ > 0 || end_ < d->duration()))
+        return {{tr("tui.menu.reset_zoom"), "0", [this] { zoom(1e-12, begin_); }}};
+    return {};
+}
+
 void DecompositionScreen::zoom(double factor, double anchor) {
     const auto d = model_->data();
     if (!d) return;

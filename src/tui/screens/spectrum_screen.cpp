@@ -464,6 +464,15 @@ void SpectrumScreen::zoom(double factor, double anchor) {
     end_ = b + width;
 }
 
+std::vector<MenuItem> SpectrumScreen::context_menu(int x, int y) {
+    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
+    const auto s = model_->source();
+    const double total = s ? s->duration() : 0;
+    if (valid(plot_box_) && plot_box_.Contain(x, y) && total > 0 && (begin_ > 0 || end_ < total))
+        return {{tr("tui.menu.reset_zoom"), "0", [this] { zoom(1e-12, begin_); }}};
+    return {};
+}
+
 void SpectrumScreen::pan(double dt) {
     const auto s = model_->source();
     const double total = s ? s->duration() : 0;

@@ -48,6 +48,7 @@ public:
     std::optional<double> cursor() const { return cursor_; }
     void set_cursor(double t);
     std::pair<double, double> time_view() const { return {begin_, end_}; }
+    std::vector<MenuItem> context_menu(int x, int y) override;
 
 private:
     enum Panel { view_panel, energy, cursor_panel, denoise, listen, summary, panel_count };
