@@ -180,7 +180,7 @@ std::string FilterRef::label() const {
     case Kind::custom: {
         if (!title.empty()) return title;
         const auto taps = static_cast<std::size_t>(std::count(wavelet.begin(), wavelet.end(), ',')) + 1;
-        return fmt::format(fmt::runtime(tr("tui.filters.custom.label")), fmt::arg("taps", taps));
+        return fmt::format(fmt::runtime(tr("tui.filters.custom.label")), fmt::arg("taps", tr_count("unit.tap", static_cast<long long>(taps))));
     }
     case Kind::classical: break;
     }

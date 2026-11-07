@@ -364,3 +364,9 @@ TEST_CASE("m7b: display_width does not count combining marks", "[tui][shell]") {
     CHECK(signals::tui::display_width("x̂ · Ψ̂") == 5);
     CHECK(signals::tui::display_width("абв") == 3);
 }
+
+TEST_CASE("m7c: ellipsize measures display width, not codepoints", "[tui][shell]") {
+    CHECK(signals::tui::ellipsize("Φ̃ab", 3, false) == "Φ̃ab");
+    CHECK(signals::tui::ellipsize("Φ̃abcd", 3, false) == "Φ̃a…");
+    CHECK(signals::tui::ellipsize("abcdef", 4, true) == "abc~");
+}

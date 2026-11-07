@@ -325,7 +325,7 @@ ftxui::Element PipelineScreen::run_panel() {
         for (const auto& [id, n] : run.nodes) done += n.status.fraction;
         done /= static_cast<double>(std::max<std::size_t>(1, run.nodes.size()));
         auto title = fmt::format(fmt::runtime(tr("tui.pipeline.run_number")), fmt::arg("n", run.number));
-        if (run.running) title += " · " + format_fixed(100 * done, 0) + " % · " + fmt::format(fmt::runtime(tr("tui.pipeline.threads")), fmt::arg("n", std::thread::hardware_concurrency()));
+        if (run.running) title += " · " + format_fixed(100 * done, 0) + " % · " + fmt::format(fmt::runtime(tr("tui.pipeline.threads")), fmt::arg("n", tr_count("unit.thread", static_cast<long long>(std::thread::hardware_concurrency()))));
         else if (run.cancelled) title += " · " + tr("tui.pipeline.cancelled");
         else if (run.error) title += " · " + tr("tui.pipeline.failed");
         else title += " · " + format_si(run.seconds, tr("unit.s"));
