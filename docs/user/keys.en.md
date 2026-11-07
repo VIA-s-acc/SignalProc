@@ -66,6 +66,8 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | Key | Action |
 |---|---|
 | `{ }` | subtabs |
+| `Tab` | panel |
+| `z` | fullscreen |
 | `m` | mode |
 | `+ −` | M |
 | `> <` | L |

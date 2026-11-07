@@ -73,7 +73,7 @@ TEST_CASE("the resampling view fits 80×24", "[tui][resample]") {
     Harness h{f.screen, 80, 24};
     const auto frame = h.frame();
     CHECK(widest(frame) <= 80);
-    CHECK(frame.find("После") != std::string::npos);
+    CHECK(frame.find("До · fs") != std::string::npos);
 }
 
 TEST_CASE("the spectrum tab switches sub-tabs with braces and leaves brackets to the spectrogram", "[tui][resample]") {
@@ -184,4 +184,62 @@ TEST_CASE("m7b review: rational L/1 without the filter speaks of images", "[tui]
     const auto frame = h.frame();
     CHECK(frame.find("копии накладываются") == std::string::npos);
     CHECK(frame.find("изображения") != std::string::npos);
+}
+
+TEST_CASE("resampling panels take focus with Tab and clicks, and z maximizes the focused one", "[tui][resample][panels]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    h.frame();
+    CHECK(f.screen->focus() == ResampleScreen::controls_panel);
+    h.send(ftxui::Event::Tab);
+    CHECK(f.screen->focus() == ResampleScreen::before_panel);
+    h.send(ftxui::Event::Character('z'));
+    auto frame = h.frame();
+    CHECK(frame.find("До · fs") != std::string::npos);
+    CHECK(frame.find("После · fs′") == std::string::npos);
+    h.send(ftxui::Event::Escape);
+    frame = h.frame();
+    CHECK(frame.find("После · fs′") != std::string::npos);
+    const auto after = f.screen->area("after_panel");
+    REQUIRE(after.x_max > after.x_min);
+    h.click((after.x_min + after.x_max) / 2, (after.y_min + after.y_max) / 2);
+    CHECK(f.screen->focus() == ResampleScreen::after_panel);
+}
+
+TEST_CASE("at 80×24 the resampling screen shows one panel at a time and Tab switches it", "[tui][resample][panels]") {
+    Fixture f{80, 24};
+    Harness h{f.screen, 80, 24};
+    auto frame = h.frame();
+    CHECK(frame.find("До · fs") != std::string::npos);
+    CHECK(frame.find("После · fs′") == std::string::npos);
+    CHECK(frame.find("Tab 1/") != std::string::npos);
+    h.send(ftxui::Event::Tab);
+    frame = h.frame();
+    CHECK(frame.find("После · fs′") != std::string::npos);
+    CHECK(frame.find("До · fs") == std::string::npos);
+    CHECK(widest(frame) <= 80);
+}
+
+TEST_CASE("the wheel zooms the resampling spectra and 0 resets the focused one", "[tui][resample][panels]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    h.frame();
+    const auto b = f.screen->area("before_plot");
+    REQUIRE(b.x_max > b.x_min);
+    const auto full = f.screen->plot_view("before");
+    REQUIRE(full);
+    const int x = b.x_min + (b.x_max - b.x_min) / 3, y = (b.y_min + b.y_max) / 2;
+    h.wheel(x, y, true);
+    h.wheel(x, y, true);
+    h.frame();
+    const auto zoomed = f.screen->plot_view("before");
+    REQUIRE(zoomed);
+    CHECK(zoomed->hi - zoomed->lo < 0.7 * (full->hi - full->lo));
+    CHECK_FALSE(f.screen->context_menu(x, y).empty());
+    const auto m = f.screen->options().m;
+    h.click(x, y);
+    h.send(ftxui::Event::Character('0'));
+    h.frame();
+    CHECK(f.screen->plot_view("before")->hi - f.screen->plot_view("before")->lo == full->hi - full->lo);
+    CHECK(f.screen->options().m == m);
 }
