@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <fstream>
+#include <future>
 #include <memory>
 #include <numbers>
 #include <thread>
@@ -161,4 +162,40 @@ TEST_CASE("a zero-width selection is ignored and the selection can be cleared", 
     CHECK(f.model->selection()->t0 == 2.10);
     f.model->clear_selection(f.jobs);
     CHECK(f.model->selection()->t0 == 0);
+}
+
+TEST_CASE("m7b: a new window size keeps the selection spectrum, a new channel recomputes it", "[tui][spectrum]") {
+    SpectrumFixture f;
+    f.model->set_selection(2.10, 4.85, f.jobs);
+    f.model->sync(f.jobs);
+    const auto before = f.model->selection();
+    REQUIRE(before);
+    auto o = f.model->options();
+    o.n = 2048;
+    f.model->set_options(o, f.jobs);
+    f.model->sync(f.jobs);
+    CHECK(f.model->selection() == before);
+    o.channel = 1;
+    f.model->set_options(o, f.jobs);
+    f.model->sync(f.jobs);
+    const auto other = f.model->selection();
+    REQUIRE(other);
+    CHECK(other != before);
+}
+
+TEST_CASE("m7b review: after Esc a new window size restarts the selection spectrum", "[tui][spectrum]") {
+    SpectrumFixture f;
+    JobRunner background{[] {}, 0ms};
+    std::promise<void> release;
+    auto gate = release.get_future().share();
+    background.submit("gate", {}, [gate](JobContext&) { gate.wait(); });
+    f.model->sync(background);
+    f.model->cancel(background);
+    release.set_value();
+    auto o = f.model->options();
+    o.n = 2048;
+    f.model->set_options(o, background);
+    for (int k = 0; k < 1000 && (f.model->job() || background.queued() > 0); ++k) std::this_thread::sleep_for(10ms);
+    CHECK(f.model->spectrogram());
+    CHECK(f.model->selection());
 }

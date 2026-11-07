@@ -122,3 +122,28 @@ TEST_CASE("a cancelled processing job can be run again", "[tui][processing][revi
     CHECK(model.result());
     CHECK_FALSE(model.cancelled());
 }
+
+TEST_CASE("m7b: muted bands are not kept and the removed energy stays within 0…100 %", "[tui][processing]") {
+    constexpr std::size_t n = 4096;
+    const auto noise = seeded_noise(n, 0.1, 7);
+    std::vector<double> clean(n), noisy(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        clean[i] = std::sin(2 * 3.141592653589793 * 440 * static_cast<double>(i) / 8000);
+        noisy[i] = clean[i] + noise[i];
+    }
+    ProcessingOptions o;
+    const auto base = process_fragment(clean, noisy, 8000, o);
+    REQUIRE(base);
+    o.gains.assign(o.levels + 1, 1.0);
+    o.gains[1] = 0.0;
+    const auto muted = process_fragment(clean, noisy, 8000, o);
+    REQUIRE(muted);
+    CHECK(muted->bands[1].kept == 0);
+    CHECK(muted->kept == base->kept - base->bands[1].kept);
+    o.gains.assign(o.levels + 1, 2.0);
+    const auto loud = process_fragment(clean, noisy, 8000, o);
+    REQUIRE(loud);
+    CHECK(loud->energy_pct > 100);
+    CHECK(loud->energy_removed_pct == 0);
+    CHECK(base->energy_removed_pct == Catch::Approx(100 - base->energy_pct));
+}

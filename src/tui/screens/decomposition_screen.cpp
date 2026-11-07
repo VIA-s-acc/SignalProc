@@ -599,7 +599,7 @@ void DecompositionScreen::pick_packet(core::PacketNode n) {
     pk_level_ = n.level;
     pk_pos_ = core::freq_position(n);
     follow_ = true;
-    model_->make_leaf(n);
+    model_->make_leaf(n, *ui_.jobs);
 }
 
 bool DecompositionScreen::packet_key(const ftxui::Event& e, const PacketData& p) {
@@ -610,9 +610,9 @@ bool DecompositionScreen::packet_key(const ftxui::Event& e, const PacketData& p)
     if (e == Event::ArrowRight) return pk_pos_ = std::min(pk_pos_ + 1, (std::size_t{1} << pk_level_) - 1), true;
     if (e == Event::ArrowLeft) return pk_pos_ = pk_pos_ > 0 ? pk_pos_ - 1 : 0, true;
     if (e == Event::ArrowUp || e == Event::ArrowDown) return true;
-    if (e == Event::Return) return model_->make_leaf({pk_level_, core::natural_index_at(pk_level_, pk_pos_)}), true;
-    if (e == Event::Character('B')) return model_->set_basis(p.best), true;
-    if (e == Event::Character('W')) return model_->set_basis(core::dwt_basis(J)), true;
+    if (e == Event::Return) return model_->make_leaf({pk_level_, core::natural_index_at(pk_level_, pk_pos_)}, *ui_.jobs), true;
+    if (e == Event::Character('B')) return model_->set_basis(p.best, *ui_.jobs), true;
+    if (e == Event::Character('W')) return model_->set_basis(core::dwt_basis(J), *ui_.jobs), true;
     return false;
 }
 
@@ -796,7 +796,7 @@ ftxui::Element DecompositionScreen::summary_panel(const DecompositionData& d, co
             included += (included.empty() ? "" : ", ") + part;
             i = j + 1;
         }
-    if (off == 0) included = fmt::format(fmt::runtime(tr("tui.decomposition.all_bands")), fmt::arg("n", d.bands.size()));
+    if (off == 0) included = fmt::format(fmt::runtime(tr("tui.decomposition.all_bands")), fmt::arg("n", tr_count("unit.band", static_cast<long long>(d.bands.size()))));
     const bool pr_ok = d.pr_error < 1e-9;
     const auto pr_text = d.pr_error < 1e-14 ? std::string{"< 10⁻¹⁴"} : format_number(d.pr_error, 2);
     Elements rows{hbox({label("tui.decomposition.in_synthesis"), paragraph(included) | fg(th.fg, ui_) | flex}),
@@ -809,10 +809,11 @@ ftxui::Element DecompositionScreen::summary_panel(const DecompositionData& d, co
                       fg(th.dim, ui_),
                   separator() | fg(th.dim, ui_)};
     if (view_ == View::packets && model_->packets()) {
-        const double err = model_->basis_pr_error();
-        const bool ok = err < 1e-9;
-        rows.insert(rows.end() - 1, hbox({label("tui.decomposition.packet_pr"), text(tr("tui.decomposition.error") + " " + (err < 1e-14 ? std::string{"< 10⁻¹⁴"} : format_number(err, 2)) + " ") | fg(th.fg, ui_),
-                                         text(std::string{glyph(ok ? Glyph::check : Glyph::cross, ui_.caps.glyphs)}) | fg(ok ? th.ok : th.err, ui_)}));
+        const auto err = model_->basis_pr_error();
+        const bool ok = err && *err < 1e-9;
+        const auto shown = !err ? std::string{"…"} : *err < 1e-14 ? std::string{"< 10⁻¹⁴"} : format_number(*err, 2);
+        auto mark = err ? text(std::string{glyph(ok ? Glyph::check : Glyph::cross, ui_.caps.glyphs)}) | fg(ok ? th.ok : th.err, ui_) : text("");
+        rows.insert(rows.end() - 1, hbox({label("tui.decomposition.packet_pr"), text(tr("tui.decomposition.error") + " " + shown + " ") | fg(th.fg, ui_), std::move(mark)}));
     }
     if (off > 0) {
         rows.push_back(text(fmt::format(fmt::runtime(tr("tui.decomposition.warn1")), fmt::arg("n", off))) | fg(th.warn, ui_));
@@ -875,7 +876,7 @@ ftxui::Element DecompositionScreen::OnRender() {
     }
     auto chip_text = tr(chip_key);
     if (scalogram && scalogram->decimation > 1)
-        chip_text += " · " + fmt::format(fmt::runtime(tr("tui.decomposition.chip.decimated")), fmt::arg("m", scalogram->decimation));
+        chip_text += " · " + fmt::format(fmt::runtime(tr("tui.decomposition.chip.decimated")), fmt::arg("m", tr_count("unit.times", static_cast<long long>(scalogram->decimation))));
     const std::vector<Chip> view_chips{{chip_text, false}};
     const bool small = breakpoint_ <= Breakpoint::small || maximized_;
     const int main_width = small ? cols : cols - kRightWidth - 1;

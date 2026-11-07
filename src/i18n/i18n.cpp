@@ -37,6 +37,22 @@ std::string tr(std::string_view key) {
     return std::string{key};
 }
 
+std::string tr_count(std::string_view key, long long n, std::string_view shown) {
+    const auto abs = n < 0 ? -n : n;
+    const char* form = ".many";
+    if (language() == Language::en) {
+        if (abs == 1) form = ".one";
+    } else if (abs % 10 == 1 && abs % 100 != 11) {
+        form = ".one";
+    } else if (abs % 10 >= 2 && abs % 10 <= 4 && (abs % 100 < 12 || abs % 100 > 14)) {
+        form = ".few";
+    }
+    auto text = tr(std::string{key} + form);
+    const auto number = shown.empty() ? std::to_string(n) : std::string{shown};
+    if (const auto at = text.find("{n}"); at != std::string::npos) text.replace(at, 3, number);
+    return text;
+}
+
 void set_language(Language language) { g_language.store(language); }
 
 Language language() { return g_language.load(); }

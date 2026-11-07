@@ -26,6 +26,12 @@
 namespace signals::pipeline {
 namespace {
 
+std::string_view inverse_of(std::string_view transform) {
+    if (transform == "swt") return "iswt";
+    if (transform == "lift53" || transform == "lift53i") return "ilift53";
+    return "idwt";
+}
+
 using Kind = ParamSpec::Kind;
 using Out = core::Result<std::vector<Value>>;
 
@@ -233,7 +239,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    {{"wavelet", Kind::text, "auto"}, {"ext", Kind::choice, "auto", kExtensionsOrAuto}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                        const auto& c = in_coeffs(in);
-                       if (c.transform != "dwt") return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", "iswt")));
+                       if (c.transform != "dwt") return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", inverse_of(c.transform))));
                        const auto& wavelet = param_text(p, "wavelet");
                        const auto& ext = param_text(p, "ext");
                        if (wavelet != "auto" && wavelet != c.wavelet)
@@ -276,7 +282,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                            const auto levels = param_int(p, "levels") > 0 ? static_cast<std::size_t>(param_int(p, "levels")) : core::default_levels(ch.size(), bank->length());
                            if (ch.empty()) return core::make_error(core::Errc::invalid_argument, "swt: empty signal");
                            if (levels >= 63 || (std::size_t{1} << levels) > ch.size())
-                               return core::make_error(core::Errc::level_out_of_range, fmt::format(fmt::runtime(tr("pipeline.error.swt_levels")), fmt::arg("levels", levels), fmt::arg("n", ch.size())));
+                               return core::make_error(core::Errc::level_out_of_range, fmt::format(fmt::runtime(tr("pipeline.error.swt_levels")), fmt::arg("levels", tr_count("unit.level", levels)), fmt::arg("n", tr_count("unit.sample", static_cast<long long>(ch.size())))));
                            const std::size_t block = std::size_t{1} << levels;
                            const auto size = (ch.size() + block - 1) / block * block;
                            if (auto ok = checked_length(size, levels + 1); !ok) return std::unexpected{ok.error()};
@@ -305,7 +311,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        c.transform = integer ? "lift53i" : "lift53";
                        for (const auto& ch : a.channels) {
                            if (ch.size() < (std::size_t{1} << levels))
-                               return core::make_error(core::Errc::level_out_of_range, fmt::format(fmt::runtime(tr("pipeline.error.lift_levels")), fmt::arg("levels", levels), fmt::arg("n", ch.size())));
+                               return core::make_error(core::Errc::level_out_of_range, fmt::format(fmt::runtime(tr("pipeline.error.lift_levels")), fmt::arg("levels", tr_count("unit.level", levels)), fmt::arg("n", tr_count("unit.sample", static_cast<long long>(ch.size())))));
                            core::BasicCoeffs<double> bands;
                            bands.original_length = ch.size();
                            if (integer) {
@@ -364,7 +370,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    {{"wavelet", Kind::text, "auto"}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                        const auto& c = in_coeffs(in);
-                       if (c.transform != "swt") return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", "idwt")));
+                       if (c.transform != "swt") return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", inverse_of(c.transform))));
                        const auto& wavelet = param_text(p, "wavelet");
                        if (wavelet != "auto" && wavelet != c.wavelet)
                            return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.idwt_wavelet")), fmt::arg("coeffs", c.wavelet), fmt::arg("wavelet", wavelet)));
@@ -480,6 +486,8 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        const auto& a = in_audio(in, 0);
                        const auto& b = in_audio(in, 1);
                        if (b.channels.empty()) return core::make_error(core::Errc::invalid_argument, "xcorr: the second input has no channels");
+                       if (a.sample_rate != b.sample_rate)
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.xcorr_rates")), fmt::arg("a", a.sample_rate), fmt::arg("b", b.sample_rate)));
                        const auto& name = param_text(p, "mode");
                        const auto mode = name == "same" ? core::CorrelationMode::same : name == "valid" ? core::CorrelationMode::valid : core::CorrelationMode::full;
                        const bool normalize = param_text(p, "normalize") == "yes";

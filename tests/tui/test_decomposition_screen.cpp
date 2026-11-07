@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <future>
 #include <numbers>
 #include <memory>
 #include <sstream>
@@ -417,7 +418,7 @@ TEST_CASE("the packets chip shows the packet table with the best basis", "[tui][
     CHECK(signals::core::admissible(f.model->basis(), J));
     CHECK(p->best_cost <= p->dwt_cost + 1e-12);
     CHECK(p->best_cost <= p->root_cost + 1e-12);
-    CHECK(f.model->basis_pr_error() < 1e-9);
+    CHECK(f.model->basis_pr_error().value_or(1) < 1e-9);
     const auto frame = f.h.frame();
     CHECK(frame.find("L0") != std::string::npos);
     CHECK(frame.find("L" + std::to_string(J)) != std::string::npos);
@@ -429,23 +430,23 @@ TEST_CASE("make_leaf keeps the basis admissible and B, W restore presets", "[tui
     f.h.frame();
     REQUIRE(f.model->packets());
     const auto J = f.model->options().levels;
-    f.model->make_leaf({1, 0});
+    f.model->make_leaf({1, 0}, f.jobs);
     auto b = f.model->basis();
     CHECK(signals::core::admissible(b, J));
     CHECK(std::ranges::find(b, signals::core::PacketNode{1, 0}) != b.end());
-    CHECK(f.model->basis_pr_error() < 1e-9);
+    CHECK(f.model->basis_pr_error().value_or(1) < 1e-9);
     const signals::core::PacketNode deep{J, (std::size_t{1} << J) - 1};
-    f.model->make_leaf(deep);
+    f.model->make_leaf(deep, f.jobs);
     b = f.model->basis();
     CHECK(signals::core::admissible(b, J));
     CHECK(std::ranges::find(b, deep) != b.end());
     CHECK(std::ranges::find(b, signals::core::PacketNode{1, 0}) != b.end());
     f.h.send(ftxui::Event::Character('W'));
     CHECK(f.model->basis() == signals::core::dwt_basis(J));
-    CHECK(f.model->basis_pr_error() < 1e-9);
+    CHECK(f.model->basis_pr_error().value_or(1) < 1e-9);
     f.h.send(ftxui::Event::Character('B'));
     CHECK(f.model->basis() == f.model->packets()->best);
-    CHECK_FALSE(f.model->set_basis({{1, 0}}));
+    CHECK_FALSE(f.model->set_basis({{1, 0}}, f.jobs));
 }
 
 TEST_CASE("arrows and Enter pick a packet node on the keyboard", "[tui][decomposition][packets]") {
@@ -749,3 +750,46 @@ TEST_CASE("a recomputed decomposition releases the old packet tree", "[tui][deco
     CHECK(coefficients() + tree / 2 < before + tree);
 }
 
+
+TEST_CASE("m7b: a packet click changes the basis at once and checks reconstruction in the background", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    f.click("chip_packets");
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    JobRunner background{[] {}, 0ms};
+    std::promise<void> release;
+    auto gate = release.get_future().share();
+    background.submit("gate", {}, [gate](JobContext&) { gate.wait(); });
+    f.model->make_leaf({1, 0}, background);
+    const auto clicked = f.model->basis();
+    CHECK(std::ranges::find(clicked, signals::core::PacketNode{1, 0}) != clicked.end());
+    CHECK_FALSE(f.model->basis_pr_error());
+    const auto J = f.model->options().levels;
+    CHECK(f.model->set_basis(signals::core::dwt_basis(J), background));
+    release.set_value();
+    for (int k = 0; k < 500 && (!f.model->basis_pr_error() || background.queued() > 0); ++k) std::this_thread::sleep_for(10ms);
+    REQUIRE(f.model->basis_pr_error());
+    CHECK(*f.model->basis_pr_error() < 1e-9);
+    CHECK(f.model->basis() == signals::core::dwt_basis(J));
+}
+
+TEST_CASE("m7b review: a new basis drops the queued check of the previous one", "[tui][decomposition][packets]") {
+    DecompositionFixture f;
+    f.click("chip_packets");
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    JobRunner background{[] {}, 0ms};
+    std::promise<void> release;
+    auto gate = release.get_future().share();
+    background.submit("gate", {}, [gate](JobContext&) { gate.wait(); });
+    for (int k = 0; k < 50 && background.queued() > 0; ++k) std::this_thread::sleep_for(10ms);
+    f.model->make_leaf({1, 0}, background);
+    f.model->make_leaf({2, 3}, background);
+    const auto J = f.model->options().levels;
+    f.model->set_basis(signals::core::dwt_basis(J), background);
+    CHECK(background.queued() == 1);
+    release.set_value();
+    for (int k = 0; k < 500 && (!f.model->basis_pr_error() || background.queued() > 0); ++k) std::this_thread::sleep_for(10ms);
+    REQUIRE(f.model->basis_pr_error());
+    CHECK(*f.model->basis_pr_error() < 1e-9);
+}

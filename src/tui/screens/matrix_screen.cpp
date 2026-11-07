@@ -63,7 +63,7 @@ void MatrixScreen::publish(theory::LiveValues& v) const {
     v.set("block.band_width", std::to_string(d->filter_length));
     v.set("metric.cond", d->cond > 0 ? format_number(d->cond, 3) : std::string{"—"});
     if (d->orth_error) v.set_check({"check.ata_identity", o.wavelet, *d->orth_error, 1e-10});
-    else v.set("check.ata_identity", tr("tui.theory.value.not_square"));
+    else v.set("check.ata_identity", d->square ? std::string{"—"} : tr("tui.theory.value.not_square"));
     if (d->left_inverse_error) v.set_check({"check.sa_identity", o.wavelet, *d->left_inverse_error, 1e-10});
     else v.set("check.sa_identity", "—");
     if (const auto bank = core::wavelet(o.wavelet)) v.set_check(core::check_circulant_fft(bank->h0, o.n, 1e-10));
@@ -274,6 +274,7 @@ ftxui::Element MatrixScreen::main_panel(const MatrixData* d, int width, int heig
     case MatrixOp::synthesis_product: name = "S·A"; break;
     case MatrixOp::toeplitz_hankel: name = "T + H"; break;
     }
+    const auto base_name = name;
     if (d->options.gram) name = d->options.op == MatrixOp::toeplitz_hankel ? "C(T+H)Cᵀ" : "AᵀA";
     if (spectrum_ && !d->singular.empty()) {
         tui::Trace t{};
@@ -293,7 +294,7 @@ ftxui::Element MatrixScreen::main_panel(const MatrixData* d, int width, int heig
         spec.x = {-0.5, static_cast<double>(d->singular.size()) - 0.5};
         spec.y = {lo - 0.2, hi + 0.2};
         spec.traces.push_back(std::move(t));
-        const auto title = fmt::format(fmt::runtime(tr("tui.matrix.spectrum_title")), fmt::arg("name", name), fmt::arg("count", d->singular.size()));
+        const auto title = fmt::format(fmt::runtime(tr("tui.matrix.spectrum_title")), fmt::arg("name", base_name), fmt::arg("count", d->singular.size()));
         return frame_panel(main, vbox({text("log₁₀ σᵢ") | fg(th.dim, ui_), plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | flex}), {}, title);
     }
     auto title = fmt::format(fmt::runtime(tr("tui.matrix.title")), fmt::arg("name", name), fmt::arg("rows", rows), fmt::arg("cols", cols),

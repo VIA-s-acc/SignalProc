@@ -100,6 +100,7 @@ core::Result<ProcessingResult> process_fragment(std::span<const double> clean, s
         info.length = band.size();
         info.coeffs = band;
         for (const double c : band) info.max_abs = std::max(info.max_abs, std::abs(c));
+        const double g = b < o.gains.size() ? o.gains[b] : 1.0;
         if (b == 0) {
             info.kept = band.size();
         } else {
@@ -107,9 +108,9 @@ core::Result<ProcessingResult> process_fragment(std::span<const double> clean, s
             processed.bands[b] = core::threshold(band, info.lambda, o.threshold);
             info.kept = static_cast<std::size_t>(std::ranges::count_if(band, [&](double c) { return std::abs(c) >= info.lambda; }));
         }
+        if (g == 0) info.kept = 0;
         r.kept += info.kept;
         r.total += band.size();
-        const double g = b < o.gains.size() ? o.gains[b] : 1.0;
         if (g != 1.0)
             for (double& c : processed.bands[b]) c *= g;
         r.bands.push_back(std::move(info));
@@ -127,6 +128,7 @@ core::Result<ProcessingResult> process_fragment(std::span<const double> clean, s
     r.mse = mse / static_cast<double>(n);
     const double noisy_energy = energy(r.noisy);
     r.energy_pct = noisy_energy > 0 ? 100 * energy(r.out) / noisy_energy : 100.0;
+    r.energy_removed_pct = std::clamp(100 - r.energy_pct, 0.0, 100.0);
     r.err_db = error_db(r.noisy, r.out);
     std::vector<double> flat;
     for (const auto& band : coeffs->bands) flat.insert(flat.end(), band.begin(), band.end());

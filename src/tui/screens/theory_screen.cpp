@@ -459,7 +459,7 @@ ftxui::Element TheoryScreen::contents_panel(std::size_t current, int width, int 
     } else {
         rows.push_back(text(tr("tui.theory.references")) | fg(th.accent, ui_) | reflect(references_box_));
     }
-    const auto title = mode_ == Mode::tutorial ? fmt::format(fmt::runtime(tr("tui.theory.contents")), fmt::arg("count", total))
+    const auto title = mode_ == Mode::tutorial ? fmt::format(fmt::runtime(tr("tui.theory.contents")), fmt::arg("count", tr_count("unit.section", static_cast<long long>(total))))
                                                : tr("tui.theory.contents_short");
     return panel(title, {}, vbox(std::move(rows)), searching_ || contents_keys(), ui_);
 }

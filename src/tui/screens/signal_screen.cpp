@@ -174,7 +174,7 @@ ftxui::Element SignalScreen::source_panel(const SignalData* d) {
     Elements rows{text(d->path.filename().string()) | bold | fg(th.fg, ui_), kv(tr("tui.signal.format"), format_text(d->info)),
                   kv(tr("tui.signal.channels"), n == 2 ? "2 (L, R)" : std::to_string(n)),
                   kv(tr("tui.signal.rate"), group(d->info.sample_rate) + " " + tr("unit.hz")),
-                  kv(tr("tui.signal.length"), fmt::format(fmt::runtime(tr("tui.signal.frames")), fmt::arg("count", group(d->info.frames)),
+                  kv(tr("tui.signal.length"), fmt::format(fmt::runtime(tr("tui.signal.frames")), fmt::arg("count", tr_count("unit.frame", static_cast<long long>(d->info.frames), group(d->info.frames))),
                                                           fmt::arg("time", format_fixed(d->duration(), 2) + " " + tr("unit.s")))),
                   kv(tr("tui.signal.peak"), per_channel([](const io::ChannelStats& s) { return format_fixed(s.peak_dbfs, 1); })),
                   kv(tr("tui.signal.rms"), per_channel([](const io::ChannelStats& s) { return format_fixed(s.rms_dbfs, 1); }))};

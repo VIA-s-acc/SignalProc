@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <cmath>
 #include <memory>
 #include <numbers>
@@ -295,7 +296,7 @@ TEST_CASE("a classical IIR filter shows its poles and o, f retune it", "[tui][fi
     h.frame();
     auto frame = h.frame();
     CHECK(frame.find("Баттерворт ФНЧ 4") != std::string::npos);
-    CHECK(frame.find("БИХ: 4 полюсов") != std::string::npos);
+    CHECK(frame.find("БИХ: 4 полюса, 2 биквада") != std::string::npos);
     h.send(ftxui::Event::Character('o'));
     h.frame();
     CHECK(f.set->entries()[0].ref.label() == "Баттерворт ФНЧ 5 · 0,25π");
@@ -450,13 +451,21 @@ TEST_CASE("c types a custom filter, adds it and saves a named one", "[tui][filte
     CHECK(std::filesystem::exists(dir));
     auto frame = h.frame();
     CHECK(frame.find("Свойства · треуг") != std::string::npos);
+    CHECK(frame.find("сохранён как «треуг»") != std::string::npos);
+    h.send(ftxui::Event::Character('c'));
+    h.send(ftxui::Event::Character("треуг = 0.5 0.5"));
+    h.send(ftxui::Event::Return);
+    REQUIRE(user_filters().size() == 2);
+    CHECK(h.frame().find("сохранён как «треуг-2»") != std::string::npos);
+    REQUIRE(f.set->entries().size() == 2);
+    f.set->remove(1);
     CHECK(frame.find("ортогональный") == std::string::npos);
     h.send(ftxui::Event::Character('c'));
     h.send(ftxui::Event::Character("z: -1 -1"));
     h.send(ftxui::Event::Return);
     REQUIRE(f.set->entries().size() == 2);
     CHECK(f.set->entries()[1].ref.label() == "свой фильтр, 3 отсч.");
-    CHECK(user_filters().size() == 1);
+    CHECK(user_filters().size() == 2);
     set_user_filters({});
     std::filesystem::remove_all(dir);
 }
@@ -482,4 +491,23 @@ TEST_CASE("m6h review: a custom filter in focus keeps the wavelet groups, and c 
     CHECK(h.frame().find("свой фильтр: abc") != std::string::npos);
     h.send(ftxui::Event::Return);
     CHECK(h.frame().find("Не число") != std::string::npos);
+}
+
+TEST_CASE("m7b review: a failed save is reported even when the comparison is full", "[tui][filters][custom]") {
+    Fixture f;
+    const auto blocker = std::filesystem::temp_directory_path() / "signals-custom-blocker";
+    std::filesystem::remove_all(blocker);
+    { std::ofstream{blocker} << "not a directory"; }
+    f.ui->user_filters = blocker / "filters";
+    set_user_filters({});
+    for (const char* w : {"db2", "db4", "haar", "sym4", "coif1"}) REQUIRE(f.set->add({Kind::bank, w, FilterRole::h0}));
+    Harness h{f.screen, 150, 44};
+    h.frame();
+    h.send(ftxui::Event::Character('c'));
+    h.send(ftxui::Event::Character("тест = 0.5 0.5"));
+    h.send(ftxui::Event::Return);
+    CHECK(h.frame().find("Ошибка: не удалось") != std::string::npos);
+    CHECK(f.set->entries().size() == 5);
+    set_user_filters({});
+    std::filesystem::remove_all(blocker);
 }

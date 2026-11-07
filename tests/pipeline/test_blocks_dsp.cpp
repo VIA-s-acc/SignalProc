@@ -6,11 +6,13 @@
 #include <fstream>
 #include <variant>
 #include <sstream>
+#include <tuple>
 #include <vector>
 
 #include <nlohmann/json.hpp>
 
 #include "core/analysis.hpp"
+#include "i18n/i18n.hpp"
 #include "core/check.hpp"
 #include "core/conv.hpp"
 #include "core/design/families.hpp"
@@ -419,4 +421,52 @@ TEST_CASE("m6g review: the cepstrum of silence is zero and gen scales the test s
     const auto y = audio(run("gen", {}, {{"kind", "bumps"}, {"rate", "1024"}, {"duration", "1"}, {"amplitude", "0.1"}})[0]);
     const auto ref = io::donoho_johnstone(io::DonohoJohnstone::bumps, 1024);
     for (std::size_t n = 0; n < ref.size(); n += 97) CHECK(y.channels[0][n] == 0.1 * ref[n]);
+}
+
+TEST_CASE("m7b: idwt and iswt name the inverse that fits the coefficients", "[pipeline][lifting]") {
+    const auto x = test_wav();
+    const std::vector<std::tuple<const char*, const char*, const char*>> cases{
+        {"lift53", "idwt", "ilift53"}, {"lift53", "iswt", "ilift53"}, {"swt", "idwt", "iswt"}, {"dwt", "iswt", "idwt"}};
+    for (const auto& [forward, inverse, expected] : cases) {
+        INFO(forward << " → " << inverse);
+        const auto c = run(forward, {x}, {{"levels", "3"}});
+        const auto* block = find_block_type(inverse);
+        const auto r = block->run(RunContext{}, c, *resolve_params(*block, {}));
+        REQUIRE_FALSE(r);
+        CHECK(r.error().message.find(std::string{"нужен "} + expected) != std::string::npos);
+    }
+}
+
+TEST_CASE("m7b: xcorr refuses inputs with different sample rates", "[pipeline]") {
+    core::AudioBuffer a, b;
+    a.sample_rate = 8000;
+    b.sample_rate = 16000;
+    a.channels.push_back(std::vector<double>(64, 0.5));
+    b.channels.push_back(std::vector<double>(64, 0.5));
+    const auto* block = find_block_type("xcorr");
+    const std::vector<Value> in{a, b};
+    const auto r = block->run(RunContext{}, in, *resolve_params(*block, {}));
+    REQUIRE_FALSE(r);
+    CHECK(r.error().message.find("8000") != std::string::npos);
+}
+
+TEST_CASE("m7b review: swt and lift53 level errors name each unit once", "[pipeline][review]") {
+    const auto x = test_wav();
+    for (const auto language : {signals::Language::ru, signals::Language::en}) {
+        const signals::LanguageScope scope{language};
+        const bool ru = language == signals::Language::ru;
+        for (const char* name : {"swt", "lift53"}) {
+            const auto* block = find_block_type(name);
+            const auto params = resolve_params(*block, {{"levels", "30"}});
+            REQUIRE(params);
+            const std::vector<Value> in{x};
+            const auto r = block->run(RunContext{}, in, *params);
+            REQUIRE_FALSE(r);
+            const auto& m = r.error().message;
+            INFO(m);
+            CHECK(m.find(ru ? "30 уровней" : "30 levels") != std::string::npos);
+            CHECK(m.find(ru ? "отсчётов" : "samples") != std::string::npos);
+            CHECK(m.find(ru ? "уровней 30" : "levels levels") == std::string::npos);
+        }
+    }
 }

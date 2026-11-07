@@ -55,7 +55,7 @@ TEST_CASE("the resampling view folds a tone and reports where it lands", "[tui][
     frame = h.frame();
     CHECK(f.screen->options().filter == AntiAlias::bypass);
     CHECK(frame.find("складывается на 5") != std::string::npos);
-    CHECK(frame.find("4 копий") != std::string::npos);
+    CHECK(frame.find("4 копии") != std::string::npos);
     h.send(ftxui::Event::Character('m'));
     frame = h.frame();
     CHECK(f.screen->options().mode == ResampleMode::up);
@@ -147,4 +147,41 @@ TEST_CASE("m6i review: the tone readout follows the filter's real response", "[t
     h.send(ftxui::Event::Character('m'));
     frame = h.frame();
     CHECK(frame.find(tr("tui.resample.time")) != std::string::npos);
+}
+
+TEST_CASE("m7b: upsampling without the filter speaks of images and F1 follows the larger factor", "[tui][resample]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    h.frame();
+    h.send(ftxui::Event::Character('m'));
+    REQUIRE(f.screen->options().mode == ResampleMode::up);
+    h.send(ftxui::Event::Character('a'));
+    h.frame();
+    const auto frame = h.frame();
+    CHECK(frame.find("копии накладываются") == std::string::npos);
+    CHECK(frame.find("изображения") != std::string::npos);
+    CHECK(f.screen->theory_link()->id == "upsample");
+    h.send(ftxui::Event::Character('m'));
+    REQUIRE(f.screen->options().mode == ResampleMode::rational);
+    for (int k = 0; k < 8 && f.screen->options().l <= f.screen->options().m; ++k) h.send(ftxui::Event::Character('>'));
+    REQUIRE(f.screen->options().l > f.screen->options().m);
+    CHECK(f.screen->theory_link()->id == "upsample");
+}
+
+TEST_CASE("m7b review: rational L/1 without the filter speaks of images", "[tui][resample]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    h.frame();
+    h.send(ftxui::Event::Character('m'));
+    h.send(ftxui::Event::Character('m'));
+    REQUIRE(f.screen->options().mode == ResampleMode::rational);
+    for (int k = 0; k < 8 && f.screen->options().m > 1; ++k) h.send(ftxui::Event::Character('-'));
+    REQUIRE(f.screen->options().m == 1);
+    for (int k = 0; k < 8 && f.screen->options().l < 2; ++k) h.send(ftxui::Event::Character('>'));
+    REQUIRE(f.screen->options().l > 1);
+    h.send(ftxui::Event::Character('a'));
+    h.frame();
+    const auto frame = h.frame();
+    CHECK(frame.find("копии накладываются") == std::string::npos);
+    CHECK(frame.find("изображения") != std::string::npos);
 }

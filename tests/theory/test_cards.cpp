@@ -80,3 +80,12 @@ TEST_CASE("English cards match the Russian ones and pass the linter", "[theory][
     for (const auto& i : issues) UNSCOPED_INFO(i.card << ": " << i.message);
     CHECK(issues.empty());
 }
+
+TEST_CASE("m7b: cards may link to every view the shell routes", "[theory][cards]") {
+    const auto views = signals::theory::known_views();
+    for (const char* v : {"signal", "spectrum", "resample", "filters", "designer", "diagram", "decomposition", "processing", "matrix", "explain",
+                          "under_the_hood", "tutorial"}) {
+        INFO(v);
+        CHECK(std::find(views.begin(), views.end(), std::string_view{v}) != views.end());
+    }
+}

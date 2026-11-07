@@ -28,6 +28,18 @@
 namespace signals::tui {
 namespace {
 
+std::vector<std::string> split_lines(const std::string& text) {
+    std::vector<std::string> out;
+    if (text.empty()) return out;
+    std::size_t at = 0;
+    for (auto next = text.find('\n'); next != std::string::npos; next = text.find('\n', at)) {
+        out.push_back(text.substr(at, next - at));
+        at = next + 1;
+    }
+    out.push_back(text.substr(at));
+    return out;
+}
+
 constexpr double kPi = std::numbers::pi;
 constexpr double kMinSpan = 16.0 / FiltersScreen::kPoints;
 constexpr double kLogFloor = 1e-3;
@@ -439,7 +451,8 @@ ftxui::Element FiltersScreen::library_panel(int width) {
         for (const auto& c : n.children) count(c);
     };
     count(library_);
-    if (!custom_ && !notice_.empty() && breakpoint_ <= Breakpoint::small) rows.push_back(text(notice_) | fg(th.warn, ui_));
+    if (!custom_ && !notice_.empty() && breakpoint_ <= Breakpoint::small)
+        for (const auto& line : split_lines(notice_)) rows.push_back(text(line) | fg(th.warn, ui_));
     if (custom_) {
         rows.push_back(hbox({text(tr("tui.filters.custom.prompt") + " " + query_) | fg(th.fg, ui_),
                              text(ui_.caps.glyphs == GlyphMode::ascii ? "_" : "▏") | fg(th.accent, ui_)}));
@@ -533,7 +546,7 @@ ftxui::Element FiltersScreen::comparison_panel(int width) {
         rows.push_back(hbox(std::move(line)) | reflect(row_boxes_[i]));
     }
     if (entries_.empty()) rows.push_back(text(tr("tui.filters.empty_set")) | fg(th.dim, ui_));
-    if (!notice_.empty()) rows.push_back(text(notice_) | fg(th.warn, ui_));
+    for (const auto& line : split_lines(notice_)) rows.push_back(text(line) | fg(th.warn, ui_));
     rows.push_back(filler());
     
     return frame_panel(comparison, vbox(std::move(rows)), {},
@@ -773,7 +786,7 @@ ftxui::Element FiltersScreen::properties_panel() {
     auto mark = [&](bool ok) { return text(" " + std::string{glyph(ok ? Glyph::check : Glyph::cross, g)}) | fg(ok ? th.ok : th.err, ui_); };
     Elements rows;
     if (a.zpk) {
-        rows.push_back(hbox({text(fmt::format(fmt::runtime(tr("tui.filters.prop.iir")), fmt::arg("poles", a.zpk->p.size()), fmt::arg("sections", (a.zpk->p.size() + 1) / 2))) |
+        rows.push_back(hbox({text(fmt::format(fmt::runtime(tr("tui.filters.prop.iir")), fmt::arg("poles", tr_count("unit.pole", static_cast<long long>(a.zpk->p.size()))), fmt::arg("sections", tr_count("unit.biquad", static_cast<long long>((a.zpk->p.size() + 1) / 2))))) |
                                  fg(th.fg, ui_),
                              text(" · " + tr(a.stable.value_or(false) ? "tui.filters.stable" : "tui.filters.unstable")) | fg(th.fg, ui_), mark(a.stable.value_or(false))}));
     } else {
@@ -1151,18 +1164,24 @@ bool FiltersScreen::on_custom(ftxui::Event e) {
             notice_ = parsed.error().message;
             return true;
         }
+        std::string saved_notice;
+        bool save_failed = false;
         if (!parsed->name.empty()) {
             UserFilter f{parsed->name, parsed->h, ""};
             const auto dir = ui_.user_filters.empty() ? user_filters_dir(process_env()) : ui_.user_filters;
             if (auto saved = save_user_filter(dir, f); !saved) {
-                notice_ = error_text(saved.error());
+                saved_notice = error_text(saved.error());
+                save_failed = true;
             } else {
                 set_user_filters(load_user_banks(dir).filters);
                 library_wavelet_.clear();
+                saved_notice = fmt::format(fmt::runtime(tr("tui.filters.custom.saved")), fmt::arg("name", f.name), fmt::arg("file", saved->filename().string()));
             }
             parsed->name = f.name;
         }
         add(custom_ref(parsed->h, parsed->name));
+        if (notice_.empty()) notice_ = std::move(saved_notice);
+        else if (save_failed) notice_ = saved_notice + "\n" + notice_;
         return true;
     }
     if (e.is_character()) query_ += e.character();

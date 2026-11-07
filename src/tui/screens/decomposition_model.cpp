@@ -568,6 +568,7 @@ void DecompositionModel::request_packets(JobRunner& jobs) {
         packets_ = std::move(p);
         basis_ = packets_->best;
         basis_pr_ = pr;
+        ++basis_gen_;
         packets_job_.reset();
         packets_done_ = gen;
     });
@@ -590,19 +591,36 @@ std::vector<core::PacketNode> DecompositionModel::basis() const {
     return basis_;
 }
 
-bool DecompositionModel::set_basis(std::vector<core::PacketNode> b) {
+bool DecompositionModel::set_basis(std::vector<core::PacketNode> b, JobRunner& jobs) {
     const auto p = packets();
     const auto d = data();
     if (!p || !d || !core::admissible(b, p->tree.levels())) return false;
     core::sort_by_frequency(b);
-    const double pr = reconstruction_error(*p, b, *d);
+    std::uint64_t gen = 0;
+    {
+        std::lock_guard lock{mutex_};
+        basis_ = b;
+        basis_pr_.reset();
+        gen = ++basis_gen_;
+        if (basis_job_) jobs.cancel(*basis_job_);
+        basis_job_.reset();
+    }
+    const auto id = jobs.submit(tr("tui.decomposition.job_basis"), {tr("tui.decomposition.stage.basis")}, [this, p, d, b = std::move(b), gen](JobContext& ctx) {
+        ctx.begin(0);
+        const double pr = reconstruction_error(*p, b, *d);
+        ctx.finish();
+        std::lock_guard lock{mutex_};
+        if (gen != basis_gen_) return;
+        basis_pr_ = pr;
+        basis_job_.reset();
+        basis_done_ = gen;
+    });
     std::lock_guard lock{mutex_};
-    basis_ = std::move(b);
-    basis_pr_ = pr;
+    if (basis_done_ != gen && basis_gen_ == gen) basis_job_ = id;
     return true;
 }
 
-void DecompositionModel::make_leaf(core::PacketNode n) {
+void DecompositionModel::make_leaf(core::PacketNode n, JobRunner& jobs) {
     const auto p = packets();
     if (!p || n.level > p->tree.levels() || n.index >= (std::size_t{1} << n.level)) return;
     auto b = basis();
@@ -615,7 +633,7 @@ void DecompositionModel::make_leaf(core::PacketNode n) {
     b.push_back(n);
     if (ancestor)
         for (std::size_t l = ancestor->level + 1; l <= n.level; ++l) b.push_back({l, (n.index >> (n.level - l)) ^ 1U});
-    set_basis(std::move(b));
+    set_basis(std::move(b), jobs);
 }
 
 double DecompositionModel::basis_cost() const {
@@ -626,7 +644,7 @@ double DecompositionModel::basis_cost() const {
     return total;
 }
 
-double DecompositionModel::basis_pr_error() const {
+std::optional<double> DecompositionModel::basis_pr_error() const {
     std::lock_guard lock{mutex_};
     return basis_pr_;
 }
