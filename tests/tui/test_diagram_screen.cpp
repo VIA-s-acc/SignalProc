@@ -226,3 +226,23 @@ TEST_CASE("the probe plots zoom with the wheel and reset with 0", "[tui][diagram
         h.send(ftxui::Event::Character('v'));
     }
 }
+
+TEST_CASE("the numbers view scrolls through every value of a long probe", "[tui][diagram][scroll]") {
+    Fixture f;
+    Harness h{f.screen, 150, 44};
+    h.frame();
+    for (int k = 0; k < 8 && f.screen->length() < 4096; ++k) h.send(ftxui::Event::Character('+'));
+    REQUIRE(f.screen->length() == 4096);
+    h.send(ftxui::Event::Character('v'));
+    h.send(ftxui::Event::Character('v'));
+    REQUIRE(f.screen->probe_view() == DiagramScreen::ProbeView::numbers);
+    auto frame = h.frame();
+    CHECK(frame.find("▼ ещё") != std::string::npos);
+    const auto box = f.screen->area("probe_panel");
+    for (int k = 0; k < 4; ++k) h.wheel((box.x_min + box.x_max) / 2, (box.y_min + box.y_max) / 2, false);
+    frame = h.frame();
+    CHECK(frame.find("▲ ещё") != std::string::npos);
+    h.send(ftxui::Event::End);
+    frame = h.frame();
+    CHECK(frame.find("▼ ещё") == std::string::npos);
+}

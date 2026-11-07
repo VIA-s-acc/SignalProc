@@ -5,6 +5,7 @@
 #include <cmath>
 #include <complex>
 #include <map>
+#include <limits>
 #include <numbers>
 
 #include <fmt/format.h>
@@ -252,16 +253,13 @@ ftxui::Element DiagramScreen::probe_panel(int width, int height) {
         constexpr int kCell = 20;
         const int per_row = std::max(1, (width - 4) / kCell);
         const int lines = std::max(1, height - 3);
-        const auto shown = std::min(v.size(), static_cast<std::size_t>(per_row * lines) - (v.size() > static_cast<std::size_t>(per_row * lines) ? 1 : 0));
         Elements rows, row;
-        for (std::size_t k = 0; k < shown; ++k) {
+        for (std::size_t k = 0; k < v.size(); ++k) {
             row.push_back(text(pad_right(wire_label(probe_) + "[" + std::to_string(k) + "] " + format_fixed(v[k], 4), kCell)) | fg(th.fg, ui_));
             if (row.size() == static_cast<std::size_t>(per_row)) rows.push_back(hbox(std::exchange(row, {})));
         }
         if (!row.empty()) rows.push_back(hbox(std::move(row)));
-        if (shown < v.size())
-            rows.push_back(text(fmt::format(fmt::runtime(tr("tui.diagram.more")), fmt::arg("count", v.size() - shown))) | fg(th.dim, ui_));
-        body = vbox(std::move(rows));
+        body = scrolled(std::move(rows), numbers_scroll_, lines, std::nullopt, ui_);
     } else if (view_ == ProbeView::spectrum) {
         constexpr std::size_t kBins = 256;
         constexpr double pi = std::numbers::pi;
@@ -341,6 +339,7 @@ bool DiagramScreen::OnEvent(ftxui::Event e) {
     using ftxui::Mouse;
     if (e.is_mouse()) {
         const auto& m = e.mouse();
+        if (view_ == ProbeView::numbers && wheel_scroll(m, panel_boxes_[probe_panel_id], numbers_scroll_)) return true;
         if (zoom_.on_mouse(m)) return true;
         if (m.button == Mouse::Left && m.motion == Mouse::Pressed)
             for (int p = 0; p < panel_count; ++p)
@@ -400,6 +399,13 @@ bool DiagramScreen::OnEvent(ftxui::Event e) {
     }
     if (e == Event::Character('-')) {
         length_ = length_ ? length_ - 1 : 0;
+        return true;
+    }
+    if (view_ == ProbeView::numbers && (e == Event::PageDown || e == Event::PageUp || e == Event::Home || e == Event::End)) {
+        auto& first = numbers_scroll_.first;
+        if (e == Event::Home) first = 0;
+        else if (e == Event::End) first = std::numeric_limits<std::size_t>::max() / 2;
+        else first = e == Event::PageDown ? first + 5 : first > 5 ? first - 5 : 0;
         return true;
     }
     if (e == Event::Character('v')) {

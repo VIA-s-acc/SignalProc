@@ -18,6 +18,7 @@
 #include "tui/shell/layout.hpp"
 #include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/scroll.hpp"
 #include "tui/widgets/bank_diagram.hpp"
 
 namespace signals::tui {
@@ -80,6 +81,7 @@ private:
     PanelLayout layout_;
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     PlotZoom zoom_;
+    Scroll numbers_scroll_;
     std::string probe_ = "a", hover_, bank_name_, notice_, key_;
     std::shared_ptr<const DiagramResult> result_;
     std::shared_ptr<const DesignerResult> source_bank_;
