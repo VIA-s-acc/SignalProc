@@ -70,6 +70,9 @@ public:
     std::optional<std::string> error() const;
     std::optional<std::uint64_t> job() const;
     void cancel(JobRunner& jobs);
+    bool cancelled() const;
+    void recompute(JobRunner& jobs);
+    void clear_selection(JobRunner& jobs);
     std::shared_ptr<const SignalData> source() const { return source_->data(); }
 
 private:
@@ -87,6 +90,7 @@ private:
     std::optional<std::string> error_;
     std::optional<std::uint64_t> job_, selection_job_;
     std::uint64_t gen_ = 0, done_ = 0, selection_gen_ = 0, selection_done_ = 0;
+    bool cancelled_ = false;
 };
 
 }  // namespace signals::tui

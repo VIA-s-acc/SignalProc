@@ -53,6 +53,7 @@ struct TransferCurves {
 struct ProcessingResult {
     ProcessingOptions options;
     double fs = 0;
+    std::size_t start = 0;
     std::vector<double> clean, noisy, out, residual;
     std::vector<BandResult> bands;
     double sigma = 0, snr_in = 0, snr_out = 0, mse = 0, energy_pct = 0, err_db = 0;
@@ -81,6 +82,8 @@ public:
     std::optional<std::string> error() const;
     std::optional<std::uint64_t> job() const;
     void cancel(JobRunner& jobs);
+    bool cancelled() const;
+    void recompute(JobRunner& jobs);
     std::shared_ptr<const SignalData> source() const { return source_->data(); }
     enum class Clip { noisy, out, residual };
     std::optional<audio::Clip> clip(Clip kind) const;
@@ -98,6 +101,8 @@ private:
     std::optional<std::string> error_;
     std::optional<std::uint64_t> job_;
     std::uint64_t gen_ = 0, done_ = 0;
+    bool cancelled_ = false;
+    std::optional<std::pair<double, double>> selection_seen_;
 };
 
 }  // namespace signals::tui

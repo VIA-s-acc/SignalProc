@@ -742,8 +742,11 @@ ftxui::Element DecompositionScreen::denoise_panel(const DecompositionData& d, co
         hbox({key_label(" Enter ", ui_), text(" " + tr("tui.decomposition.apply") + "  ") | fg(th.dim, ui_), key_label(" u ", ui_),
               text(" " + tr("tui.decomposition.hint.undo")) | fg(th.dim, ui_)})};
     ftxui::Box* link = nullptr;
-    clickables_.push_back({"processing_link", kNoBox, [this] {
-                               if (ui_.navigate) ui_.navigate("tab:7", {});
+    clickables_.push_back({"processing_link", kNoBox, [this, wavelet = d.options.wavelet, levels = d.options.levels] {
+                               NavArgs args;
+                               args.wavelet = wavelet;
+                               args.n = levels;
+                               if (ui_.navigate) ui_.navigate("tab:7", args);
                            }});
     link = &clickables_.back().box;
     return frame_panel(denoise, vbox(std::move(rows)), {{tr("tui.decomposition.processing_link"), false, link}}, tr("tui.decomposition.denoise"));

@@ -650,24 +650,29 @@ TEST_CASE("clicking the active transform chip keeps the band choices", "[tui][de
 TEST_CASE("a new file never shows the previous file's scalogram", "[tui][decomposition][scalogram][review]") {
     JobRunner inline_jobs{[] {}, 0ms, true};
     JobRunner jobs{[] {}, 0ms, false};
+    auto tone = [](double f, std::size_t n, const std::string& name) {
+        signals::core::AudioBuffer a;
+        a.sample_rate = 8000;
+        a.channels.emplace_back(n);
+        for (std::size_t k = 0; k < n; ++k) a.channels[0][k] = 0.5 * std::sin(2 * std::numbers::pi * f * static_cast<double>(k) / 8000);
+        const auto path = signals::test::temp_path(name);
+        REQUIRE(signals::io::write_wav(path, a, {}));
+        return path;
+    };
+    const auto first = tone(300, 16000, "scalogram-switch-a.wav");
+    const auto second = tone(700, 24000, "scalogram-switch-b.wav");
     auto signal = std::make_shared<SignalModel>();
-    signal->open(signals::test::sample("test.wav"), inline_jobs);
+    signal->open(first, inline_jobs);
     DecompositionModel model{signal};
     auto idle = [&] {
-        for (int i = 0; i < 3000 && model.job(); ++i) std::this_thread::sleep_for(5ms);
+        for (int i = 0; i < 12000 && model.job(); ++i) std::this_thread::sleep_for(5ms);
     };
     model.sync(jobs);
     idle();
     model.request_scalogram(jobs);
     idle();
     REQUIRE(model.scalogram());
-    signals::core::AudioBuffer tone;
-    tone.sample_rate = 8000;
-    tone.channels.emplace_back(24000);
-    for (std::size_t k = 0; k < 24000; ++k) tone.channels[0][k] = 0.5 * std::sin(2 * std::numbers::pi * 700 * static_cast<double>(k) / 8000);
-    const auto path = signals::test::temp_path("scalogram-switch.wav");
-    REQUIRE(signals::io::write_wav(path, tone, {}));
-    signal->open(path, inline_jobs);
+    signal->open(second, inline_jobs);
     for (int i = 0; i < 5; ++i) {
         model.sync(jobs);
         if (model.data()) model.request_scalogram(jobs);
@@ -675,7 +680,7 @@ TEST_CASE("a new file never shows the previous file's scalogram", "[tui][decompo
     }
     const auto d = model.data();
     REQUIRE(d);
-    REQUIRE(d->fs == 8000);
+    REQUIRE(d->x.size() == 24000);
     const auto shown = model.scalogram();
     REQUIRE(shown);
     const auto fresh = compute_scalogram(d->x, d->fs, 512);

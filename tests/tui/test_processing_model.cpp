@@ -5,6 +5,7 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <thread>
 
 #include "support/golden.hpp"
 #include "support/paths.hpp"
@@ -101,4 +102,23 @@ TEST_CASE("the model takes a fragment of the open file and adds seeded noise", "
     CHECK(s->options.rule == signals::core::ShrinkRule::sure);
     CHECK(s->clean == r->clean);
     CHECK(s->noisy == r->noisy);
+}
+
+TEST_CASE("a cancelled processing job can be run again", "[tui][processing][review]") {
+    JobRunner inline_jobs{[] {}, 0ms, true};
+    JobRunner jobs{[] {}, 0ms, false};
+    auto signal = std::make_shared<SignalModel>();
+    signal->open(signals::test::sample("test.wav"), inline_jobs);
+    ProcessingModel model{signal};
+    model.sync(jobs);
+    const bool pending = model.job().has_value();
+    model.cancel(jobs);
+    if (pending) CHECK(model.cancelled());
+    model.recompute(jobs);
+    for (int i = 0; i < 4000 && (model.job() || !model.result()); ++i) {
+        model.sync(jobs);
+        std::this_thread::sleep_for(5ms);
+    }
+    CHECK(model.result());
+    CHECK_FALSE(model.cancelled());
 }

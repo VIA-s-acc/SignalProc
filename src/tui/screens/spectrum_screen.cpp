@@ -152,6 +152,8 @@ ftxui::Element SpectrumScreen::clickable(std::string id, ftxui::Element e, std::
     return std::move(e) | ftxui::reflect(clickables_.back().box);
 }
 
+bool SpectrumScreen::log_view() const { return log_ && nyquist() > 2 * kFmin; }
+
 double SpectrumScreen::nyquist() const {
     const auto s = model_->source();
     return s ? s->info.sample_rate / 2.0 : 22050;
@@ -237,7 +239,7 @@ double SpectrumScreen::freq_at(int y) const {
     const int height = std::max(1, plot_box_.y_max - plot_box_.y_min + 1);
     const double u = std::clamp(1.0 - (static_cast<double>(y - plot_box_.y_min) + 0.5) / height, 0.0, 1.0);
     const double nyq = nyquist();
-    return log_ ? kFmin * std::pow(nyq / kFmin, u) : nyq * u;
+    return log_view() ? kFmin * std::pow(nyq / kFmin, u) : nyq * u;
 }
 
 ftxui::Element SpectrumScreen::spectrogram_body(const SpectrogramData& s, const SelectionSpectrum* sel, int width, int height) {
@@ -248,7 +250,7 @@ ftxui::Element SpectrumScreen::spectrogram_body(const SpectrogramData& s, const 
     GridSpec g;
     g.rows = static_cast<std::size_t>(2 * H);
     g.cols = static_cast<std::size_t>(plot_width);
-    g.log = log_;
+    g.log = log_view();
     g.fmin = kFmin;
     g.floor_db = floor_db_;
     g.t0 = begin_;
@@ -261,8 +263,8 @@ ftxui::Element SpectrumScreen::spectrogram_body(const SpectrogramData& s, const 
     auto grid = grid_;
     const double nyq = s.fs / 2;
     auto row_of = [&](double f) -> std::optional<int> {
-        if (f <= 0 || f > nyq || (log_ && f < kFmin)) return std::nullopt;
-        const double u = log_ ? std::log(f / kFmin) / std::log(nyq / kFmin) : f / nyq;
+        if (f <= 0 || f > nyq || (log_view() && f < kFmin)) return std::nullopt;
+        const double u = log_view() ? std::log(f / kFmin) / std::log(nyq / kFmin) : f / nyq;
         return std::clamp(static_cast<int>(std::floor((1 - u) * H)), 0, H - 1);
     };
     auto col_of = [&](double t) -> std::optional<int> {
@@ -308,7 +310,7 @@ ftxui::Element SpectrumScreen::spectrogram_body(const SpectrogramData& s, const 
     };
     if (measure_) {
         const auto x0 = col_of(std::clamp(measure_->t0, begin_, end_)), x1 = col_of(std::clamp(measure_->t1, begin_, end_));
-        const auto y0 = row_of(std::clamp(measure_->f1, log_ ? kFmin : 1e-9, nyq)), y1 = row_of(std::clamp(measure_->f0, log_ ? kFmin : 1e-9, nyq));
+        const auto y0 = row_of(std::clamp(measure_->f1, log_view() ? kFmin : 1e-9, nyq)), y1 = row_of(std::clamp(measure_->f0, log_view() ? kFmin : 1e-9, nyq));
         if (x0 && x1 && y0 && y1) outline(*x0, *y0, *x1, *y1, th.fg);
     }
     if (cursor_) {
@@ -316,7 +318,7 @@ ftxui::Element SpectrumScreen::spectrogram_body(const SpectrogramData& s, const 
         const double dt = static_cast<double>(s.options.n) / s.fs, df = s.fs / static_cast<double>(s.options.n);
         const auto x = col_of(t), y = row_of(f);
         const auto xa = col_of(std::max(begin_, t - dt / 2)), xb = col_of(std::min(end_, t + dt / 2));
-        const auto ya = row_of(std::min(nyq, f + df / 2)), yb = row_of(std::max(log_ ? kFmin : 1e-9, f - df / 2));
+        const auto ya = row_of(std::min(nyq, f + df / 2)), yb = row_of(std::max(log_view() ? kFmin : 1e-9, f - df / 2));
         if (xa && xb && ya && yb && *xb - *xa >= 2 && *yb - *ya >= 2) outline(*xa, *ya, *xb, *yb, th.fg);
         if (x && y) put(*x, *y, ascii ? "+" : "┼", th.fg);
     }
@@ -324,7 +326,7 @@ ftxui::Element SpectrumScreen::spectrogram_body(const SpectrogramData& s, const 
     std::vector<bool> used(static_cast<std::size_t>(H), false);
     const std::vector<double> log_marks{20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50};
     std::vector<double> ticks;
-    if (log_) ticks = log_marks;
+    if (log_view()) ticks = log_marks;
     else
         for (const auto& t : nice_ticks(0, nyq, std::max(2, H / 3))) ticks.push_back(t.value);
     for (const double f : ticks)
@@ -344,14 +346,14 @@ ftxui::Element SpectrumScreen::spectrum_body(const SelectionSpectrum& sel, int w
     const auto& th = ui_.theme;
     PlotSpec spec;
     const double nyq = nyquist();
-    spec.x = log_ ? Axis{20, nyq, AxisScale::log10} : Axis{0, nyq, AxisScale::linear};
+    spec.x = log_view() ? Axis{20, nyq, AxisScale::log10} : Axis{0, nyq, AxisScale::linear};
     spec.y = {-100, 0};
     Trace t;
     t.color = th.trace[0];
     const auto dots = static_cast<std::size_t>(2 * std::max(10, width - 4));
     std::vector<double> best(dots, -INFINITY), at(dots, 0.0);
     for (std::size_t i = 0; i < sel.f.size(); ++i) {
-        if (log_ && sel.f[i] < 20) continue;
+        if (log_view() && sel.f[i] < 20) continue;
         const auto c = std::min(dots - 1, static_cast<std::size_t>(std::max(0.0, axis_fraction(spec.x, sel.f[i])) * static_cast<double>(dots)));
         if (sel.db[i] > best[c]) best[c] = sel.db[i], at[c] = sel.f[i];
     }
@@ -489,13 +491,15 @@ ftxui::Element SpectrumScreen::OnRender() {
     const auto o = model_->options();
     const auto title = fmt::format(fmt::runtime(tr("tui.spectrum.title")), fmt::arg("channel", context().empty() ? std::string{"—"} : (o.channel == 0 ? std::string{"L"} : o.channel == 1 ? std::string{"R"} : tr("tui.decomposition.mono"))),
                                    fmt::arg("n", group(o.n)), fmt::arg("band", tr(o.n <= 1024 ? "tui.spectrum.wideband" : "tui.spectrum.narrowband")));
-    const auto chip_text = tr(log_ ? "tui.spectrum.chip_log" : "tui.spectrum.chip_lin");
+    const auto chip_text = tr(log_view() ? "tui.spectrum.chip_log" : "tui.spectrum.chip_lin");
     Element map_body;
     if (s) {
         map_body = spectrogram_body(*s, sel.get(), main_width, spectrogram_rows);
     } else {
         const auto e = model_->error();
-        map_body = text(e ? *e : model_->source() ? tr("tui.spectrum.computing") : tr("tui.spectrum.empty")) | fg(e ? th.err : th.dim, ui_);
+        const bool stopped = model_->cancelled() && !model_->job();
+        map_body = text(e ? *e : stopped ? tr("tui.spectrum.cancelled") : model_->source() ? tr("tui.spectrum.computing") : tr("tui.spectrum.empty")) |
+                   fg(e ? th.err : stopped ? th.warn : th.dim, ui_);
         plot_box_ = kNoBox;
     }
     auto map_panel = frame_panel(spectrogram_panel, map_body, {{chip_text, false}}, title);
@@ -575,10 +579,12 @@ bool SpectrumScreen::OnEvent(ftxui::Event e) {
     if (e == Event::Escape) {
         if (model_->job()) model_->cancel(jobs);
         else if (measure_) measure_.reset();
+        else if (const auto sel = model_->selection(); sel && sel->t0 > 0) model_->clear_selection(jobs);
         else if (maximized_) maximized_.reset();
         else return false;
         return true;
     }
+    if (e == Event::Character('r')) return model_->recompute(jobs), true;
     if (e == Event::Character('z')) {
         maximized_ = maximized_ ? std::nullopt : std::optional<Panel>{focus_};
         return true;
@@ -621,9 +627,9 @@ bool SpectrumScreen::OnEvent(ftxui::Event e) {
         else {
             const int height = std::max(1, plot_box_.y_max - plot_box_.y_min + 1);
             const double nyq = nyquist();
-            const double step = log_ ? std::pow(nyq / kFmin, 1.0 / height) : 0;
-            c.second = log_ ? (e == Event::ArrowUp ? c.second * step : c.second / step) : c.second + (e == Event::ArrowUp ? 1 : -1) * nyq / height;
-            c.second = std::clamp(c.second, log_ ? kFmin : 0.0, nyq);
+            const double step = log_view() ? std::pow(nyq / kFmin, 1.0 / height) : 0;
+            c.second = log_view() ? (e == Event::ArrowUp ? c.second * step : c.second / step) : c.second + (e == Event::ArrowUp ? 1 : -1) * nyq / height;
+            c.second = std::clamp(c.second, log_view() ? kFmin : 0.0, nyq);
         }
         cursor_ = c;
         return true;

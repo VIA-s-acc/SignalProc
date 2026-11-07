@@ -3,9 +3,12 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include <thread>
+#include <vector>
 
 #include <ftxui/component/event.hpp>
 
+#include "audio/manual_sink.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/processing_screen.hpp"
@@ -108,4 +111,50 @@ TEST_CASE("a, b and x switch the signal view", "[tui][processing]") {
     f.h.send(ftxui::Event::Character('x'));
     CHECK(f.screen->view() == ProcessingScreen::View::x);
     CHECK(f.screen->theory_link()->id == "threshold");
+}
+
+TEST_CASE("a, b and x take over only their own clip", "[tui][processing][review]") {
+    ProcessingFixture f;
+    signals::test::ManualSink* raw = nullptr;
+    auto player = signals::test::manual_player(raw);
+    f.ui->player = &player;
+    std::vector<float> other(441000, 0.1F);
+    signals::audio::Clip clip;
+    clip.channels.emplace_back(other);
+    clip.rate = 44100;
+    clip.tag = "signal";
+    REQUIRE(player.play(clip, 400000));
+    f.h.send(ftxui::Event::Character('a'));
+    CHECK(player.tag().starts_with("processing"));
+    CHECK(player.state() == signals::audio::PlayState::playing);
+    f.h.send(ftxui::Event::Character('b'));
+    CHECK(player.tag() == "processing.b");
+    f.ui->player = nullptr;
+}
+
+TEST_CASE("j and J change the levels and the decomposition link passes its wavelet", "[tui][processing][review]") {
+    ProcessingFixture f;
+    f.h.send(ftxui::Event::Character('J'));
+    CHECK(f.model->options().levels == 4);
+    f.h.send(ftxui::Event::Character('j'));
+    CHECK(f.model->options().levels == 5);
+    NavArgs args;
+    args.wavelet = "db4";
+    args.n = 3;
+    f.screen->open_with(args);
+    CHECK(f.model->options().wavelet == "db4");
+    CHECK(f.model->options().levels == 3);
+    REQUIRE(f.model->result());
+    CHECK(f.model->result()->options.wavelet == "db4");
+}
+
+TEST_CASE("the signal selection becomes the fragment", "[tui][processing][review]") {
+    ProcessingFixture f;
+    f.signal->select(1.0, 1.5);
+    f.h.frame();
+    const auto r = f.model->result();
+    REQUIRE(r);
+    CHECK(r->start == 44100);
+    CHECK(r->clean.size() == 22050);
+    CHECK(f.screen->context().find("1,00–1,50 с") != std::string::npos);
 }
