@@ -299,6 +299,12 @@ ftxui::Element ProcessingScreen::listen_body() {
                                     std::tuple{View::x, "tui.processing.play.x", "play_x"}})
         buttons.push_back(clickable(id, text("▶ " + tr(key) + " ") | fg(view_ == v ? th.accent : th.fg, ui_), [this, v] { play(v); }));
     Elements rows{hbox(std::move(buttons)), text(tr("tui.processing.seamless")) | fg(th.dim, ui_)};
+    if (const auto r = model_->result(); r && r->fs > 0) {
+        const double from = static_cast<double>(r->listen_start) / r->fs, span = static_cast<double>(r->audio_noisy.size()) / r->fs;
+        rows.push_back(text(fmt::format(fmt::runtime(tr("tui.processing.heard")), fmt::arg("span", format_fixed(span, 2)), fmt::arg("from", format_fixed(from, 2)),
+                                        fmt::arg("to", format_fixed(from + span, 2)))) |
+                       fg(th.dim, ui_));
+    }
     if (!notice_.empty()) rows.push_back(text(notice_) | fg(th.warn, ui_));
     return vbox(std::move(rows));
 }

@@ -1268,5 +1268,6 @@
   "unit.sample_short.many": "{n} samples",
   "unit.node.one": "{n} node",
   "unit.node.few": "{n} nodes",
-  "unit.node.many": "{n} nodes"
+  "unit.node.many": "{n} nodes",
+  "tui.processing.heard": "plays {span} s ({from}–{to} s)"
 }

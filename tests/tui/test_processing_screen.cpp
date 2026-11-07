@@ -225,3 +225,9 @@ TEST_CASE("m7d: a λ drag that starts at the limit still undoes in one step", "[
     CHECK(f.model->options().scale == 10);
     CHECK(f.model->options().rule == signals::core::ShrinkRule::visu);
 }
+
+TEST_CASE("the listening panel says what A, B and X play", "[tui][processing]") {
+    ProcessingFixture f;
+    const auto frame = f.h.frame();
+    CHECK(frame.find("звучат 4,00 с") != std::string::npos);
+}
