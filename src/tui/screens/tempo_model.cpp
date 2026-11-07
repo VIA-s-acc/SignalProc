@@ -57,8 +57,8 @@ core::Result<TempoView> compute_tempo(const TempoOptions& o, std::span<const dou
     }
     }
     if (!y) return std::unexpected{y.error()};
-    const auto frame = std::max(kTempoWindow, std::bit_ceil(2 * static_cast<std::size_t>(std::ceil(fs / 60))));
-    const core::YinOptions yin{frame, frame / 4, 60, 1000, 0.1};
+    const auto frame = std::max(kTempoWindow, std::bit_ceil(2 * static_cast<std::size_t>(std::ceil(fs / kTempoPitchFloor))));
+    const core::YinOptions yin{frame, frame / 4, kTempoPitchFloor, 1000, 0.1};
     auto f0_in = core::yin_track(x, fs, yin);
     if (!f0_in) return std::unexpected{f0_in.error()};
     auto f0_out = core::yin_track(*y, fs, yin);

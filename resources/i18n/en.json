@@ -1500,7 +1500,7 @@
   "tui.tempo.legend.expected": "lines — median and expected pitch",
   "tui.tempo.duration": "Duration {before} → {after} (×{ratio})",
   "tui.tempo.pitch": "Pitch {before} → {after}; expected {expected}, off by {cents} cents",
-  "tui.tempo.unvoiced": "No pitch found: the signal has no clear periodicity in 60–1000 Hz",
+  "tui.tempo.unvoiced": "No pitch found: the signal has no clear periodicity in 40–1000 Hz",
   "tui.tempo.law.stretch": "Stretch: frames come sparser or denser while the period inside a frame stays — the duration divides by rate, the pitch stays",
   "tui.tempo.law.shift": "Shift: stretch by 2^(n/12), then resample back — the duration stays, every frequency is multiplied by 2^(n/12)",
   "tui.tempo.law.speed": "Speed: y[n] = x(rate·n), like a record — the duration divides by rate, every frequency is multiplied by rate",

@@ -4,6 +4,7 @@
 #include <ftxui/screen/string.hpp>
 
 #include <chrono>
+#include <filesystem>
 #include <cmath>
 #include <memory>
 #include <sstream>
@@ -11,6 +12,8 @@
 
 #include "audio/manual_sink.hpp"
 #include "i18n/i18n.hpp"
+#include "io/wav.hpp"
+#include "theory/live.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/tempo_screen.hpp"
@@ -200,4 +203,33 @@ TEST_CASE("tempo snapshots", "[tui][tempo][snapshot]") {
         Harness shell{make_shell(*f.ui, screens, [] {}), w, hgt};
         signals::test::check_snapshot("tempo_" + std::to_string(w) + "x" + std::to_string(hgt), shell.frame());
     }
+}
+
+TEST_CASE("an octave or two down is still measured in the tempo view", "[tui][tempo][review]") {
+    TempoOptions o;
+    o.mode = TempoMode::shift;
+    o.source = TempoSource::tone;
+    o.semitones = -24;
+    const auto x = tempo_source(o.source, kTempoToneRate, static_cast<std::size_t>(kTempoSeconds * kTempoToneRate));
+    const auto v = compute_tempo(o, x, kTempoToneRate);
+    REQUIRE(v);
+    REQUIRE(v->f0_out_median > 0);
+    CHECK(std::abs(cents_off(v->f0_out_median, kTempoToneHz / 4)) < 2);
+}
+
+TEST_CASE("the tempo card shows a dash, not zero cents, when no pitch is found", "[tui][tempo][review]") {
+    Fixture f;
+    const auto path = std::filesystem::temp_directory_path() / "signals-tempo-silence.wav";
+    REQUIRE(signals::io::write_wav(path, signals::core::AudioBuffer{22050, {std::vector<double>(22050, 0.0)}}, {}));
+    f.signal->open(path, f.jobs);
+    Harness h{f.screen, 150, 44};
+    h.send(ftxui::Event::Character('s'));
+    REQUIRE(f.screen->options().source == TempoSource::file);
+    h.frame();
+    REQUIRE(f.screen->view());
+    signals::theory::LiveValues values;
+    f.screen->publish(values);
+    CHECK(values.find("block.rate"));
+    CHECK_FALSE(values.find("metric.cents"));
+    CHECK_FALSE(values.find("metric.f0_out"));
 }

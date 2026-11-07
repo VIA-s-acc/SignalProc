@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <numbers>
@@ -95,4 +96,38 @@ TEST_CASE("tempo blocks pass empty channels through and explain a bad window", "
     const auto wide = attempt("pitch_shift", {Value{core::AudioBuffer{8000, {tone(100, 8000, 4000)}}}}, {{"n_fft", "512"}, {"hop", "300"}});
     REQUIRE_FALSE(wide);
     CHECK(wide.error().message.find("300") != std::string::npos);
+}
+
+TEST_CASE("tempo blocks refuse an output longer than the sample cap", "[pipeline][tempo][review]") {
+    CHECK(checked_scaled_length(1000, 10.0) == 10000u);
+    CHECK(checked_scaled_length(1001, 0.5) == 500u);
+    const auto huge = checked_scaled_length(100'000'000, 10.0);
+    REQUIRE_FALSE(huge);
+    CHECK(huge.error().message.find("100000000") != std::string::npos);
+    CHECK_FALSE(checked_scaled_length(200'000'000, 4.0));
+}
+
+namespace {
+
+struct Recorder final : core::ProgressSink {
+    std::vector<double> seen;
+    void report(double fraction) override { seen.push_back(fraction); }
+    bool cancelled() const override { return false; }
+};
+
+}  // namespace
+
+TEST_CASE("the pitch block reports progress once across all channels", "[pipeline][tempo][review]") {
+    const auto* t = find_block_type("pitch");
+    REQUIRE(t);
+    auto params = resolve_params(*t, {});
+    REQUIRE(params);
+    Recorder progress;
+    RunContext ctx{std::filesystem::temp_directory_path()};
+    ctx.progress = &progress;
+    const std::vector<Value> in{core::AudioBuffer{22050, {tone(220, 22050, 22050), tone(330, 22050, 22050)}}};
+    REQUIRE(t->run(ctx, in, *params));
+    REQUIRE(progress.seen.size() > 2);
+    CHECK(std::is_sorted(progress.seen.begin(), progress.seen.end()));
+    CHECK(progress.seen.back() > 0.5);
 }

@@ -22,9 +22,9 @@ $$\lvert Y(j,k)\rvert = (1-\alpha)\lvert X(i,k)\rvert + \alpha\lvert X(i+1,k)\rv
 
 $$\varphi(j,k) = \varphi(j-1,k) + \arg X(i_{j-1}+1,k) - \arg X(i_{j-1},k)$$
 
-Phase locking (Laroche–Dolson): bin $k$ in the region of peak $p$ follows the peak's phase with the offset it had in the input frame:
+Phase locking (Laroche–Dolson): bin $k$ in the region of peak $p$ follows the peak's phase with the offset it had in the nearest input frame $c = \lfloor t_j + 1/2 \rfloor$:
 
-$$\varphi(j,k) = \varphi(j,p) + \arg X(i,k) - \arg X(i,p)$$
+$$\varphi(j,k) = \varphi(j,p) + \arg X(c,k) - \arg X(c,p)$$
 
 WSOLA: piece $j$ is taken with the shift $\delta \in [-R, R]$ from the point $jRr$ whose shape best continues the previous piece $s_{j-1}$:
 

@@ -207,8 +207,10 @@ void register_analysis_blocks(std::vector<BlockType>& out) {
                                Report r;
                                core::AudioBuffer track;
                                track.sample_rate = a.sample_rate / static_cast<double>(o.hop);
+                               const auto count = static_cast<double>(std::max<std::size_t>(1, a.channels.size()));
                                for (std::size_t c = 0; c < a.channels.size(); ++c) {
-                                   auto f0 = core::yin_track(a.channels[c], a.sample_rate, o, ctx.progress);
+                                   ScaledProgress progress{ctx.progress, static_cast<double>(c) / count, 1 / count};
+                                   auto f0 = core::yin_track(a.channels[c], a.sample_rate, o, &progress);
                                    if (!f0) return std::unexpected{f0.error()};
                                    const auto voiced = static_cast<std::size_t>(std::ranges::count_if(*f0, [](double f) { return f > 0; }));
                                    const auto sfx = suffix(a, c);

@@ -197,4 +197,11 @@ core::Result<std::size_t> checked_length(std::size_t n, std::size_t factor) {
     return n * factor;
 }
 
+core::Result<std::size_t> checked_scaled_length(std::size_t n, double factor) {
+    const double out = static_cast<double>(n) * factor;
+    if (!(out <= kMaxSamples))
+        return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.output_too_long")), fmt::arg("n", n), fmt::arg("factor", factor)));
+    return static_cast<std::size_t>(std::nearbyint(out));
+}
+
 }  // namespace signals::pipeline

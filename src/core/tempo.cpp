@@ -146,7 +146,7 @@ Result<std::vector<double>> vocoder(std::span<const double> x, double rate, cons
 }
 
 Result<std::vector<double>> wsola(std::span<const double> x, double rate, const StretchOptions& o, ProgressSink* progress) {
-    const auto n = o.n_fft, hop = o.hop, tolerance = o.hop;
+    const auto n = o.n_fft, hop = o.hop, tolerance = std::max(o.hop, o.n_fft / 4);
     const auto length = output_length(x.size(), rate);
     const auto window = periodic_hann(n);
     const auto half = static_cast<std::ptrdiff_t>(n / 2);

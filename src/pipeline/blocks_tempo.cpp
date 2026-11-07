@@ -49,7 +49,10 @@ void register_tempo_blocks(std::vector<BlockType>& out) {
                                const auto o = stretch_options("time_stretch", p);
                                if (!o) return std::unexpected{o.error()};
                                const double rate = param_real(p, "rate");
-                               return each_channel_progress(ctx, audio(in), [&](const Samples& c, core::ProgressSink* progress) { return core::time_stretch(c, rate, *o, progress); });
+                               return each_channel_progress(ctx, audio(in), [&](const Samples& c, core::ProgressSink* progress) -> core::Result<Samples> {
+                                   if (auto n = checked_scaled_length(c.size(), 1 / rate); !n) return std::unexpected{n.error()};
+                                   return core::time_stretch(c, rate, *o, progress);
+                               });
                            }}));
     out.push_back(checked({"pitch_shift",
                            kIn,
@@ -59,7 +62,10 @@ void register_tempo_blocks(std::vector<BlockType>& out) {
                                const auto o = stretch_options("pitch_shift", p);
                                if (!o) return std::unexpected{o.error()};
                                const double semitones = param_real(p, "semitones");
-                               return each_channel_progress(ctx, audio(in), [&](const Samples& c, core::ProgressSink* progress) { return core::pitch_shift(c, semitones, *o, progress); });
+                               return each_channel_progress(ctx, audio(in), [&](const Samples& c, core::ProgressSink* progress) -> core::Result<Samples> {
+                                   if (auto n = checked_scaled_length(c.size(), std::pow(2.0, semitones / 12)); !n) return std::unexpected{n.error()};
+                                   return core::pitch_shift(c, semitones, *o, progress);
+                               });
                            }}));
     out.push_back(checked({"speed",
                            kIn,
@@ -68,9 +74,10 @@ void register_tempo_blocks(std::vector<BlockType>& out) {
                            [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                                const double rate = param_real(p, "rate");
                                return each_channel_progress(ctx, audio(in), [&](const Samples& c, core::ProgressSink*) -> core::Result<Samples> {
-                                   const auto n = static_cast<std::size_t>(std::nearbyint(static_cast<double>(c.size()) / rate));
-                                   if (n == 0) return Samples{};
-                                   return core::fft_resample(c, n);
+                                   const auto n = checked_scaled_length(c.size(), 1 / rate);
+                                   if (!n) return std::unexpected{n.error()};
+                                   if (*n == 0) return Samples{};
+                                   return core::fft_resample(c, *n);
                                });
                            }}));
 }

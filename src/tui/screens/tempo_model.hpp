@@ -31,7 +31,7 @@ struct TempoView {
     double seconds_in = 0, seconds_out = 0;
 };
 
-inline constexpr double kTempoSeconds = 2.0, kTempoToneRate = 22050, kTempoToneHz = 220;
+inline constexpr double kTempoSeconds = 2.0, kTempoToneRate = 22050, kTempoToneHz = 220, kTempoPitchFloor = 40;
 inline constexpr std::size_t kTempoWindow = 2048, kTempoHop = 512;
 inline constexpr std::array<double, 14> kTempoRates{0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0, 3.0, 4.0};
 

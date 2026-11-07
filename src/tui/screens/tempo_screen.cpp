@@ -80,10 +80,11 @@ void TempoScreen::publish(theory::LiveValues& v) const {
     v.set("block.n_fft", std::to_string(kTempoWindow));
     v.set("block.hop", std::to_string(kTempoHop));
     if (!view_) return;
+    v.set("metric.duration", seconds(view_->seconds_in) + " → " + seconds(view_->seconds_out));
+    if (!(view_->f0_in_median > 0 && view_->f0_out_median > 0)) return;
     v.set("metric.f0_in", hz(view_->f0_in_median));
     v.set("metric.f0_out", hz(view_->f0_out_median));
     v.set("metric.cents", format_fixed(cents_off(view_->f0_out_median, view_->expected), 2));
-    v.set("metric.duration", seconds(view_->seconds_in) + " → " + seconds(view_->seconds_out));
 }
 
 void TempoScreen::refresh() {

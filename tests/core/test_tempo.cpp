@@ -154,3 +154,21 @@ TEST_CASE("bad stretch arguments give a reason", "[tempo]") {
     CHECK(parse_stretch_method("wsola") == StretchMethod::wsola);
     CHECK_FALSE(parse_stretch_method("granular"));
 }
+
+TEST_CASE("wsola keeps the level and the pitch when the hop is small", "[tempo][review]") {
+    constexpr double fs = 22050;
+    const auto x = tone(110, fs, 22050);
+    auto rms = [](const std::vector<double>& v) {
+        double e = 0;
+        for (const double s : v) e += s * s;
+        return std::sqrt(e / static_cast<double>(v.size()));
+    };
+    for (const std::size_t hop : {std::size_t{64}, std::size_t{32}}) {
+        INFO("hop " << hop);
+        const auto y = time_stretch(x, 0.75, {StretchMethod::wsola, 2048, hop});
+        REQUIRE(y);
+        CHECK(rms(*y) > 0.8 * rms(x));
+        CHECK(rms(*y) < 1.2 * rms(x));
+        CHECK(std::abs(cents(pitch_of(*y, fs), 110)) < 2);
+    }
+}

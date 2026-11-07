@@ -22,9 +22,9 @@ $$\lvert Y(j,k)\rvert = (1-\alpha)\lvert X(i,k)\rvert + \alpha\lvert X(i+1,k)\rv
 
 $$\varphi(j,k) = \varphi(j-1,k) + \arg X(i_{j-1}+1,k) - \arg X(i_{j-1},k)$$
 
-Привязка фаз (Laroche–Dolson): бин $k$ из области пика $p$ повторяет фазу пика со сдвигом, который был во входном кадре:
+Привязка фаз (Laroche–Dolson): бин $k$ из области пика $p$ повторяет фазу пика со сдвигом, который был в ближайшем входном кадре $c = \lfloor t_j + 1/2 \rfloor$:
 
-$$\varphi(j,k) = \varphi(j,p) + \arg X(i,k) - \arg X(i,p)$$
+$$\varphi(j,k) = \varphi(j,p) + \arg X(c,k) - \arg X(c,p)$$
 
 WSOLA: кусок $j$ берётся со сдвигом $\delta \in [-R, R]$ от точки $jRr$ — тем, у которого форма лучше всего продолжает предыдущий кусок $s_{j-1}$:
 
