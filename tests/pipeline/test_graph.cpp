@@ -56,6 +56,14 @@ TEST_CASE("graph: default ports connect a chain", "[pipeline][graph]") {
     CHECK(node(g, "b").params.at("db") == "-6");
 }
 
+TEST_CASE("graph: a bare wire goes to the only required input", "[pipeline][graph]") {
+    const auto g = build("node a = gen()\nnode m = multiply(factor=2)\nnode o = wav_out(path=\"x.wav\")\na -> m -> o\n");
+    const auto& m = node(g, "m");
+    REQUIRE(m.sources[0]);
+    CHECK_FALSE(m.sources[1]);
+    CHECK(error_of("node a = gen()\nnode s = add()\na -> s\n").message.find("s.in") != std::string::npos);
+}
+
 TEST_CASE("graph: order is topological and ties keep declaration order", "[pipeline][graph]") {
     const auto g = build("node z = mixdown()\nnode a = gen()\nnode b = gen()\nnode m = mixdown()\na -> z\nb -> m\n");
     CHECK(order_ids(g) == std::vector<std::string>{"a", "z", "b", "m"});

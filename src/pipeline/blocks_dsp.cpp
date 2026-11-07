@@ -22,16 +22,12 @@
 #include "io/temp_file.hpp"
 #include "io/wav.hpp"
 #include "pipeline/block.hpp"
+#include "pipeline/blocks_common.hpp"
 
 namespace signals::pipeline {
 namespace {
 
-std::string_view inverse_of(std::string_view transform) {
-    if (transform == "swt") return "iswt";
-    if (transform == "lift53" || transform == "lift53i") return "ilift53";
-    return "idwt";
-}
-
+using blocks::inverse_of;
 using Kind = ParamSpec::Kind;
 using Out = core::Result<std::vector<Value>>;
 
@@ -348,7 +344,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    [](const RunContext&, std::span<const Value> in, const Params&) -> Out {
                        const auto& c = in_coeffs(in);
                        if (c.transform != "lift53" && c.transform != "lift53i")
-                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", "ilift53")));
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wrong_inverse")), fmt::arg("transform", c.transform), fmt::arg("inverse", inverse_of(c.transform))));
                        core::AudioBuffer result;
                        result.sample_rate = c.rate;
                        for (const auto& ch : c.channels) {

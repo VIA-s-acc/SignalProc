@@ -623,6 +623,55 @@ def analysis_json():
     stft = {"x": floats(x), "n": n, "hop": hop, "re": [floats(r) for r in z.real.T], "im": [floats(r) for r in z.imag.T], "istft": floats(back)}
     return {"correlate": corr, "hilbert": hilb, "cepstrum": ceps, "dct": dct, "stft": stft}
 
+def blocks_json():
+    """Pipeline blocks from M8: numpy/scipy/pywt references on one shared input."""
+    fs, n = 8000.0, 200
+    t = np.arange(n) / fs
+    x = np.sin(2 * np.pi * 440 * t) + 0.5 * np.sin(2 * np.pi * 1800 * t) + 0.3 * np.random.default_rng(23).standard_normal(n)
+    windows = []
+    for kind, extra in [("hann", None), ("hamming", None), ("blackman", None), ("kaiser", 8.6), ("kaiser", 3.0), ("tukey", 0.5), ("tukey", 0.2)]:
+        spec = kind if extra is None else (kind, extra)
+        windows.append({"kind": kind, "extra": extra, "w": floats(scipy.signal.get_window(spec, 37, fftbins=False))})
+    tc = np.arange(256) / fs
+    chirps = [{"method": m, "f0": 100.0, "f1": 3000.0, "y": floats(scipy.signal.chirp(tc, 100.0, tc[-1], 3000.0, method=m))}
+              for m in ["linear", "logarithmic"]]
+    osc = [{"kind": "square", "duty": 0.3, "width": 1.0, "y": floats(scipy.signal.square(2 * np.pi * 220.0 * tc, 0.3))},
+           {"kind": "sawtooth", "duty": 0.5, "width": 1.0, "y": floats(scipy.signal.sawtooth(2 * np.pi * 220.0 * tc, 1.0))},
+           {"kind": "sawtooth", "duty": 0.5, "width": 0.25, "y": floats(scipy.signal.sawtooth(2 * np.pi * 220.0 * tc, 0.25))},
+           {"kind": "triangle", "duty": 0.5, "width": 1.0, "y": floats(scipy.signal.sawtooth(2 * np.pi * 220.0 * tc, 0.5))}]
+    iir = []
+    for family, ftype, btype, order, cutoff, rp, rs in [
+            ("butterworth", "butter", "lowpass", 4, [1000.0], 1.0, 40.0), ("cheby1", "cheby1", "highpass", 5, [1500.0], 1.0, 40.0),
+            ("cheby2", "cheby2", "bandpass", 4, [500.0, 2000.0], 1.0, 40.0), ("ellip", "ellip", "bandstop", 3, [800.0, 1600.0], 0.5, 50.0),
+            ("bessel", "bessel", "lowpass", 6, [1200.0], 1.0, 40.0)]:
+        sos = scipy.signal.iirfilter(order, cutoff if len(cutoff) > 1 else cutoff[0], rp=rp, rs=rs, btype=btype, ftype=ftype, output="sos", fs=fs)
+        iir.append({"family": family, "type": btype, "order": order, "cutoff": cutoff, "rp": rp, "rs": rs,
+                    "y": floats(scipy.signal.sosfilt(sos, x)), "zero_phase": floats(scipy.signal.sosfiltfilt(sos, x))})
+    fir = []
+    for numtaps, cutoff, window, beta, pass_zero in [(31, [1000.0], "hamming", 0.0, True), (33, [500.0, 1500.0], "kaiser", 6.0, False),
+                                                     (30, [1500.0], "blackman", 0.0, True)]:
+        h = scipy.signal.firwin(numtaps, cutoff, window=window if window != "kaiser" else (window, beta), pass_zero=pass_zero, fs=fs)
+        fir.append({"numtaps": numtaps, "cutoff": cutoff, "window": window, "beta": beta, "pass_zero": pass_zero,
+                    "y": floats(scipy.signal.lfilter(h, 1.0, x)), "centred": floats(scipy.signal.convolve(x, h, mode="same"))})
+    moving = [{"length": 5, "centred": False, "y": floats(scipy.signal.lfilter(np.ones(5) / 5, 1.0, x))},
+              {"length": 6, "centred": True, "y": floats(scipy.signal.convolve(x, np.ones(6) / 6, mode="same"))}]
+    mra_dwt = pywt.mra(x, "db2", level=3, transform="dwt", mode="symmetric")
+    mra_swt = pywt.mra(x[:192], "db2", level=3, transform="swt")
+    f, p = scipy.signal.welch(x, fs, window="hann", nperseg=n, noverlap=n // 2)
+    k = int(np.argmax(p))
+    a, b, c = np.log(p[k - 1]), np.log(p[k]), np.log(p[k + 1])
+    rms = float(np.sqrt(np.mean(x ** 2)))
+    stats = {"rms": rms, "peak": float(np.max(np.abs(x))), "crest_db": float(20 * np.log10(np.max(np.abs(x)) / rms)),
+             "mean": float(np.mean(x)), "std": float(np.std(x)),
+             "zcr_per_s": float(np.count_nonzero((x[1:] >= 0) != (x[:-1] >= 0)) * fs / n),
+             "centroid_hz": float(np.sum(f * p) / np.sum(p)), "dominant_hz": float((k + 0.5 * (a - c) / (a - 2 * b + c)) * fs / n)}
+    return {"fs": fs, "x": floats(x), "windows": windows, "chirp": chirps, "osc": osc, "iir": iir, "fir": fir,
+            "median": [{"kernel": k, "y": floats(scipy.signal.medfilt(x, k))} for k in [5, 11]], "moving_average": moving,
+            "preemphasis": floats(scipy.signal.lfilter([1.0, -0.97], 1.0, x)), "deemphasis": floats(scipy.signal.lfilter([1.0], [1.0, -0.9], x)),
+            "cumsum": floats(np.cumsum(x)), "diff": floats(np.diff(x, prepend=0.0)), "softclip": floats(np.tanh(2.0 * x)),
+            "mra_dwt": [floats(v[:n]) for v in mra_dwt], "mra_swt": [floats(v) for v in mra_swt], "stats": stats}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path)
@@ -642,7 +691,8 @@ def main():
                                ("spectral.json", spectral_json), ("swt.json", swt_json),
                                ("packets.json", packets_json), ("cwt.json", cwt_json),
                                ("processing.json", lambda: processing_json(sample_wav)),
-                               ("iir.json", iir_json), ("fir.json", fir_json), ("ops.json", ops_json), ("analysis.json", analysis_json)]:
+                               ("iir.json", iir_json), ("fir.json", fir_json), ("ops.json", ops_json), ("analysis.json", analysis_json),
+                               ("blocks.json", blocks_json)]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)

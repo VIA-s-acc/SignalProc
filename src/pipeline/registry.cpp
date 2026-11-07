@@ -18,6 +18,12 @@ const std::vector<BlockType>& registry() {
         std::vector<BlockType> out;
         register_basic_blocks(out);
         register_dsp_blocks(out);
+        register_level_blocks(out);
+        register_source_blocks(out);
+        register_filter_blocks(out);
+        register_wavelet_blocks(out);
+        register_channel_blocks(out);
+        register_measure_blocks(out);
         return out;
     }();
     return all;

@@ -8,6 +8,12 @@ add_library(signals_pipeline STATIC
   registry.cpp
   blocks_basic.cpp
   blocks_dsp.cpp
+  blocks_level.cpp
+  blocks_sources.cpp
+  blocks_filter.cpp
+  blocks_wavelet.cpp
+  blocks_channels.cpp
+  blocks_measure.cpp
   sig.cpp
   graph.cpp
   cache.cpp
