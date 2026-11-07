@@ -18,6 +18,7 @@
 #include "pipeline/executor.hpp"
 #include "pipeline/graph.hpp"
 #include "pipeline/layout.hpp"
+#include "pipeline/docs.hpp"
 #include "pipeline/sig.hpp"
 
 namespace signals::cli {
@@ -267,11 +268,29 @@ private:
     bool ascii_ = false;
 };
 
+class BlocksCommand final : public Command {
+public:
+    explicit BlocksCommand(CLI::App& app) : sub_{app.add_subcommand("blocks", tr("cli.blocks.description"))} {
+        sub_->add_flag("--markdown", markdown_, tr("cli.blocks.markdown"));
+    }
+    bool parsed() const override { return sub_->parsed(); }
+
+    int run(std::ostream& out, std::ostream&) override {
+        out << (markdown_ ? pipeline::blocks_markdown() : pipeline::blocks_text());
+        return 0;
+    }
+
+private:
+    CLI::App* sub_;
+    bool markdown_ = false;
+};
+
 }  // namespace
 
 void add_pipeline_commands(CLI::App& app, Commands& commands) {
     commands.push_back(std::make_unique<RunCommand>(app));
     commands.push_back(std::make_unique<GraphCommand>(app));
+    commands.push_back(std::make_unique<BlocksCommand>(app));
 }
 
 }  // namespace signals::cli

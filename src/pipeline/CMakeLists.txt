@@ -1,4 +1,5 @@
 add_library(signals_pipeline STATIC
+  docs.cpp
   value.cpp
   registry.cpp
   blocks_basic.cpp

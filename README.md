@@ -47,6 +47,7 @@ cd signals-v0.4.0-macos-arm64
 | `signals denoise <файл.wav>` | шумоподавление BayesShrink или VisuShrink, как в scikit-image |
 | `signals run <файл.sig>` | запустить конвейер: этапы по узлам со временем, щупы, отчёты; `--set`, `-o`, `--probe-dir`, `--json` |
 | `signals graph <файл.sig>` | нарисовать граф конвейера текстом (`--ascii` — только ASCII) |
+| `signals blocks` | список блоков конвейера; `--markdown` — справочник с портами и параметрами |
 | `signals tui [файл.wav]` | интерактивный интерфейс; `signals` без аргументов в терминале делает то же |
 
 Примеры:
@@ -82,7 +83,7 @@ idwt -> chk.in
 probe dwt.d1 as "d1"
 ```
 
-- `node имя = блок(параметр=значение, …)` объявляет узел. Блоки: `wav`, `gen`, `gain`, `normalize`, `remove_dc`, `split`, `mixdown`, `mid_side`, `delay`, `reverse`, `cut`, `downsample`, `upsample`, `resample`, `convolve`, `dwt`, `idwt`, `threshold`, `band_edit`, `band_energy`, `check`, `wav_out`, `listen`. Имена совпадают с карточками «Под капотом».
+- `node имя = блок(параметр=значение, …)` объявляет узел. Все блоки с портами, параметрами, значениями по умолчанию и диапазонами — в [docs/user/blocks.md](docs/user/blocks.md) (английский — [blocks.en.md](docs/user/blocks.en.md)); тот же список печатает `signals blocks`. Имена совпадают с карточками «Под капотом».
 - `a -> b -> c` соединяет узлы. Порт пишется, когда у блока несколько входов или выходов: `chk.ref`, `chk.in`, `ch.l` у `split`, полосы коэффициентов `dwt.d3`, `dwt.a`. `idwt()` без параметров берёт вейвлет и края у своих коэффициентов.
 - `probe узел.порт as "имя"` — щуп: копия значения на проводе.
 - Относительные пути считаются от каталога самого `.sig`.
@@ -236,6 +237,8 @@ signals tui --theme light
 
 | Файл | Что в нём |
 |---|---|
+| [docs/user/keys.md](docs/user/keys.md) | клавиши и мышь каждой вкладки и вложенной вкладки — генерируется из кода ([английский](docs/user/keys.en.md)) |
+| [docs/user/blocks.md](docs/user/blocks.md) | справочник блоков конвейера — генерируется из реестра ([английский](docs/user/blocks.en.md)) |
 | [docs/03-design.md](docs/03-design.md) | проектный документ: цели, архитектура, функции, интерфейс, этапы |
 | [docs/02-theory.md](docs/02-theory.md) | теория: банки фильтров, вейвлеты, матрицы Тёплица, частотные характеристики |
 | [docs/02-theory.en.md](docs/02-theory.en.md) | та же теория на английском — английский «Учебник» |

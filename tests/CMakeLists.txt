@@ -71,6 +71,7 @@ add_executable(signals_tests
   tui/test_diagram_screen.cpp
   tui/test_resample_model.cpp
   tui/test_resample_screen.cpp
+  tui/test_docs_keys.cpp
   tui/test_explain_screen.cpp
   tui/test_designer_model.cpp
   tui/test_user_filters.cpp
@@ -89,6 +90,7 @@ add_executable(signals_tests
   theory/test_sections.cpp
   pipeline/test_blocks_basic.cpp
   pipeline/test_blocks_dsp.cpp
+  pipeline/test_docs.cpp
   pipeline/test_sig.cpp
   pipeline/test_graph.cpp
   pipeline/test_executor.cpp
