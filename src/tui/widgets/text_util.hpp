@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -88,6 +89,43 @@ inline std::vector<std::string> wrap_codepoints(const std::string& s, int width,
         }
         line += cp;
         if (!is_combining_mark(cp)) ++used;
+    }
+    out.push_back(std::move(line));
+    return out;
+}
+
+inline std::vector<std::string> wrap_words(const std::string& s, int width) {
+    const int room = std::max(1, width);
+    std::vector<std::string> out;
+    std::string line;
+    int used = 0;
+    std::size_t at = 0;
+    while (at <= s.size()) {
+        const auto space = s.find(' ', at);
+        const auto word = s.substr(at, space == std::string::npos ? std::string::npos : space - at);
+        const int w = display_width(word);
+        if (used > 0 && used + 1 + w > room) {
+            out.push_back(std::move(line));
+            line.clear();
+            used = 0;
+        }
+        if (w > room) {
+            for (auto& part : wrap_codepoints(word, room, "")) {
+                if (used > 0) {
+                    out.push_back(std::move(line));
+                    line.clear();
+                    used = 0;
+                }
+                used = display_width(part);
+                line = std::move(part);
+            }
+        } else {
+            if (used > 0) line += ' ', ++used;
+            line += word;
+            used += w;
+        }
+        if (space == std::string::npos) break;
+        at = space + 1;
     }
     out.push_back(std::move(line));
     return out;

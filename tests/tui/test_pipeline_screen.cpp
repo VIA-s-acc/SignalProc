@@ -602,3 +602,71 @@ TEST_CASE("the example command lists the built-in graphs and opens the chosen on
     REQUIRE_FALSE(run.reports.empty());
     CHECK(run.reports.front().report.passed);
 }
+
+TEST_CASE("the .sig text and the run panel scroll with markers and the wheel", "[tui][pipeline_screen][scroll]") {
+    PipelineFixture f{150, 44, false};
+    f.model->add_node("gen");
+    std::string prev = "gen";
+    for (int k = 0; k < 18; ++k) {
+        const auto id = f.model->add_node("gain");
+        REQUIRE(f.model->connect(port(prev), port(id)));
+        prev = id;
+    }
+    f.model->run(f.jobs);
+    for (int k = 0; k < 400 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    f.model->selection = {};
+    auto frame = f.h.frame();
+    const auto text = f.screen->area("text_panel");
+    const auto run = f.screen->area("run_panel");
+    REQUIRE(text.x_max > text.x_min);
+    REQUIRE(run.x_max > run.x_min);
+    CHECK(frame.find("▼ ещё") != std::string::npos);
+    for (const auto box : {text, run}) {
+        ftxui::Mouse m;
+        m.button = ftxui::Mouse::WheelDown;
+        m.motion = ftxui::Mouse::Pressed;
+        m.x = (box.x_min + box.x_max) / 2;
+        m.y = (box.y_min + box.y_max) / 2;
+        for (int k = 0; k < 4; ++k) f.h.send(ftxui::Event::Mouse("", m));
+    }
+    frame = f.h.frame();
+    CHECK(frame.find("▲ ещё") != std::string::npos);
+}
+
+TEST_CASE("the probe plots zoom with the wheel and the add list explains the picked block", "[tui][pipeline_screen][scroll]") {
+    PipelineFixture f{150, 44, true};
+    f.model->run(f.jobs);
+    for (int k = 0; k < 2000 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    f.h.frame();
+    const auto b = f.screen->area("probe_time_plot");
+    REQUIRE(b.x_max > b.x_min);
+    const auto full = f.screen->plot_view("probe_time");
+    REQUIRE(full);
+    f.h.wheel(b.x_min + (b.x_max - b.x_min) / 3, (b.y_min + b.y_max) / 2, true);
+    f.h.wheel(b.x_min + (b.x_max - b.x_min) / 3, (b.y_min + b.y_max) / 2, true);
+    f.h.frame();
+    CHECK(f.screen->plot_view("probe_time")->hi - f.screen->plot_view("probe_time")->lo < 0.7 * (full->hi - full->lo));
+    CHECK_FALSE(f.screen->context_menu(b.x_min + 2, (b.y_min + b.y_max) / 2).empty());
+    f.h.send(ftxui::Event::Character('a'));
+    f.h.send(ftxui::Event::Character("idwt"));
+    const auto frame = f.h.frame();
+    CHECK(frame.find("in: coeffs → out: signal") != std::string::npos);
+}
+
+TEST_CASE("the inspector scrolls a long parameter list and follows the picked parameter", "[tui][pipeline_screen][scroll]") {
+    PipelineFixture f{80, 24, false};
+    const auto types = signals::pipeline::block_types();
+    const auto most = std::max_element(types.begin(), types.end(), [](const auto& a, const auto& b) { return a.params.size() < b.params.size(); });
+    REQUIRE(most->params.size() >= 6);
+    f.ui->terminal_size = [] { return std::pair{80, 14}; };
+    const auto id = f.model->add_node(most->id);
+    f.model->selection = {Selection::Kind::node, id, {}};
+    f.h.frame();
+    f.h.send(ftxui::Event::Return);
+    auto frame = f.h.frame();
+    CHECK(frame.find("▼") != std::string::npos);
+    for (std::size_t k = 0; k + 1 < most->params.size(); ++k) f.h.send(ftxui::Event::ArrowDown);
+    frame = f.h.frame();
+    CHECK(frame.find(most->params.back().name) != std::string::npos);
+    CHECK(frame.find("▲") != std::string::npos);
+}

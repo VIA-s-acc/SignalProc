@@ -370,3 +370,11 @@ TEST_CASE("m7c: ellipsize measures display width, not codepoints", "[tui][shell]
     CHECK(signals::tui::ellipsize("Φ̃abcd", 3, false) == "Φ̃a…");
     CHECK(signals::tui::ellipsize("abcdef", 4, true) == "abc~");
 }
+
+TEST_CASE("wrap_words breaks at spaces and splits only words wider than the line", "[tui][text_util]") {
+    using signals::tui::wrap_words;
+    CHECK(wrap_words("выберите узел или провод", 14) == std::vector<std::string>{"выберите узел", "или провод"});
+    CHECK(wrap_words("abcdefghij kl", 4) == std::vector<std::string>{"abcd", "efgh", "ij", "kl"});
+    CHECK(wrap_words("", 10) == std::vector<std::string>{""});
+    CHECK(wrap_words("a  b", 10) == std::vector<std::string>{"a  b"});
+}

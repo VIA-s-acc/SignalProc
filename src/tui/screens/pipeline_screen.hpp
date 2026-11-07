@@ -20,7 +20,9 @@
 #include "tui/screens/pipeline_model.hpp"
 #include "tui/shell/layout.hpp"
 #include "tui/shell/panel.hpp"
+#include "tui/shell/plot_zoom.hpp"
 #include "tui/shell/screen.hpp"
+#include "tui/widgets/scroll.hpp"
 
 namespace signals::tui {
 
@@ -41,6 +43,8 @@ public:
     bool OnEvent(ftxui::Event e) override;
 
     ftxui::Box area(std::string_view id) const;
+    std::optional<Axis> plot_view(std::string_view id) const;
+    std::vector<MenuItem> context_menu(int x, int y) override;
     const std::string& notice() const { return notice_; }
     std::pair<int, int> view_offset() const { return {ox_, oy_}; }
 
@@ -50,18 +54,18 @@ private:
     ftxui::Element frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title);
     ftxui::Element toolbar() const;
     ftxui::Element graph_panel(int width, int height);
-    ftxui::Element inspector_panel(int width);
+    ftxui::Element inspector_panel(int width, int height);
     std::vector<std::string> param_values(const pipeline::BlockType& type, const pipeline::ParamSpec& spec) const;
     void add_block(const std::string& type);
     void open_example(std::string_view name, std::string_view text);
-    ftxui::Element add_panel();
+    ftxui::Element add_panel(int width, int height);
     bool on_add_key(const ftxui::Event& e);
     bool on_inspector_key(const ftxui::Event& e);
     void edit_param(int step);
     void report(const core::Result<void>& r);
     const pipeline::GraphNode* selected_node() const;
-    ftxui::Element run_panel();
-    ftxui::Element probe_panel(int height);
+    ftxui::Element run_panel(int width, int height);
+    ftxui::Element probe_panel(int width, int height);
     void refresh_probe(const RunView& run);
     void play(bool input);
     std::optional<double> playhead() const;
@@ -93,6 +97,12 @@ private:
     } drag_;
     std::string notice_;
     std::vector<std::pair<std::string, ftxui::Box>> add_rows_;
+    Scroll text_scroll_, run_scroll_, add_scroll_, inspector_scroll_;
+    std::vector<ftxui::Box> param_boxes_;
+    std::string param_follow_;
+    PlotZoom probe_zoom_;
+    std::string text_follow_;
+    std::size_t add_follow_ = static_cast<std::size_t>(-1);
     std::function<std::optional<std::filesystem::path>()> current_file_;
     bool seeded_ = false;
     struct ProbeData {
