@@ -94,6 +94,7 @@ add_executable(signals_tests
   pipeline/test_blocks_dsp.cpp
   pipeline/test_blocks_more.cpp
   pipeline/test_blocks_fx.cpp
+  pipeline/test_blocks_analysis.cpp
   pipeline/test_docs.cpp
   pipeline/test_sig.cpp
   pipeline/test_graph.cpp

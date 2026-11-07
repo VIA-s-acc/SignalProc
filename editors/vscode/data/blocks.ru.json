@@ -3917,5 +3917,620 @@
    }
   ],
   "title": "Блокировка DC"
+ },
+ {
+  "about": "Фильтр с любыми b, a, как scipy lfilter; полюса вне единичного круга запрещены",
+  "id": "lfilter",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Коэффициенты числителя b0 b1 … через пробел или запятую; делятся на a0",
+    "choices": [],
+    "default": "1",
+    "name": "b",
+    "values": {}
+   },
+   {
+    "about": "Коэффициенты знаменателя a0 a1 …; a0 не ноль, одна 1 даёт КИХ-фильтр",
+    "choices": [],
+    "default": "1",
+    "name": "a",
+    "values": {}
+   }
+  ],
+  "title": "Фильтр по коэффициентам b, a"
+ },
+ {
+  "about": "Свёртка с заданными отводами, как numpy convolve, обрезанная до длины входа",
+  "id": "fir_taps",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Импульсная характеристика h0 h1 … через пробел или запятую",
+    "choices": [],
+    "default": "1",
+    "name": "taps",
+    "values": {}
+   },
+   {
+    "about": "Убирать ли задержку в (N−1)/2 отсчётов у фильтра из N отводов",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "compensate",
+    "values": {
+     "no": "выход отстаёт на (N−1)/2 отсч., как у настоящего причинного фильтра",
+     "yes": "выход сдвинут назад на (N−1)/2 и выровнен по времени со входом"
+    }
+   }
+  ],
+  "title": "КИХ-фильтр по отводам"
+ },
+ {
+  "about": "Полином по методу наименьших квадратов в скользящем окне, как scipy savgol_filter",
+  "id": "savgol",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Длина окна в отсчётах, нечётная: длиннее — сильнее сглаживание",
+    "choices": [],
+    "default": "11",
+    "max": 4095.0,
+    "min": 1.0,
+    "name": "window",
+    "values": {}
+   },
+   {
+    "about": "Степень полинома, меньше окна: выше — пики острее, но сглаживание слабее",
+    "choices": [],
+    "default": "3",
+    "max": 20.0,
+    "min": 0.0,
+    "name": "polyorder",
+    "values": {}
+   },
+   {
+    "about": "Порядок производной: 0 — сглаживание, 1 — наклон за секунду, 2 — кривизна",
+    "choices": [],
+    "default": "0",
+    "max": 20.0,
+    "min": 0.0,
+    "name": "deriv",
+    "values": {}
+   },
+   {
+    "about": "Чем окно дополняется за краями сигнала",
+    "choices": [
+     "interp",
+     "mirror",
+     "nearest",
+     "constant",
+     "wrap"
+    ],
+    "default": "interp",
+    "name": "mode",
+    "values": {
+     "constant": "дополнение нулями",
+     "interp": "у краёв полином подгоняется по первому и последнему окну",
+     "mirror": "отражение относительно крайних отсчётов без их повтора",
+     "nearest": "повтор крайних отсчётов",
+     "wrap": "периодическое продолжение с другого конца"
+    }
+   }
+  ],
+  "title": "Сглаживание Савицкого — Голея"
+ },
+ {
+  "about": "Мнимая часть или фаза аналитического сигнала, как scipy hilbert",
+  "id": "hilbert",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Что выдавать; модуль даёт блок envelope, скорость фазы — inst_freq",
+    "choices": [
+     "imag",
+     "phase",
+     "unwrapped"
+    ],
+    "default": "imag",
+    "name": "output",
+    "values": {
+     "imag": "само преобразование Гильберта: сигнал, сдвинутый на 90°",
+     "phase": "мгновенная фаза в радианах, свёрнутая в −π…π",
+     "unwrapped": "мгновенная фаза без скачков на 2π, как numpy unwrap"
+    }
+   }
+  ],
+  "title": "Преобразование Гильберта"
+ },
+ {
+  "about": "Синтез минимаксного КИХ-фильтра (Паркс — Макклеллан), как scipy remez, и фильтрация",
+  "id": "remez",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Число отводов N: больше — круче переход, но больше задержка (N−1)/2 отсчётов",
+    "choices": [],
+    "default": "63",
+    "max": 4095.0,
+    "min": 3.0,
+    "name": "numtaps",
+    "values": {}
+   },
+   {
+    "about": "Края полос в Гц парами, от 0 до nyquist, например 0 1000 1500 nyquist",
+    "choices": [],
+    "default": "0 1000 1500 nyquist",
+    "name": "bands",
+    "values": {}
+   },
+   {
+    "about": "Желаемое усиление в каждой полосе, по одному числу на пару краёв",
+    "choices": [],
+    "default": "1 0",
+    "name": "desired",
+    "values": {}
+   },
+   {
+    "about": "Вес ошибки для каждой полосы, пусто — поровну; больше — эта полоса ровнее",
+    "choices": [],
+    "default": "",
+    "name": "weight",
+    "values": {}
+   },
+   {
+    "about": "Тип синтезируемого фильтра",
+    "choices": [
+     "bandpass",
+     "differentiator",
+     "hilbert"
+    ],
+    "default": "bandpass",
+    "name": "type",
+    "values": {
+     "bandpass": "обычный фильтр: ФНЧ, ФВЧ, полосовой или режекторный по полосам",
+     "differentiator": "усиление растёт с частотой: производная в заданных полосах",
+     "hilbert": "фазовращатель на 90°, КИХ-преобразователь Гильберта"
+    }
+   },
+   {
+    "about": "Убирать ли задержку в (N−1)/2 отсчётов у фильтра из N отводов",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "compensate",
+    "values": {
+     "no": "выход отстаёт на (N−1)/2 отсч., как у настоящего причинного фильтра",
+     "yes": "выход сдвинут назад на (N−1)/2 и выровнен по времени со входом"
+    }
+   }
+  ],
+  "title": "Равноволновой КИХ-фильтр (Ремез)"
+ },
+ {
+  "about": "Синтез КИХ-фильтра методом наименьших квадратов, как scipy firls, и фильтрация",
+  "id": "firls",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Число отводов N, нечётное: больше — круче переход, но задержка (N−1)/2 отсчётов",
+    "choices": [],
+    "default": "63",
+    "max": 4095.0,
+    "min": 1.0,
+    "name": "numtaps",
+    "values": {}
+   },
+   {
+    "about": "Края полос в Гц парами, от 0 до nyquist, например 0 1000 1500 nyquist",
+    "choices": [],
+    "default": "0 1000 1500 nyquist",
+    "name": "bands",
+    "values": {}
+   },
+   {
+    "about": "Желаемое усиление на каждом краю полосы; между краями — линейно",
+    "choices": [],
+    "default": "1 1 0 0",
+    "name": "desired",
+    "values": {}
+   },
+   {
+    "about": "Вес ошибки для каждой полосы, пусто — поровну; больше — точнее в этой полосе",
+    "choices": [],
+    "default": "",
+    "name": "weight",
+    "values": {}
+   },
+   {
+    "about": "Убирать ли задержку в (N−1)/2 отсчётов у фильтра из N отводов",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "compensate",
+    "values": {
+     "no": "выход отстаёт на (N−1)/2 отсч., как у настоящего причинного фильтра",
+     "yes": "выход сдвинут назад на (N−1)/2 и выровнен по времени со входом"
+    }
+   }
+  ],
+  "title": "КИХ-фильтр по методу наименьших квадратов"
+ },
+ {
+  "about": "Основная частота по кадрам методом YIN; отчёт с медианой и долей кадров с тоном",
+  "id": "pitch",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   },
+   {
+    "name": "f0",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Самая низкая искомая частота, Гц: ниже — нужен кадр длиннее",
+    "choices": [],
+    "default": "60",
+    "max": 20000.0,
+    "min": 1.0,
+    "name": "fmin",
+    "values": {}
+   },
+   {
+    "about": "Самая высокая искомая частота, Гц",
+    "choices": [],
+    "default": "1000",
+    "max": 100000.0,
+    "min": 1.0,
+    "name": "fmax",
+    "values": {}
+   },
+   {
+    "about": "Длина кадра в отсчётах; первая половина — окно сравнения",
+    "choices": [],
+    "default": "2048",
+    "max": 65536.0,
+    "min": 32.0,
+    "name": "frame",
+    "values": {}
+   },
+   {
+    "about": "Шаг между кадрами в отсчётах; выход f0 идёт с частотой rate/hop",
+    "choices": [],
+    "default": "512",
+    "max": 65536.0,
+    "min": 1.0,
+    "name": "hop",
+    "values": {}
+   },
+   {
+    "about": "Порог нормированной разности: ниже — строже, больше кадров без тона",
+    "choices": [],
+    "default": "0.1",
+    "max": 1.0,
+    "min": 0.001,
+    "name": "threshold",
+    "values": {}
+   }
+  ],
+  "title": "Основной тон (YIN)"
+ },
+ {
+  "about": "Средние мел-кепстральные коэффициенты: мел-фильтры HTK, дБ, ортонормированное DCT-II",
+  "id": "mfcc",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Сколько коэффициентов выдать, начиная с c0 — общего уровня",
+    "choices": [],
+    "default": "13",
+    "max": 128.0,
+    "min": 1.0,
+    "name": "n_mfcc",
+    "values": {}
+   },
+   {
+    "about": "Число треугольных мел-фильтров от 0 Гц до частоты Найквиста",
+    "choices": [],
+    "default": "40",
+    "max": 256.0,
+    "min": 1.0,
+    "name": "n_mels",
+    "values": {}
+   },
+   {
+    "about": "Длина кадра в отсчётах, окно Ханна",
+    "choices": [],
+    "default": "2048",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "frame",
+    "values": {}
+   },
+   {
+    "about": "Шаг между кадрами в отсчётах",
+    "choices": [],
+    "default": "512",
+    "max": 65536.0,
+    "min": 1.0,
+    "name": "hop",
+    "values": {}
+   }
+  ],
+  "title": "Мел-кепстральные коэффициенты"
+ },
+ {
+  "about": "Средние центроид, разброс, спад, плоскостность и поток спектра по кадрам Ханна",
+  "id": "spectral_features",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Длина кадра в отсчётах, окно Ханна: длиннее — точнее по частоте",
+    "choices": [],
+    "default": "2048",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "frame",
+    "values": {}
+   },
+   {
+    "about": "Шаг между кадрами в отсчётах",
+    "choices": [],
+    "default": "512",
+    "max": 65536.0,
+    "min": 1.0,
+    "name": "hop",
+    "values": {}
+   },
+   {
+    "about": "Спад — частота, ниже которой лежит этот процент суммы амплитуд",
+    "choices": [],
+    "default": "85",
+    "max": 99.0,
+    "min": 1.0,
+    "name": "rolloff_pct",
+    "values": {}
+   }
+  ],
+  "title": "Спектральные признаки"
+ },
+ {
+  "about": "Счёт отсчётов в равных интервалах, как numpy histogram; последний включает правый край",
+  "id": "histogram",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Число интервалов одинаковой ширины",
+    "choices": [],
+    "default": "10",
+    "max": 1024.0,
+    "min": 1.0,
+    "name": "bins",
+    "values": {}
+   },
+   {
+    "about": "auto — от минимума до максимума сигнала, или два числа lo hi",
+    "choices": [],
+    "default": "auto",
+    "name": "range",
+    "values": {}
+   }
+  ],
+  "title": "Гистограмма"
+ },
+ {
+  "about": "Отставание b от a по пику взаимной корреляции с уточнением между отсчётами",
+  "id": "delay_estimate",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [],
+  "title": "Оценка задержки"
+ },
+ {
+  "about": "Коэффициенты Пирсона, Спирмена и косинусная близость a и b на общей длине",
+  "id": "correlation",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [],
+  "title": "Корреляция"
+ },
+ {
+  "about": "По полосам: доля энергии, энтропия Шеннона в битах, доля почти нулевых коэффициентов",
+  "id": "coeff_stats",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Коэффициент почти нулевой, если его модуль меньше tol × наибольшего модуля в канале",
+    "choices": [],
+    "default": "0.01",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "tol",
+    "values": {}
+   }
+  ],
+  "title": "Статистика коэффициентов"
  }
 ]

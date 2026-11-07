@@ -3917,5 +3917,620 @@
    }
   ],
   "title": "DC blocker"
+ },
+ {
+  "about": "Any b, a filter like scipy lfilter; poles outside the unit circle are refused",
+  "id": "lfilter",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Numerator coefficients b0 b1 …, space- or comma-separated; divided by a0",
+    "choices": [],
+    "default": "1",
+    "name": "b",
+    "values": {}
+   },
+   {
+    "about": "Denominator coefficients a0 a1 …; a0 must not be zero, a lone 1 gives an FIR filter",
+    "choices": [],
+    "default": "1",
+    "name": "a",
+    "values": {}
+   }
+  ],
+  "title": "Filter from coefficients b, a"
+ },
+ {
+  "about": "Convolves with the given taps like numpy convolve, cut to the input length",
+  "id": "fir_taps",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Impulse response h0 h1 …, space- or comma-separated",
+    "choices": [],
+    "default": "1",
+    "name": "taps",
+    "values": {}
+   },
+   {
+    "about": "Whether to remove the (N−1)/2-sample delay of an N-tap filter",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "compensate",
+    "values": {
+     "no": "output lags by (N−1)/2 samples, like a real causal filter",
+     "yes": "output shifted back by (N−1)/2, time-aligned with the input"
+    }
+   }
+  ],
+  "title": "FIR filter from taps"
+ },
+ {
+  "about": "Least-squares polynomial fit in a sliding window, like scipy savgol_filter",
+  "id": "savgol",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Window length in samples, odd: longer smooths more",
+    "choices": [],
+    "default": "11",
+    "max": 4095.0,
+    "min": 1.0,
+    "name": "window",
+    "values": {}
+   },
+   {
+    "about": "Polynomial order, below the window: higher keeps peaks sharper but smooths less",
+    "choices": [],
+    "default": "3",
+    "max": 20.0,
+    "min": 0.0,
+    "name": "polyorder",
+    "values": {}
+   },
+   {
+    "about": "Derivative order: 0 smooths, 1 gives the slope per second, 2 the curvature",
+    "choices": [],
+    "default": "0",
+    "max": 20.0,
+    "min": 0.0,
+    "name": "deriv",
+    "values": {}
+   },
+   {
+    "about": "How the window is filled past the ends of the signal",
+    "choices": [
+     "interp",
+     "mirror",
+     "nearest",
+     "constant",
+     "wrap"
+    ],
+    "default": "interp",
+    "name": "mode",
+    "values": {
+     "constant": "pad with zeros",
+     "interp": "fit a polynomial to the first and last window instead of padding",
+     "mirror": "reflect about the end samples without repeating them",
+     "nearest": "repeat the end samples",
+     "wrap": "continue periodically from the other end"
+    }
+   }
+  ],
+  "title": "Savitzky–Golay smoothing"
+ },
+ {
+  "about": "Imaginary part or phase of the analytic signal, like scipy hilbert",
+  "id": "hilbert",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "What to output; the magnitude is the envelope block, the phase rate is inst_freq",
+    "choices": [
+     "imag",
+     "phase",
+     "unwrapped"
+    ],
+    "default": "imag",
+    "name": "output",
+    "values": {
+     "imag": "the Hilbert transform itself: the signal shifted by 90°",
+     "phase": "instantaneous phase in radians, wrapped to −π…π",
+     "unwrapped": "instantaneous phase without 2π jumps, like numpy unwrap"
+    }
+   }
+  ],
+  "title": "Hilbert transform"
+ },
+ {
+  "about": "Designs a minimax FIR by Parks–McClellan, like scipy remez, and applies it",
+  "id": "remez",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Number of taps N: more gives a sharper transition but a (N−1)/2-sample delay",
+    "choices": [],
+    "default": "63",
+    "max": 4095.0,
+    "min": 3.0,
+    "name": "numtaps",
+    "values": {}
+   },
+   {
+    "about": "Band edges in Hz in pairs, from 0 up to nyquist, e.g. 0 1000 1500 nyquist",
+    "choices": [],
+    "default": "0 1000 1500 nyquist",
+    "name": "bands",
+    "values": {}
+   },
+   {
+    "about": "Wanted gain in each band, one value per pair of edges",
+    "choices": [],
+    "default": "1 0",
+    "name": "desired",
+    "values": {}
+   },
+   {
+    "about": "Error weight per band, empty means equal; larger makes that band flatter",
+    "choices": [],
+    "default": "",
+    "name": "weight",
+    "values": {}
+   },
+   {
+    "about": "Kind of filter to design",
+    "choices": [
+     "bandpass",
+     "differentiator",
+     "hilbert"
+    ],
+    "default": "bandpass",
+    "name": "type",
+    "values": {
+     "bandpass": "ordinary filter: low-, high-, band-pass or band-stop by the bands",
+     "differentiator": "gain grows with frequency: a derivative over the bands",
+     "hilbert": "90° phase shifter, an FIR Hilbert transformer"
+    }
+   },
+   {
+    "about": "Whether to remove the (N−1)/2-sample delay of an N-tap filter",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "compensate",
+    "values": {
+     "no": "output lags by (N−1)/2 samples, like a real causal filter",
+     "yes": "output shifted back by (N−1)/2, time-aligned with the input"
+    }
+   }
+  ],
+  "title": "Equiripple FIR (Remez)"
+ },
+ {
+  "about": "Designs an FIR by least squares, like scipy firls, and applies it",
+  "id": "firls",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Number of taps N, odd: more gives a sharper transition but a (N−1)/2-sample delay",
+    "choices": [],
+    "default": "63",
+    "max": 4095.0,
+    "min": 1.0,
+    "name": "numtaps",
+    "values": {}
+   },
+   {
+    "about": "Band edges in Hz in pairs, from 0 up to nyquist, e.g. 0 1000 1500 nyquist",
+    "choices": [],
+    "default": "0 1000 1500 nyquist",
+    "name": "bands",
+    "values": {}
+   },
+   {
+    "about": "Wanted gain at every band edge; the gain is linear in between",
+    "choices": [],
+    "default": "1 1 0 0",
+    "name": "desired",
+    "values": {}
+   },
+   {
+    "about": "Error weight per band, empty means equal; larger fits that band closer",
+    "choices": [],
+    "default": "",
+    "name": "weight",
+    "values": {}
+   },
+   {
+    "about": "Whether to remove the (N−1)/2-sample delay of an N-tap filter",
+    "choices": [
+     "no",
+     "yes"
+    ],
+    "default": "no",
+    "name": "compensate",
+    "values": {
+     "no": "output lags by (N−1)/2 samples, like a real causal filter",
+     "yes": "output shifted back by (N−1)/2, time-aligned with the input"
+    }
+   }
+  ],
+  "title": "Least-squares FIR"
+ },
+ {
+  "about": "Fundamental frequency per frame by YIN; reports the median and the voiced share",
+  "id": "pitch",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   },
+   {
+    "name": "f0",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Lowest pitch to look for, Hz: lower needs a longer frame",
+    "choices": [],
+    "default": "60",
+    "max": 20000.0,
+    "min": 1.0,
+    "name": "fmin",
+    "values": {}
+   },
+   {
+    "about": "Highest pitch to look for, Hz",
+    "choices": [],
+    "default": "1000",
+    "max": 100000.0,
+    "min": 1.0,
+    "name": "fmax",
+    "values": {}
+   },
+   {
+    "about": "Frame length in samples; its first half is the comparison window",
+    "choices": [],
+    "default": "2048",
+    "max": 65536.0,
+    "min": 32.0,
+    "name": "frame",
+    "values": {}
+   },
+   {
+    "about": "Step between frames in samples; the f0 output runs at rate/hop",
+    "choices": [],
+    "default": "512",
+    "max": 65536.0,
+    "min": 1.0,
+    "name": "hop",
+    "values": {}
+   },
+   {
+    "about": "Threshold on the normalised difference: lower is stricter, more frames unvoiced",
+    "choices": [],
+    "default": "0.1",
+    "max": 1.0,
+    "min": 0.001,
+    "name": "threshold",
+    "values": {}
+   }
+  ],
+  "title": "Pitch (YIN)"
+ },
+ {
+  "about": "Mean mel-frequency cepstral coefficients: HTK mel bank, dB, orthonormal DCT-II",
+  "id": "mfcc",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "How many coefficients to report, starting with c0, the overall level",
+    "choices": [],
+    "default": "13",
+    "max": 128.0,
+    "min": 1.0,
+    "name": "n_mfcc",
+    "values": {}
+   },
+   {
+    "about": "Number of triangular mel filters from 0 Hz to Nyquist",
+    "choices": [],
+    "default": "40",
+    "max": 256.0,
+    "min": 1.0,
+    "name": "n_mels",
+    "values": {}
+   },
+   {
+    "about": "Frame length in samples, Hann window",
+    "choices": [],
+    "default": "2048",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "frame",
+    "values": {}
+   },
+   {
+    "about": "Step between frames in samples",
+    "choices": [],
+    "default": "512",
+    "max": 65536.0,
+    "min": 1.0,
+    "name": "hop",
+    "values": {}
+   }
+  ],
+  "title": "MFCC"
+ },
+ {
+  "about": "Mean spectral centroid, spread, rolloff, flatness and flux over Hann frames",
+  "id": "spectral_features",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Frame length in samples, Hann window: longer is finer in frequency",
+    "choices": [],
+    "default": "2048",
+    "max": 65536.0,
+    "min": 16.0,
+    "name": "frame",
+    "values": {}
+   },
+   {
+    "about": "Step between frames in samples",
+    "choices": [],
+    "default": "512",
+    "max": 65536.0,
+    "min": 1.0,
+    "name": "hop",
+    "values": {}
+   },
+   {
+    "about": "Rolloff is the frequency below which this percentage of the magnitudes lies",
+    "choices": [],
+    "default": "85",
+    "max": 99.0,
+    "min": 1.0,
+    "name": "rolloff_pct",
+    "values": {}
+   }
+  ],
+  "title": "Spectral features"
+ },
+ {
+  "about": "Counts samples in equal bins like numpy histogram; the last bin keeps its right edge",
+  "id": "histogram",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Number of equal-width bins",
+    "choices": [],
+    "default": "10",
+    "max": 1024.0,
+    "min": 1.0,
+    "name": "bins",
+    "values": {}
+   },
+   {
+    "about": "auto takes the signal's minimum and maximum, or give two numbers lo hi",
+    "choices": [],
+    "default": "auto",
+    "name": "range",
+    "values": {}
+   }
+  ],
+  "title": "Histogram"
+ },
+ {
+  "about": "Lag of b behind a by the cross-correlation peak, refined between samples",
+  "id": "delay_estimate",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [],
+  "title": "Delay estimate"
+ },
+ {
+  "about": "Pearson, Spearman and cosine similarity of a and b over their common length",
+  "id": "correlation",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "b",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [],
+  "title": "Correlation"
+ },
+ {
+  "about": "Per band: energy share, Shannon entropy in bits, share of near-zero coefficients",
+  "id": "coeff_stats",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "A coefficient counts as near zero below tol × the largest magnitude in the channel",
+    "choices": [],
+    "default": "0.01",
+    "max": 1.0,
+    "min": 0.0,
+    "name": "tol",
+    "values": {}
+   }
+  ],
+  "title": "Coefficient statistics"
  }
 ]

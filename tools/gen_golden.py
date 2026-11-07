@@ -877,6 +877,183 @@ def blocks_fx_json():
             "balance": [floats(np.sqrt(1 - 0.6) * x), floats(np.sqrt(1 + 0.6) * r)], "sample_hold": floats(hold),
             "dc_block": floats(scipy.signal.lfilter([1.0, -1.0], [1.0, -0.99], x + 0.5))}
 
+def yin(x, fs, fmin, fmax, frame, hop, threshold):
+    w = frame // 2
+    tau_min, tau_max = max(1, int(math.floor(fs / fmax))), int(math.ceil(fs / fmin))
+    f0 = []
+    for start in range(0, len(x) - frame + 1, hop):
+        seg = x[start:start + frame]
+        d = np.zeros(tau_max + 1)
+        for tau in range(1, tau_max + 1):
+            diff = seg[:w] - seg[tau:tau + w]
+            d[tau] = np.dot(diff, diff)
+        cmnd, acc = np.ones(tau_max + 1), 0.0
+        for tau in range(1, tau_max + 1):
+            acc += d[tau]
+            cmnd[tau] = d[tau] * tau / acc if acc > 0 else 1.0
+        tau = next((t for t in range(tau_min, tau_max + 1) if cmnd[t] < threshold), None)
+        if tau is None:
+            f0.append(0.0)
+            continue
+        while tau + 1 <= tau_max and cmnd[tau + 1] < cmnd[tau]:
+            tau += 1
+        delta = 0.0
+        if tau - 1 >= 1 and tau + 1 <= tau_max:
+            a, b, c = cmnd[tau - 1], cmnd[tau], cmnd[tau + 1]
+            if a - 2 * b + c > 0:
+                delta = 0.5 * (a - c) / (a - 2 * b + c)
+        f0.append(fs / (tau + delta))
+    return np.array(f0)
+
+
+def stft_power(x, n, hop):
+    window = 0.5 - 0.5 * np.cos(2 * np.pi * np.arange(n) / n)
+    scale = 1.0 / np.sum(window) ** 2
+    return np.array([np.abs(np.fft.rfft(x[s:s + n] * window)) ** 2 * scale for s in range(0, len(x) - n + 1, hop)])
+
+
+def mel_bank(fs, n, n_mels):
+    freqs = np.arange(n // 2 + 1) * fs / n
+    edges = 700 * (10 ** (np.linspace(0, 2595 * np.log10(1 + fs / 2 / 700), n_mels + 2) / 2595) - 1)
+    bank = np.zeros((n_mels, len(freqs)))
+    for m in range(n_mels):
+        lo, mid, hi = edges[m], edges[m + 1], edges[m + 2]
+        bank[m] = np.maximum(0, np.minimum((freqs - lo) / (mid - lo), (hi - freqs) / (hi - mid)))
+    return bank
+
+
+def spectral_features(x, fs, n, hop, pct):
+    p = stft_power(x, n, hop)
+    f = np.arange(n // 2 + 1) * fs / n
+    m = np.sqrt(p)
+    centroid, spread, rolloff, flatness = [], [], [], []
+    for frame_p, frame_m in zip(p, m):
+        total = frame_m.sum()
+        if not total > 0:
+            continue
+        c = np.sum(f * frame_m) / total
+        centroid.append(c)
+        spread.append(np.sqrt(np.sum((f - c) ** 2 * frame_m) / total))
+        rolloff.append(f[np.argmax(np.cumsum(frame_m) >= pct / 100 * total)])
+        floored = np.maximum(frame_p, 1e-10)
+        flatness.append(np.exp(np.mean(np.log(floored))) / np.mean(floored))
+    flux = [np.sqrt(np.sum((m[t] - m[t - 1]) ** 2)) for t in range(1, len(m))]
+    mean = lambda v: float(np.mean(v)) if len(v) else 0.0
+    return {"centroid_hz": mean(centroid), "spread_hz": mean(spread), "rolloff_hz": mean(rolloff), "flatness": mean(flatness),
+            "flux": mean(flux), "frames": float(len(m))}
+
+
+def delay_report(a, b, fs):
+    r = scipy.signal.correlate(b, a, mode="full", method="direct")
+    k = int(np.argmax(np.abs(r)))
+    delta = 0.0
+    if 0 < k < len(r) - 1:
+        y0, y1, y2 = abs(r[k - 1]), abs(r[k]), abs(r[k + 1])
+        if y0 - 2 * y1 + y2 < 0:
+            delta = 0.5 * (y0 - y2) / (y0 - 2 * y1 + y2)
+    lag = k - (len(a) - 1) + delta
+    return {"lag_samples": lag, "lag_s": lag / fs, "peak_lag": float(k - (len(a) - 1)),
+            "peak_corr": float(r[k] / np.sqrt(np.dot(a, a) * np.dot(b, b)))}
+
+
+def blocks_analysis_json():
+    """M8d analysis and design blocks: numpy/scipy/pywt references; conventions are stated in the C++ block sources."""
+    import scipy.fft
+    import scipy.stats
+    fs, n = 8000.0, 300
+    t = np.arange(n) / fs
+    rng = np.random.default_rng(29)
+    x = np.sin(2 * np.pi * 440 * t) + 0.5 * np.sin(2 * np.pi * 1800 * t) + 0.3 * rng.standard_normal(n)
+    lfilter = []
+    for b, a in [([0.2, 0.3, 0.1], [1.0, -0.5, 0.25]), ([1.0, 2.0, 1.0], [2.0, -0.6, 0.2]), ([0.5, -0.25], [1.0]), ([1.0], [1.0, -1.0])]:
+        lfilter.append({"b": b, "a": a, "y": floats(scipy.signal.lfilter(b, a, x))})
+    taps = [0.1, -0.2, 0.5, 0.25, 0.05, 0.3]
+    fir_taps = {"taps": taps, "y": floats(np.convolve(x, taps)[:n]), "centred": floats(np.convolve(x, taps)[(len(taps) - 1) // 2:][:n])}
+    savgol = []
+    for window, order, deriv, mode in [(11, 3, 0, "interp"), (21, 4, 1, "interp"), (9, 2, 0, "mirror"), (7, 3, 0, "nearest"),
+                                       (15, 2, 2, "constant"), (5, 1, 0, "wrap"), (31, 5, 3, "interp")]:
+        savgol.append({"window": window, "polyorder": order, "deriv": deriv, "mode": mode,
+                       "y": floats(scipy.signal.savgol_filter(x, window, order, deriv=deriv, delta=1 / fs, mode=mode))})
+    short = x[:7]
+    savgol_short = [{"mode": mode, "x": floats(short), "y": floats(scipy.signal.savgol_filter(short, 11, 2, mode=mode))}
+                    for mode in ["mirror", "nearest", "constant", "wrap"]]
+    analytic = scipy.signal.hilbert(x)
+    hilbert = {"imag": floats(analytic.imag), "phase": floats(np.angle(analytic)), "unwrapped": floats(np.unwrap(np.angle(analytic)))}
+    remez = []
+    for numtaps, bands, desired, weight, kind in [(63, [0, 800, 1200, 4000], [1, 0], None, "bandpass"),
+                                                  (40, [0, 1000, 1500, 4000], [1, 0], [1, 10], "bandpass"),
+                                                  (31, [200, 3800], [1], None, "hilbert"), (21, [0, 3200], [1], None, "differentiator")]:
+        h = scipy.signal.remez(numtaps, bands, desired, weight=weight, type=kind, fs=fs)
+        full = np.convolve(x, h)
+        remez.append({"numtaps": numtaps, "bands": bands, "desired": desired, "weight": weight, "type": kind,
+                      "y": floats(full[:n]), "centred": floats(full[(numtaps - 1) // 2:][:n])})
+    firls = []
+    for numtaps, bands, desired, weight in [(31, [0, 1000, 1500, 4000], [1, 1, 0, 0], None),
+                                            (41, [0, 500, 800, 1600, 1900, 4000], [0, 0, 1, 1, 0, 0], [10, 1, 10])]:
+        h = scipy.signal.firls(numtaps, bands, desired, weight=weight, fs=fs)
+        full = np.convolve(x, h)
+        firls.append({"numtaps": numtaps, "bands": bands, "desired": desired, "weight": weight,
+                      "y": floats(full[:n]), "centred": floats(full[(numtaps - 1) // 2:][:n])})
+
+    tone_n = 2400
+    tt = np.arange(tone_n) / fs
+    phase = 2 * np.pi * (200 * tt + 0.5 * (60 / tt[-1]) * tt ** 2)
+    tone = np.sin(phase) + 0.4 * np.sin(2 * phase) + 0.2 * np.sin(3 * phase) + 0.05 * rng.standard_normal(tone_n)
+    tone[1600:] = 0.0
+    f0 = yin(tone, fs, 80.0, 600.0, 512, 128, 0.15)
+    voiced = f0[f0 > 0]
+    pitch = {"fmin": 80.0, "fmax": 600.0, "frame": 512, "hop": 128, "threshold": 0.15, "f0": floats(f0),
+             "f0_median_hz": float(np.median(voiced)), "voiced_fraction": float(len(voiced) / len(f0)), "frames": float(len(f0))}
+    mfcc = []
+    for n_mfcc, n_mels, frame, hop in [(13, 20, 256, 128), (8, 40, 512, 256)]:
+        energies = stft_power(tone, frame, hop) @ mel_bank(fs, frame, n_mels).T
+        c = scipy.fft.dct(10 * np.log10(np.maximum(energies, 1e-10)), type=2, norm="ortho", axis=1)[:, :n_mfcc]
+        mfcc.append({"n_mfcc": n_mfcc, "n_mels": n_mels, "frame": frame, "hop": hop, "mean": floats(c.mean(axis=0)), "frames": float(len(c))})
+    features = [{"frame": frame, "hop": hop, "rolloff_pct": pct, "report": spectral_features(tone, fs, frame, hop, pct)}
+                for frame, hop, pct in [(256, 64, 85.0), (512, 200, 50.0)]]
+
+    hist = []
+    for bins, lo_hi, data in [(10, None, x), (7, (-1.0, 1.0), x), (4, None, np.full(5, 0.25))]:
+        counts, edges = np.histogram(data, bins=bins, range=lo_hi)
+        k = int(np.argmax(counts))
+        hist.append({"bins": bins, "range": "auto" if lo_hi is None else f"{lo_hi[0]} {lo_hi[1]}", "x": floats(data),
+                     "counts": [int(v) for v in counts], "lo": float(edges[0]), "hi": float(edges[-1]),
+                     "outside": float(len(data) - counts.sum()), "mode": float((edges[k] + edges[k + 1]) / 2)})
+
+    noise = rng.standard_normal(320)
+    base = scipy.signal.lfilter([0.25, 0.25, 0.25, 0.25], 1.0, noise)
+    a = base[:300]
+    later = 0.8 * np.concatenate([np.zeros(17), a[:-17]]) + 0.05 * rng.standard_normal(300)
+    sooner = -base[5:305]
+    spectrum = np.fft.rfft(a)
+    fractional = np.fft.irfft(spectrum * np.exp(-2j * np.pi * np.fft.rfftfreq(300) * 3.4), 300)
+    delay = [{"b": floats(b), "report": delay_report(a, b, fs)} for b in [later, sooner, fractional, a[:120]]]
+
+    y = 0.6 * x + 0.4 * rng.standard_normal(n)
+    correlation = []
+    for p, q in [(x, y), (np.round(4 * x) / 4, np.round(4 * y) / 4), (x, np.concatenate([-x, [1.0, 2.0]]))]:
+        m = min(len(p), len(q))
+        pp, qq = p[:m], q[:m]
+        correlation.append({"a": floats(p), "b": floats(q), "pearson": float(np.corrcoef(pp, qq)[0, 1]),
+                            "cosine": float(np.dot(pp, qq) / np.sqrt(np.dot(pp, pp) * np.dot(qq, qq))),
+                            "spearman": float(scipy.stats.spearmanr(pp, qq).statistic), "n": float(m)})
+
+    bands = pywt.wavedec(x, "db2", mode="symmetric", level=3)
+    names = ["a3", "d3", "d2", "d1"]
+    peak = max(np.max(np.abs(c)) for c in bands)
+    total = sum(np.dot(c, c) for c in bands)
+    stats = {}
+    for name, c in zip(names, bands):
+        e = np.dot(c, c)
+        share = c * c / e
+        share = share[share > 0]
+        stats[name] = {"energy": float(e / total), "entropy": float(-np.sum(share * np.log2(share))),
+                       "sparsity": float(np.mean(np.abs(c) < 0.05 * peak))}
+    return {"fs": fs, "x": floats(x), "lfilter": lfilter, "fir_taps": fir_taps, "savgol": savgol, "savgol_short": savgol_short,
+            "hilbert": hilbert, "remez": remez, "firls": firls, "tone": floats(tone), "pitch": pitch, "mfcc": mfcc,
+            "spectral_features": features, "histogram": hist, "delay_a": floats(a), "delay": delay, "correlation": correlation,
+            "coeff_stats": {"wavelet": "db2", "levels": 3, "tol": 0.05, "bands": stats}}
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -899,7 +1076,7 @@ def main():
                                ("processing.json", lambda: processing_json(sample_wav)),
                                ("iir.json", iir_json), ("fir.json", fir_json), ("ops.json", ops_json), ("analysis.json", analysis_json),
                                ("blocks.json", blocks_json), ("adaptive.json", adaptive_json), ("restoration.json", restoration_json), ("toeplitz.json", toeplitz_json),
-                               ("blocks_fx.json", blocks_fx_json)]:
+                               ("blocks_fx.json", blocks_fx_json), ("blocks_analysis.json", blocks_analysis_json)]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)

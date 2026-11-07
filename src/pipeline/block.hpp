@@ -100,5 +100,7 @@ void register_measure_blocks(std::vector<BlockType>& out);
 void register_restore_blocks(std::vector<BlockType>& out);
 void register_fx_blocks(std::vector<BlockType>& out);
 void register_util_blocks(std::vector<BlockType>& out);
+void register_design_blocks(std::vector<BlockType>& out);
+void register_analysis_blocks(std::vector<BlockType>& out);
 
 }  // namespace signals::pipeline

@@ -17,6 +17,8 @@ add_library(signals_pipeline STATIC
   blocks_restore.cpp
   blocks_fx.cpp
   blocks_util.cpp
+  blocks_design.cpp
+  blocks_analysis.cpp
   sig.cpp
   graph.cpp
   cache.cpp
