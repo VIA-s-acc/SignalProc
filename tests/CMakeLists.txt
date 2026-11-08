@@ -3,6 +3,7 @@ include(Catch)
 add_executable(signals_tests
   test_toolchain.cpp
   core/test_adaptive.cpp
+  core/test_tempo.cpp
   core/test_restoration.cpp
   core/test_laurent.cpp
   core/test_conv.cpp
@@ -73,6 +74,7 @@ add_executable(signals_tests
   tui/test_diagram_screen.cpp
   tui/test_resample_model.cpp
   tui/test_resample_screen.cpp
+  tui/test_tempo_screen.cpp
   tui/test_docs_keys.cpp
   tui/test_explain_screen.cpp
   tui/test_designer_model.cpp
@@ -95,6 +97,7 @@ add_executable(signals_tests
   pipeline/test_blocks_more.cpp
   pipeline/test_blocks_fx.cpp
   pipeline/test_blocks_analysis.cpp
+  pipeline/test_blocks_tempo.cpp
   pipeline/test_blocks_more2.cpp
   pipeline/test_docs.cpp
   pipeline/test_sig.cpp

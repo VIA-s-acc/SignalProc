@@ -22,6 +22,7 @@ add_library(signals_pipeline STATIC
   blocks_effects.cpp
   blocks_spectral.cpp
   blocks_analysis.cpp
+  blocks_tempo.cpp
   sig.cpp
   graph.cpp
   cache.cpp

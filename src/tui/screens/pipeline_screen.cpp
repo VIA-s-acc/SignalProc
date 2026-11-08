@@ -62,7 +62,7 @@ std::optional<TheoryLink> PipelineScreen::theory_link() const {
         {"preemphasis", "fir_design"}, {"deemphasis", "iir_design"}, {"add", "filter_bank"}, {"multiply", "gain"},   {"invert", "gain"},
         {"pad", "delay"},          {"concat", "cut"},            {"trim_silence", "cut"},   {"merge", "split"},       {"swap", "split"},
         {"duplicate", "split"},    {"pan", "mixdown"},           {"add_noise", "snr"},      {"dc_offset", "remove_dc"}, {"stats", "band_energy"},
-        {"loudness", "band_energy"}};
+        {"loudness", "band_energy"}, {"pitch_shift", "time_stretch"}, {"speed", "time_stretch"}};
     if (n->type->id == "swt" || n->type->id == "iswt") return TheoryLink{TheoryLink::Kind::section, "swt-modwt", block_name(n->type->id)};
     const auto it = cards.find(n->type->id);
     return TheoryLink{TheoryLink::Kind::card, it == cards.end() ? n->type->id : it->second, block_name(n->type->id)};
@@ -700,9 +700,13 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
         if (const auto* r = std::get_if<pipeline::Report>(&value)) {
             lines.push_back(text(std::string{glyph(r->passed ? Glyph::check : Glyph::cross, ui_.caps.glyphs)} + " " + tr(r->passed ? "tui.pipeline.report.passed" : "tui.pipeline.report.failed")) |
                             fg(r->passed ? th.ok : th.err, ui_));
+            int key_width = 1;
+            for (const auto& [key, field] : r->fields) key_width = std::max(key_width, display_width(key));
+            key_width = std::min(key_width, std::max(4, width / 2));
             for (const auto& [key, field] : r->fields) {
                 const auto shown = std::holds_alternative<double>(field) ? format_number(std::get<double>(field), 4) : std::get<std::string>(field);
-                lines.push_back(hbox({text(pad_right(key, 14)) | fg(th.dim, ui_), text(shown) | fg(th.fg, ui_)}));
+                lines.push_back(hbox({text(pad_right(ellipsize(key, key_width, ascii), key_width + 1)) | fg(th.dim, ui_),
+                                      text(ellipsize(shown, std::max(4, width - key_width - 1), ascii)) | fg(th.fg, ui_)}));
             }
         } else if (const auto* number = std::get_if<double>(&value)) {
             lines.push_back(text(format_number(*number, 6)) | bold | fg(th.fg, ui_));
@@ -718,11 +722,14 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
             double total = 0;
             for (const auto& b : bands)
                 for (double v : b) total += v * v;
+            int name_width = 4;
+            for (std::size_t k = 0; k < bands.size(); ++k) name_width = std::max(name_width, display_width(pipeline::band_label(*coeffs, k)));
+            name_width = std::min(name_width, std::max(4, width - 20));
             for (std::size_t k = 0; k < bands.size(); ++k) {
                 double e = 0;
                 for (double v : bands[k]) e += v * v;
-                const auto name = pipeline::band_label(*coeffs, k);
-                lines.push_back(hbox({text(pad_right(name, 5)) | fg(th.trace[0], ui_), text(pad_left(group(bands[k].size()), 9)) | fg(th.dim, ui_),
+                const auto name = ellipsize(pipeline::band_label(*coeffs, k), name_width, ascii);
+                lines.push_back(hbox({text(pad_right(name, name_width + 1)) | fg(th.trace[0], ui_), text(pad_left(group(bands[k].size()), 9)) | fg(th.dim, ui_),
                                       text(pad_left(format_fixed(total > 0 ? 100 * e / total : 0, 2) + " %", 10)) | fg(th.fg, ui_)}));
             }
         }
@@ -798,7 +805,7 @@ ftxui::Element PipelineScreen::OnRender() {
         }
     }
     const int graph_w = cols - kRightWidth - 1 - 4, graph_h = content - 1 - kBottomHeight - 2;
-    auto bottom = hbox({probe_panel(cols - kTextWidth - 1 - 4, kBottomHeight - 2) | flex, text(" "), text_panel(kTextWidth - 4, kBottomHeight - 2) | size(WIDTH, EQUAL, kTextWidth)});
+    auto bottom = hbox({probe_panel(cols - kRightWidth - 1 - kTextWidth - 1 - 4, kBottomHeight - 2) | flex, text(" "), text_panel(kTextWidth - 4, kBottomHeight - 2) | size(WIDTH, EQUAL, kTextWidth)});
     auto left = vbox({graph_panel(graph_w, graph_h) | flex, bottom | size(HEIGHT, EQUAL, kBottomHeight)});
     auto right = vbox({(adding_ ? add_panel(kRightWidth - 4, content - 2 - kRunHeight) : inspector_panel(kRightWidth - 4, content - 2 - kRunHeight - 2)) | flex, run_panel(kRightWidth - 4, kRunHeight - 2) | size(HEIGHT, EQUAL, kRunHeight)});
     return vbox({toolbar(), hbox({left | flex, text(" "), right | size(WIDTH, EQUAL, kRightWidth)}) | flex});

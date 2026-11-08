@@ -208,10 +208,10 @@ TEST_CASE("every control on every screen explains itself on hover in both langua
     auto screens = make_app_screens(*ui, models);
     // Sub-tab switches are jump targets too; their label already names the screen they open.
     std::vector<std::string> allowed;
-    for (const char* key : {"tui.sub.spectrogram", "tui.sub.resample", "tui.sub.designer", "tui.sub.diagram", "tui.sub.explain", "tui.sub.under_the_hood",
+    for (const char* key : {"tui.sub.spectrogram", "tui.sub.resample", "tui.sub.tempo", "tui.sub.designer", "tui.sub.diagram", "tui.sub.explain", "tui.sub.under_the_hood",
                             "tui.sub.tutorial"})
         allowed.push_back(signals::tr(key));
-    const std::pair<std::size_t, std::size_t> tabs[]{{0, 1}, {1, 2}, {2, 1}, {3, 2}, {4, 1}, {5, 1}, {6, 1}, {8, 3}};
+    const std::pair<std::size_t, std::size_t> tabs[]{{0, 1}, {1, 3}, {2, 1}, {3, 2}, {4, 1}, {5, 1}, {6, 1}, {8, 3}};
     std::size_t checked = 0;
     for (const auto& [tab, subtabs] : tabs) {
         auto& screen = *screens[tab];

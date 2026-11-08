@@ -88,6 +88,7 @@ const std::string& param_text(const Params& p, std::string_view name);
 core::Result<std::size_t> param_samples(const Params& p, std::string_view name, double rate);
 std::pair<std::size_t, std::size_t> param_range(const Params& p, std::string_view name);
 core::Result<std::size_t> checked_length(std::size_t n, std::size_t factor);
+core::Result<std::size_t> checked_scaled_length(std::size_t n, double factor);
 
 void register_basic_blocks(std::vector<BlockType>& out);
 void register_dsp_blocks(std::vector<BlockType>& out);
@@ -105,5 +106,6 @@ void register_coeff_blocks(std::vector<BlockType>& out);
 void register_effect_blocks(std::vector<BlockType>& out);
 void register_spectral_blocks(std::vector<BlockType>& out);
 void register_analysis_blocks(std::vector<BlockType>& out);
+void register_tempo_blocks(std::vector<BlockType>& out);
 
 }  // namespace signals::pipeline

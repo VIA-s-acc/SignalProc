@@ -16,6 +16,7 @@
 #include "tui/screens/matrix_screen.hpp"
 #include "tui/screens/processing_screen.hpp"
 #include "tui/screens/resample_screen.hpp"
+#include "tui/screens/tempo_screen.hpp"
 #include "tui/screens/signal_screen.hpp"
 #include "tui/screens/spectrum_screen.hpp"
 #include "tui/screens/theory_screen.hpp"
@@ -43,7 +44,7 @@ std::vector<std::shared_ptr<TabScreen>> make_app_screens(UiContext& ui, AppModel
     auto screens = placeholder_screens(ui);
     screens[0] = make_signal_screen(ui, models.signal);
     screens[1] = make_subtabs(tr("tui.tab.spectrum"),
-                              {{tr("tui.sub.spectrogram"), make_spectrum_screen(ui, models.spectrum)}, {tr("tui.sub.resample"), make_resample_screen(ui, models.signal)}},
+                              {{tr("tui.sub.spectrogram"), make_spectrum_screen(ui, models.spectrum)}, {tr("tui.sub.resample"), make_resample_screen(ui, models.signal)}, {tr("tui.sub.tempo"), make_tempo_screen(ui, models.signal)}},
                               0, SubTabKeys{'{', '}'});
     screens[2] = make_filters_screen(ui, models.comparison);
     if (ui.jobs) models.designer->set_p(3, *ui.jobs);

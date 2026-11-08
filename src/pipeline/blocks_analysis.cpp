@@ -8,6 +8,7 @@
 
 #include "core/analysis.hpp"
 #include "core/metrics.hpp"
+#include "core/pitch.hpp"
 #include "core/spectral.hpp"
 #include "core/swt.hpp"
 #include "pipeline/blocks_common.hpp"
@@ -44,46 +45,6 @@ std::optional<core::Error> pair_checks(std::string_view block, const core::Audio
 }
 
 double mean(const std::vector<double>& v) { return v.empty() ? 0.0 : std::accumulate(v.begin(), v.end(), 0.0) / static_cast<double>(v.size()); }
-
-double median(std::vector<double> v) {
-    if (v.empty()) return 0.0;
-    std::ranges::sort(v);
-    const auto h = v.size() / 2;
-    return v.size() % 2 ? v[h] : 0.5 * (v[h - 1] + v[h]);
-}
-
-struct Yin {
-    std::size_t frame, hop, window, tau_min, tau_max;
-    double rate, threshold;
-};
-
-// d(tau) is built from energies and an FFT-backed cross term rather than the direct double sum, which would cost
-// window * tau_max per frame; YIN only needs d to rounding accuracy, so the cancellation is harmless.
-double yin_frame(std::span<const double> seg, const Yin& s) {
-    const auto w = s.window, top = s.tau_max;
-    const auto cross = core::correlate(seg.first(w + top), seg.first(w), core::CorrelationMode::valid);
-    if (!cross) return 0.0;
-    double e0 = 0;
-    for (std::size_t j = 0; j < w; ++j) e0 += seg[j] * seg[j];
-    std::vector<double> cmnd(top + 1, 1.0);
-    double shifted = e0, acc = 0;
-    for (std::size_t tau = 1; tau <= top; ++tau) {
-        shifted += seg[tau - 1 + w] * seg[tau - 1 + w] - seg[tau - 1] * seg[tau - 1];
-        const double d = std::max(0.0, e0 + shifted - 2 * (*cross)[tau]);
-        acc += d;
-        cmnd[tau] = acc > 0 ? d * static_cast<double>(tau) / acc : 1.0;
-    }
-    auto tau = s.tau_min;
-    while (tau <= top && !(cmnd[tau] < s.threshold)) ++tau;
-    if (tau > top) return 0.0;
-    while (tau + 1 <= top && cmnd[tau + 1] < cmnd[tau]) ++tau;
-    double delta = 0;
-    if (tau >= 2 && tau + 1 <= top) {
-        const double a = cmnd[tau - 1], b = cmnd[tau], c = cmnd[tau + 1];
-        if (a - 2 * b + c > 0) delta = 0.5 * (a - c) / (a - 2 * b + c);
-    }
-    return s.rate / (static_cast<double>(tau) + delta);
-}
 
 std::vector<std::vector<double>> mel_bank(double rate, std::size_t n, std::size_t mels) {
     const std::size_t bins = n / 2 + 1;
@@ -236,32 +197,27 @@ void register_analysis_blocks(std::vector<BlockType>& out) {
                                if (auto e = finite_input("pitch", a)) return std::unexpected{*e};
                                const double fmin = param_real(p, "fmin"), fmax = param_real(p, "fmax");
                                if (!(fmin < fmax)) return fail(tr("pipeline.error.pitch_range"), fmt::arg("fmin", fmin), fmt::arg("fmax", fmax));
-                               Yin s{static_cast<std::size_t>(param_int(p, "frame")), static_cast<std::size_t>(param_int(p, "hop")), 0, 0, 0, a.sample_rate,
-                                     param_real(p, "threshold")};
-                               s.window = s.frame / 2;
+                               const core::YinOptions o{static_cast<std::size_t>(param_int(p, "frame")), static_cast<std::size_t>(param_int(p, "hop")), fmin, fmax,
+                                                        param_real(p, "threshold")};
                                if (!(a.sample_rate / fmin <= kMaxSamples)) return fail(tr("pipeline.error.rate_too_high"), fmt::arg("block", "pitch"), fmt::arg("rate", a.sample_rate));
-                               s.tau_min = std::max<std::size_t>(1, static_cast<std::size_t>(std::floor(a.sample_rate / fmax)));
-                               s.tau_max = static_cast<std::size_t>(std::ceil(a.sample_rate / fmin));
-                               if (s.tau_max > s.frame - s.window)
-                                   return fail(tr("pipeline.error.pitch_frame"), fmt::arg("frame", s.frame), fmt::arg("fmin", fmin), fmt::arg("rate", a.sample_rate),
-                                               fmt::arg("min", 2 * s.tau_max));
+                               const auto tau_max = static_cast<std::size_t>(std::ceil(a.sample_rate / fmin));
+                               if (tau_max > o.frame - o.frame / 2)
+                                   return fail(tr("pipeline.error.pitch_frame"), fmt::arg("frame", o.frame), fmt::arg("fmin", fmin), fmt::arg("rate", a.sample_rate),
+                                               fmt::arg("min", 2 * tau_max));
                                Report r;
                                core::AudioBuffer track;
-                               track.sample_rate = a.sample_rate / static_cast<double>(s.hop);
+                               track.sample_rate = a.sample_rate / static_cast<double>(o.hop);
+                               const auto count = static_cast<double>(std::max<std::size_t>(1, a.channels.size()));
                                for (std::size_t c = 0; c < a.channels.size(); ++c) {
-                                   const auto& x = a.channels[c];
-                                   Samples f0;
-                                   for (std::size_t start = 0; start + s.frame <= x.size(); start += s.hop) {
-                                       if (cancelled(ctx)) return core::make_error(core::Errc::cancelled, "pitch: cancelled");
-                                       f0.push_back(yin_frame(std::span{x}.subspan(start, s.frame), s));
-                                   }
-                                   std::vector<double> voiced;
-                                   std::ranges::copy_if(f0, std::back_inserter(voiced), [](double f) { return f > 0; });
+                                   ScaledProgress progress{ctx.progress, static_cast<double>(c) / count, 1 / count};
+                                   auto f0 = core::yin_track(a.channels[c], a.sample_rate, o, &progress);
+                                   if (!f0) return std::unexpected{f0.error()};
+                                   const auto voiced = static_cast<std::size_t>(std::ranges::count_if(*f0, [](double f) { return f > 0; }));
                                    const auto sfx = suffix(a, c);
-                                   r.fields.push_back({"f0_median_hz" + sfx, median(voiced)});
-                                   r.fields.push_back({"voiced_fraction" + sfx, f0.empty() ? 0.0 : static_cast<double>(voiced.size()) / static_cast<double>(f0.size())});
-                                   r.fields.push_back({"frames" + sfx, static_cast<double>(f0.size())});
-                                   track.channels.push_back(std::move(f0));
+                                   r.fields.push_back({"f0_median_hz" + sfx, core::median_f0(*f0)});
+                                   r.fields.push_back({"voiced_fraction" + sfx, f0->empty() ? 0.0 : static_cast<double>(voiced) / static_cast<double>(f0->size())});
+                                   r.fields.push_back({"frames" + sfx, static_cast<double>(f0->size())});
+                                   track.channels.push_back(std::move(*f0));
                                }
                                return std::vector<Value>{std::move(r), std::move(track)};
                            }}));

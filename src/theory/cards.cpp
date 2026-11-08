@@ -148,7 +148,7 @@ std::vector<std::string> required_card_sections() {
 }
 
 std::vector<std::string_view> known_views() {
-    return {"signal",        "spectrum", "resample", "filters", "processing",     "designer",
+    return {"signal",        "spectrum", "resample", "tempo", "filters", "processing",     "designer",
             "diagram",       "decomposition", "matrix", "explain", "under_the_hood", "tutorial"};
 }
 

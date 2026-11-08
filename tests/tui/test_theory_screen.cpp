@@ -64,7 +64,7 @@ TEST_CASE("search narrows the contents and enter opens the first hit", "[tui][th
     f.type("малла");
     const auto expected = signals::theory::search_sections("малла").size();
     auto frame = f.h.frame();
-    CHECK(frame.find(std::to_string(expected) + " из 139") != std::string::npos);
+    CHECK(frame.find(std::to_string(expected) + " из 140") != std::string::npos);
     f.h.send(ftxui::Event::Return);
     CHECK_FALSE(f.screen->capturing_text());
     REQUIRE(f.nav->current());
@@ -77,7 +77,7 @@ TEST_CASE("search with no hits shows zero and keeps the selection valid", "[tui]
     f.type("нетакогослова");
     f.h.send(ftxui::Event::ArrowDown);
     f.h.send(ftxui::Event::ArrowUp);
-    CHECK(f.h.frame().find("0 из 139") != std::string::npos);
+    CHECK(f.h.frame().find("0 из 140") != std::string::npos);
     f.h.send(ftxui::Event::Return);
     f.h.send(ftxui::Event::Escape);
     CHECK_FALSE(f.screen->capturing_text());

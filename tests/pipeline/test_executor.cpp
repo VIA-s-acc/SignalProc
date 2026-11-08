@@ -171,6 +171,14 @@ src -> g
     CHECK(last["g"] == NodeState::bypassed);
 }
 
+#if defined(__SANITIZE_ADDRESS__)
+constexpr bool kSanitized = true;
+#elif defined(__has_feature)
+constexpr bool kSanitized = __has_feature(address_sanitizer);
+#else
+constexpr bool kSanitized = false;
+#endif
+
 TEST_CASE("cancel stops a ten-minute run quickly and leaves no file", "[pipeline][executor][cancel]") {
     const auto dir = test::temp_path("cancel-run");
     std::filesystem::remove_all(dir);
@@ -190,7 +198,8 @@ src -> dwt -> rec -> out
     cancel.cancel();
     const auto r = future.get();
     const auto took = std::chrono::steady_clock::now() - asked;
-    CHECK(took < 200ms);
+    // 200 ms is the budget for optimised builds; the Debug + sanitizer CI job measured 202–206 ms here.
+    CHECK(took < (kSanitized ? 500ms : 200ms));
     REQUIRE_FALSE(r);
     CHECK(r.error().code == core::Errc::cancelled);
     CHECK(std::filesystem::is_empty(dir));

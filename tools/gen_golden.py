@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pywt
+import scipy.interpolate
 import scipy.io.wavfile
 import scipy.signal
 from skimage.restoration import _denoise
@@ -1329,6 +1330,78 @@ def blocks_analysis_json():
             "coeff_stats": {"wavelet": "db2", "levels": 3, "tol": 0.05, "bands": stats}}
 
 
+def librosa_stft(y, n_fft, hop):
+    """librosa.stft: center=True, pad_mode="constant", periodic Hann window."""
+    window = scipy.signal.get_window("hann", n_fft, fftbins=True)
+    half = n_fft // 2
+    padded = np.pad(y, (half, half))
+    frames = 1 + (len(padded) - n_fft) // hop
+    return np.stack([np.fft.rfft(window * padded[k * hop:k * hop + n_fft]) for k in range(frames)], axis=1)
+
+
+def librosa_istft(d, n_fft, hop, length):
+    """librosa.istft with center=True and a fixed output length."""
+    window = scipy.signal.get_window("hann", n_fft, fftbins=True)
+    half = n_fft // 2
+    total = n_fft + hop * (d.shape[1] - 1)
+    y = np.zeros(max(total, half + length))
+    norm = np.zeros_like(y)
+    for k in range(d.shape[1]):
+        y[k * hop:k * hop + n_fft] += window * np.fft.irfft(d[:, k], n=n_fft)
+        norm[k * hop:k * hop + n_fft] += window ** 2
+    y, norm = y[half:half + length], norm[half:half + length]
+    nz = norm > np.finfo(float).tiny
+    y[nz] /= norm[nz]
+    return y
+
+
+def phase_vocoder(d, rate):
+    """librosa 1.0 phase_vocoder: cumulative phase differences, linearly interpolated (and extrapolated) magnitudes."""
+    n = d.shape[1]
+    t_out = np.arange(0.0, n, rate)
+    i0 = np.floor(t_out).astype(int)
+    i1 = np.minimum(i0 + 1, n - 1)
+    ph = np.angle(d)
+    phase = np.empty((d.shape[0], len(t_out)))
+    phase[:, 0] = ph[:, i0[0]]
+    phase[:, 1:] = (ph[:, i1] - ph[:, i0])[:, :-1]
+    phase = np.cumsum(phase, axis=1)
+    mag = scipy.interpolate.interp1d(np.arange(n), np.abs(d), kind="linear", axis=-1, fill_value="extrapolate", assume_sorted=True)(t_out)
+    return mag * (np.cos(phase) + 1j * np.sin(phase))
+
+
+def time_stretch(y, rate, n_fft, hop):
+    """librosa.effects.time_stretch."""
+    return librosa_istft(phase_vocoder(librosa_stft(y, n_fft, hop), rate), n_fft, hop, round(len(y) / rate))
+
+
+def pitch_shift(y, semitones, n_fft, hop):
+    """librosa.effects.pitch_shift(res_type="fft"): stretch by 2^(-n/12), resample back with scipy.signal.resample, fix the length."""
+    rate = 2.0 ** (-float(semitones) / 12)
+    stretched = time_stretch(y, rate, n_fft, hop)
+    shifted = scipy.signal.resample(stretched, int(np.ceil(len(stretched) * rate))) if rate != 1.0 else stretched
+    out = np.zeros(len(y))
+    out[:min(len(y), len(shifted))] = shifted[:len(y)]
+    return out
+
+
+def tempo_json():
+    """M8b: time stretch and pitch shift as librosa 1.0 does them, scipy.signal.resample for the FFT resampler."""
+    rng = np.random.default_rng(808)
+    fs = 8000
+    t = np.arange(2000) / fs
+    x = (np.sin(2 * np.pi * 220 * t) + 0.5 * np.sin(2 * np.pi * 440 * t + 0.3) + 0.25 * np.sin(2 * np.pi * 660 * t + 1.1)) * np.hanning(2000) ** 0.25
+    x += 0.01 * rng.standard_normal(len(x))
+    stretch = [{"rate": rate, "n_fft": n_fft, "hop": hop, "y": floats(time_stretch(x, rate, n_fft, hop))}
+               for rate, n_fft, hop in [(0.5, 512, 128), (0.8, 512, 128), (1.25, 512, 128), (2.0, 512, 128), (1.0, 512, 128), (1.5, 256, 64), (3.7, 256, 96)]]
+    shift = [{"semitones": st, "n_fft": 512, "hop": 128, "y": floats(pitch_shift(x, st, 512, 128))} for st in [-12, -5, 3.5, 12]]
+    resample = []
+    for n_in, num in [(11, 17), (16, 24), (16, 10), (15, 9), (20, 20), (17, 6), (6, 31)]:
+        v = rng.standard_normal(n_in)
+        resample.append({"x": floats(v), "num": num, "y": floats(scipy.signal.resample(v, num))})
+    return {"fs": fs, "x": floats(x), "stretch": stretch, "shift": shift, "resample": resample}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path)
@@ -1349,7 +1422,7 @@ def main():
                                ("packets.json", packets_json), ("cwt.json", cwt_json),
                                ("processing.json", lambda: processing_json(sample_wav)),
                                ("iir.json", iir_json), ("fir.json", fir_json), ("ops.json", ops_json), ("analysis.json", analysis_json),
-                               ("blocks.json", blocks_json), ("adaptive.json", adaptive_json), ("restoration.json", restoration_json), ("toeplitz.json", toeplitz_json), ("blocks_fx.json", blocks_fx_json), ("blocks_analysis.json", blocks_analysis_json), ("blocks2.json", blocks2_json)]:
+                               ("blocks.json", blocks_json), ("adaptive.json", adaptive_json), ("restoration.json", restoration_json), ("toeplitz.json", toeplitz_json), ("blocks_fx.json", blocks_fx_json), ("blocks_analysis.json", blocks_analysis_json), ("blocks2.json", blocks2_json), ("tempo.json", tempo_json)]:
         text = json.dumps(builder(), separators=(",", ":"), allow_nan=False)
         (args.out / file_name).write_text(text + "\n")
     args.tables.parent.mkdir(parents=True, exist_ok=True)
