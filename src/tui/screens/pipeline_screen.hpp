@@ -129,6 +129,8 @@ private:
     std::size_t pick_ = 0, param_ = 0;
 };
 
+TheoryLink pipeline_theory_link(std::string_view block, std::string title);
+
 std::shared_ptr<TabScreen> make_pipeline_screen(UiContext& ui, std::shared_ptr<PipelineModel> model,
                                                 std::function<std::optional<std::filesystem::path>()> current_file = {});
 

@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <filesystem>
 #include <fstream>
@@ -47,7 +48,10 @@ TEST_CASE("cards pass the linter", "[theory][cards]") {
 }
 
 TEST_CASE("card files on disk pass the linter", "[theory][cards-disk]") {
-    const std::filesystem::path dir = std::filesystem::path{SIGNALS_SOURCE_DIR} / "resources" / "theory" / "blocks";
+    const std::filesystem::path root = std::filesystem::path{SIGNALS_SOURCE_DIR} / "resources" / "theory";
+    const auto language = GENERATE(signals::Language::ru, signals::Language::en);
+    const signals::LanguageScope scope{language};
+    const auto dir = language == signals::Language::en ? root / "en" / "blocks" : root / "blocks";
     std::size_t files = 0;
     for (const auto& entry : std::filesystem::directory_iterator{dir}) {
         if (entry.path().extension() != ".md") continue;
