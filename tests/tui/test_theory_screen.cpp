@@ -359,7 +359,7 @@ TEST_CASE("the block list shows its range and scrolls to every block", "[tui][th
 
     const auto list = f.screen->area("blocks");
     REQUIRE(list.x_max >= list.x_min);
-    for (int i = 0; i < 40; ++i) f.h.wheel(list.x_min + 1, list.y_min + 1, false);
+    for (std::size_t i = 0; i < total; ++i) f.h.wheel(list.x_min + 1, list.y_min + 1, false);
     frame = f.h.frame();
     const auto b = f.screen->area("block:" + last);
     REQUIRE(b.x_max >= b.x_min);
@@ -369,7 +369,7 @@ TEST_CASE("the block list shows its range and scrolls to every block", "[tui][th
 
     f.h.frame();
     const auto moved = f.screen->area("blocks");
-    for (int i = 0; i < 40; ++i) f.h.wheel(moved.x_min + 1, moved.y_min + 1, true);
+    for (std::size_t i = 0; i < total; ++i) f.h.wheel(moved.x_min + 1, moved.y_min + 1, true);
     f.h.frame();
     const std::string head{signals::theory::block_catalog().front().id};
     const auto first = f.screen->area("block:" + head);

@@ -26,7 +26,10 @@
 #include "io/wav.hpp"
 #include "pipeline/sig.hpp"
 #include "support/paths.hpp"
+#include "pipeline/block.hpp"
+#include "theory/cards.hpp"
 #include "theory/live.hpp"
+#include "theory/sections.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/pipeline_model.hpp"
 #include "tui/screens/pipeline_canvas.hpp"
@@ -986,4 +989,16 @@ TEST_CASE("long report field names keep a gap before their values", "[tui][pipel
         INFO(frame.substr(at, 40));
         CHECK(frame[at + key.size()] == ' ');
     }
+}
+
+TEST_CASE("every pipeline block opens a theory card or a book section with F1", "[tui][pipeline_screen][theory]") {
+    std::size_t blocks = 0;
+    for (const auto& t : signals::pipeline::block_types()) {
+        ++blocks;
+        const auto link = pipeline_theory_link(t.id, t.id);
+        INFO(t.id << " -> " << link.id);
+        if (link.kind == TheoryLink::Kind::card) CHECK(signals::theory::find_card(link.id));
+        else CHECK(signals::theory::find_section(link.id));
+    }
+    CHECK(blocks > 100);
 }
