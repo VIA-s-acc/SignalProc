@@ -606,7 +606,7 @@
   "tui.theory.view.explain": "Объяснение на банке Хаара",
   "tui.theory.view.under_the_hood": "Под капотом",
   "tui.theory.view.tutorial": "Учебник",
-  "tui.theory.view.pipeline_later": "Блок в графе — появится в M5",
+  "tui.theory.view.pipeline": "В «Конвейере»",
   "tui.theory.footer": "{source} · {function}() · тест: {test} · o — открыть",
   "tui.theory.from_book": "учебник",
   "tui.theory.snapshot": "снимок",

@@ -268,7 +268,7 @@ private:
             int sub;
         };
         static constexpr Route routes[]{{"signal", 0, -1},     {"spectrum", 1, 0}, {"resample", 1, 1},       {"tempo", 1, 2},       {"filters", 2, -1},
-                                        {"designer", 3, 0},    {"diagram", 3, 1},  {"decomposition", 4, -1}, {"processing", 6, -1},
+                                        {"designer", 3, 0},    {"diagram", 3, 1},  {"decomposition", 4, -1}, {"processing", 6, -1},   {"pipeline", 7, -1},
                                         {"matrix", 5, -1},     {"explain", 8, 0},  {"under_the_hood", 8, 1}, {"tutorial", 8, 2}};
         int tab = -1, sub = -1;
         if (target.starts_with("tab:")) {

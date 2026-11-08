@@ -11,10 +11,12 @@
 #include <ftxui/dom/elements.hpp>
 
 #include "i18n/i18n.hpp"
+#include "pipeline/block.hpp"
 #include "theory/blocks.hpp"
 #include "theory/cards.hpp"
 #include "theory/sections.hpp"
 #include "theory/text.hpp"
+#include "tui/screens/pipeline_screen.hpp"
 #include "tui/shell/palette.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/widgets/screen_util.hpp"
@@ -227,7 +229,11 @@ std::string TheoryScreen::card_markdown(const theory::Card& card, bool live) con
                 const auto key = "tui.theory.view." + v;
                 buttons += std::string{buttons.empty() ? "" : " · "} + "[" + tr(key) + "](view:" + v + ")";
             }
-            buttons += std::string{buttons.empty() ? "" : " · "} + "*" + tr("tui.theory.view.pipeline_later") + "*";
+            std::string blocks;
+            for (const auto& t : pipeline::block_types())
+                if (const auto link = pipeline_theory_link(t.id, {}); link.kind == TheoryLink::Kind::card && link.id == card.id)
+                    blocks += std::string{blocks.empty() ? "" : ", "} + "`" + t.id + "`";
+            if (!blocks.empty()) buttons += std::string{buttons.empty() ? "" : " · "} + "[" + tr("tui.theory.view.pipeline") + "](view:pipeline): " + blocks;
             md += buttons + "\n\n";
         }
         if (s.heading == tr("theory.card.implementation")) {
