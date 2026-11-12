@@ -114,4 +114,6 @@ private:
 bool same_port(const pipeline::PortRef& a, const pipeline::PortRef& b);
 bool same_wire(const pipeline::Edge& a, const pipeline::Edge& b);
 
+std::string shape_text(const std::vector<pipeline::OutputShape>& shapes, bool compact);
+
 }  // namespace signals::tui

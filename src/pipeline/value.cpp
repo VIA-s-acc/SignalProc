@@ -41,6 +41,21 @@ std::string_view to_string(PortType t) {
     return "?";
 }
 
+OutputShape shape_of(const Value& v) {
+    OutputShape s{type_of(v)};
+    if (const auto* a = std::get_if<core::AudioBuffer>(&v)) {
+        s.channels = a->channels.size();
+        s.frames = a->frames();
+        s.rate = a->sample_rate;
+    } else if (const auto* c = std::get_if<Coeffs>(&v)) {
+        s.channels = c->channels.size();
+        if (!c->channels.empty())
+            for (const auto& band : c->channels.front().bands) s.frames += band.size();
+        s.rate = c->rate;
+    }
+    return s;
+}
+
 std::uint64_t value_key(const Value& v) {
     Hasher h;
     h.count(v.index());

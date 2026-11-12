@@ -1212,3 +1212,37 @@ TEST_CASE("n names the probe in the panel or on the selected node", "[tui][pipel
     std::vector<Command> commands = f.screen->commands();
     CHECK(std::any_of(commands.begin(), commands.end(), [](const Command& c) { return c.id == "pipeline.probe_name"; }));
 }
+
+TEST_CASE("a stereo graph shows its shape on nodes and in the inspector, and the probe draws every channel", "[tui][pipeline_screen][multichannel]") {
+    PipelineFixture f{150, 44, false};
+    run_text(f, "pipeline \"st\" v1\n"
+                "node x = samples(values=\"" + ramp(64, 1) + " | " + ramp(64, 2) + "\", rate=8)\n"
+                "node d = dwt(wavelet=haar, levels=2)\n"
+                "x -> d\n"
+                "probe x as \"x\"\n"
+                "probe d as \"d\"\n");
+    auto frame = f.h.frame();
+    CHECK(frame.find("2×64") != std::string::npos);
+    f.model->selection = {Selection::Kind::node, "x", {}};
+    frame = f.h.frame();
+    CHECK(frame.find(tr("tui.pipeline.output")) != std::string::npos);
+    CHECK(frame.find("2 " + tr("tui.pipeline.channels") + " × 64") != std::string::npos);
+    f.h.send(ftxui::Event::Tab);
+    frame = f.h.frame();
+    CHECK(frame.find("Щуп · d") != std::string::npos);
+    CHECK(has_row(frame, {"ch0", "ch1"}));
+    f.h.send(ftxui::Event::ArrowRight);
+    frame = f.h.frame();
+    CHECK(frame.find("Щуп · x") != std::string::npos);
+    CHECK(frame.find("ch0") != std::string::npos);
+    CHECK(frame.find("ch1") != std::string::npos);
+    CHECK(f.screen->area("probe_time_plot").x_max >= f.screen->area("probe_time_plot").x_min);
+    CHECK(f.screen->area("probe_time_plot:1").x_max < f.screen->area("probe_time_plot:1").x_min);
+    f.h.send(ftxui::Event::Character('k'));
+    f.h.frame();
+    CHECK(f.screen->area("probe_time_plot:1").x_max >= f.screen->area("probe_time_plot:1").x_min);
+    f.h.send(ftxui::Event::Character('v'));
+    frame = f.h.frame();
+    CHECK(frame.find("ch1") != std::string::npos);
+}
+

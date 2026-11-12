@@ -11,6 +11,7 @@
 
 #include "i18n/i18n.hpp"
 #include "pipeline/block.hpp"
+#include "tui/widgets/format.hpp"
 #include "tui/monitor/sampler.hpp"
 
 namespace signals::tui {
@@ -400,5 +401,24 @@ RunView PipelineModel::run_view() const {
 }
 
 std::size_t PipelineModel::cache_bytes() const { return cache_->bytes(); }
+
+std::string shape_text(const std::vector<pipeline::OutputShape>& shapes, bool compact) {
+    std::string out;
+    for (const auto& s : shapes) {
+        const bool sized = s.type == pipeline::PortType::signal || s.type == pipeline::PortType::coeffs;
+        if (compact && !sized) continue;
+        std::string one;
+        if (compact) one = std::to_string(s.channels) + "×" + std::to_string(s.frames);
+        else if (sized) {
+            one = std::to_string(s.channels) + " " + tr("tui.pipeline.channels") + " × " + std::to_string(s.frames);
+            if (s.type == pipeline::PortType::coeffs) one = tr("tui.pipeline.shape.coeffs") + " " + one;
+            if (s.rate > 0) one += " · " + format_si(s.rate, tr("unit.hz"));
+        } else {
+            one = std::string{pipeline::to_string(s.type)};
+        }
+        out += (out.empty() ? "" : ", ") + one;
+    }
+    return out;
+}
 
 }  // namespace signals::tui

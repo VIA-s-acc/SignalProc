@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+
 #include <chrono>
 #include <filesystem>
 #include <future>
@@ -292,3 +294,32 @@ TEST_CASE("a bypassed block passes its input through", "[pipeline][executor]") {
     CHECK(p->nodes[1].state == NodeState::done);
     CHECK(channel(*p, "out") != channel(*p, "in"));
 }
+
+TEST_CASE("node statuses carry the shape of every output", "[pipeline][executor][multichannel]") {
+    const auto g = graph_of("node x = samples(values=\"1 2 3 | 4 5 6\", rate=8)\n"
+                            "node d = dwt(wavelet=haar, levels=1)\n"
+                            "node s = stats()\n"
+                            "x -> d\n"
+                            "x -> s\n");
+    ResultCache cache{std::size_t{1} << 30};
+    core::CancelToken cancel;
+    const auto r = run_graph(g, cache, {}, cancel);
+    REQUIRE(r);
+    const auto status = [&](std::string_view id) {
+        const auto it = std::find_if(r->nodes.begin(), r->nodes.end(), [&](const NodeStatus& s) { return s.id == id; });
+        REQUIRE(it != r->nodes.end());
+        return *it;
+    };
+    const auto x = status("x");
+    REQUIRE(x.shapes.size() == 1);
+    CHECK(x.shapes[0].type == PortType::signal);
+    CHECK(x.shapes[0].channels == 2);
+    CHECK(x.shapes[0].frames == 3);
+    CHECK(x.shapes[0].rate == 8);
+    const auto d = status("d");
+    REQUIRE_FALSE(d.shapes.empty());
+    CHECK(d.shapes[0].type == PortType::coeffs);
+    CHECK(d.shapes[0].channels == 2);
+    CHECK(status("s").shapes.at(0).type == PortType::report);
+}
+

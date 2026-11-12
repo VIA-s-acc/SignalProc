@@ -146,7 +146,7 @@ std::vector<Hint> PipelineScreen::hints() const {
             {"Ctrl+Z/Y", tr("tui.pipeline.hint.undo")},    {"Ctrl+S", tr("tui.pipeline.hint.save")}, {"o", tr("tui.pipeline.hint.open")},
             {"r", tr("tui.pipeline.hint.run")},           {"A/B", tr("tui.pipeline.hint.ab")},      {"Space", tr("tui.pipeline.hint.listen")},
             {"+ − 0", tr("tui.pipeline.hint.zoom")},       {"O", tr("tui.pipeline.hint.examples")},  {"PgUp/PgDn", tr("tui.hint.page")},
-            {"v", tr("tui.pipeline.hint.view")},          {"n", tr("tui.pipeline.hint.name")},     {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")},
+            {"v", tr("tui.pipeline.hint.view")},          {"n", tr("tui.pipeline.hint.name")},     {"k", tr("tui.pipeline.hint.channels")},     {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")},
             {"c/C", tr("tui.pipeline.hint.connect_keys")}};
 }
 
@@ -304,6 +304,9 @@ ftxui::Element PipelineScreen::inspector_panel(int width, int height) {
         const auto it = std::find_if(g->nodes.begin(), g->nodes.end(), [&](const auto& n) { return n.id == sel.node; });
         if (it != g->nodes.end()) {
             rows.push_back(text(ellipsize(it->id + " · " + block_name(it->type->id), width, ui_.caps.glyphs == GlyphMode::ascii)) | bold | fg(th.fg, ui_));
+            const auto view = model_->run_view();
+            if (const auto r = view.nodes.find(it->id); r != view.nodes.end() && !r->second.status.shapes.empty())
+                rows.push_back(text(ellipsize(tr("tui.pipeline.output") + ": " + shape_text(r->second.status.shapes, false), width, ui_.caps.glyphs == GlyphMode::ascii)) | fg(th.dim, ui_));
             param_ = std::min(param_, it->type->params.empty() ? 0 : it->type->params.size() - 1);
             Elements params;
             param_boxes_.assign(it->type->params.size(), kNoBox);
@@ -598,7 +601,7 @@ void PipelineScreen::refresh_probe(const RunView& run) {
         auto samples = std::make_shared<std::vector<std::vector<float>>>();
         for (const auto& c : audio->channels) samples->emplace_back(c.begin(), c.end());
         probe_.samples = samples;
-        probe_.pyramid = std::make_unique<MinMaxPyramid>(std::span<const float>{samples->front()});
+        for (const auto& c : *samples) probe_.pyramids.push_back(std::make_unique<MinMaxPyramid>(std::span<const float>{c}));
         probe_.rate = audio->sample_rate;
         probe_.frames = audio->frames();
     }
@@ -606,10 +609,12 @@ void PipelineScreen::refresh_probe(const RunView& run) {
         const auto* audio = std::get_if<core::AudioBuffer>(run.probes.at(name).get());
         std::size_t segment = 4096;
         while (segment > 16 && segment > audio->frames()) segment /= 2;
-        if (auto psd = core::welch_psd(audio->channels.front(), audio->sample_rate, segment, segment / 2)) {
-            probe_.freqs = core::welch_frequencies(audio->sample_rate, segment);
-            for (const double v : *psd) probe_.db.push_back(10 * std::log10(std::max(v, 1e-30)));
-        }
+        for (const auto& c : audio->channels)
+            if (auto psd = core::welch_psd(c, audio->sample_rate, segment, segment / 2)) {
+                probe_.freqs = core::welch_frequencies(audio->sample_rate, segment);
+                auto& db = probe_.db.emplace_back();
+                for (const double v : *psd) db.push_back(10 * std::log10(std::max(v, 1e-30)));
+            }
     }
 }
 
@@ -686,6 +691,92 @@ void PipelineScreen::name_probe() {
         const auto probes = model_->run_view().probes;
         if (const auto it = probes.find(renamed->name); it != probes.end()) probe_index_ = static_cast<std::size_t>(std::distance(probes.begin(), it));
     });
+}
+
+ftxui::Element PipelineScreen::channel_legend(std::size_t channels, int width, bool keys) const {
+    using namespace ftxui;
+    const auto& th = ui_.theme;
+    const std::string mark = ui_.caps.glyphs == GlyphMode::ascii ? "#" : "■";
+    const auto hint = keys ? "  " + tr("tui.pipeline.legend_keys") : std::string{};
+    Elements parts;
+    int used = display_width(hint);
+    std::size_t shown = 0;
+    for (; shown < channels; ++shown) {
+        const auto item = mark + " ch" + std::to_string(shown) + "  ";
+        const auto rest = channels - shown - 1;
+        const int tail = rest > 0 ? display_width(fmt::format(fmt::runtime(tr("tui.pipeline.values.more_channels")), fmt::arg("count", rest))) : 0;
+        if (shown > 0 && used + display_width(item) + tail > width) break;
+        parts.push_back(text(item) | fg(th.trace[shown % th.trace.size()], ui_));
+        used += display_width(item);
+    }
+    if (shown < channels) parts.push_back(text(fmt::format(fmt::runtime(tr("tui.pipeline.values.more_channels")), fmt::arg("count", channels - shown))) | fg(th.warn, ui_));
+    parts.push_back(filler());
+    if (keys) parts.push_back(text(hint) | fg(th.dim, ui_));
+    return hbox(std::move(parts));
+}
+
+ftxui::Element PipelineScreen::probe_time(int width, int rows) {
+    using namespace ftxui;
+    const auto& th = ui_.theme;
+    const std::size_t channels = probe_.pyramids.size();
+    const double rate = std::max(1.0, probe_.rate);
+    const Axis full{0, static_cast<double>(probe_.frames) / rate};
+    auto& master = probe_zoom_.axis("probe_time", full);
+    const auto peak = [](const MinMaxPyramid& p) {
+        const auto all = p.query(0, p.size(), 1);
+        return all.empty() ? 1.0 : std::max({1e-12, std::abs(static_cast<double>(all[0].lo)), std::abs(static_cast<double>(all[0].hi))});
+    };
+    const auto make = [&](std::size_t from, std::size_t to, double m) {
+        PlotSpec spec;
+        spec.x = master.axis();
+        spec.y = {-m, m};
+        spec.playhead = playhead();
+        for (std::size_t c = from; c < to; ++c) {
+            const auto* pyramid = probe_.pyramids[c].get();
+            const auto first = static_cast<std::size_t>(std::clamp(spec.x.lo * rate, 0.0, static_cast<double>(pyramid->size())));
+            const auto last = std::max(first + 1, static_cast<std::size_t>(std::clamp(spec.x.hi * rate, 0.0, static_cast<double>(pyramid->size()))));
+            spec.envelopes.push_back(Envelope{{}, th.trace[c % th.trace.size()], [pyramid, first, last](int cols) { return pyramid->query(first, last, static_cast<std::size_t>(cols)); }});
+        }
+        return spec;
+    };
+    Elements out;
+    if (channels > 1) out.push_back(channel_legend(channels, width, true));
+    const int room = std::max(2, rows - (channels > 1 ? 1 : 0));
+    if (!stacked_ || channels == 1) {
+        double m = 1e-12;
+        for (const auto& p : probe_.pyramids) m = std::max(m, peak(*p));
+        auto spec = make(0, channels, m);
+        auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, room);
+        out.push_back(probe_zoom_.track("probe_time", std::move(spec), std::move(drawn)));
+        return vbox(std::move(out));
+    }
+    const auto fits = static_cast<std::size_t>(std::max(1, room / 2));
+    const std::size_t shown = channels <= fits ? channels : std::max<std::size_t>(1, static_cast<std::size_t>(std::max(1, (room - 1) / 2)));
+    const int each = std::max(2, (room - (shown < channels ? 1 : 0)) / static_cast<int>(shown));
+    for (std::size_t c = 0; c < shown; ++c) {
+        const auto id = c == 0 ? std::string{"probe_time"} : "probe_time:" + std::to_string(c);
+        if (c > 0) probe_zoom_.axis(id, full) = master;
+        auto spec = make(c, c + 1, peak(*probe_.pyramids[c]));
+        auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, each);
+        out.push_back(probe_zoom_.track(id, std::move(spec), std::move(drawn)));
+    }
+    if (shown < channels)
+        out.push_back(text(fmt::format(fmt::runtime(tr("tui.pipeline.channels_hidden")), fmt::arg("count", channels - shown))) | fg(th.warn, ui_));
+    return vbox(std::move(out));
+}
+
+void PipelineScreen::sync_stacked() {
+    if (!stacked_) return;
+    const Axis full{0, static_cast<double>(probe_.frames) / std::max(1.0, probe_.rate)};
+    const auto master = probe_zoom_.view("probe_time");
+    for (std::size_t c = 1; c < probe_.pyramids.size(); ++c) {
+        const auto id = "probe_time:" + std::to_string(c);
+        const auto other = probe_zoom_.view(id);
+        if (master && other && (other->lo != master->lo || other->hi != master->hi)) {
+            probe_zoom_.axis("probe_time", full) = probe_zoom_.axis(id, full);
+            return;
+        }
+    }
 }
 
 std::optional<double> PipelineScreen::playhead() const {
@@ -766,26 +857,17 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
         rows.push_back(probe_values(*audio, width, plot_rows));
         rows.push_back(filler());
     } else if (probe_.samples && probe_view_ == ProbeView::time) {
-        PlotSpec spec;
-        const double rate = std::max(1.0, probe_.rate);
-        spec.x = probe_zoom_.axis("probe_time", {0, static_cast<double>(probe_.frames) / rate}).axis();
-        const auto all = probe_.pyramid->query(0, probe_.pyramid->size(), 1);
-        const double m = all.empty() ? 1.0 : std::max({1e-12, std::abs(static_cast<double>(all[0].lo)), std::abs(static_cast<double>(all[0].hi))});
-        spec.y = {-m, m};
-        spec.playhead = playhead();
-        const auto* pyramid = probe_.pyramid.get();
-        const auto first = static_cast<std::size_t>(std::clamp(spec.x.lo * rate, 0.0, static_cast<double>(pyramid->size())));
-        const auto last = std::max(first + 1, static_cast<std::size_t>(std::clamp(spec.x.hi * rate, 0.0, static_cast<double>(pyramid->size()))));
-        spec.envelopes.push_back(Envelope{{}, th.trace[0], [pyramid, first, last](int cols) { return pyramid->query(first, last, static_cast<std::size_t>(cols)); }});
-        auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, plot_rows);
-        rows.push_back(probe_zoom_.track("probe_time", std::move(spec), std::move(drawn)));
+        rows.push_back(probe_time(width, plot_rows));
     } else if (probe_.samples && probe_view_ == ProbeView::spectrum && !probe_.db.empty()) {
         PlotSpec spec;
         spec.x = probe_zoom_.axis("probe_spectrum", {std::max(1.0, probe_.freqs.size() > 1 ? probe_.freqs[1] : 1.0), probe_.rate / 2, AxisScale::log10}).axis();
-        const double top = *std::max_element(probe_.db.begin(), probe_.db.end());
+        double top = -1e300;
+        for (const auto& db : probe_.db) top = std::max(top, *std::max_element(db.begin(), db.end()));
         spec.y = {top - 100, top + 3};
-        spec.traces.push_back({probe_.db, probe_.freqs, th.trace[0]});
-        auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, plot_rows);
+        for (std::size_t c = 0; c < probe_.db.size(); ++c) spec.traces.push_back({probe_.db[c], probe_.freqs, th.trace[c % th.trace.size()]});
+        const bool legend = probe_.db.size() > 1;
+        if (legend) rows.push_back(channel_legend(probe_.db.size(), width, false));
+        auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, plot_rows - (legend ? 1 : 0));
         rows.push_back(probe_zoom_.track("probe_spectrum", std::move(spec), std::move(drawn)));
     } else if (!probe_.samples) {
         Elements lines;
@@ -811,18 +893,33 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
             for (const auto& n : coeffs->basis) depth = std::max(depth, n.level);
             lines.push_back(text(coeffs->transform + " · " + coeffs->wavelet + " · J = " + std::to_string(depth)) | bold | fg(th.fg, ui_));
             const auto& bands = coeffs->channels.front().bands;
-            double total = 0;
-            for (const auto& b : bands)
-                for (double v : b) total += v * v;
+            const std::size_t channels = coeffs->channels.size();
+            std::vector<double> totals(channels, 0.0);
+            for (std::size_t c = 0; c < channels; ++c)
+                for (const auto& b : coeffs->channels[c].bands)
+                    for (double v : b) totals[c] += v * v;
             int name_width = 4;
             for (std::size_t k = 0; k < bands.size(); ++k) name_width = std::max(name_width, display_width(pipeline::band_label(*coeffs, k)));
             name_width = std::min(name_width, std::max(4, width - 20));
+            const auto hidden_note = [&](std::size_t n) { return "  " + fmt::format(fmt::runtime(tr("tui.pipeline.values.more_channels")), fmt::arg("count", n)); };
+            std::size_t shown = channels;
+            while (shown > 1 && name_width + 10 + 10 * static_cast<int>(shown) + (shown < channels ? display_width(hidden_note(channels - shown)) : 0) > width) --shown;
+            if (channels > 1) {
+                Elements header{text(std::string(static_cast<std::size_t>(name_width + 10), ' '))};
+                for (std::size_t c = 0; c < shown; ++c) header.push_back(text(pad_left("ch" + std::to_string(c), 10)) | fg(th.trace[c % th.trace.size()], ui_));
+                if (shown < channels) header.push_back(text(hidden_note(channels - shown)) | fg(th.warn, ui_));
+                lines.push_back(hbox(std::move(header)));
+            }
             for (std::size_t k = 0; k < bands.size(); ++k) {
-                double e = 0;
-                for (double v : bands[k]) e += v * v;
                 const auto name = ellipsize(pipeline::band_label(*coeffs, k), name_width, ascii);
-                lines.push_back(hbox({text(pad_right(name, name_width + 1)) | fg(th.trace[0], ui_), text(pad_left(group(bands[k].size()), 9)) | fg(th.dim, ui_),
-                                      text(pad_left(format_fixed(total > 0 ? 100 * e / total : 0, 2) + " %", 10)) | fg(th.fg, ui_)}));
+                Elements row{text(pad_right(name, name_width + 1)) | fg(th.trace[0], ui_), text(pad_left(group(bands[k].size()), 9)) | fg(th.dim, ui_)};
+                for (std::size_t c = 0; c < shown; ++c) {
+                    double e = 0;
+                    if (k < coeffs->channels[c].bands.size())
+                        for (double v : coeffs->channels[c].bands[k]) e += v * v;
+                    row.push_back(text(pad_left(format_fixed(totals[c] > 0 ? 100 * e / totals[c] : 0, 2) + " %", 10)) | fg(th.fg, ui_));
+                }
+                lines.push_back(hbox(std::move(row)));
             }
         }
         rows.push_back(scrolled(std::move(lines), probe_text_scroll_, plot_rows, std::nullopt, ui_));
@@ -961,6 +1058,7 @@ ftxui::Box PipelineScreen::area(std::string_view id) const {
     if (id == "inspector") return panel_boxes_[kInspector];
     if (id == "text_panel") return panel_boxes_[kText];
     if (id == "probe_time_plot") return probe_zoom_.box("probe_time");
+    if (id.starts_with("probe_time_plot:")) return probe_zoom_.box("probe_time:" + std::string{id.substr(16)});
     if (id == "probe_panel") return panel_boxes_[kProbe];
     for (std::size_t k = 0; k < probe_view_boxes_.size(); ++k)
         if (id == std::string{"probe_view:"} + std::array{"time", "spectrum", "values"}[k]) return probe_view_boxes_[k];
@@ -1025,7 +1123,7 @@ void PipelineScreen::cycle_wires() {
 bool PipelineScreen::on_mouse(const ftxui::Mouse& m) {
     using ftxui::Mouse;
     if (wheel_scroll(m, panel_boxes_[kText], text_scroll_) || wheel_scroll(m, panel_boxes_[kRun], run_scroll_) || wheel_scroll(m, panel_boxes_[kInspector], inspector_scroll_)) return true;
-    if (probe_zoom_.on_mouse(m)) return true;
+    if (probe_zoom_.on_mouse(m)) return sync_stacked(), true;
     if (m.button == Mouse::Left && m.motion == Mouse::Pressed) {
         for (std::size_t i = 0; i < probe_chip_boxes_.size(); ++i)
             if (valid(probe_chip_boxes_[i]) && probe_chip_boxes_[i].Contain(m.x, m.y)) {
@@ -1136,6 +1234,7 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
     }
     if (e == Event::Character('v')) return probe_view_ = static_cast<ProbeView>((static_cast<int>(probe_view_) + 1) % 3), true;
     if (e == Event::Character('n')) return name_probe(), true;
+    if (e == Event::Character('k')) return stacked_ = !stacked_, true;
     if (e == Event::Character('A')) return play(true), true;
     if (e == Event::Character('B')) return play(false), true;
     if (e == Event::Character(' ')) {

@@ -243,6 +243,7 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `PgUp/PgDn` | page |
 | `v` | time, spectrum or values |
 | `n` | probe name |
+| `k` | channels overlaid or stacked |
 | `L` | layout and view |
 | `drag ● → ○` | connect |
 | `c/C` | connect: c — output, arrows, Enter; C — list of inputs |

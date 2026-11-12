@@ -21,6 +21,7 @@ struct NodeStatus {
     double fraction = 0, cpu_seconds = 0, wall_seconds = 0;
     std::size_t bytes = 0;
     std::string message;
+    std::vector<OutputShape> shapes;
 };
 
 struct RunEvents {

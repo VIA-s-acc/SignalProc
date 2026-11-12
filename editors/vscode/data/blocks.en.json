@@ -22,7 +22,7 @@
   "title": "WAV"
  },
  {
-  "about": "A single-channel signal typed in as a list of numbers",
+  "about": "A signal from numbers typed by hand; channels are separated by a bar |",
   "id": "samples",
   "inputs": [],
   "outputs": [
@@ -34,7 +34,7 @@
   ],
   "params": [
    {
-    "about": "Sample values separated by spaces, commas or semicolons",
+    "about": "Sample values separated by spaces, commas or semicolons; channels are separated by a bar |, e.g. 1 2 3 | 4 5 6",
     "choices": [],
     "default": "4 6 10 12 8 6 5 5",
     "name": "values",

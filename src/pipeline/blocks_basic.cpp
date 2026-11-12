@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <utility>
 
@@ -48,23 +49,31 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                    [](const RunContext&, std::span<const Value>, const Params& p) -> Out {
                        core::AudioBuffer a;
                        a.sample_rate = static_cast<double>(param_int(p, "rate"));
-                       std::vector<double> values;
-                       auto text = param_text(p, "values");
-                       for (auto& c : text)
-                           if (c == ',' || c == ';') c = ' ';
-                       std::istringstream in{text};
-                       in.imbue(std::locale::classic());
-                       for (std::string token; in >> token;) {
-                           std::istringstream part{token};
-                           part.imbue(std::locale::classic());
-                           double v = 0;
-                           part >> v;
-                           if (part.fail() || part.peek() != std::char_traits<char>::eof() || !std::isfinite(v))
-                               return core::make_error(core::Errc::invalid_argument, "samples: not a finite number: " + token);
-                           values.push_back(v);
+                       const auto& text = param_text(p, "values");
+                       for (std::size_t at = 0; at <= text.size();) {
+                           const auto bar = std::min(text.find('|', at), text.size());
+                           auto part_text = text.substr(at, bar - at);
+                           for (auto& c : part_text)
+                               if (c == ',' || c == ';') c = ' ';
+                           std::vector<double> values;
+                           std::istringstream in{part_text};
+                           in.imbue(std::locale::classic());
+                           for (std::string token; in >> token;) {
+                               std::istringstream part{token};
+                               part.imbue(std::locale::classic());
+                               double v = 0;
+                               part >> v;
+                               if (part.fail() || part.peek() != std::char_traits<char>::eof() || !std::isfinite(v))
+                                   return core::make_error(core::Errc::invalid_argument, "samples: not a finite number: " + token);
+                               values.push_back(v);
+                           }
+                           if (values.empty()) return core::make_error(core::Errc::invalid_argument, "samples: list the values, e.g. 4 6 10 12 or 1 2 | 3 4 for two channels");
+                           if (!a.channels.empty() && values.size() != a.channels.front().size())
+                               return core::make_error(core::Errc::invalid_argument, fmt::format("samples: channel {} has {} values, channel 0 has {}", a.channels.size(),
+                                                                                                 values.size(), a.channels.front().size()));
+                           a.channels.push_back(std::move(values));
+                           at = bar + 1;
                        }
-                       if (values.empty()) return core::make_error(core::Errc::invalid_argument, "samples: list the values, e.g. 4 6 10 12");
-                       a.channels.push_back(std::move(values));
                        return std::vector<Value>{std::move(a)};
                    }});
     out.push_back({"add",

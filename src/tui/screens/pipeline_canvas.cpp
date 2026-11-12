@@ -277,8 +277,16 @@ GraphPicture draw_pipeline(const pipeline::Graph& g, const pipeline::PipelineDoc
                 info = eighths_bar(s.fraction, 10) + " " + format_fixed(100 * s.fraction, 0) + " %";
                 info_style = CellStyle::accent;
                 break;
-            case pipeline::NodeState::done: info = format_si(s.wall_seconds, tr("unit.s")) + " · " + format_si(static_cast<double>(s.bytes), tr("unit.byte")); break;
-            case pipeline::NodeState::cached: info = tr("tui.pipeline.cached") + " · " + format_si(static_cast<double>(s.bytes), tr("unit.byte")); break;
+            case pipeline::NodeState::done: {
+                const auto shape = shape_text(s.shapes, true);
+                info = (shape.empty() ? std::string{} : shape + " · ") + format_si(s.wall_seconds, tr("unit.s")) + (shape.empty() ? " · " + format_si(static_cast<double>(s.bytes), tr("unit.byte")) : std::string{});
+                break;
+            }
+            case pipeline::NodeState::cached: {
+                const auto shape = shape_text(s.shapes, true);
+                info = tr("tui.pipeline.cached") + " · " + (shape.empty() ? format_si(static_cast<double>(s.bytes), tr("unit.byte")) : shape);
+                break;
+            }
             case pipeline::NodeState::failed:
                 info = s.message;
                 info_style = CellStyle::err;
