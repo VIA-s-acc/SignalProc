@@ -35,7 +35,7 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `[ ]` | amplitude zoom |
 | `v` | select from A to B (Esc clears) |
 | `Esc` | cancel |
-| `F1` | theory: reading WAV |
+| `F1` | theory: reading the file |
 | `wheel` | zoom |
 | `click` | cursor A/B |
 | `drag` | pan |

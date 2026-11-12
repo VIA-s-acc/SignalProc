@@ -1,6 +1,6 @@
 [
  {
-  "about": "Reads a WAV file with all its channels and its sample rate",
+  "about": "Reads a WAV, FLAC or MP3 audio file with all its channels and its sample rate; the format is detected from the content, not the extension",
   "id": "wav",
   "inputs": [],
   "outputs": [
@@ -19,7 +19,7 @@
     "values": {}
    }
   ],
-  "title": "WAV"
+  "title": "Audio file"
  },
  {
   "about": "A signal from numbers typed by hand; channels are separated by a bar |",
@@ -178,6 +178,15 @@
     "choices": [],
     "default": "1",
     "name": "seed",
+    "values": {}
+   },
+   {
+    "about": "Number of channels; noise gets its own realisation in each channel (seed, seed + 1, …), other kinds repeat in every channel",
+    "choices": [],
+    "default": "1",
+    "max": 64.0,
+    "min": 1.0,
+    "name": "channels",
     "values": {}
    }
   ],

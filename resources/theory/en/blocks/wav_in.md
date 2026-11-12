@@ -1,6 +1,6 @@
 +++
 id = "wav_in"
-title = "Read WAV"
+title = "Read WAV, FLAC and MP3"
 theory = ["num-formats", "conv-signals"]
 source = "src/io/wav.cpp"
 function = "read_wav"
@@ -34,6 +34,8 @@ Full scale is $x_{\mathrm{fs}} = 1 - 2^{1-b}$ for integer formats and $1$ for fl
 4. An empty file and a file without channels are errors.
 5. One pass over each channel gives the peak, RMS, DC component and $K_c$.
 
+FLAC and MP3 go through the same entry point, `read_audio`. It recognises the format by the file's first bytes (`RIFF`, `fLaC`, `ID3` or an MP3 frame header), not by the extension, so a FLAC file named `.wav` opens too. FLAC (the dr_flac library) is lossless: $b$-bit samples are divided by $2^{b-1}$ as in WAV, and the file gives exactly the numbers of the WAV it was made from. MP3 (dr_mp3) is lossy: the decoder outputs float32 and removes the encoder delay at the start and the padding at the end using the LAME header, so the signal has the length of the original.
+
 Time $O(N\,C)$, memory $8\,N\,C$ bytes: a 16-bit file takes four times more space in memory than on disk. At most $2^{24}$ frames per channel are reserved, so that a corrupted header cannot allocate gigabytes.
 
 ## With this block's numbers
@@ -46,7 +48,7 @@ Peak per channel: {{metric.peak_dbfs}}; samples at full scale: {{metric.clipped}
 
 This block has no numerical check in the interface: its correctness is pinned down by tests.
 
-The tests read reference files of all formats and compare the format, the number of channels, the rate, the number of frames and the samples themselves (bit for bit) with the reference. Corrupted files give an error, not a crash. The two channels of `test.wav` stay separate. Reading reports progress and can be cancelled. `probe_wav` reads only the header.
+The tests read reference files of all formats and compare the format, the number of channels, the rate, the number of frames and the samples themselves (bit for bit) with the reference. Corrupted files give an error, not a crash. The two channels of `test.wav` stay separate. Reading reports progress and can be cancelled. `probe_wav` reads only the header. For FLAC and MP3 (`tests/io/test_audio_read.cpp`): 16-bit FLAC matches the source WAV sample for sample, 24-bit and 6-channel FLAC keep their resolution and channel order; MP3 has the length of the original and differs from ffmpeg's decoding by less than $10^{-4}$; the format is taken from the content, and a text file named `.mp3` gives an error.
 
 ## Links
 

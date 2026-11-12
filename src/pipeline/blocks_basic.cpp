@@ -6,6 +6,7 @@
 
 #include "core/signal_ops.hpp"
 #include "i18n/i18n.hpp"
+#include "io/audio_file.hpp"
 #include "io/generators.hpp"
 #include "io/wav.hpp"
 #include "pipeline/block.hpp"
@@ -38,7 +39,7 @@ const std::vector<PortSpec> kOneOut{{"out", PortType::signal}};
 
 void register_basic_blocks(std::vector<BlockType>& out) {
     out.push_back({"wav", {}, kOneOut, {{"path", Kind::path, ""}}, [](const RunContext& ctx, std::span<const Value>, const Params& p) -> Out {
-                       auto file = io::read_wav(resolve(ctx, param_text(p, "path")), ctx.progress);
+                       auto file = io::read_audio(resolve(ctx, param_text(p, "path")), ctx.progress);
                        if (!file) return std::unexpected{file.error()};
                        return std::vector<Value>{std::move(file->audio)};
                    }});
@@ -111,7 +112,8 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                     {"amplitude", Kind::real, "1"},
                     {"rate", Kind::integer, "44100", {}, 1, 768000},
                     {"duration", Kind::real, "1", {}, 0, 3600},
-                    {"seed", Kind::integer, "1"}},
+                    {"seed", Kind::integer, "1"},
+                    {"channels", Kind::integer, "1", {}, 1, 64}},
                    [](const RunContext& ctx, std::span<const Value>, const Params& p) -> Out {
                        const double rate = static_cast<double>(param_int(p, "rate"));
                        if (param_real(p, "duration") * rate > kMaxSamples)
@@ -140,7 +142,15 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                        if (cancelled(ctx)) return core::make_error(core::Errc::cancelled, "gen: cancelled");
                        core::AudioBuffer buffer;
                        buffer.sample_rate = rate;
-                       buffer.channels.push_back(std::move(x));
+                       const auto channels = static_cast<std::size_t>(param_int(p, "channels"));
+                       const bool noise = kind == "white" || kind == "pink";
+                       for (std::size_t c = 1; c < channels; ++c) {
+                           if (cancelled(ctx)) return core::make_error(core::Errc::cancelled, "gen: cancelled");
+                           buffer.channels.push_back(noise ? io::noise(kind == "white" ? io::NoiseColor::white : io::NoiseColor::pink, a, n,
+                                                                       static_cast<std::uint64_t>(param_int(p, "seed")) + c, nullptr)
+                                                           : x);
+                       }
+                       buffer.channels.insert(buffer.channels.begin(), std::move(x));
                        return std::vector<Value>{std::move(buffer)};
                    }});
     out.push_back({"gain", kOneIn, kOneOut, {{"db", Kind::real, "0"}}, [](const RunContext&, std::span<const Value> in, const Params& p) {

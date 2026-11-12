@@ -9,11 +9,13 @@
 
 #include <fmt/format.h>
 
+#include "io/audio_file.hpp"
 #include "core/design/families.hpp"
 #include "core/metrics.hpp"
 #include "core/spectral.hpp"
 #include "core/wavedec.hpp"
 #include "i18n/i18n.hpp"
+#include "io/audio_file.hpp"
 #include "tui/monitor/sampler.hpp"
 #include "tui/shell/errors.hpp"
 #include "tui/widgets/format.hpp"
@@ -60,7 +62,7 @@ void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
                           [this, path, name](JobContext& ctx) {
                               try {
                               ctx.begin(0);
-                              if (const auto probe = io::probe_wav(path); probe && memory_budget_ > 0) {
+                              if (const auto probe = io::probe_audio(path); probe && memory_budget_ > 0) {
                                   const auto need = estimated_load_bytes(*probe);
                                   if (need > memory_budget_) {
                                       const auto text = fmt::format(fmt::runtime(tr("tui.signal.too_large")),
@@ -71,7 +73,7 @@ void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
                                       return;
                                   }
                               }
-                              auto file = io::read_wav(path, &ctx);
+                              auto file = io::read_audio(path, &ctx);
                               if (!file) {
                                   if (file.error().code == core::Errc::cancelled) return;
                                   const auto text = error_text(file.error());

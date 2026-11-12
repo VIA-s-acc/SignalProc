@@ -138,3 +138,36 @@ TEST_CASE("transforms keep every channel in their coefficients", "[pipeline][mul
     }
     CHECK(seen >= 5);
 }
+
+TEST_CASE("gen makes several channels: independent noise, the same tone", "[pipeline][multichannel]") {
+    const auto* gen = find_block_type("gen");
+    REQUIRE(gen);
+    const auto run = [&](Params p) {
+        auto params = resolve_params(*gen, p);
+        REQUIRE(params);
+        RunContext ctx{std::filesystem::temp_directory_path()};
+        auto out = gen->run(ctx, {}, *params);
+        REQUIRE(out);
+        return std::get<core::AudioBuffer>(out->front());
+    };
+    const auto mono = run({{"kind", "white"}, {"duration", "0.1"}, {"seed", "7"}});
+    const auto noise = run({{"kind", "white"}, {"duration", "0.1"}, {"seed", "7"}, {"channels", "3"}});
+    REQUIRE(noise.channels.size() == 3);
+    CHECK(noise.channels[0] == mono.channels[0]);
+    for (std::size_t a = 0; a < 3; ++a)
+        for (std::size_t b = a + 1; b < 3; ++b) {
+            double ab = 0, aa = 0, bb = 0;
+            for (std::size_t n = 0; n < noise.frames(); ++n) {
+                ab += noise.channels[a][n] * noise.channels[b][n];
+                aa += noise.channels[a][n] * noise.channels[a][n];
+                bb += noise.channels[b][n] * noise.channels[b][n];
+            }
+            CHECK(std::abs(ab / std::sqrt(aa * bb)) < 0.1);
+        }
+    const auto tone = run({{"kind", "sine"}, {"duration", "0.01"}, {"channels", "2"}});
+    REQUIRE(tone.channels.size() == 2);
+    CHECK(tone.channels[0] == tone.channels[1]);
+    CHECK(run({{"kind", "sine"}, {"duration", "0.01"}}).channels.size() == 1);
+    CHECK_FALSE(resolve_params(*gen, {{"channels", "0"}}));
+    CHECK_FALSE(resolve_params(*gen, {{"channels", "65"}}));
+}

@@ -17,6 +17,7 @@
 #include "core/metrics.hpp"
 #include "core/process/shrink.hpp"
 #include "core/wavedec.hpp"
+#include "io/audio_file.hpp"
 #include "io/wav.hpp"
 
 namespace signals::cli {
@@ -63,7 +64,7 @@ public:
     int run(std::ostream& out, std::ostream& err) override {
         const auto bank = core::wavelet(wavelet_);
         if (!bank) return report_error(err, bank.error());
-        const auto file = io::read_wav(input_);
+        const auto file = io::read_audio(input_);
         if (!file) return report_error(err, file.error());
         const auto& audio = file->audio;
         if (channel_ && *channel_ >= audio.channels.size())
@@ -135,7 +136,7 @@ public:
     bool parsed() const override { return sub_->parsed(); }
 
     int run(std::ostream& out, std::ostream& err) override {
-        const auto file = io::read_wav(input_);
+        const auto file = io::read_audio(input_);
         if (!file) return report_error(err, file.error());
         options_.levels = levels_;
         options_.mode = *core::parse_extension(ext_);
@@ -145,7 +146,7 @@ public:
         if (!bank) return report_error(err, bank.error());
         std::optional<io::WavFile> reference;
         if (!reference_.empty()) {
-            auto r = io::read_wav(reference_);
+            auto r = io::read_audio(reference_);
             if (!r) return report_error(err, r.error());
             if (r->audio.channels.size() != file->audio.channels.size() || r->audio.frames() != file->audio.frames())
                 return report_error(err, {core::Errc::length_mismatch, "reference has another shape than the input"});
