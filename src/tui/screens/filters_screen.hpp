@@ -54,6 +54,7 @@ public:
     double omega_at(std::string_view plot, int x) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
     std::vector<PlotExport> plot_exports() override;
+    std::vector<ChartExport> chart_exports() override;
     std::optional<std::pair<int, int>> menu_anchor() const override;
     std::vector<JumpTarget> jump_targets() const override;
     std::optional<std::string> explain_at(int x, int y) const override;
@@ -173,6 +174,7 @@ private:
     std::size_t match_follow_ = static_cast<std::size_t>(-1);
     std::string follow_query_;
     std::array<std::optional<PlotExport>, 3> shown_plots_{};
+    std::optional<ChartExport> shown_zplane_;
     PlotZoom impulse_zoom_;
     ZView zview_;
     ftxui::Box zplane_box_{}, roots_box_{};

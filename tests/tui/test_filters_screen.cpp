@@ -811,3 +811,34 @@ TEST_CASE("a double real root made by dragging a pair onto the axis splits into 
     CHECK(moved.p[0] == C{0.3, 0});
     CHECK(moved.p[1] == C{-0.2, 0});
 }
+
+TEST_CASE("the z-plane exports its unit circle, zeros and poles with a csv row per root", "[tui][filters][export]") {
+    Fixture f;
+    Harness h{f.screen, 150, 41};
+    REQUIRE(f.set->add(classical_ref(ClassicalSpec{})));
+    f.set->request(f.jobs, FiltersScreen::kPoints);
+    h.frame();
+    const auto entry = f.set->entries()[0];
+    REQUIRE(entry.analysis);
+    REQUIRE(entry.analysis->zp);
+    const auto& zp = *entry.analysis->zp;
+    const auto charts = f.screen->chart_exports();
+    REQUIRE(charts.size() == 1);
+    const auto& c = charts.front();
+    CHECK(c.id == "zplane");
+    CHECK(c.chart.square);
+    CHECK(c.width == c.height);
+    REQUIRE(c.chart.series.size() >= 2);
+    CHECK(c.chart.series.front().name == "|z| = 1");
+    std::size_t roots = 0;
+    for (const auto& s : c.chart.series)
+        if (s.marker != signals::svg::Marker::none) roots += s.x.size();
+    const auto poles = zp.poles.size() + static_cast<std::size_t>(std::max<std::ptrdiff_t>(0, zp.poles_at_origin));
+    CHECK(roots == zp.zeros.size() + poles);
+    CHECK(c.csv.starts_with("kind,re,im,abs,angle_pi\n"));
+    CHECK(static_cast<std::size_t>(std::count(c.csv.begin(), c.csv.end(), '\n')) == roots + 1);
+    CHECK(c.title.find(entry.ref.label()) != std::string::npos);
+    const auto plane = f.screen->area("zplane");
+    const auto items = f.screen->context_menu((plane.x_min + plane.x_max) / 2, (plane.y_min + plane.y_max) / 2);
+    CHECK(std::any_of(items.begin(), items.end(), [](const MenuItem& m) { return m.label == signals::tr("tui.menu.export_plot"); }));
+}
