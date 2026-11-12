@@ -48,6 +48,10 @@ TEST_CASE("vary accepts a step range, a count, a log count and a list", "[pipeli
     CHECK_FALSE(parse_vary("g.db=0:1:0"));
     CHECK_FALSE(parse_vary("g.db=1:100@3log0"));
     CHECK_FALSE(parse_vary("g.db=0:1000000:0.001"));
+    const auto huge = parse_vary("g.db=0:1@100000000000000");
+    REQUIRE_FALSE(huge);
+    CHECK(huge.error().message.find("100000000000000") != std::string::npos);
+    CHECK(parse_vary("g.db=0:1000000:0.001").error().message.find("1000000001") != std::string::npos);
 }
 
 TEST_CASE("measures name a report field or a metric of a node output", "[pipeline][sweep]") {

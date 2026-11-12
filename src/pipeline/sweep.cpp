@@ -36,7 +36,12 @@ std::string format_value(double v) {
     return fmt::format("{:.10g}", v);
 }
 
-std::optional<std::vector<std::string>> range(std::string_view spec) {
+struct Range {
+    std::size_t count = 0;
+    std::vector<std::string> values = {};
+};
+
+std::optional<Range> range(std::string_view spec) {
     const auto at = spec.find('@');
     if (at != std::string_view::npos) {
         const auto colon = spec.find(':');
@@ -46,12 +51,12 @@ std::optional<std::vector<std::string>> range(std::string_view spec) {
         if (log) count_text.resize(count_text.size() - 3);
         const auto a = numeric(spec.substr(0, colon)), b = numeric(spec.substr(colon + 1, at - colon - 1)), n = numeric(count_text);
         if (!a || !b || !n || *n < 2 || *n != std::floor(*n) || (log && (*a <= 0 || *b <= 0))) return std::nullopt;
+        if (*n > static_cast<double>(kMaxValues)) return Range{static_cast<std::size_t>(std::min(*n, 1e18))};
         const auto count = static_cast<std::size_t>(*n);
-        if (count > kMaxValues) return std::vector<std::string>(count);
-        std::vector<std::string> out;
+        Range out{count};
         for (std::size_t k = 0; k < count; ++k) {
             const double t = static_cast<double>(k) / static_cast<double>(count - 1);
-            out.push_back(format_value(log ? *a * std::pow(*b / *a, t) : *a + (*b - *a) * t));
+            out.values.push_back(format_value(log ? *a * std::pow(*b / *a, t) : *a + (*b - *a) * t));
         }
         return out;
     }
@@ -60,9 +65,9 @@ std::optional<std::vector<std::string>> range(std::string_view spec) {
     const auto a = numeric(spec.substr(0, first)), b = numeric(spec.substr(first + 1, second - first - 1)), s = numeric(spec.substr(second + 1));
     if (!a || !b || !s || *s == 0 || (*b - *a) / *s < 0) return std::nullopt;
     const double steps = std::floor((*b - *a) / *s + 1e-9);
-    if (steps + 1 > static_cast<double>(kMaxValues)) return std::vector<std::string>(static_cast<std::size_t>(std::min(steps + 1, 1e9)));
-    std::vector<std::string> out;
-    for (double k = 0; k <= steps; ++k) out.push_back(format_value(*a + k * *s));
+    if (steps + 1 > static_cast<double>(kMaxValues)) return Range{static_cast<std::size_t>(std::min(steps + 1, 1e18))};
+    Range out{static_cast<std::size_t>(steps) + 1};
+    for (double k = 0; k <= steps; ++k) out.values.push_back(format_value(*a + k * *s));
     return out;
 }
 
@@ -143,10 +148,10 @@ core::Result<SweepAxis> parse_vary(std::string_view text) {
     } else if (spec.find(':') != std::string_view::npos) {
         auto values = range(spec);
         if (!values) return std::unexpected{bad("pipeline.sweep.bad_vary", text)};
-        if (values->size() > kMaxValues)
+        if (values->count > kMaxValues)
             return core::make_error(core::Errc::invalid_argument,
-                                    fmt::format(fmt::runtime(tr("pipeline.sweep.too_many")), fmt::arg("count", values->size()), fmt::arg("limit", kMaxValues)));
-        axis.values = std::move(*values);
+                                    fmt::format(fmt::runtime(tr("pipeline.sweep.too_many")), fmt::arg("count", values->count), fmt::arg("limit", kMaxValues)));
+        axis.values = std::move(values->values);
     } else {
         axis.values.push_back(trim(spec));
     }
