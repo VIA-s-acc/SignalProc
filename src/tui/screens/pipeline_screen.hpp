@@ -70,6 +70,8 @@ private:
     ftxui::Element run_panel(int width, int height);
     ftxui::Element probe_panel(int width, int height);
     void refresh_probe(const RunView& run);
+    ftxui::Element probe_values(const core::AudioBuffer& audio, int width, int height);
+    void name_probe();
     void play(bool input);
     std::optional<double> playhead() const;
     ftxui::Element text_panel(int width, int height);
@@ -103,7 +105,7 @@ private:
     std::vector<std::pair<std::string, ftxui::Box>> add_rows_;
     Scroll text_scroll_, run_scroll_, add_scroll_, inspector_scroll_, probe_text_scroll_;
     std::vector<ftxui::Box> probe_chip_boxes_;
-    ftxui::Box probe_view_box_{};
+    std::array<ftxui::Box, 3> probe_view_boxes_{};
     std::vector<ftxui::Box> param_boxes_;
     std::string param_follow_;
     PlotZoom probe_zoom_;
@@ -122,7 +124,8 @@ private:
         std::size_t frames = 0;
     } probe_;
     std::size_t probe_index_ = 0;
-    bool spectrum_ = false, last_input_ = false;
+    enum class ProbeView { time, spectrum, values } probe_view_ = ProbeView::time;
+    bool last_input_ = false;
     bool adding_ = false;
     std::optional<pipeline::PortRef> connecting_;
     std::string query_;

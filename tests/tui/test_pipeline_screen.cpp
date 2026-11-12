@@ -34,6 +34,7 @@
 #include "tui/harness.hpp"
 #include "tui/screens/pipeline_model.hpp"
 #include "tui/screens/pipeline_canvas.hpp"
+#include "tui/widgets/format.hpp"
 #include "tui/widgets/text_util.hpp"
 #include "tui/screens/pipeline_screen.hpp"
 #include "tui/shell/shell.hpp"
@@ -1026,4 +1027,188 @@ TEST_CASE("a node cut by the graph edge ends with an ellipsis and counts as more
     }
     CHECK(cut);
     CHECK(frame.find("▸ ") != std::string::npos);
+}
+
+namespace {
+
+void run_text(PipelineFixture& f, const std::string& text) {
+    REQUIRE(f.model->load_text("values", text));
+    f.model->run(f.jobs);
+    for (int k = 0; k < 2000 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    f.h.frame();
+}
+
+std::vector<std::string> tokens(const std::string& line) {
+    std::vector<std::string> out;
+    std::istringstream in{line};
+    for (std::string t; in >> t;) out.push_back(t);
+    return out;
+}
+
+bool has_row(const std::string& frame, const std::vector<std::string>& row) {
+    std::istringstream lines{frame};
+    for (std::string line; std::getline(lines, line);) {
+        const auto t = tokens(line);
+        for (std::size_t k = 0; k + row.size() <= t.size(); ++k)
+            if (std::equal(row.begin(), row.end(), t.begin() + static_cast<std::ptrdiff_t>(k))) return true;
+    }
+    return false;
+}
+
+const std::string kConvolution = "pipeline \"conv\" v1\n"
+                                 "node x = samples(values=\"2 -1 3 1\", rate=1)\n"
+                                 "node xp = pad(after=1)\n"
+                                 "node y1 = fir_taps(taps=\"0.5 -0.5\")\n"
+                                 "x -> xp -> y1\n"
+                                 "probe y1 as \"y1\"\n";
+
+std::string ramp(int count, int step) {
+    std::string out;
+    for (int k = 0; k < count; ++k) out += (k ? " " : "") + std::to_string(k * step);
+    return out;
+}
+
+}  // namespace
+
+TEST_CASE("v cycles the probe through time, spectrum and the sample values", "[tui][pipeline_screen][values]") {
+    PipelineFixture f{150, 44, false};
+    run_text(f, kConvolution);
+    const auto bracket = [](const char* key) { return "[" + tr(key) + "]"; };
+    CHECK(f.h.frame().find(bracket("tui.pipeline.view.time")) != std::string::npos);
+    CHECK(f.h.frame().find(tr("tui.pipeline.view.values")) != std::string::npos);
+    f.h.send(ftxui::Event::Character('v'));
+    CHECK(f.h.frame().find(bracket("tui.pipeline.view.spectrum")) != std::string::npos);
+    f.h.send(ftxui::Event::Character('v'));
+    const auto frame = f.h.frame();
+    CHECK(frame.find(bracket("tui.pipeline.view.values")) != std::string::npos);
+    CHECK(has_row(frame, {"n", "ch0"}));
+    CHECK(has_row(frame, {"0", "1"}));
+    CHECK(has_row(frame, {"1", format_number(-1.5, 6)}));
+    CHECK(has_row(frame, {"2", "2"}));
+    CHECK(has_row(frame, {"3", format_number(-1, 6)}));
+    CHECK(has_row(frame, {"4", format_number(-0.5, 6)}));
+    f.h.send(ftxui::Event::Character('v'));
+    CHECK(f.h.frame().find(bracket("tui.pipeline.view.time")) != std::string::npos);
+    const auto word = f.screen->area("probe_view:values");
+    REQUIRE(word.x_max >= word.x_min);
+    f.h.click(word.x_min, word.y_min);
+    CHECK(has_row(f.h.frame(), {"1", format_number(-1.5, 6)}));
+    const auto time = f.screen->area("probe_view:time");
+    REQUIRE(time.x_max >= time.x_min);
+    f.h.click(time.x_min, time.y_min);
+    CHECK_FALSE(has_row(f.h.frame(), {"n", "ch0"}));
+}
+
+TEST_CASE("the values view scrolls by rows, pages and the wheel and keeps left and right for probes", "[tui][pipeline_screen][values][scroll]") {
+    PipelineFixture f{150, 44, false};
+    run_text(f, "pipeline \"ramp\" v1\n"
+                "node x = samples(values=\"" + ramp(100, 10) + "\", rate=1)\n"
+                "node d = duplicate()\n"
+                "x -> d\n"
+                "probe d as \"d\"\n"
+                "probe x as \"x\"\n");
+    f.h.send(ftxui::Event::Tab);
+    f.h.send(ftxui::Event::Character('v'));
+    f.h.send(ftxui::Event::Character('v'));
+    auto frame = f.h.frame();
+    CHECK(frame.find("Щуп · d") != std::string::npos);
+    CHECK(has_row(frame, {"n", "ch0", "ch1"}));
+    CHECK(has_row(frame, {"0", "0", "0"}));
+    CHECK(has_row(frame, {"1", "10", "10"}));
+    CHECK_FALSE(has_row(frame, {"99", "990", "990"}));
+    CHECK(frame.find("▼") != std::string::npos);
+    f.h.send(ftxui::Event::End);
+    frame = f.h.frame();
+    CHECK(has_row(frame, {"99", "990", "990"}));
+    CHECK(frame.find("▲") != std::string::npos);
+    f.h.send(ftxui::Event::ArrowUp);
+    CHECK_FALSE(has_row(f.h.frame(), {"99", "990", "990"}));
+    f.h.send(ftxui::Event::Home);
+    CHECK(has_row(f.h.frame(), {"0", "0", "0"}));
+    f.h.send(ftxui::Event::ArrowDown);
+    frame = f.h.frame();
+    CHECK_FALSE(has_row(frame, {"0", "0", "0"}));
+    CHECK(has_row(frame, {"1", "10", "10"}));
+    CHECK(frame.find("Щуп · d") != std::string::npos);
+    f.h.send(ftxui::Event::PageDown);
+    CHECK_FALSE(has_row(f.h.frame(), {"1", "10", "10"}));
+    f.h.send(ftxui::Event::Home);
+    const auto panel = f.screen->area("probe_panel");
+    REQUIRE(panel.x_max >= panel.x_min);
+    f.h.wheel(panel.x_min + 4, panel.y_min + 4, false);
+    CHECK_FALSE(has_row(f.h.frame(), {"0", "0", "0"}));
+    f.h.wheel(panel.x_min + 4, panel.y_min + 4, true);
+    CHECK(has_row(f.h.frame(), {"0", "0", "0"}));
+    f.h.send(ftxui::Event::ArrowRight);
+    frame = f.h.frame();
+    CHECK(frame.find("Щуп · x") != std::string::npos);
+    CHECK(has_row(frame, {"n", "ch0"}));
+    CHECK_FALSE(has_row(frame, {"n", "ch0", "ch1"}));
+}
+
+TEST_CASE("channels that do not fit the values view are counted, not cut", "[tui][pipeline_screen][values][fit]") {
+    PipelineFixture f{80, 24, false};
+    run_text(f, "pipeline \"wide\" v1\n"
+                "node x = samples(values=\"0.123457 -0.654321 0.5\", rate=1)\n"
+                "node d = duplicate(channels=12)\n"
+                "x -> d\n"
+                "probe d as \"d\"\n");
+    f.h.send(ftxui::Event::Tab);
+    f.h.frame();
+    f.h.send(ftxui::Event::Character('v'));
+    f.h.send(ftxui::Event::Character('v'));
+    const auto frame = f.h.frame();
+    INFO(frame);
+    CHECK(has_row(frame, {"0", format_number(0.123457, 6), format_number(0.123457, 6)}));
+    CHECK(frame.find("ch11") == std::string::npos);
+    bool counted = false;
+    const auto marker = tr("tui.pipeline.values.more_channels");
+    const auto slot = marker.find("{count}");
+    REQUIRE(slot != std::string::npos);
+    for (int k = 1; k < 12; ++k) {
+        auto shown = marker;
+        counted = counted || frame.find(shown.replace(slot, 7, std::to_string(k))) != std::string::npos;
+    }
+    CHECK(counted);
+}
+
+TEST_CASE("n names the probe in the panel or on the selected node", "[tui][pipeline_screen][probe_name]") {
+    PipelineFixture f{150, 44, false};
+    std::string label, prefill;
+    std::function<void(std::string)> answer;
+    f.ui->ask_text = [&](std::string l, std::string p, std::function<void(std::string)> done) {
+        label = std::move(l);
+        prefill = std::move(p);
+        answer = std::move(done);
+    };
+    run_text(f, kConvolution);
+    f.h.send(ftxui::Event::Tab);
+    f.h.send(ftxui::Event::Character('n'));
+    REQUIRE(answer);
+    CHECK(label == tr("tui.pipeline.probe_name"));
+    CHECK(prefill == "y1");
+    answer("выход ФВЧ y1");
+    auto frame = f.h.frame();
+    CHECK(frame.find("Щуп · выход ФВЧ y1") != std::string::npos);
+    CHECK(frame.find("probe y1 as \"выход ФВЧ y1\"") != std::string::npos);
+    f.h.send(ftxui::Event::Character('v'));
+    f.h.send(ftxui::Event::Character('v'));
+    CHECK(has_row(f.h.frame(), {"1", format_number(-1.5, 6)}));
+    answer = {};
+    f.h.send(ftxui::Event::TabReverse);
+    f.model->selection = {Selection::Kind::node, "xp", {}};
+    f.model->toggle_probe({"xp", {}, 0, 0});
+    f.h.send(ftxui::Event::Character('n'));
+    REQUIRE(answer);
+    CHECK(prefill == "xp");
+    answer("x с нулём");
+    CHECK(f.h.frame().find("probe xp as \"x с нулём\"") != std::string::npos);
+    answer = {};
+    f.h.send(ftxui::Event::Character('n'));
+    REQUIRE(answer);
+    answer("выход ФВЧ y1");
+    CHECK_FALSE(f.screen->notice().empty());
+    CHECK(f.h.frame().find("probe xp as \"x с нулём\"") != std::string::npos);
+    std::vector<Command> commands = f.screen->commands();
+    CHECK(std::any_of(commands.begin(), commands.end(), [](const Command& c) { return c.id == "pipeline.probe_name"; }));
 }

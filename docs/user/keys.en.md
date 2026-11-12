@@ -241,7 +241,8 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `+ − 0` | graph zoom |
 | `O` | examples |
 | `PgUp/PgDn` | page |
-| `v` | time or spectrum |
+| `v` | time, spectrum or values |
+| `n` | probe name |
 | `L` | layout and view |
 | `drag ● → ○` | connect |
 | `c/C` | connect: c — output, arrows, Enter; C — list of inputs |

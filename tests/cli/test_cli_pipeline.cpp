@@ -160,3 +160,26 @@ TEST_CASE("paths with spaces and Cyrillic work from the .sig to the output and p
     CHECK(std::filesystem::exists(dir / "тихо.wav"));
     CHECK(std::filesystem::exists(dir / "щупы" / "щуп.wav"));
 }
+
+TEST_CASE("run prints the samples of a short probe and puts them into the JSON", "[cli][pipeline][values]") {
+    const auto dir = fresh_dir("cli-run-values");
+    const auto path = write_sig(dir, R"(pipeline "conv" v1
+node x = samples(values="2 -1 3 1", rate=1)
+node xp = pad(after=1)
+node y1 = fir_taps(taps="0.5 -0.5")
+node tone = gen(duration=0.1)
+x -> xp -> y1
+probe y1 as "y1"
+probe tone as "tone"
+)");
+    const auto text = run({"signals", "run", path.string()});
+    INFO(text.err);
+    REQUIRE(text.code == 0);
+    CHECK(text.out.find("ch0: 1 -1.5 2 -1 -0.5\n") != std::string::npos);
+    CHECK(text.out.find("ch0: 0 ") == std::string::npos);
+    const auto r = run({"signals", "run", path.string(), "--json"});
+    REQUIRE(r.code == 0);
+    const auto j = nlohmann::json::parse(r.out);
+    CHECK(j["probes"]["y1"]["values"] == nlohmann::json::parse("[[1, -1.5, 2, -1, -0.5]]"));
+    CHECK_FALSE(j["probes"]["tone"].contains("values"));
+}
