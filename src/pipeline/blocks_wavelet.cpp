@@ -1,3 +1,4 @@
+#include "core/dtcwt.hpp"
 #include "core/lifting.hpp"
 #include "pipeline/blocks_common.hpp"
 
@@ -40,6 +41,71 @@ void register_wavelet_blocks(std::vector<BlockType>& out) {
                                    c.lengths.push_back(ch.size());
                                }
                                return one(std::move(c));
+                           }}));
+    out.push_back(checked({"dtcwt",
+                           kIn,
+                           kCoeffsOut,
+                           {{"levels", Kind::integer, "4", {}, 1, 20},
+                            {"biort", Kind::choice, "near_sym_a", {"near_sym_a", "near_sym_b", "antonini", "legall"}},
+                            {"qshift", Kind::choice, "qshift_a", {"qshift_a", "qshift_b", "qshift_c", "qshift_d", "qshift_06"}}},
+                           [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                               const auto& a = audio(in);
+                               const auto* biort = core::dtcwt::find_biort(param_text(p, "biort"));
+                               const auto* qshift = core::dtcwt::find_qshift(param_text(p, "qshift"));
+                               if (!biort || !qshift) return core::make_error(core::Errc::invalid_argument, "dtcwt: unknown filters");
+                               const auto levels = static_cast<std::size_t>(param_int(p, "levels"));
+                               Coeffs c;
+                               c.wavelet = biort->name + "+" + qshift->name;
+                               c.rate = a.sample_rate;
+                               c.transform = "dtcwt";
+                               for (const auto& ch : a.channels) {
+                                   if (ch.empty()) return core::make_error(core::Errc::invalid_argument, "dtcwt: empty signal");
+                                   Samples x = ch;
+                                   if (x.size() % 2 != 0) x.push_back(x.back());
+                                   auto pyramid = core::dtcwt::forward(x, levels, *biort, *qshift);
+                                   if (!pyramid) return std::unexpected{pyramid.error()};
+                                   core::BasicCoeffs<double> bands;
+                                   bands.original_length = ch.size();
+                                   bands.bands.push_back(std::move(pyramid->lowpass));
+                                   for (auto it = pyramid->highpasses.rbegin(); it != pyramid->highpasses.rend(); ++it) {
+                                       Samples interleaved;
+                                       interleaved.reserve(2 * it->size());
+                                       for (const auto& z : *it) interleaved.push_back(z.real()), interleaved.push_back(z.imag());
+                                       bands.bands.push_back(std::move(interleaved));
+                                   }
+                                   c.channels.push_back(std::move(bands));
+                                   c.lengths.push_back(ch.size());
+                               }
+                               return one(std::move(c));
+                           }}));
+    out.push_back(checked({"idtcwt", kCoeffsIn, kOut, {}, [](const RunContext&, std::span<const Value> in, const Params&) -> Out {
+                               const auto& c = coeffs(in);
+                               if (c.transform != "dtcwt")
+                                   return fail(tr("pipeline.error.wrong_inverse"), fmt::arg("transform", c.transform), fmt::arg("inverse", inverse_of(c.transform)));
+                               const auto plus = c.wavelet.find('+');
+                               const auto* biort = plus == std::string::npos ? nullptr : core::dtcwt::find_biort(std::string_view{c.wavelet}.substr(0, plus));
+                               const auto* qshift = plus == std::string::npos ? nullptr : core::dtcwt::find_qshift(std::string_view{c.wavelet}.substr(plus + 1));
+                               if (!biort || !qshift) return core::make_error(core::Errc::invalid_argument, "idtcwt: unknown filters " + c.wavelet);
+                               core::AudioBuffer result;
+                               result.sample_rate = c.rate;
+                               for (std::size_t i = 0; i < c.channels.size(); ++i) {
+                                   const auto& ch = c.channels[i];
+                                   if (ch.bands.empty()) return core::make_error(core::Errc::invalid_argument, "idtcwt: no bands");
+                                   core::dtcwt::Pyramid pyramid;
+                                   pyramid.lowpass = ch.bands.front();
+                                   for (std::size_t b = ch.bands.size(); b-- > 1;) {
+                                       const auto& band = ch.bands[b];
+                                       if (band.size() % 2 != 0) return core::make_error(core::Errc::invalid_argument, "idtcwt: a band has an odd length");
+                                       std::vector<std::complex<double>> z(band.size() / 2);
+                                       for (std::size_t k = 0; k < z.size(); ++k) z[k] = {band[2 * k], band[2 * k + 1]};
+                                       pyramid.highpasses.push_back(std::move(z));
+                                   }
+                                   auto y = core::dtcwt::inverse(pyramid, *biort, *qshift);
+                                   if (!y) return std::unexpected{y.error()};
+                                   if (i < c.lengths.size()) y->resize(c.lengths[i]);
+                                   result.channels.push_back(std::move(*y));
+                               }
+                               return one(std::move(result));
                            }}));
     out.push_back(checked({"ilift97", kCoeffsIn, kOut, {}, [](const RunContext&, std::span<const Value> in, const Params&) -> Out {
                                const auto& c = coeffs(in);

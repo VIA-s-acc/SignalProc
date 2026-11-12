@@ -2,6 +2,7 @@ include(Catch)
 
 add_executable(signals_tests
   test_toolchain.cpp
+  core/test_dtcwt.cpp
   core/test_adaptive.cpp
   core/test_tempo.cpp
   core/test_restoration.cpp
@@ -100,6 +101,7 @@ add_executable(signals_tests
   pipeline/test_blocks_more.cpp
   pipeline/test_multichannel.cpp
   pipeline/test_sweep.cpp
+  pipeline/test_dtcwt_blocks.cpp
   svg/test_svg.cpp
   pipeline/test_blocks_fx.cpp
   pipeline/test_blocks_analysis.cpp
