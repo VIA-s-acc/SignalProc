@@ -38,7 +38,7 @@ One statement per line. The order of lines does not matter: a wire may come befo
 - `node id = block(…) bypass` — the node is bypassed: its input goes straight to its output and the block is not computed. Only blocks whose input and output have the same type can be bypassed.
 - `a -> b -> c` — a chain of wires: the output of `a` into `b`, the output of `b` into `c`. A port follows a dot: `x -> pr.ref`, `sum -> pr.in`, `lms.e -> out`. A port is not allowed in the middle of a chain; split such a chain into two lines.
 - `probe node as "name"` or `probe node.port as "name"` — a probe: this output is shown in the «Probe» panel. The name is optional but must not repeat.
-- `#` — a comment to the end of the line (except `#` inside quotes).
+- `#` — a comment to the end of the line (except `#` inside quotes). Comments survive saving from the «Pipeline» tab: comment lines above a node, wire or probe stay above it, a comment at the end of a line stays at its end, and blank lines between groups of nodes are kept too. A comment inside the parentheses of a multi-line node moves to the line above the node. A deleted node takes its comments with it; if the first wire of a chain is deleted, the chain's comment moves to the remaining wire of that line.
 
 ### Ports {#sig-ports}
 
