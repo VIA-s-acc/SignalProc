@@ -10,7 +10,7 @@
 
 ## Скачать
 
-Готовые сборки — на странице [Releases](https://github.com/VIA-s-acc/SignalProc/releases), по выпуску на версию. Версии идут за этапами: M3 — 0.3.0, M4 и M5a — 0.4.0, M5b, M6 и M7 — 0.5.0.
+Готовые сборки — на странице [Releases](https://github.com/VIA-s-acc/SignalProc/releases), по выпуску на версию. Версии идут за этапами: M3 — 0.3.0, M4 и M5a — 0.4.0, M5b, M6 и M7 — 0.5.0, M7e и M8 без M8c — 0.6.0.
 
 | Система | Архив |
 |---|---|
@@ -21,8 +21,8 @@
 В архиве — `signals` (на Windows `signals.exe`), `README.md` и `LICENSE`; контрольные суммы — в `SHA256SUMS`. Установка не нужна:
 
 ```bash
-tar -xzf signals-v0.5.0-macos-arm64.tar.gz
-cd signals-v0.5.0-macos-arm64
+tar -xzf signals-v0.6.0-macos-arm64.tar.gz
+cd signals-v0.6.0-macos-arm64
 ./signals check
 ```
 
