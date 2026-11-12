@@ -208,6 +208,8 @@ private:
                 {
                     std::lock_guard lock{mutex_};
                     status_[i].bytes = outputs_bytes(*outputs_[i]);
+            status_[i].shapes.clear();
+            for (const auto& v : *outputs_[i]) status_[i].shapes.push_back(shape_of(v));
                 }
                 return set(i, NodeState::cached);
             }
@@ -250,6 +252,8 @@ private:
             {
                 std::lock_guard lock{mutex_};
                 status_[i].bytes = outputs_bytes(*passed);
+            status_[i].shapes.clear();
+            for (const auto& v : *passed) status_[i].shapes.push_back(shape_of(v));
                 status_[i].fraction = 1;
             }
             outputs_[i] = passed;
@@ -287,6 +291,8 @@ private:
         {
             std::lock_guard lock{mutex_};
             status_[i].bytes = outputs_bytes(*produced);
+            status_[i].shapes.clear();
+            for (const auto& v : *produced) status_[i].shapes.push_back(shape_of(v));
         }
         if (!n.type->side_effect) cache_.put(keys_[i], produced);
         outputs_[i] = produced;

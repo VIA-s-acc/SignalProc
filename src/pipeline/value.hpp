@@ -39,6 +39,14 @@ struct Report {
 using Value = std::variant<core::AudioBuffer, Coeffs, core::FilterBank, double, Report>;
 
 PortType type_of(const Value& v);
+
+struct OutputShape {
+    PortType type = PortType::signal;
+    std::size_t channels = 0, frames = 0;
+    double rate = 0;
+};
+
+OutputShape shape_of(const Value& v);
 std::string_view to_string(PortType t);
 std::uint64_t value_key(const Value& v);
 std::size_t value_bytes(const Value& v);

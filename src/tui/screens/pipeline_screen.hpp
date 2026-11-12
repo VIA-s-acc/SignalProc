@@ -72,6 +72,9 @@ private:
     void refresh_probe(const RunView& run);
     ftxui::Element probe_values(const core::AudioBuffer& audio, int width, int height);
     void name_probe();
+    void sync_stacked();
+    ftxui::Element probe_time(int width, int rows);
+    ftxui::Element channel_legend(std::size_t channels, int width, bool keys) const;
     void play(bool input);
     std::optional<double> playhead() const;
     ftxui::Element text_panel(int width, int height);
@@ -118,14 +121,15 @@ private:
         std::uint64_t run = 0;
         std::string name;
         std::shared_ptr<std::vector<std::vector<float>>> samples;
-        std::unique_ptr<MinMaxPyramid> pyramid;
-        std::vector<double> freqs, db;
+        std::vector<std::unique_ptr<MinMaxPyramid>> pyramids;
+        std::vector<double> freqs;
+        std::vector<std::vector<double>> db;
         double rate = 0;
         std::size_t frames = 0;
     } probe_;
     std::size_t probe_index_ = 0;
     enum class ProbeView { time, spectrum, values } probe_view_ = ProbeView::time;
-    bool last_input_ = false;
+    bool last_input_ = false, stacked_ = false;
     bool adding_ = false;
     std::optional<pipeline::PortRef> connecting_;
     std::string query_;

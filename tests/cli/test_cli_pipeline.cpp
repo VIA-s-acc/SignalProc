@@ -210,3 +210,26 @@ TEST_CASE("the prak1 example graphs give the numbers of the notebook", "[cli][pi
     CHECK(std::abs(std::pow(10.0, h1_high / 20) - 0.951) < 0.005);
     CHECK(std::abs(std::pow(10.0, h1_low / 20) - 0.233) < 0.005);
 }
+
+TEST_CASE("run shows the shape of every node and of a stereo probe", "[cli][pipeline][multichannel]") {
+    const auto dir = fresh_dir("cli-run-shape");
+    const auto path = write_sig(dir, R"(pipeline "stereo" v1
+node x = samples(values="1 2 3 | 4 5 6", rate=8)
+node g = gain(db=0)
+x -> g
+probe g as "g"
+)");
+    const auto text = run({"signals", "run", path.string()});
+    INFO(text.err);
+    REQUIRE(text.code == 0);
+    CHECK(text.out.find("2×3") != std::string::npos);
+    CHECK(text.out.find("ch1: 4 5 6\n") != std::string::npos);
+    const auto r = run({"signals", "run", path.string(), "--json"});
+    REQUIRE(r.code == 0);
+    const auto j = nlohmann::json::parse(r.out);
+    CHECK(j["nodes"][0]["shape"][0]["kind"] == "signal");
+    CHECK(j["nodes"][0]["shape"][0]["channels"] == 2);
+    CHECK(j["nodes"][0]["shape"][0]["frames"] == 3);
+    CHECK(j["probes"]["g"]["values"] == nlohmann::json::parse("[[1, 2, 3], [4, 5, 6]]"));
+}
+

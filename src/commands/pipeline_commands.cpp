@@ -55,6 +55,26 @@ std::optional<pipeline::PipelineDoc> load(const std::filesystem::path& file, std
 
 constexpr std::size_t kListedFrames = 64;
 
+nlohmann::json shape_json(const std::vector<pipeline::OutputShape>& shapes) {
+    auto out = nlohmann::json::array();
+    for (const auto& s : shapes)
+        out.push_back({{"kind", std::string{pipeline::to_string(s.type)}}, {"channels", s.channels}, {"frames", s.frames}, {"rate", s.rate}});
+    return out;
+}
+
+std::size_t columns(const std::string& s) {
+    return static_cast<std::size_t>(std::count_if(s.begin(), s.end(), [](char c) { return (static_cast<unsigned char>(c) & 0xC0) != 0x80; }));
+}
+
+std::string shape_text(const std::vector<pipeline::OutputShape>& shapes) {
+    std::string out;
+    for (const auto& s : shapes) {
+        const bool sized = s.type == pipeline::PortType::signal || s.type == pipeline::PortType::coeffs;
+        out += (out.empty() ? "" : ", ") + (sized ? fmt::format("{}×{}", s.channels, s.frames) : std::string{pipeline::to_string(s.type)});
+    }
+    return out;
+}
+
 nlohmann::json summary(const pipeline::Value& v) {
     using namespace pipeline;
     nlohmann::json j{{"kind", std::string{to_string(type_of(v))}}};
@@ -190,6 +210,7 @@ private:
                                   {"wall_ms", s.wall_seconds * 1e3},
                                   {"cpu_ms", s.cpu_seconds * 1e3},
                                   {"bytes", s.bytes},
+                                  {"shape", shape_json(s.shapes)},
                                   {"message", s.message}});
         }
         j["probes"] = nlohmann::json::object();
@@ -208,15 +229,17 @@ private:
         out << fmt::format(fmt::runtime(tr("pipeline.cli.header")), fmt::arg("name", doc.name.empty() ? std::string{"—"} : doc.name),
                            fmt::arg("nodes", g.nodes.size()))
             << '\n';
-        std::size_t id_width = 0, type_width = 0;
+        std::size_t id_width = 0, type_width = 0, shape_width = 0;
         for (const auto& n : g.nodes) {
             id_width = std::max(id_width, n.id.size());
             type_width = std::max(type_width, n.type->id.size());
         }
+        for (const auto& s : r.nodes) shape_width = std::max(shape_width, columns(shape_text(s.shapes)));
         for (const auto i : g.order) {
             const auto& s = r.nodes[i];
-            out << fmt::format("  {} {:<{}}  {:<{}}  {:>9.1f} ms  {:>10}", state_mark(s.state), s.id, id_width, g.nodes[i].type->id, type_width,
-                               s.wall_seconds * 1e3, size_text(s.bytes))
+            const auto shape = shape_text(s.shapes);
+            out << fmt::format("  {} {:<{}}  {:<{}}  {}{}  {:>9.1f} ms  {:>10}", state_mark(s.state), s.id, id_width, g.nodes[i].type->id, type_width, shape,
+                               std::string(shape_width - columns(shape), ' '), s.wall_seconds * 1e3, size_text(s.bytes))
                 << '\n';
         }
         if (!r.probes.empty()) out << tr("pipeline.cli.probes") << '\n';
