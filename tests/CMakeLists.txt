@@ -3,6 +3,7 @@ include(Catch)
 add_executable(signals_tests
   test_toolchain.cpp
   core/test_dtcwt.cpp
+  core/test_sst.cpp
   core/test_adaptive.cpp
   core/test_tempo.cpp
   core/test_restoration.cpp
