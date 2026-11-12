@@ -1,6 +1,6 @@
 ## Appendix. Settings and files {#settings}
 
-Signals keeps little on disk: terminal and editor settings in one file, and a folder with your own filters. It has no cache, logs, history or recent-files list; everything else it writes goes where you tell it to. This appendix lists where these files are, which keys they hold and how to change them.
+Signals keeps little on disk: terminal and editor settings in `terminal.toml`, the session (theme, last tab, recent audio files and graphs) in `session.toml`, and a folder with your own filters. It has no cache or logs; everything else it writes goes where you tell it to. This appendix lists where these files are, which keys they hold and how to change them.
 
 ### The settings folder {#settings-dir}
 

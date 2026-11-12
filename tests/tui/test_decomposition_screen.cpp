@@ -204,7 +204,7 @@ TEST_CASE("o on an empty decomposition asks for a file", "[tui][decomposition]")
     DecompositionFixture f{false};
     int asked = 0;
     f.ui->ask_open = [&] { ++asked; };
-    CHECK(f.h.frame().find("o — открыть WAV, : — команды") != std::string::npos);
+    CHECK(f.h.frame().find("o — открыть звуковой файл, : — команды") != std::string::npos);
     CHECK(f.h.send(ftxui::Event::Character('o')));
     CHECK(asked == 1);
 }
