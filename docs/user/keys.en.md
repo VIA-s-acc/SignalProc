@@ -287,6 +287,7 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `click` | link, section, block, ▲/▼ more |
 | `n` | with numbers |
 | `o` | source |
+| `e` | in the editor |
 | `Esc` | back to screen |
 
 ## 9 Theory ▸ Tutorial

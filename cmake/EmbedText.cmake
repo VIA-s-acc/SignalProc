@@ -29,3 +29,17 @@ function(signals_embed_dir dir pattern output symbol)
   string(APPEND body "const SignalsEmbeddedFile ${symbol}[] = {\n${entries}    {nullptr, nullptr}};\nconst std::size_t ${symbol}Count = ${index};\n")
   file(WRITE ${output} "${body}")
 endfunction()
+
+# Embeds files that change with the code (C++ sources) at build time, so editing one does not re-run CMake.
+function(signals_embed_files root files output symbol)
+  set(deps "")
+  foreach(file ${files})
+    list(APPEND deps ${root}/${file})
+  endforeach()
+  string(REPLACE ";" "|" joined "${files}")
+  add_custom_command(
+    OUTPUT ${output}
+    COMMAND ${CMAKE_COMMAND} -DROOT=${root} -DOUTPUT=${output} -DSYMBOL=${symbol} -DFILES=${joined} -P ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/EmbedFiles.cmake
+    DEPENDS ${deps} ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/EmbedFiles.cmake
+    VERBATIM)
+endfunction()

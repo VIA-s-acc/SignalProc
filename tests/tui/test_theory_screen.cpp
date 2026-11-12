@@ -1,8 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -11,6 +13,8 @@
 #include "theory/blocks.hpp"
 #include "theory/sections.hpp"
 #include "tui/harness.hpp"
+#include "theory/cards.hpp"
+#include "theory/sources.hpp"
 #include "tui/screens/theory_navigator.hpp"
 #include "tui/screens/theory_screen.hpp"
 #include "tui/shell/shell.hpp"
@@ -202,7 +206,23 @@ TEST_CASE("view buttons navigate with the bank", "[tui][theory]") {
     CHECK(f.h.frame().find("M5") == std::string::npos);
 }
 
-TEST_CASE("o opens the source and esc returns to the origin", "[tui][theory]") {
+namespace {
+
+std::string definition_of(std::string_view card_id) {
+    const auto* card = signals::theory::find_card(card_id);
+    REQUIRE(card);
+    const auto code = signals::theory::embedded_source(card->source);
+    REQUIRE(code);
+    const auto line = signals::theory::source_line(*code, card->function);
+    REQUIRE(line);
+    std::size_t at = 0;
+    for (std::size_t k = 0; k < *line; ++k) at = code->find('\n', at) + 1;
+    return std::string{code->substr(at, std::min<std::size_t>(40, code->find('\n', at) - at))};
+}
+
+}  // namespace
+
+TEST_CASE("o shows the source inside, e and the button open it in the editor, esc steps back", "[tui][theory][sources]") {
     TheoryFixture f{TheoryScreen::Mode::under_the_hood};
     std::filesystem::path opened;
     std::string target;
@@ -215,12 +235,58 @@ TEST_CASE("o opens the source and esc returns to the origin", "[tui][theory]") {
     auto frame = f.h.frame();
     CHECK(frame.find("src/core/dwt.hpp · dwt_level()") != std::string::npos);
     f.h.send(ftxui::Event::Character('o'));
+    frame = f.h.frame();
+    CHECK(opened.empty());
+    CHECK(f.nav->current()->link.kind == TheoryLink::Kind::source);
+    CHECK(frame.find("src/core/dwt.hpp") != std::string::npos);
+    CHECK(frame.find(definition_of("dwt")) != std::string::npos);
+    f.h.send(ftxui::Event::Character('e'));
     CHECK(opened == std::filesystem::path{SIGNALS_SOURCE_DIR} / "src/core/dwt.hpp");
+    opened.clear();
+    const auto button = f.screen->area("source_editor");
+    REQUIRE(button.x_max >= button.x_min);
+    f.h.click(button.x_min + 1, button.y_min);
+    CHECK(opened == std::filesystem::path{SIGNALS_SOURCE_DIR} / "src/core/dwt.hpp");
+    f.h.send(ftxui::Event::Escape);
+    CHECK(f.nav->current()->link.kind == TheoryLink::Kind::card);
+    CHECK(target.empty());
     f.h.send(ftxui::Event::Escape);
     CHECK(target == "decomposition");
     f.ui->repo_root = "/nonexistent/signals";
+    opened.clear();
     f.h.send(ftxui::Event::Character('o'));
-    CHECK(f.h.frame().find("исходники не найдены") != std::string::npos);
+    frame = f.h.frame();
+    CHECK(frame.find(definition_of("dwt")) != std::string::npos);
+    f.h.send(ftxui::Event::Character('e'));
+    CHECK(opened.empty());
+    CHECK(f.h.frame().find("/nonexistent/signals/src/core/dwt.hpp") != std::string::npos);
+}
+
+TEST_CASE("the source page scrolls and its link from the card footer opens it", "[tui][theory][sources]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    f.nav->open({{TheoryLink::Kind::card, "delay", ""}});
+    f.h.frame();
+    f.h.send(ftxui::Event::Character('o'));
+    const auto first = f.h.frame();
+    CHECK(first.find(definition_of("delay")) != std::string::npos);
+    f.h.send(ftxui::Event::Home);
+    const auto top = f.h.frame();
+    CHECK(top.find("#include") != std::string::npos);
+    f.h.send(ftxui::Event::PageDown);
+    CHECK(f.h.frame() != top);
+    f.h.send(ftxui::Event::Escape);
+    f.h.frame();
+    f.h.send(ftxui::Event::End);
+    f.h.frame();
+    bool found = false;
+    for (int k = 0; k < 40 && !found; ++k) {
+        f.h.send(ftxui::Event::Tab);
+        f.h.frame();
+        found = f.screen->focused_target().starts_with("source:");
+    }
+    REQUIRE(found);
+    f.h.send(ftxui::Event::Return);
+    CHECK(f.nav->current()->link.kind == TheoryLink::Kind::source);
 }
 
 TEST_CASE("copy LaTeX from the formula menu", "[tui][theory][menu]") {
@@ -307,7 +373,7 @@ TEST_CASE("scrolling stops at the end of the document", "[tui][theory]") {
     for (int i = 0; i < 40; ++i) f.h.send(ftxui::Event::PageDown);
     const int end = f.screen->scroll();
     auto frame = f.h.frame();
-    CHECK(frame.find("o — открыть") != std::string::npos);
+    CHECK(frame.find("o — код, e — в редакторе") != std::string::npos);
     CHECK(frame.find("── Реализация") != std::string::npos);
     f.h.send(ftxui::Event::PageDown);
     f.h.send(ftxui::Event::ArrowDown);

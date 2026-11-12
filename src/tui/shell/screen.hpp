@@ -40,7 +40,7 @@ struct NavArgs {
 };
 
 struct TheoryLink {
-    enum class Kind { card, section };
+    enum class Kind { card, section, source };
     Kind kind = Kind::section;
     std::string id;
     std::string label = {};

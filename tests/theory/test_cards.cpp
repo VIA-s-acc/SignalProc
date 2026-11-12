@@ -8,6 +8,7 @@
 
 #include "i18n/i18n.hpp"
 #include "theory/cards.hpp"
+#include "theory/sources.hpp"
 
 using namespace signals::theory;
 
@@ -92,4 +93,24 @@ TEST_CASE("m7b: cards may link to every view the shell routes", "[theory][cards]
         INFO(v);
         CHECK(std::find(views.begin(), views.end(), std::string_view{v}) != views.end());
     }
+}
+
+TEST_CASE("every card's source file is built in and its function has a line", "[theory][sources]") {
+    for (const auto language : {signals::Language::ru, signals::Language::en}) {
+        const signals::LanguageScope scope{language};
+        for (const auto& card : signals::theory::cards()) {
+            INFO(card.id << " " << card.source << " " << card.function);
+            const auto text = signals::theory::embedded_source(card.source);
+            REQUIRE(text);
+            CHECK(text->find("#include") != std::string_view::npos);
+            const auto line = signals::theory::source_line(*text, card.function);
+            REQUIRE(line);
+            std::size_t at = 0;
+            for (std::size_t k = 0; k < *line; ++k) at = text->find('\n', at) + 1;
+            const auto shown = text->substr(at, text->find('\n', at) - at);
+            INFO(shown);
+            CHECK(shown.find(card.function) != std::string_view::npos);
+        }
+    }
+    CHECK_FALSE(signals::theory::embedded_source("src/no/such/file.cpp"));
 }

@@ -158,7 +158,7 @@ private:
             }
             case Inline::Kind::ref:
                 links_.push_back({i.target.find(':') == std::string::npos ? "#" + i.target : i.target, i.text, kNoDocBox});
-                out.push_back({i.text, i.target.starts_with("file://") ? Style::path : Style::link, static_cast<int>(links_.size()) - 1, pending});
+                out.push_back({i.text, i.target.starts_with("source:") ? Style::path : Style::link, static_cast<int>(links_.size()) - 1, pending});
                 pending = false;
                 break;
             case Inline::Kind::placeholder: {
