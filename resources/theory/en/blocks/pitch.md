@@ -10,7 +10,7 @@ views = ["tempo"]
 
 ## Purpose
 
-Find the fundamental frequency $f_0$ in every frame — of a voice, an instrument or a tone after a pitch shift — and tell voiced frames from noise and silence.
+Find the fundamental frequency $f_0$ in every frame (of a voice, an instrument or a tone after a pitch shift) and tell voiced frames from noise and silence.
 
 ## Formulas
 

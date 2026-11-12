@@ -45,7 +45,7 @@ The node ran for {{block.wall}} and used {{block.bytes}}.
 
 ## Checks
 
-- LMS ($\mu = 0.02$) and NLMS ($\mu = 0.5$) match a numpy reference — $y$, $e$ and the final weights to $10^{-10}$ — in two scenarios: identifying a 5-tap system with an 8-tap filter and cancelling filtered interference with a 6-tap filter.
+- LMS ($\mu = 0.02$) and NLMS ($\mu = 0.5$) match a numpy reference ($y$, $e$ and the final weights to $10^{-10}$) in two scenarios: identifying a 5-tap system with an 8-tap filter and cancelling filtered interference with a 6-tap filter.
 - NLMS identifies the system: the weights differ from its taps by less than 0.01, and the extra taps are within 0.01 of zero.
 - Mismatched lengths, $L = 0$, $L > N$ and $\mu = 0$ are refused; a diverging LMS ($\mu = 1.5$, 16 taps) stops with a message about `mu`; with a zero reference NLMS gives $e = d$ exactly — $\varepsilon$ guards against division by zero.
 - The `lms` block in a chain gives the same $e$ and $y$ to $10^{-10}$, keeps the rate and refuses a reference with a different rate.

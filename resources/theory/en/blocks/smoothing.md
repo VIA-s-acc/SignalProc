@@ -45,7 +45,7 @@ Node time {{block.wall}}, memory {{block.bytes}}.
 ## Checks
 
 - `median` for windows 5 and 11 matches `scipy.signal.medfilt` exactly (difference 0); the even window 4 is refused.
-- `savgol` matches `scipy.signal.savgol_filter` (with `delta = 1/fs`) in seven settings — all five edge modes, $d$ from 0 to 3, $p$ up to 5, windows up to 31 — to $10^{-10}$ of the largest $\lvert y\rvert$.
+- `savgol` matches `scipy.signal.savgol_filter` (with `delta = 1/fs`) in seven settings (all five edge modes, $d$ from 0 to 3, $p$ up to 5, windows up to 31) to $10^{-10}$ of the largest $\lvert y\rvert$.
 - A 7-sample signal with window 11 in the `mirror`, `nearest`, `constant` and `wrap` modes matches scipy to $10^{-12}$; in `interp` a signal shorter than the window (3 samples) is refused.
 - The derivative of a ramp with slope 0.5 per second at $f_s = 1000$ equals 0.5 to $10^{-10}$ at every point, edges included; an even window, $p \ge W$, $d > p$ and a derivative without a sample rate give an error.
 

@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
@@ -182,4 +183,30 @@ probe tone as "tone"
     const auto j = nlohmann::json::parse(r.out);
     CHECK(j["probes"]["y1"]["values"] == nlohmann::json::parse("[[1, -1.5, 2, -1, -0.5]]"));
     CHECK_FALSE(j["probes"]["tone"].contains("values"));
+}
+
+TEST_CASE("the prak1 example graphs give the numbers of the notebook", "[cli][pipeline][values][examples]") {
+    const auto dir = std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples" / "prak1";
+    const auto first = run({"signals", "run", (dir / "zadanie1.sig").string(), "--json"});
+    INFO(first.err);
+    REQUIRE(first.code == 0);
+    const auto j1 = nlohmann::json::parse(first.out);
+    CHECK(j1["probes"]["y0 = x*h0"]["values"] == nlohmann::json::parse("[[1, 0.5, 1, 2, 0.5]]"));
+    CHECK(j1["probes"]["y1 = x*h1"]["values"] == nlohmann::json::parse("[[1, -1.5, 2, -1, -0.5]]"));
+    const auto fifth = run({"signals", "run", (dir / "zadanie5.sig").string(), "--json"});
+    INFO(fifth.err);
+    REQUIRE(fifth.code == 0);
+    const auto j5 = nlohmann::json::parse(fifth.out);
+    const auto field = [&](const char* probe, const char* name) { return j5["probes"][probe]["fields"][name].get<double>(); };
+    CHECK(j5["probes"]["вход x"]["length"] == 128);
+    CHECK(std::abs(field("пики x", "peak1_hz") - 78.125) < 1e-9);
+    CHECK(std::abs(field("пики x", "peak2_hz") - 398.4375) < 1e-9);
+    const double h0_low = field("пики y0", "peak1_db") - field("пики x", "peak1_db");
+    const double h0_high = field("пики y0", "peak2_db") - field("пики x", "peak2_db");
+    const double h1_high = field("пики y1", "peak1_db") - field("пики x", "peak2_db");
+    const double h1_low = field("пики y1", "peak2_db") - field("пики x", "peak1_db");
+    CHECK(std::abs(std::pow(10.0, h0_low / 20) - 0.972) < 0.005);
+    CHECK(std::abs(std::pow(10.0, h0_high / 20) - 0.309) < 0.005);
+    CHECK(std::abs(std::pow(10.0, h1_high / 20) - 0.951) < 0.005);
+    CHECK(std::abs(std::pow(10.0, h1_low / 20) - 0.233) < 0.005);
 }

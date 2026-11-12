@@ -10,11 +10,11 @@ views = ["signal"]
 
 ## Purpose
 
-`quantize` rounds the samples to the grid of a $b$-bit integer, optionally with triangular dither; `mulaw` compresses or expands the amplitude by the G.711 μ-law — a logarithmic curve that gives quiet sounds more quantisation levels.
+`quantize` rounds the samples to the grid of a $b$-bit integer, optionally with triangular dither; `mulaw` compresses or expands the amplitude by the G.711 μ-law, a logarithmic curve that gives quiet sounds more quantisation levels.
 
 ## Formulas
 
-Scale $Q = 2^{b-1}$, step $\Delta = 1/Q$. Dither $\delta = u_1 - u_2$ with $u_{1,2}$ uniform on $[0, 1)$ — a triangular distribution on $(-1, 1)$ in units of the step; without dither $\delta = 0$:
+Scale $Q = 2^{b-1}$, step $\Delta = 1/Q$. Dither $\delta = u_1 - u_2$ with $u_{1,2}$ uniform on $[0, 1)$ (a triangular distribution on $(-1, 1)$ in units of the step); without dither $\delta = 0$:
 
 $$q[n] = \frac{1}{Q}\,\min\big(Q - 1, \max(-Q, \mathrm{round}(Q\,x[n] + \delta))\big)$$
 

@@ -1351,7 +1351,7 @@
   "tui.pipeline.view.time": "время",
   "tui.pipeline.view.spectrum": "спектр",
   "tui.pipeline.view.values": "числа",
-  "tui.pipeline.values_keys": "↑↓ PgUp PgDn — строки, ←→ — другой щуп, v — вид, n — имя",
+  "tui.pipeline.values_keys": "↑↓ — строки, ←→ — щуп, n — имя",
   "tui.pipeline.values.more_channels": "+{count} кан.",
   "tui.pipeline.probe_name": "имя щупа",
   "tui.pipeline.no_probe": "здесь нет щупа",

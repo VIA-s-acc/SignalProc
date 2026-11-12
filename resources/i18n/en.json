@@ -1351,7 +1351,7 @@
   "tui.pipeline.view.time": "time",
   "tui.pipeline.view.spectrum": "spectrum",
   "tui.pipeline.view.values": "values",
-  "tui.pipeline.values_keys": "↑↓ PgUp PgDn — rows, ←→ — another probe, v — view, n — name",
+  "tui.pipeline.values_keys": "↑↓ — rows, ←→ — probe, n — name",
   "tui.pipeline.values.more_channels": "+{count} ch.",
   "tui.pipeline.probe_name": "probe name",
   "tui.pipeline.no_probe": "no probe here",

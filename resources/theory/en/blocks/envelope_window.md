@@ -10,7 +10,7 @@ views = ["signal"]
 
 ## Purpose
 
-`window` multiplies every whole channel by a window of its length — Hann, Hamming, Blackman, Kaiser or Tukey; `fade` raises the level smoothly from zero at the start and lowers it to zero at the end.
+`window` multiplies every whole channel by a window of its length (Hann, Hamming, Blackman, Kaiser or Tukey); `fade` raises the level smoothly from zero at the start and lowers it to zero at the end.
 
 ## Formulas
 
