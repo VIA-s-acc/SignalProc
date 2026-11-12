@@ -297,3 +297,11 @@ TEST_CASE("the palette opens the settings and files chapter", "[tui][palette][se
     CHECK(opened == "settings");
 }
 
+TEST_CASE("exporting on a tab without plots says so", "[tui][palette][export]") {
+    Rig r{signals::test::make_ui(150, 44)};
+    r.h.send(ftxui::Event::Character(':'));
+    for (const auto& c : split_codepoints(signals::tr("tui.cmd.export_plot"))) r.h.send(ftxui::Event::Character(c));
+    r.h.send(ftxui::Event::Return);
+    CHECK(r.h.frame().find(signals::tr("tui.export.none")) != std::string::npos);
+}
+

@@ -48,6 +48,7 @@ public:
     std::shared_ptr<const DiagramResult> result() const { return result_; }
     ftxui::Box area(std::string_view id) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<PlotExport> plot_exports() override { return zoom_.exports(); }
     std::vector<Command> commands() override;
     std::vector<JumpTarget> jump_targets() const override;
     std::optional<std::string> explain_at(int x, int y) const override;

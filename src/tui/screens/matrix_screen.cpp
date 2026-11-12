@@ -9,6 +9,7 @@
 
 #include "core/design/families.hpp"
 #include "i18n/i18n.hpp"
+#include "tui/shell/plot_export.hpp"
 #include "core/matrix.hpp"
 #include "tui/screens/publish_util.hpp"
 #include "tui/widgets/format.hpp"
@@ -308,7 +309,7 @@ ftxui::Element MatrixScreen::main_panel(const MatrixData* d, int width, int heig
         spec.traces.push_back(std::move(t));
         auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
         const auto title = fmt::format(fmt::runtime(tr("tui.matrix.spectrum_title")), fmt::arg("name", base_name), fmt::arg("count", d->singular.size()));
-        return frame_panel(main, vbox({text("log₁₀ σᵢ") | fg(th.dim, ui_), sigma_zoom_.track("sigma", std::move(spec), std::move(drawn)) | flex}), {}, title);
+        return frame_panel(main, vbox({text("log₁₀ σᵢ") | fg(th.dim, ui_), sigma_zoom_.track("sigma", std::move(spec), std::move(drawn), {title, {}, "i", "log₁₀ σᵢ"}) | flex}), {}, title);
     }
     auto title = fmt::format(fmt::runtime(tr("tui.matrix.title")), fmt::arg("name", name), fmt::arg("rows", rows), fmt::arg("cols", cols),
                              fmt::arg("row", row_));
@@ -344,6 +345,8 @@ ftxui::Element MatrixScreen::main_panel(const MatrixData* d, int width, int heig
         spec.values.reserve(nr * nc);
         for (std::size_t r = r0; r < r0 + nr; ++r)
             for (std::size_t c = c0; c < c0 + nc; ++c) spec.values.push_back(d->m(static_cast<Eigen::Index>(r), static_cast<Eigen::Index>(c)));
+        shown_map_ = HeatmapExport{"matrix", tr("tui.export.matrix"), spec, Axis{static_cast<double>(c0), static_cast<double>(c0 + nc)},
+                                   Axis{static_cast<double>(r0 + nr), static_cast<double>(r0)}, "j", "i"};
         const int map_height = std::max(2, std::min(static_cast<int>((nr * static_cast<std::size_t>(scale) + 1) / 2), room_h));
         std::string header = "     ";
         const std::size_t label_step = std::max<std::size_t>(1, nc / std::max<std::size_t>(1, static_cast<std::size_t>(map_width / 8)));
@@ -413,6 +416,7 @@ ftxui::Element MatrixScreen::origin_panel(const MatrixData* d, int width) {
 
 ftxui::Element MatrixScreen::OnRender() {
     using namespace ftxui;
+    shown_map_.reset();
     panel_boxes_.fill(kNoBox);
     clickables_.clear();
     notes_.clear();
@@ -713,14 +717,23 @@ std::pair<double, double> MatrixScreen::fractions_at(int x, int y) const {
             (static_cast<double>(block_.c0) + fx * static_cast<double>(block_.cols)) / cols};
 }
 
+std::vector<HeatmapExport> MatrixScreen::heatmap_exports() {
+    if (shown_map_) return {*shown_map_};
+    return {};
+}
+
 std::vector<MenuItem> MatrixScreen::context_menu(int x, int y) {
     if (spectrum_)
-        if (auto reset = sigma_zoom_.reset_item(x, y)) return {*reset};
-    if (!matrix_box_.Contain(x, y) || !(row_zoom_.zoomed() || col_zoom_.zoomed())) return {};
-    return {{tr("tui.menu.reset_zoom"), "", [this] {
-                 row_zoom_.reset();
-                 col_zoom_.reset();
-             }}};
+        if (auto items = sigma_zoom_.menu(x, y, ui_); !items.empty()) return items;
+    if (!matrix_box_.Contain(x, y)) return {};
+    std::vector<MenuItem> items;
+    if (row_zoom_.zoomed() || col_zoom_.zoomed())
+        items.push_back({tr("tui.menu.reset_zoom"), "", [this] {
+                             row_zoom_.reset();
+                             col_zoom_.reset();
+                         }});
+    if (shown_map_) items.push_back(export_item(ui_, *shown_map_));
+    return items;
 }
 
 std::optional<std::pair<int, int>> MatrixScreen::menu_anchor() const {

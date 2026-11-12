@@ -10,6 +10,7 @@
 #include <ftxui/screen/screen.hpp>
 
 #include "i18n/i18n.hpp"
+#include "tui/shell/plot_export.hpp"
 #include "tui/theme/theme.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/plot.hpp"
@@ -375,7 +376,7 @@ ftxui::Element SpectrumScreen::spectrum_body(const SelectionSpectrum& sel, int w
     if (fold_ > 0) spec.x_marks.push_back(nyq / static_cast<double>(fold_));
     if (cursor_) spec.cursor_a = cursor_->second;
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, std::max(3, height)) | size(WIDTH, EQUAL, std::max(10, width - 4));
-    return zoom_.track("selection", std::move(spec), std::move(drawn));
+    return zoom_.track("selection", std::move(spec), std::move(drawn), {tr("tui.spectrum.selection"), {}, tr("tui.export.freq_hz"), tr("tui.filters.db")});
 }
 
 ftxui::Element SpectrumScreen::cursor_panel_body(const SpectrogramData* s, const SelectionSpectrum* sel) {
@@ -467,13 +468,37 @@ void SpectrumScreen::zoom(double factor, double anchor) {
     end_ = b + width;
 }
 
+std::optional<HeatmapExport> SpectrumScreen::spectrogram_export() const {
+    const auto s = model_->spectrogram();
+    if (!s || !valid(plot_box_)) return std::nullopt;
+    auto g = grid_spec_;
+    g.rows = 256;
+    g.cols = 800;
+    HeatmapSpec spec;
+    spec.rows = g.rows;
+    spec.cols = g.cols;
+    spec.values = spectrogram_grid(*s, g);
+    spec.floor = floor_db_;
+    spec.ceil = spec.values.empty() ? 0.0 : *std::max_element(spec.values.begin(), spec.values.end());
+    const double nyq = s->fs / 2;
+    return HeatmapExport{"spectrogram", tr("tui.export.spectrogram"), std::move(spec), Axis{g.t0, g.t1},
+                         g.log ? Axis{g.fmin, nyq, AxisScale::log10} : Axis{0, nyq}, tr("tui.export.time_s"), tr("tui.export.freq_hz")};
+}
+
+std::vector<HeatmapExport> SpectrumScreen::heatmap_exports() {
+    if (auto map = spectrogram_export()) return {std::move(*map)};
+    return {};
+}
+
 std::vector<MenuItem> SpectrumScreen::context_menu(int x, int y) {
-    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
+    if (auto items = zoom_.menu(x, y, ui_); !items.empty()) return items;
     const auto s = model_->source();
     const double total = s ? s->duration() : 0;
-    if (valid(plot_box_) && plot_box_.Contain(x, y) && total > 0 && (begin_ > 0 || end_ < total))
-        return {{tr("tui.menu.reset_zoom"), "0", [this] { zoom(1e-12, begin_); }}};
-    return {};
+    std::vector<MenuItem> items;
+    if (valid(plot_box_) && plot_box_.Contain(x, y) && total > 0 && (begin_ > 0 || end_ < total)) items.push_back({tr("tui.menu.reset_zoom"), "0", [this] { zoom(1e-12, begin_); }});
+    if (valid(plot_box_) && plot_box_.Contain(x, y))
+        if (auto map = spectrogram_export()) items.push_back(export_item(ui_, std::move(*map)));
+    return items;
 }
 
 void SpectrumScreen::pan(double dt) {

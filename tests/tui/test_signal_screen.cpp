@@ -1,6 +1,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+
 #include <optional>
 
 #include <ftxui/component/event.hpp>
@@ -495,8 +497,9 @@ TEST_CASE("the wheel zooms the spectrum in decades and the menu resets it", "[tu
     h.frame();
     CHECK(screen->plot_axis("spectrum").lo > after.lo);
     auto items = screen->context_menu(x, y);
-    REQUIRE(items.size() == 1);
-    items[0].action();
+    const auto reset = std::find_if(items.begin(), items.end(), [](const MenuItem& m) { return m.label == signals::tr("tui.menu.reset_zoom"); });
+    REQUIRE(reset != items.end());
+    reset->action();
     h.frame();
     CHECK(screen->plot_axis("spectrum").lo == before.lo);
 }

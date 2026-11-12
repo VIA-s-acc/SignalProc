@@ -48,6 +48,8 @@ public:
     std::size_t column() const { return col_; }
     Block block() const { return block_; }
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<HeatmapExport> heatmap_exports() override;
+    std::vector<PlotExport> plot_exports() override { return sigma_zoom_.exports(); }
     std::optional<std::pair<int, int>> menu_anchor() const override;
     bool numbers() const { return numbers_; }
     ftxui::Box area(std::string_view id) const;
@@ -93,6 +95,7 @@ private:
     std::string notice_;
     std::optional<Panel> maximized_;
     AxisZoom row_zoom_, col_zoom_;
+    std::optional<HeatmapExport> shown_map_;
     PlotZoom sigma_zoom_;
     double origin_scroll_ = 0;
     Block block_;

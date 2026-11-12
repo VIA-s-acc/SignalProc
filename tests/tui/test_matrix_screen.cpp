@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+
 #include <optional>
 
 #include <chrono>
@@ -145,9 +147,9 @@ TEST_CASE("the wheel zooms into a block of the matrix and the menu resets it", "
     f.h.click(a.x_min, a.y_min);
     CHECK(f.screen->row() == b.r0);
     auto items = f.screen->context_menu(x, y);
-    REQUIRE_FALSE(items.empty());
-    CHECK(items.back().label == "Сбросить масштаб");
-    items.back().action();
+    const auto reset = std::find_if(items.begin(), items.end(), [](const MenuItem& m) { return m.label == signals::tr("tui.menu.reset_zoom"); });
+    REQUIRE(reset != items.end());
+    reset->action();
     f.h.frame();
     CHECK(f.screen->block().cols == 128);
     CHECK(f.h.frame().find("участок") == std::string::npos);

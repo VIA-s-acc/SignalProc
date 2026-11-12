@@ -21,6 +21,7 @@ include(cmake/Dependencies.cmake)
 
 add_subdirectory(src/core)
 add_subdirectory(src/io)
+add_subdirectory(src/svg)
 add_subdirectory(src/audio)
 add_subdirectory(src/i18n)
 add_subdirectory(src/theory)

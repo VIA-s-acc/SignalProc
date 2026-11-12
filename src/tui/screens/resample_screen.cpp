@@ -171,7 +171,7 @@ ftxui::Element ResampleScreen::before_body() {
     }
     if (options_.source == ResampleSource::tone) spec.cursor_a = options_.tone_hz;
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
-    return zoom_.track("before", std::move(spec), std::move(drawn));
+    return zoom_.track("before", std::move(spec), std::move(drawn), {tr("tui.resample.before"), {}, tr("tui.export.freq_hz"), tr("tui.filters.db")});
 }
 
 ftxui::Element ResampleScreen::after_body() {
@@ -196,7 +196,7 @@ ftxui::Element ResampleScreen::after_body() {
         for (double k = 1; k * v.fs < v.fs_out / 2 + 1; ++k) spec.x_marks.push_back(k * v.fs);
     if (v.tone_out) spec.cursor_a = *v.tone_out;
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
-    return zoom_.track("after", std::move(spec), std::move(drawn));
+    return zoom_.track("after", std::move(spec), std::move(drawn), {tr("tui.resample.after"), {}, tr("tui.export.freq_hz"), tr("tui.filters.db")});
 }
 
 ftxui::Element ResampleScreen::readouts_body() {
@@ -259,7 +259,7 @@ ftxui::Element ResampleScreen::time_body() {
     spec.traces.push_back(std::move(in));
     spec.traces.push_back(std::move(out));
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
-    return zoom_.track("time", std::move(spec), std::move(drawn));
+    return zoom_.track("time", std::move(spec), std::move(drawn), {tr("tui.resample.time"), {}, tr("tui.export.time_s"), ""});
 }
 
 std::vector<ResampleScreen::Panel> ResampleScreen::shown_panels(int cols) const {
@@ -314,7 +314,7 @@ ftxui::Element ResampleScreen::OnRender() {
 }
 
 std::vector<MenuItem> ResampleScreen::context_menu(int x, int y) {
-    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
+    if (auto items = zoom_.menu(x, y, ui_); !items.empty()) return items;
     return {};
 }
 

@@ -13,6 +13,7 @@
 #include <nlohmann/json.hpp>
 
 #include "commands/command.hpp"
+#include "commands/run_report.hpp"
 #include "i18n/i18n.hpp"
 #include "io/wav.hpp"
 #include "pipeline/executor.hpp"
@@ -156,6 +157,7 @@ public:
         sub_->add_option("--set", sets_, tr("cli.run.set"));
         sub_->add_option("-o,--output", output_, tr("cli.run.output"));
         sub_->add_option("--probe-dir", probe_dir_, tr("cli.run.probe_dir"));
+        sub_->add_option("--report", report_, tr("cli.run.report"));
         sub_->add_flag("--json", json_, tr("cli.json.description"));
     }
     bool parsed() const override { return sub_->parsed(); }
@@ -193,6 +195,8 @@ public:
         if (!probe_dir_.empty())
             for (const auto& [name, value] : result->probes)
                 if (auto ok = save_probe(probe_dir_, name, value); !ok) return report_error(err, ok.error()), 1;
+        if (!report_.empty())
+            if (auto ok = write_run_report(report_, *doc, *graph, *result, file); !ok) return report_error(err, ok.error()), 1;
         if (json_) print_json(*doc, *graph, *result, out);
         else print_text(*doc, *graph, *result, out);
         return result->checks_passed ? 0 : 3;
@@ -271,7 +275,7 @@ private:
     }
 
     CLI::App* sub_;
-    std::string file_, output_, probe_dir_;
+    std::string file_, output_, probe_dir_, report_;
     std::vector<std::string> sets_;
     bool json_ = false;
 };

@@ -36,6 +36,7 @@ public:
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event e) override;
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<PlotExport> plot_exports() override { return zoom_.exports(); }
     std::vector<JumpTarget> jump_targets() const override;
     std::optional<std::string> explain_at(int x, int y) const override;
 

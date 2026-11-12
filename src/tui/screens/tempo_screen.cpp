@@ -225,7 +225,7 @@ ftxui::Element TempoScreen::track_body(bool after) {
     if (const double m = after ? v.f0_out_median : v.f0_in_median; m > 0) spec.y_marks.push_back(m);
     if (after && v.expected > 0) spec.y_marks.push_back(v.expected);
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
-    return zoom_.track(id, std::move(spec), std::move(drawn));
+    return zoom_.track(id, std::move(spec), std::move(drawn), {tr(after ? "tui.tempo.after" : "tui.tempo.before"), {}, tr("tui.export.time_s"), tr("tui.export.freq_hz")});
 }
 
 ftxui::Element TempoScreen::readouts_body(int width) {
@@ -266,7 +266,7 @@ ftxui::Element TempoScreen::wave_body() {
     spec.envelopes.push_back(wave(view_, false, spec.x, th.dim));
     spec.envelopes.push_back(wave(view_, true, spec.x, th.trace[0]));
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
-    return zoom_.track("wave", std::move(spec), std::move(drawn));
+    return zoom_.track("wave", std::move(spec), std::move(drawn), {tr("tui.tempo.wave"), {}, tr("tui.export.time_s"), ""});
 }
 
 ftxui::Element TempoScreen::render_panel(Panel p, int width) {
@@ -312,7 +312,7 @@ ftxui::Element TempoScreen::OnRender() {
 }
 
 std::vector<MenuItem> TempoScreen::context_menu(int x, int y) {
-    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
+    if (auto items = zoom_.menu(x, y, ui_); !items.empty()) return items;
     return {};
 }
 

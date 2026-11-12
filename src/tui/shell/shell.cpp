@@ -15,6 +15,7 @@
 #include "tui/monitor/resources_panel.hpp"
 #include "tui/shell/overlays.hpp"
 #include "tui/shell/palette.hpp"
+#include "tui/shell/plot_export.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/term/check_screen.hpp"
 #include "tui/widgets/text_util.hpp"
@@ -34,6 +35,7 @@ public:
         ui_.ask_text = [this](std::string prompt, std::string initial, std::function<void(std::string)> done) {
             palette_.ask_text(std::move(prompt), std::move(initial), std::move(done));
         };
+        ui_.notice = [this](std::string text) { notice_ = std::move(text); };
     }
 
     ~ShellComponent() override {
@@ -42,6 +44,7 @@ public:
         ui_.open_palette = nullptr;
         ui_.choose = nullptr;
         ui_.ask_text = nullptr;
+        ui_.notice = nullptr;
     }
 
     int active() const { return active_; }
@@ -86,7 +89,9 @@ public:
         tabs.push_back(text("  "));
         tabs.push_back(key_label(" ? ", ui_) | reflect(help_box_));
         Elements hints;
-        if (const auto about = hover_ ? screen.explain_at(hover_->first, hover_->second) : std::nullopt) {
+        if (!notice_.empty()) {
+            hints.push_back(text(ellipsize(std::string{ascii ? "> " : "✓ "} + notice_, w, ascii)) | fg(ui_.theme.ok, ui_));
+        } else if (const auto about = hover_ ? screen.explain_at(hover_->first, hover_->second) : std::nullopt) {
             hints.push_back(text(ellipsize(std::string{ascii ? "i " : "ⓘ "} + *about, w, ascii)) | fg(ui_.theme.accent, ui_));
         }
         auto all = screen.hints();
@@ -131,7 +136,10 @@ public:
     }
 
     bool OnEvent(ftxui::Event e) override {
-        if (!e.is_mouse() && e != ftxui::Event::Custom) hover_.reset();
+        if (!e.is_mouse() && e != ftxui::Event::Custom) {
+            hover_.reset();
+            notice_.clear();
+        }
         if (palette_.is_open()) return palette_.on_event(e);
         if (check_.is_open()) return check_.on_event(e, ui_);
         if (resources_open_) {
@@ -227,6 +235,7 @@ public:
     }
 
 private:
+    std::string notice_;
     void start_jump() {
         std::vector<JumpTarget> targets;
         for (std::size_t i = 0; i < tab_boxes_.size(); ++i) targets.push_back({tab_boxes_[i], screens_[i]->tab_label()});
@@ -285,6 +294,22 @@ private:
         screen.open_with(args);
     }
 
+    void export_plots() {
+        if (screens_.empty()) return;
+        auto& screen = *screens_[static_cast<std::size_t>(active_)];
+        auto plots = screen.plot_exports();
+        auto maps = screen.heatmap_exports();
+        std::vector<Command> items;
+        for (auto& p : plots) items.push_back({"plot." + p.id, p.title, [this, p] { export_plot(ui_, p); }});
+        for (auto& m : maps) items.push_back({"map." + m.id, m.title, [this, m] { export_heatmap(ui_, m); }});
+        if (items.empty()) {
+            notice_ = tr("tui.export.none");
+            return;
+        }
+        if (items.size() == 1) return items.front().run();
+        if (ui_.choose) ui_.choose(tr("tui.export.choose"), std::move(items));
+    }
+
     void open_theory_for_focus() {
         if (!ui_.open_theory || screens_.empty()) return;
         std::shared_ptr<TabScreen> target = screens_[static_cast<std::size_t>(active_)];
@@ -307,6 +332,7 @@ private:
         out.push_back({"color.16", tr("tui.cmd.color_16"), [this] { ui_.caps.color = ColorDepth::ansi16; }});
         out.push_back({"color.none", tr("tui.cmd.color_none"), [this] { ui_.caps.color = ColorDepth::none; }});
         out.push_back({"terminal.check", tr("tui.cmd.check"), [this] { check_.open(); }});
+        out.push_back({"plot.export", tr("tui.cmd.export_plot"), [this] { export_plots(); }});
         out.push_back({"settings.help", tr("tui.cmd.settings_help"), [this] {
                            if (ui_.open_theory) ui_.open_theory(TheoryPage{TheoryLink{TheoryLink::Kind::section, "settings", tr("tui.cmd.settings_help")}});
                        }});

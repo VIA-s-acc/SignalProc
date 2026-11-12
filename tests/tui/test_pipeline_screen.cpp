@@ -1246,3 +1246,63 @@ TEST_CASE("a stereo graph shows its shape on nodes and in the inspector, and the
     CHECK(frame.find("ch1") != std::string::npos);
 }
 
+TEST_CASE("the probe plot menu exports the plot to svg and csv", "[tui][pipeline_screen][export]") {
+    PipelineFixture f{150, 44, false};
+    run_text(f, kConvolution);
+    const auto dir = signals::test::temp_path("export-probe");
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    std::function<void(std::string)> answer;
+    std::string prefill;
+    f.ui->ask_text = [&](std::string, std::string p, std::function<void(std::string)> done) {
+        prefill = std::move(p);
+        answer = std::move(done);
+    };
+    f.h.frame();
+    const auto plot = f.screen->area("probe_time_plot");
+    REQUIRE(plot.x_max >= plot.x_min);
+    const auto items = f.screen->context_menu((plot.x_min + plot.x_max) / 2, (plot.y_min + plot.y_max) / 2);
+    const auto item = std::find_if(items.begin(), items.end(), [](const MenuItem& m) { return m.label == tr("tui.menu.export_plot"); });
+    REQUIRE(item != items.end());
+    item->action();
+    REQUIRE(answer);
+    CHECK(prefill.ends_with(".svg"));
+    answer((dir / "probe").string());
+    std::ifstream svg{dir / "probe.svg"}, csv{dir / "probe.csv"};
+    REQUIRE(svg);
+    REQUIRE(csv);
+    const std::string svg_text{std::istreambuf_iterator<char>{svg}, std::istreambuf_iterator<char>{}};
+    const std::string csv_text{std::istreambuf_iterator<char>{csv}, std::istreambuf_iterator<char>{}};
+    CHECK(svg_text.starts_with("<svg"));
+    CHECK(svg_text.find("<polyline") != std::string::npos);
+    CHECK(svg_text.find("<polygon") == std::string::npos);
+    CHECK(csv_text.starts_with("x,"));
+}
+
+TEST_CASE("the palette asks which plot to export and the shell says where it went", "[tui][pipeline_screen][export]") {
+    PipelineFixture f{150, 44, false};
+    run_text(f, "pipeline \"st\" v1\n"
+                "node x = samples(values=\"" + ramp(64, 1) + " | " + ramp(64, 2) + "\", rate=8)\n"
+                "probe x as \"x\"\n");
+    f.h.send(ftxui::Event::Character('k'));
+    std::vector<std::shared_ptr<TabScreen>> screens{f.screen};
+    Harness shell{make_shell(*f.ui, screens, [] {}), 150, 44};
+    shell.frame();
+    const auto dir = signals::test::temp_path("export-palette");
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    shell.send(ftxui::Event::Character(':'));
+    for (const auto& c : split_codepoints(tr("tui.cmd.export_plot"))) shell.send(ftxui::Event::Character(c));
+    shell.send(ftxui::Event::Return);
+    auto frame = shell.frame();
+    CHECK(frame.find(tr("tui.export.choose")) != std::string::npos);
+    shell.send(ftxui::Event::Return);
+    for (int k = 0; k < 40; ++k) shell.send(ftxui::Event::Backspace);
+    for (const auto& c : split_codepoints((dir / "stacked").string())) shell.send(ftxui::Event::Character(c));
+    shell.send(ftxui::Event::Return);
+    CHECK(std::filesystem::exists(dir / "stacked.svg"));
+    CHECK(std::filesystem::exists(dir / "stacked.csv"));
+    frame = shell.frame();
+    CHECK(frame.find("stacked.svg") != std::string::npos);
+}
+

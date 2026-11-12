@@ -18,6 +18,7 @@
 #include "theory/live.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/monitor/monitor.hpp"
+#include "tui/widgets/exportable.hpp"
 #include "tui/shell/layout.hpp"
 #include "tui/shell/ticker.hpp"
 #include "tui/term/caps.hpp"
@@ -81,6 +82,7 @@ struct UiContext {
     std::function<void(Language)> switch_language;
     std::filesystem::path repo_root;
     std::function<void(TheoryPage)> open_theory;
+    std::function<void(std::string)> notice;
 };
 
 struct MenuItem {
@@ -108,6 +110,8 @@ public:
     virtual void set_breakpoint(Breakpoint b) = 0;
     virtual bool capturing_text() const { return false; }
     virtual std::vector<MenuItem> context_menu(int /*x*/, int /*y*/) { return {}; }
+    virtual std::vector<PlotExport> plot_exports() { return {}; }
+    virtual std::vector<HeatmapExport> heatmap_exports() { return {}; }
     virtual std::vector<JumpTarget> jump_targets() const { return {}; }
     virtual std::optional<std::string> explain_at(int /*x*/, int /*y*/) const { return std::nullopt; }
     virtual void open_with(const NavArgs&) {}

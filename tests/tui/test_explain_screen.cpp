@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+
 #include <chrono>
 #include <memory>
 #include <numbers>
@@ -208,8 +210,9 @@ TEST_CASE("z and the wheel work on the explanation", "[tui][explain][zoom]") {
     auto a = f.screen->plot_axis("freq");
     CHECK(a.lo > 0.05 * pi);
     auto items = f.screen->context_menu(x, y);
-    REQUIRE(items.size() == 1);
-    items[0].action();
+    const auto reset = std::find_if(items.begin(), items.end(), [](const MenuItem& m) { return m.label == signals::tr("tui.menu.reset_zoom"); });
+    REQUIRE(reset != items.end());
+    reset->action();
     f.h.frame();
     CHECK(f.screen->plot_axis("freq").lo == 0);
 

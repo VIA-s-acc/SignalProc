@@ -35,6 +35,7 @@ struct Envelope {
     std::vector<MinMaxPyramid::Range> columns = {};
     Rgb color = {};
     std::function<std::vector<MinMaxPyramid::Range>(int dot_columns)> provider = {};
+    std::size_t samples = 0;
 };
 
 struct PlotSpec {

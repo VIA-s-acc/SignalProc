@@ -317,7 +317,7 @@ ftxui::Element DiagramScreen::probe_panel(int width, int height) {
         spec.y = {top - 100, top + 3};
         spec.traces.push_back(std::move(t));
         auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
-        body = zoom_.track("probe_spectrum", std::move(spec), std::move(drawn));
+        body = zoom_.track("probe_spectrum", std::move(spec), std::move(drawn), {title, {}, "ω", tr("tui.filters.db")});
     } else {
         tui::Trace t{};
         t.color = color;
@@ -335,7 +335,7 @@ ftxui::Element DiagramScreen::probe_panel(int width, int height) {
         spec.y = {lo - pad, hi + pad};
         spec.traces.push_back(std::move(t));
         auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
-        body = zoom_.track("probe_time", std::move(spec), std::move(drawn));
+        body = zoom_.track("probe_time", std::move(spec), std::move(drawn), {title, {}, "n", ""});
     }
     return panel(title, std::move(views), body, focus_ == probe_panel_id, ui_, notes_.box("panel.probe")) | reflect(panel_boxes_[probe_panel_id]);
 }
@@ -472,7 +472,7 @@ std::optional<std::string> DiagramScreen::explain_at(int x, int y) const {
 }
 
 std::vector<MenuItem> DiagramScreen::context_menu(int x, int y) {
-    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
+    if (auto items = zoom_.menu(x, y, ui_); !items.empty()) return items;
     return {};
 }
 

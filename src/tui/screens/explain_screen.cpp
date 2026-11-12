@@ -409,7 +409,7 @@ ftxui::Element ExplainScreen::freq_panel(const Walkthrough& w) {
         return r ? *r : std::string{s};
     };
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs);
-    auto body = vbox({zoom_.track("freq", std::move(spec), std::move(drawn)) | flex, text(gd) | fg(th.dim, ui_),
+    auto body = vbox({zoom_.track("freq", std::move(spec), std::move(drawn), {tr("tui.explain.freq"), {"|H₀|", "|H₁|"}, "ω", ""}) | flex, text(gd) | fg(th.dim, ui_),
                       text(fmt::format(fmt::runtime(tr("tui.explain.cutoff")), fmt::arg("value", filled("{{cutoff}}")))) | fg(th.dim, ui_),
                       text(fmt::format(fmt::runtime(tr("tui.explain.leak")), fmt::arg("value", filled("{{leak}}")))) | fg(th.dim, ui_)});
     return frame_panel(freq, body, {}, tr("tui.explain.freq"));
@@ -580,7 +580,7 @@ bool ExplainScreen::OnEvent(ftxui::Event e) {
 Axis ExplainScreen::plot_axis(std::string_view id) const { return zoom_.view(id).value_or(Axis{}); }
 
 std::vector<MenuItem> ExplainScreen::context_menu(int x, int y) {
-    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
+    if (auto items = zoom_.menu(x, y, ui_); !items.empty()) return items;
     return {};
 }
 

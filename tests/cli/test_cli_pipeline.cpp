@@ -233,3 +233,41 @@ probe g as "g"
     CHECK(j["probes"]["g"]["values"] == nlohmann::json::parse("[[1, 2, 3], [4, 5, 6]]"));
 }
 
+TEST_CASE("run --report writes a markdown report with plots next to it", "[cli][pipeline][export]") {
+    const auto dir = fresh_dir("cli-run-report");
+    const auto path = write_sig(dir, R"(pipeline "report" v1
+node x = samples(values="1 2 3 | 4 5 6", rate=8)
+node g = gain(db=0)
+node tone = gen(duration=0.1)
+node st = stats()
+x -> g
+tone -> st
+probe g as "g"
+probe tone as "tone"
+probe st as "st"
+)");
+    const auto report = dir / "out" / "report.md";
+    const auto r = run({"signals", "run", path.string(), "--report", report.string()});
+    INFO(r.err);
+    REQUIRE(r.code == 0);
+    REQUIRE(std::filesystem::exists(report));
+    const auto md = bytes_of(report);
+    CHECK(md.starts_with("# "));
+    CHECK(md.find("```") != std::string::npos);
+    CHECK(md.find("| g | gain |") != std::string::npos);
+    CHECK(md.find("| n | ch0 | ch1 |") != std::string::npos);
+    CHECK(md.find("| 2 | 3 | 6 |") != std::string::npos);
+    CHECK(md.find("rms") != std::string::npos);
+    std::size_t images = 0;
+    for (auto at = md.find("]("); at != std::string::npos; at = md.find("](", at + 1)) {
+        const auto end = md.find(')', at);
+        const auto target = md.substr(at + 2, end - at - 2);
+        if (!target.ends_with(".svg")) continue;
+        INFO(target);
+        CHECK(std::filesystem::exists(report.parent_path() / target));
+        CHECK(std::filesystem::exists((report.parent_path() / target).replace_extension(".csv")));
+        ++images;
+    }
+    CHECK(images >= 3);
+}
+
