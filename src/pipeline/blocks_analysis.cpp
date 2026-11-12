@@ -10,6 +10,7 @@
 #include "core/metrics.hpp"
 #include "core/pitch.hpp"
 #include "core/spectral.hpp"
+#include "core/sst.hpp"
 #include "core/swt.hpp"
 #include "pipeline/blocks_common.hpp"
 
@@ -42,6 +43,28 @@ std::optional<core::Error> pair_checks(std::string_view block, const core::Audio
                        std::ranges::any_of(b.channels, [](const Samples& c) { return c.empty(); }) || (!a.channels.empty() && b.channels.empty());
     if (empty) return core::Error{core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.pair_empty")), fmt::arg("block", block))};
     return std::nullopt;
+}
+
+const std::vector<ParamSpec> kSstParams{{"lo", Kind::real, "100", {}, 1, 400000},
+                                        {"hi", Kind::real, "4000", {}, 1, 400000},
+                                        {"voices", Kind::integer, "32", {}, 4, 64},
+                                        {"mu", Kind::real, "6", {}, 3, 20}};
+
+struct SstBand {
+    core::sst::Options options;
+    double lo = 0, hi = 0;
+};
+
+core::Result<SstBand> sst_band_of(std::string_view block, const core::AudioBuffer& a, const Params& p) {
+    if (auto e = needs_rate(block, a)) return std::unexpected{*e};
+    if (auto e = finite_input(block, a)) return std::unexpected{*e};
+    if (std::ranges::any_of(a.channels, [](const Samples& c) { return c.empty(); }))
+        return fail(tr("pipeline.error.sst_empty"), fmt::arg("block", block));
+    const double lo = param_real(p, "lo"), hi = param_real(p, "hi"), nyquist = a.sample_rate / 2;
+    if (!(lo < hi) || hi > nyquist)
+        return fail(tr("pipeline.error.sst_band"), fmt::arg("block", block), fmt::arg("lo", lo), fmt::arg("hi", hi), fmt::arg("nyquist", nyquist));
+    const double l = lo / a.sample_rate, h = hi / a.sample_rate;
+    return SstBand{core::sst::covering(l / 1.5, std::min(0.5, 1.5 * h), static_cast<int>(param_int(p, "voices")), param_real(p, "mu")), l, h};
 }
 
 double mean(const std::vector<double>& v) { return v.empty() ? 0.0 : std::accumulate(v.begin(), v.end(), 0.0) / static_cast<double>(v.size()); }
@@ -220,6 +243,53 @@ void register_analysis_blocks(std::vector<BlockType>& out) {
                                    track.channels.push_back(std::move(*f0));
                                }
                                return std::vector<Value>{std::move(r), std::move(track)};
+                           }}));
+    out.push_back(checked({"sst_band", kIn, kOut, kSstParams, [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
+                               const auto& a = audio(in);
+                               auto band = sst_band_of("sst_band", a, p);
+                               if (!band) return std::unexpected{band.error()};
+                               core::AudioBuffer result;
+                               result.sample_rate = a.sample_rate;
+                               const auto count = static_cast<double>(std::max<std::size_t>(1, a.channels.size()));
+                               for (std::size_t c = 0; c < a.channels.size(); ++c) {
+                                   ScaledProgress progress{ctx.progress, static_cast<double>(c) / count, 1 / count};
+                                   auto y = core::sst::band(a.channels[c], band->options, band->lo, band->hi, &progress);
+                                   if (!y) return std::unexpected{y.error()};
+                                   result.channels.push_back(std::move(*y));
+                               }
+                               return one(std::move(result));
+                           }}));
+    out.push_back(checked({"sst_ridge",
+                           kIn,
+                           {{"report", PortType::report}, {"freq", PortType::signal}, {"amp", PortType::signal}},
+                           kSstParams,
+                           [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
+                               const auto& a = audio(in);
+                               auto band = sst_band_of("sst_ridge", a, p);
+                               if (!band) return std::unexpected{band.error()};
+                               Report r;
+                               core::AudioBuffer freq, amp;
+                               freq.sample_rate = amp.sample_rate = a.sample_rate;
+                               const auto count = static_cast<double>(std::max<std::size_t>(1, a.channels.size()));
+                               for (std::size_t c = 0; c < a.channels.size(); ++c) {
+                                   ScaledProgress progress{ctx.progress, static_cast<double>(c) / count, 1 / count};
+                                   auto ridge = core::sst::ridge(a.channels[c], band->options, band->lo, band->hi, &progress);
+                                   if (!ridge) return std::unexpected{ridge.error()};
+                                   for (auto& f : ridge->freq) f *= a.sample_rate;
+                                   std::vector<double> found;
+                                   for (const double f : ridge->freq)
+                                       if (f > 0) found.push_back(f);
+                                   const auto sfx = suffix(a, c);
+                                   const auto [lo, hi] = found.empty() ? std::pair{0.0, 0.0} : std::pair{*std::ranges::min_element(found), *std::ranges::max_element(found)};
+                                   r.fields.push_back({"freq_median_hz" + sfx, found.empty() ? 0.0 : core::median_f0(found)});
+                                   r.fields.push_back({"freq_min_hz" + sfx, lo});
+                                   r.fields.push_back({"freq_max_hz" + sfx, hi});
+                                   r.fields.push_back({"found_fraction" + sfx, static_cast<double>(found.size()) / static_cast<double>(ridge->freq.size())});
+                                   r.fields.push_back({"amp_peak" + sfx, *std::ranges::max_element(ridge->amp)});
+                                   freq.channels.push_back(std::move(ridge->freq));
+                                   amp.channels.push_back(std::move(ridge->amp));
+                               }
+                               return std::vector<Value>{std::move(r), std::move(freq), std::move(amp)};
                            }}));
     out.push_back(checked({"mfcc",
                            kIn,

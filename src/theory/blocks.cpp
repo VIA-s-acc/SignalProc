@@ -49,6 +49,7 @@ constexpr std::array<V, 5> kFirDesign{"block.filter", "block.length", "block.cut
 constexpr std::array<V, 4> kPhiPsi{"block.filter", "block.factors", "metric.zeros", "metric.partition"};
 constexpr std::array<V, 2> kLifting{"block.levels", "block.integer"};
 constexpr std::array<V, 3> kDtcwt{"block.levels", "block.biort", "block.qshift"};
+constexpr std::array<V, 4> kSst{"block.lo", "block.hi", "block.voices", "block.mu"};
 constexpr std::array<V, 10> kTimeStretch{"block.mode",     "block.rate",   "block.semitones", "block.method", "block.n_fft",
                                         "block.hop",      "metric.duration", "metric.f0_in",  "metric.f0_out", "metric.cents"};
 constexpr std::array<V, 2> kPitch{"metric.f0_in", "metric.f0_out"};
@@ -113,6 +114,7 @@ constexpr std::array kCatalog{
     BlockSpec{"phi_psi", "Spectra of phi and psi", "freq-phi-psi-spectra", Tier::v1, kPhiPsi},
     BlockSpec{"lifting", "Lifting 5/3 and 9/7", "lift-53", Tier::v1, kLifting},
     BlockSpec{"dtcwt", "Dual-tree complex DWT", "dtcwt", Tier::v2, kDtcwt},
+    BlockSpec{"sst", "Synchrosqueezing: band and ridge", "synchrosqueezing", Tier::v2, kSst},
     BlockSpec{"time_stretch", "Time stretch and pitch shift", "multirate-time-stretch", Tier::v2, kTimeStretch},
     BlockSpec{"pitch", "Fundamental frequency: YIN", "pitch-yin", Tier::v2, kPitch},
     BlockSpec{"quantize", "Quantisation and mu-law", "met-snr", Tier::v1, kCard_quantize},

@@ -122,7 +122,7 @@ TEST_CASE("wide display formulas are clipped with an ellipsis and scroll sideway
 
 TEST_CASE("every card renders without unparsed formulas", "[tui][document]") {
     auto ui = signals::test::make_ui(150, 44);
-    REQUIRE(theory::cards().size() == 60);
+    REQUIRE(theory::cards().size() == 61);
     theory::LiveValues values;
     for (const auto& card : theory::cards())
         for (const auto& s : card.sections)

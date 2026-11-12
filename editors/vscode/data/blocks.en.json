@@ -5306,6 +5306,130 @@
   "title": "Pitch (YIN)"
  },
  {
+  "about": "Rebuilds the part of the signal in a frequency band from the synchrosqueezed CWT: it keeps the coefficients whose instantaneous frequency falls in the band",
+  "id": "sst_band",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Lower edge of the band, Hz",
+    "choices": [],
+    "default": "100",
+    "max": 400000.0,
+    "min": 1.0,
+    "name": "lo",
+    "values": {}
+   },
+   {
+    "about": "Upper edge of the band, Hz; at most half the sample rate",
+    "choices": [],
+    "default": "4000",
+    "max": 400000.0,
+    "min": 1.0,
+    "name": "hi",
+    "values": {}
+   },
+   {
+    "about": "Voices per octave: how many CWT scales cover each doubling of frequency; more rebuilds more exactly and takes longer",
+    "choices": [],
+    "default": "32",
+    "max": 64.0,
+    "min": 4.0,
+    "name": "voices",
+    "values": {}
+   },
+   {
+    "about": "Morlet parameter μ: larger gives each scale a narrower band and a longer reach in time",
+    "choices": [],
+    "default": "6",
+    "max": 20.0,
+    "min": 3.0,
+    "name": "mu",
+    "values": {}
+   }
+  ],
+  "title": "Synchrosqueezed band"
+ },
+ {
+  "about": "Instantaneous frequency and amplitude of the strongest component in the band at every sample; a report with the median, the frequency limits and the share of samples where a component was found",
+  "id": "sst_ridge",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   },
+   {
+    "name": "freq",
+    "optional": false,
+    "type": "signal"
+   },
+   {
+    "name": "amp",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [
+   {
+    "about": "Lower edge of the search band, Hz",
+    "choices": [],
+    "default": "100",
+    "max": 400000.0,
+    "min": 1.0,
+    "name": "lo",
+    "values": {}
+   },
+   {
+    "about": "Upper edge of the search band, Hz; at most half the sample rate",
+    "choices": [],
+    "default": "4000",
+    "max": 400000.0,
+    "min": 1.0,
+    "name": "hi",
+    "values": {}
+   },
+   {
+    "about": "Voices per octave: how many CWT scales cover each doubling of frequency",
+    "choices": [],
+    "default": "32",
+    "max": 64.0,
+    "min": 4.0,
+    "name": "voices",
+    "values": {}
+   },
+   {
+    "about": "Morlet parameter μ: larger gives a more exact frequency and a coarser time resolution",
+    "choices": [],
+    "default": "6",
+    "max": 20.0,
+    "min": 3.0,
+    "name": "mu",
+    "values": {}
+   }
+  ],
+  "title": "Synchrosqueezed ridge"
+ },
+ {
   "about": "Mean mel-frequency cepstral coefficients: HTK mel bank, dB, orthonormal DCT-II",
   "id": "mfcc",
   "inputs": [

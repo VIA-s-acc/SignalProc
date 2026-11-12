@@ -103,6 +103,7 @@ add_executable(signals_tests
   pipeline/test_multichannel.cpp
   pipeline/test_sweep.cpp
   pipeline/test_dtcwt_blocks.cpp
+  pipeline/test_sst_blocks.cpp
   svg/test_svg.cpp
   pipeline/test_blocks_fx.cpp
   pipeline/test_blocks_analysis.cpp
