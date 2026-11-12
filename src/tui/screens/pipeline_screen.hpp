@@ -67,6 +67,7 @@ private:
     bool on_inspector_key(const ftxui::Event& e);
     void edit_param(int step);
     void report(const core::Result<void>& r);
+    void file_result(const core::Result<void>& r);
     const pipeline::GraphNode* selected_node() const;
     ftxui::Element run_panel(int width, int height);
     ftxui::Element probe_panel(int width, int height);

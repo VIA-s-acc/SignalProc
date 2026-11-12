@@ -19,14 +19,19 @@ TEST_CASE("tui subcommand fills a launch request", "[cli][tui]") {
     CHECK(req->theme == "light");
 }
 
-TEST_CASE("tui without a file opens the empty interface", "[cli][tui]") {
+TEST_CASE("tui without a file or a theme leaves both to the saved session", "[cli][tui]") {
     std::optional<signals::cli::TuiRequest> req;
     std::ostringstream out, err;
     const std::vector<std::string_view> args{"signals", "tui"};
     CHECK(signals::cli::run_cli(args, out, err, &req) == 0);
     REQUIRE(req);
     CHECK_FALSE(req->file);
-    CHECK(req->theme == "dark");
+    CHECK(req->theme.empty());
+    req.reset();
+    const std::vector<std::string_view> light{"signals", "tui", "--theme", "light"};
+    CHECK(signals::cli::run_cli(light, out, err, &req) == 0);
+    REQUIRE(req);
+    CHECK(req->theme == "light");
 }
 
 TEST_CASE("tui without a launcher is a clear error", "[cli][tui]") {

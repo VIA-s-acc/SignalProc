@@ -16,6 +16,7 @@
 
 #include "audio/player.hpp"
 #include "theory/live.hpp"
+#include "tui/data/session.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/monitor/monitor.hpp"
 #include "tui/widgets/exportable.hpp"
@@ -62,6 +63,8 @@ struct UiContext {
     ResourceMonitor* monitor = nullptr;
     std::function<ResourceSnapshot()> resources;
     std::function<void(std::filesystem::path)> open_file;
+    std::function<void(std::filesystem::path)> open_graph;
+    std::shared_ptr<SessionStore> session;
     std::function<void()> ask_open;
     std::function<std::pair<int, int>()> terminal_size;
     std::function<std::vector<ResourceSnapshot>()> history;

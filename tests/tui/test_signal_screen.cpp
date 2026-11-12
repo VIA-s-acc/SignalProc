@@ -596,3 +596,16 @@ TEST_CASE("hovering the signal chips and titles explains them", "[tui][signal][e
     CHECK(over(frame, signals::tr("tui.signal.chip.edges")) == signals::tr("tui.explain.signal.chip.edges"));
     CHECK(over(frame, signals::tr("tui.signal.log")) == signals::tr("tui.explain.signal.panel.log"));
 }
+
+TEST_CASE("the signal model reports a file it loaded and not one it could not", "[tui][signal][session]") {
+    JobRunner jobs{[] {}, 0ms, true};
+    SignalModel m;
+    std::vector<std::filesystem::path> seen;
+    m.set_on_loaded([&](const std::filesystem::path& p) { seen.push_back(p); });
+    m.open(signals::test::audio_fixture("tone_stereo.flac"), jobs);
+    REQUIRE(m.data());
+    CHECK(m.data()->info.container == signals::io::Container::flac);
+    CHECK(seen == std::vector<std::filesystem::path>{signals::test::audio_fixture("tone_stereo.flac")});
+    m.open(signals::test::audio_fixture("not_audio.mp3"), jobs);
+    CHECK(seen.size() == 1);
+}

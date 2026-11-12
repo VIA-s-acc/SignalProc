@@ -2,6 +2,8 @@
 #include <cstdio>
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -16,6 +18,8 @@
 #include "tui/shell/palette.hpp"
 #include "core/version.hpp"
 #include "tui/shell/panel.hpp"
+#include "support/paths.hpp"
+#include "tui/data/session.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/widgets/text_util.hpp"
 #include "tui/ui_fixture.hpp"
@@ -483,4 +487,62 @@ TEST_CASE("a key press brings the key hints back after a hover", "[tui][shell][e
     REQUIRE(h.frame().find("first hint") == std::string::npos);
     h.send(ftxui::Event::ArrowDown);
     CHECK(h.frame().find("first hint") != std::string::npos);
+}
+
+namespace {
+
+void type(Harness& h, std::string_view text) {
+    for (std::size_t at = 0; at < text.size();) {
+        std::size_t len = 1;
+        const auto c = static_cast<unsigned char>(text[at]);
+        if (c >= 0xF0) len = 4;
+        else if (c >= 0xE0) len = 3;
+        else if (c >= 0xC0) len = 2;
+        h.send(ftxui::Event::Character(std::string{text.substr(at, len)}));
+        at += len;
+    }
+}
+
+void run_command(Harness& h, std::string_view title) {
+    h.send(ftxui::Event::Character(':'));
+    type(h, title);
+    h.send(ftxui::Event::Return);
+}
+
+}  // namespace
+
+TEST_CASE("the palette reopens a recent file or graph, forgets them and remembers the theme", "[tui][shell][session]") {
+    namespace fs = std::filesystem;
+    const auto dir = signals::test::temp_path("shell-recent");
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    const auto wav = dir / "take.wav", sig = dir / "chain.sig";
+    std::ofstream{wav} << "x";
+    std::ofstream{sig} << "x";
+    ShellRig rig{150, 44};
+    rig.ui->session = std::make_shared<SessionStore>(dir / "session.toml");
+    rig.ui->session->remember(RecentKind::audio, dir / "gone.wav");
+    rig.ui->session->remember(RecentKind::audio, wav);
+    rig.ui->session->remember(RecentKind::graph, sig);
+    std::vector<Command> items;
+    rig.ui->choose = [&](std::string, std::vector<Command> c) { items = std::move(c); };
+    std::vector<fs::path> opened, graphs;
+    rig.ui->open_file = [&](fs::path p) { opened.push_back(std::move(p)); };
+    rig.ui->open_graph = [&](fs::path p) { graphs.push_back(std::move(p)); };
+    run_command(rig.h, signals::tr("tui.cmd.recent"));
+    REQUIRE(items.size() == 2);
+    CHECK(items[0].title == "take.wav");
+    CHECK(items[1].title == "chain.sig");
+    items[0].run();
+    CHECK(opened == std::vector<fs::path>{wav});
+    items[1].run();
+    CHECK(graphs == std::vector<fs::path>{sig});
+    run_command(rig.h, signals::tr("tui.cmd.theme_light"));
+    CHECK(SessionStore{dir / "session.toml"}.get().theme == "light");
+    run_command(rig.h, signals::tr("tui.cmd.forget_recent"));
+    CHECK(SessionStore{dir / "session.toml"}.get().audio.empty());
+    items.clear();
+    run_command(rig.h, signals::tr("tui.cmd.recent"));
+    CHECK(items.empty());
+    CHECK(rig.h.frame().find(signals::tr("tui.recent.none")) != std::string::npos);
 }

@@ -161,12 +161,14 @@ core::Result<void> PipelineModel::insert_into_wire(const pipeline::Edge& wire, s
     const auto it = std::find_if(next.edges.begin(), next.edges.end(), [&](const auto& e) { return same_wire(e, wire); });
     if (it == next.edges.end()) return core::make_error(core::Errc::invalid_argument, tr("tui.pipeline.no_wire"));
     const auto position = it - next.edges.begin();
+    auto comments = std::move(it->comments);
     next.edges.erase(it);
     next.nodes.push_back({id, std::string{type}, {}, 0, false});
     const pipeline::PortRef middle{id, {}, 0, 0};
     pipeline::Edge in_edge, out_edge;
     in_edge.from = wire.from;
     in_edge.to = middle;
+    in_edge.comments = std::move(comments);
     out_edge.from = middle;
     out_edge.to = wire.to;
     next.edges.insert(next.edges.begin() + position, in_edge);
@@ -184,15 +186,13 @@ core::Result<void> PipelineModel::connect(const pipeline::PortRef& from, const p
 
 void PipelineModel::disconnect(const pipeline::Edge& wire) {
     auto next = doc_;
-    std::erase_if(next.edges, [&](const auto& e) { return same_wire(e, wire); });
+    pipeline::remove_edges(next, [&](const auto& e) { return same_wire(e, wire); });
     (void)commit(std::move(next));
 }
 
 void PipelineModel::remove_node(std::string_view id) {
     auto next = doc_;
-    std::erase_if(next.nodes, [&](const auto& n) { return n.id == id; });
-    std::erase_if(next.edges, [&](const auto& e) { return e.from.node == id || e.to.node == id; });
-    std::erase_if(next.probes, [&](const auto& p) { return p.at.node == id; });
+    pipeline::remove_node(next, id);
     if (selection.node == id || selection.wire.from.node == id || selection.wire.to.node == id) selection = {};
     (void)commit(std::move(next));
 }

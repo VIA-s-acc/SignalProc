@@ -13,6 +13,7 @@
 #include "core/multirate.hpp"
 #include "io/generators.hpp"
 #include "io/stats.hpp"
+#include "io/audio_file.hpp"
 #include "io/wav.hpp"
 
 namespace signals::cli {
@@ -45,7 +46,7 @@ public:
     bool parsed() const override { return sub_->parsed(); }
 
     int run(std::ostream& out, std::ostream& err) override {
-        const auto file = io::read_wav(input_);
+        const auto file = io::read_audio(input_);
         if (!file) return report_error(err, file.error());
         const auto& info = file->info;
         const double duration = static_cast<double>(info.frames) / info.sample_rate;
@@ -55,15 +56,18 @@ public:
             for (const auto& s : stats)
                 channels.push_back({{"peak_dbfs", db_json(s.peak_dbfs)}, {"rms_dbfs", db_json(s.rms_dbfs)}, {"dc", s.dc},
                                     {"crest_factor_db", s.crest_factor_db}, {"clipped", s.clipped}});
-            out << nlohmann::json{{"format", io::to_string(info.format)}, {"channels", info.channels},
+            out << nlohmann::json{{"container", io::to_string(info.container)}, {"format", io::to_string(info.format)}, {"bits", info.bits}, {"channels", info.channels},
                                   {"sample_rate", info.sample_rate}, {"frames", info.frames}, {"duration", duration},
                                   {"extensible", info.extensible}, {"channels_stats", channels}}
                        .dump(2)
                 << '\n';
             return 0;
         }
+        const auto format = info.container == io::Container::wav ? std::string{io::to_string(info.format)}
+                            : info.container == io::Container::mp3 ? std::string{"mp3"}
+                                                                   : fmt::format(fmt::runtime(tr("audio.info.flac")), fmt::arg("bits", info.bits));
         out << fmt::format(fmt::runtime(tr("audio.info.header")), fmt::arg("path", input_),
-                           fmt::arg("format", io::to_string(info.format)), fmt::arg("channels", info.channels),
+                           fmt::arg("format", format), fmt::arg("channels", info.channels),
                            fmt::arg("rate", info.sample_rate), fmt::arg("frames", info.frames), fmt::arg("duration", duration))
             << '\n';
         for (std::size_t c = 0; c < stats.size(); ++c)
@@ -191,7 +195,7 @@ public:
     int run(std::ostream& out, std::ostream& err) override {
         if ((down_ == 0) == (up_ == 0))
             return report_error(err, {core::Errc::invalid_argument, "give exactly one of --down M or --up M"});
-        const auto file = io::read_wav(input_);
+        const auto file = io::read_audio(input_);
         if (!file) return report_error(err, file.error());
         core::MultirateOptions options;
         options.anti_alias = !no_filter_;

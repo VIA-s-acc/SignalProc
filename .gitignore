@@ -10,6 +10,7 @@ __pycache__/
 .vscode
 *.wav
 !tests/fixtures/wav/*.wav
+!tests/fixtures/audio/*.wav
 .Python
 build/
 develop-eggs/

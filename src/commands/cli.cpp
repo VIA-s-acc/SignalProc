@@ -179,7 +179,7 @@ int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out,
     design->add_flag("--json", design_json, tr("cli.json.description"));
     auto* tui = app.add_subcommand("tui", tr("cli.tui.description"));
     std::string tui_file;
-    std::string tui_theme = "dark";
+    std::string tui_theme;
     tui->add_option("file", tui_file, tr("cli.tui.file"));
     tui->add_option("--theme", tui_theme, tr("cli.tui.theme"))->check(CLI::IsMember({"dark", "light"}));
     Commands commands;

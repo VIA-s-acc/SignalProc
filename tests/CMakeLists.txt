@@ -39,6 +39,7 @@ add_executable(signals_tests
   core/test_progress_memory.cpp
   core/test_exact_reference.cpp
   io/test_wav_read.cpp
+  io/test_audio_read.cpp
   io/test_wav_write.cpp
   io/test_stats.cpp
   io/test_generators.cpp
@@ -79,6 +80,7 @@ add_executable(signals_tests
   tui/test_explain_screen.cpp
   tui/test_designer_model.cpp
   tui/test_user_filters.cpp
+  tui/test_session.cpp
   tui/test_designer_screen.cpp
   tui/test_decomposition_model.cpp
   tui/test_decomposition_screen.cpp

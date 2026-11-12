@@ -237,6 +237,15 @@ std::string_view to_string(SampleFormat format) {
     return "unknown";
 }
 
+std::string_view to_string(Container container) {
+    switch (container) {
+    case Container::wav: return "wav";
+    case Container::flac: return "flac";
+    case Container::mp3: return "mp3";
+    }
+    return "unknown";
+}
+
 core::Result<WavFile> read_wav(const std::filesystem::path& path) { return read_wav(path, nullptr); }
 
 core::Result<WavInfo> probe_wav(const std::filesystem::path& path) {
@@ -248,7 +257,7 @@ core::Result<WavInfo> probe_wav(const std::filesystem::path& path) {
     if (!format)
         return make_error(Errc::invalid_argument, "unsupported WAV format: tag " + std::to_string(wav.translatedFormatTag) +
                                                       ", " + std::to_string(wav.bitsPerSample) + " bits");
-    return WavInfo{*format, wav.channels, wav.sampleRate, wav.totalPCMFrameCount, wav.fmt.formatTag == DR_WAVE_FORMAT_EXTENSIBLE};
+    return WavInfo{*format, wav.channels, wav.sampleRate, wav.totalPCMFrameCount, wav.fmt.formatTag == DR_WAVE_FORMAT_EXTENSIBLE, Container::wav, wav.bitsPerSample};
 }
 
 core::Result<WavFile> read_wav(const std::filesystem::path& path, core::ProgressSink* progress) {
@@ -269,7 +278,7 @@ core::Result<WavFile> read_wav(const std::filesystem::path& path, core::Progress
     if (!read_samples(wav, *format, channels, progress)) return make_error(Errc::cancelled, "reading cancelled: " + path.string());
     if (channels.front().empty()) return make_error(Errc::invalid_argument, "empty WAV: " + path.string());
 
-    WavInfo info{*format, wav.channels, wav.sampleRate, channels.front().size(), wav.fmt.formatTag == DR_WAVE_FORMAT_EXTENSIBLE};
+    WavInfo info{*format, wav.channels, wav.sampleRate, channels.front().size(), wav.fmt.formatTag == DR_WAVE_FORMAT_EXTENSIBLE, Container::wav, wav.bitsPerSample};
     return WavFile{info, core::AudioBuffer{static_cast<double>(wav.sampleRate), std::move(channels)}};
 }
 

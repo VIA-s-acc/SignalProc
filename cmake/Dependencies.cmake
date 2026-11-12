@@ -50,5 +50,5 @@ target_include_directories(signals_pocketfft SYSTEM INTERFACE ${pocketfft_SOURCE
 
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 
-add_library(signals_dr_wav STATIC ${PROJECT_SOURCE_DIR}/src/io/dr_wav_impl.cpp)
-target_include_directories(signals_dr_wav SYSTEM PUBLIC ${dr_libs_SOURCE_DIR})
+add_library(signals_dr_libs STATIC ${PROJECT_SOURCE_DIR}/src/io/dr_wav_impl.cpp ${PROJECT_SOURCE_DIR}/src/io/dr_flac_impl.cpp ${PROJECT_SOURCE_DIR}/src/io/dr_mp3_impl.cpp)
+target_include_directories(signals_dr_libs SYSTEM PUBLIC ${dr_libs_SOURCE_DIR})

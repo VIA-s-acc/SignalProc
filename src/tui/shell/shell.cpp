@@ -264,6 +264,32 @@ private:
         return true;
     }
 
+    void choose_recent() {
+        std::vector<Command> items;
+        const auto add = [&](RecentKind kind, const char* label) {
+            for (const auto& file : ui_.session->recent(kind)) {
+                const auto u8 = file.filename().u8string(), parent = file.parent_path().u8string();
+                std::string name{reinterpret_cast<const char*>(u8.data()), u8.size()}, where{reinterpret_cast<const char*>(parent.data()), parent.size()};
+                items.push_back({std::string{"recent."} + label + "." + std::to_string(items.size()), name,
+                                 [this, kind, file] {
+                                     if (kind == RecentKind::audio && ui_.open_file) {
+                                         ui_.open_file(file);
+                                         active_ = 0;
+                                     }
+                                     if (kind == RecentKind::graph && ui_.open_graph) ui_.open_graph(file);
+                                 },
+                                 fmt::format(fmt::runtime(tr(std::string{"tui.recent."} + label)), fmt::arg("dir", where))});
+            }
+        };
+        add(RecentKind::audio, "audio");
+        add(RecentKind::graph, "graph");
+        if (items.empty()) {
+            notice_ = tr("tui.recent.none");
+            return;
+        }
+        if (ui_.choose) ui_.choose(tr("tui.recent.title"), std::move(items));
+    }
+
     void ask_open_file() {
         palette_.ask_path(tr("tui.cmd.open_prompt"), [this](std::string path) {
             if (ui_.open_file) ui_.open_file(expand_path(path));
@@ -323,8 +349,18 @@ private:
             out.push_back({"tab." + std::to_string(i + 1), tr("tui.cmd.tab") + std::to_string(i + 1) + " " + screens_[i]->tab_label(),
                            [this, i] { active_ = static_cast<int>(i); }});
         out.push_back({"file.open", tr("tui.cmd.open"), [this] { ask_open_file(); }});
-        out.push_back({"theme.dark", tr("tui.cmd.theme_dark"), [this] { ui_.theme = builtin_theme("dark"); }});
-        out.push_back({"theme.light", tr("tui.cmd.theme_light"), [this] { ui_.theme = builtin_theme("light"); }});
+        if (ui_.session) {
+            out.push_back({"file.recent", tr("tui.cmd.recent"), [this] { choose_recent(); }});
+            out.push_back({"file.forget_recent", tr("tui.cmd.forget_recent"), [this] {
+                               ui_.session->forget_recent();
+                               notice_ = tr("tui.recent.forgotten");
+                           }});
+        }
+        for (const char* name : {"dark", "light"})
+            out.push_back({std::string{"theme."} + name, tr(std::string{"tui.cmd.theme_"} + name), [this, name] {
+                               ui_.theme = builtin_theme(name);
+                               if (ui_.session) ui_.session->set_theme(name);
+                           }});
         out.push_back({"glyphs.unicode", tr("tui.cmd.glyphs_unicode"), [this] { ui_.caps.glyphs = GlyphMode::unicode; }});
         out.push_back({"glyphs.ascii", tr("tui.cmd.glyphs_ascii"), [this] { ui_.caps.glyphs = GlyphMode::ascii; }});
         out.push_back({"color.true", tr("tui.cmd.color_true"), [this] { ui_.caps.color = ColorDepth::truecolor; }});

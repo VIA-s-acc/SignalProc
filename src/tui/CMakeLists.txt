@@ -23,6 +23,7 @@ add_library(signals_tui STATIC
   term/external.cpp
   data/pyramid.cpp
   data/user_filters.cpp
+  data/session.cpp
   jobs/jobs.cpp
   monitor/sampler_common.cpp
   monitor/monitor.cpp

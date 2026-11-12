@@ -9,11 +9,13 @@
 
 #include <fmt/format.h>
 
+#include "io/audio_file.hpp"
 #include "core/design/families.hpp"
 #include "core/metrics.hpp"
 #include "core/spectral.hpp"
 #include "core/wavedec.hpp"
 #include "i18n/i18n.hpp"
+#include "io/audio_file.hpp"
 #include "tui/monitor/sampler.hpp"
 #include "tui/shell/errors.hpp"
 #include "tui/widgets/format.hpp"
@@ -51,6 +53,11 @@ double to_db(double amplitude) { return amplitude > 0 ? 20 * std::log10(amplitud
 SignalModel::SignalModel(std::function<std::string()> clock, std::size_t memory_budget)
     : clock_{clock ? std::move(clock) : wall_clock}, memory_budget_{memory_budget ? memory_budget : static_cast<std::size_t>(physical_memory_bytes() / 2)} {}
 
+void SignalModel::set_on_loaded(std::function<void(const std::filesystem::path&)> callback) {
+    std::lock_guard lock{mutex_};
+    on_loaded_ = std::move(callback);
+}
+
 void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
     if (const auto previous = job()) jobs.cancel(*previous);
     const auto name = path.filename().string();
@@ -60,7 +67,7 @@ void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
                           [this, path, name](JobContext& ctx) {
                               try {
                               ctx.begin(0);
-                              if (const auto probe = io::probe_wav(path); probe && memory_budget_ > 0) {
+                              if (const auto probe = io::probe_audio(path); probe && memory_budget_ > 0) {
                                   const auto need = estimated_load_bytes(*probe);
                                   if (need > memory_budget_) {
                                       const auto text = fmt::format(fmt::runtime(tr("tui.signal.too_large")),
@@ -71,7 +78,7 @@ void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
                                       return;
                                   }
                               }
-                              auto file = io::read_wav(path, &ctx);
+                              auto file = io::read_audio(path, &ctx);
                               if (!file) {
                                   if (file.error().code == core::Errc::cancelled) return;
                                   const auto text = error_text(file.error());
@@ -79,6 +86,11 @@ void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
                                   add_log(text, LogLine::error);
                                   return;
                               }
+                              if (const auto loaded = [this] {
+                                      std::lock_guard lock{mutex_};
+                                      return on_loaded_;
+                                  }())
+                                  loaded(path);
                               auto d = std::make_shared<SignalData>();
                               d->path = path;
                               d->info = file->info;

@@ -29,7 +29,8 @@ public:
         PipelineDoc doc;
         std::map<std::string, int, std::less<>> declared;
         for (;;) {
-            skip(true);
+            if (peek() == '\n') advance();
+            leading();
             if (done()) break;
             const int line = line_, column = column_;
             if (!ident_start(peek())) fail(line, column, fmt::format(fmt::runtime(tr("pipeline.sig.unknown_directive")), fmt::arg("word", rest_of_word())));
@@ -42,6 +43,9 @@ public:
                 const auto version = ident();
                 if (version != "v1") fail(vl, vc, fmt::format(fmt::runtime(tr("pipeline.sig.version")), fmt::arg("version", version)));
                 end_of_line();
+                auto notes = take_comments();
+                doc.preamble = std::move(notes.above);
+                doc.header_comment = std::move(notes.after);
             } else if (word == "node") {
                 skip(false);
                 NodeDecl node;
@@ -64,6 +68,7 @@ public:
                     node.bypass = true;
                 }
                 end_of_line();
+                node.comments = take_comments();
                 doc.nodes.push_back(std::move(node));
             } else if (word == "probe") {
                 skip(false);
@@ -77,6 +82,7 @@ public:
                     probe.name = string_value();
                 }
                 end_of_line();
+                probe.comments = take_comments();
                 doc.probes.push_back(std::move(probe));
             } else {
                 PortRef prev{word, {}, line, column};
@@ -86,6 +92,7 @@ public:
                 }
                 skip(false);
                 if (!arrow_next()) fail(line, column, fmt::format(fmt::runtime(tr("pipeline.sig.unknown_directive")), fmt::arg("word", word)));
+                const auto first = doc.edges.size();
                 while (arrow_next()) {
                     const int al = line_, ac = column_;
                     advance();
@@ -101,8 +108,12 @@ public:
                     skip(false);
                 }
                 end_of_line();
+                doc.edges[first].comments = take_comments();
             }
         }
+        doc.tail = take_comments();
+        while (!doc.tail.above.empty() && doc.tail.above.back().empty()) doc.tail.above.pop_back();
+        if (doc.tail.above.empty()) doc.tail.gap = false;
         return doc;
     }
 
@@ -126,17 +137,57 @@ private:
         ++column_;
     }
 
+    std::string comment() {
+        const auto start = pos_;
+        while (!done() && peek() != '\n') advance();
+        auto text = text_.substr(start, pos_ - start);
+        while (!text.empty() && (text.back() == ' ' || text.back() == '\t' || text.back() == '\r')) text.remove_suffix(1);
+        return std::string{text};
+    }
+
     void skip(bool newlines) {
         while (!done()) {
             const char c = peek();
             if (c == ' ' || c == '\t' || c == '\r' || (newlines && c == '\n')) {
                 advance();
             } else if (c == '#') {
-                while (!done() && peek() != '\n') advance();
+                auto text = comment();
+                if (newlines) {
+                    pending_.push_back(std::move(text));
+                } else {
+                    if (!trailing_.empty()) pending_.push_back(std::move(trailing_));
+                    trailing_ = std::move(text);
+                }
             } else {
                 break;
             }
         }
+    }
+
+    void leading() {
+        while (!done()) {
+            while (!done() && (peek() == ' ' || peek() == '\t' || peek() == '\r')) advance();
+            if (done()) return;
+            if (peek() == '\n') {
+                advance();
+                if (!pending_.empty()) pending_.push_back({});
+                else gap_ = started_;
+            } else if (peek() == '#') {
+                pending_.push_back(comment());
+                if (!done()) advance();
+            } else {
+                return;
+            }
+        }
+    }
+
+    Comments take_comments() {
+        Comments out{gap_, std::move(pending_), std::move(trailing_)};
+        pending_.clear();
+        trailing_.clear();
+        gap_ = false;
+        started_ = true;
+        return out;
     }
 
     std::string rest_of_word() const {
@@ -245,6 +296,9 @@ private:
     std::string_view text_;
     std::size_t pos_ = 0;
     int line_ = 1, column_ = 1;
+    std::vector<std::string> pending_;
+    std::string trailing_;
+    bool gap_ = false, started_ = false;
 };
 
 bool bare_safe(const std::string& v) {
@@ -306,34 +360,82 @@ std::expected<PipelineDoc, SigError> parse_sig(std::string_view text) {
 }
 
 std::string write_sig(const PipelineDoc& doc) {
-    std::string out = "pipeline " + quoted(doc.name) + " v" + std::to_string(doc.version) + "\n";
+    std::string out;
+    for (const auto& line : doc.preamble) out += line + "\n";
+    const auto after = [](const std::string& comment) { return comment.empty() ? std::string{} : "  " + comment; };
+    out += "pipeline " + quoted(doc.name) + " v" + std::to_string(doc.version) + after(doc.header_comment) + "\n";
+    bool first = true;
+    const auto above = [&](const Comments& c) {
+        if (c.gap && !first) out += "\n";
+        for (const auto& line : c.above) out += line + "\n";
+        first = false;
+    };
     if (!doc.nodes.empty()) {
         std::size_t width = 0;
         for (const auto& n : doc.nodes) width = std::max(width, n.id.size());
         out += "\n";
-        for (const auto& n : doc.nodes) out += node_line(n, width) + "\n";
+        for (const auto& n : doc.nodes) {
+            above(n.comments);
+            out += node_line(n, width) + after(n.comments.after) + "\n";
+        }
     }
-    if (doc.edges.empty() && doc.probes.empty()) return out;
-    out += "\n";
-    std::vector<PortRef> chain;
-    const auto flush = [&] {
-        if (chain.empty()) return;
-        std::string line;
-        for (const auto& r : chain) line += (line.empty() ? "" : " -> ") + ref_text(r);
-        out += line + "\n";
-        chain.clear();
-    };
-    for (const auto& e : doc.edges) {
-        if (!chain.empty() && chain.back().port.empty() && e.from.port.empty() && chain.back().node == e.from.node) {
-            chain.push_back(e.to);
-            continue;
+    if (!doc.edges.empty() || !doc.probes.empty()) {
+        out += "\n";
+        first = true;
+        std::vector<PortRef> chain;
+        std::string chain_comment;
+        const auto flush = [&] {
+            if (chain.empty()) return;
+            std::string line;
+            for (const auto& r : chain) line += (line.empty() ? "" : " -> ") + ref_text(r);
+            out += line + after(chain_comment) + "\n";
+            chain.clear();
+        };
+        for (const auto& e : doc.edges) {
+            const bool joins = !chain.empty() && chain.back().port.empty() && e.from.port.empty() && chain.back().node == e.from.node;
+            if (joins && e.comments.empty() && (chain_comment.empty() || e.from.line == chain.back().line)) {
+                chain.push_back(e.to);
+                continue;
+            }
+            flush();
+            above(e.comments);
+            chain = {e.from, e.to};
+            chain_comment = e.comments.after;
         }
         flush();
-        chain = {e.from, e.to};
+        for (const auto& p : doc.probes) {
+            above(p.comments);
+            out += "probe " + ref_text(p.at) + (p.name.empty() ? "" : " as " + quoted(p.name)) + after(p.comments.after) + "\n";
+        }
     }
-    flush();
-    for (const auto& p : doc.probes) out += "probe " + ref_text(p.at) + (p.name.empty() ? "" : " as " + quoted(p.name)) + "\n";
+    if (!doc.tail.above.empty()) {
+        if (doc.tail.gap) out += "\n";
+        for (const auto& line : doc.tail.above) out += line + "\n";
+    }
     return out;
+}
+
+void remove_edges(PipelineDoc& doc, const std::function<bool(const Edge&)>& gone) {
+    for (std::size_t k = 0; k < doc.edges.size(); ++k) {
+        auto& e = doc.edges[k];
+        if (e.comments.empty() || e.from.line == 0 || !gone(e)) continue;
+        for (std::size_t j = k + 1; j < doc.edges.size() && doc.edges[j].from.line == e.from.line && doc.edges[j].comments.empty(); ++j)
+            if (!gone(doc.edges[j])) {
+                doc.edges[j].comments = std::move(e.comments);
+                e.comments = {};
+                break;
+            }
+    }
+    std::erase_if(doc.edges, gone);
+}
+
+void remove_node(PipelineDoc& doc, std::string_view id) {
+    const auto it = std::find_if(doc.nodes.begin(), doc.nodes.end(), [&](const NodeDecl& n) { return n.id == id; });
+    if (it == doc.nodes.end()) return;
+    if (it->comments.gap && std::next(it) != doc.nodes.end()) std::next(it)->comments.gap = true;
+    doc.nodes.erase(it);
+    remove_edges(doc, [&](const Edge& e) { return e.from.node == id || e.to.node == id; });
+    std::erase_if(doc.probes, [&](const ProbeDecl& p) { return p.at.node == id; });
 }
 
 std::optional<std::string> nearest_name(std::string_view name, const std::vector<std::string>& candidates) {
