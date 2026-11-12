@@ -27,6 +27,7 @@ add_library(signals_pipeline STATIC
   graph.cpp
   cache.cpp
   executor.cpp
+  sweep.cpp
   layout.cpp
 )
 target_include_directories(signals_pipeline PUBLIC ${PROJECT_SOURCE_DIR}/src)

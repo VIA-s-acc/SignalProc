@@ -18,6 +18,7 @@
 #include "pipeline/executor.hpp"
 #include "pipeline/graph.hpp"
 #include "pipeline/sig.hpp"
+#include "pipeline/sweep.hpp"
 #include "tui/jobs/jobs.hpp"
 
 namespace signals::tui {
@@ -31,6 +32,14 @@ struct Selection {
 struct NodeRun {
     pipeline::NodeStatus status;
     bool bottleneck = false;
+};
+
+struct SweepView {
+    std::uint64_t number = 0;
+    bool running = false;
+    std::size_t done = 0, total = 0;
+    std::optional<pipeline::SweepResult> result;
+    std::optional<std::string> error;
 };
 
 struct RunView {
@@ -76,6 +85,8 @@ public:
     void run(JobRunner& jobs);
     void cancel(JobRunner& jobs);
     RunView run_view() const;
+    void sweep(JobRunner& jobs, pipeline::SweepAxis axis, std::vector<pipeline::Measure> measures);
+    SweepView sweep_view() const;
     std::size_t cache_bytes() const;
 
     Selection selection;
@@ -108,6 +119,12 @@ private:
         std::optional<std::uint64_t> job;
     };
     std::shared_ptr<RunState> run_ = std::make_shared<RunState>();
+    struct SweepState {
+        mutable std::mutex mutex;
+        SweepView view;
+        std::shared_ptr<core::CancelToken> cancel;
+    };
+    std::shared_ptr<SweepState> sweep_ = std::make_shared<SweepState>();
     std::shared_ptr<pipeline::ResultCache> cache_;
 };
 

@@ -46,6 +46,7 @@ cd signals-v0.6.0-macos-arm64
 | `signals dwt <файл.wav>` | многоуровневое DWT: коэффициенты в JSON, полосы — в WAV с частотой fs/2^j |
 | `signals denoise <файл.wav>` | шумоподавление BayesShrink или VisuShrink, как в scikit-image |
 | `signals run <файл.sig>` | запустить конвейер: этапы по узлам со временем, щупы, отчёты; `--set`, `-o`, `--probe-dir`, `--report` (отчёт Markdown с графиками щупов в SVG и CSV), `--json` |
+| `signals sweep <файл.sig>` | серия прогонов: перебрать значения параметра (`--vary dwt.wavelet=haar,db4,sym8`, `--vary g.db=0:12:3`) и собрать показатели (`--measure chk.snr_db`, `--measure g:rms`); `--csv`, `--svg`, `--json` |
 | `signals graph <файл.sig>` | нарисовать граф конвейера текстом (`--ascii` — только ASCII) |
 | `signals blocks` | список блоков конвейера; `--markdown` — справочник с портами и параметрами |
 | `signals tui [файл.wav]` | интерактивный интерфейс; `signals` без аргументов в терминале делает то же |

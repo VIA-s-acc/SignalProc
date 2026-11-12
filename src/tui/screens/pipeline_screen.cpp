@@ -133,6 +133,7 @@ std::vector<Command> PipelineScreen::commands() {
     out.push_back({"pipeline.save", tr("tui.pipeline.cmd.save"), [this] { OnEvent(ftxui::Event::CtrlS); }});
     out.push_back({"pipeline.open", tr("tui.pipeline.cmd.open"), [this] { OnEvent(ftxui::Event::Character('o')); }});
     out.push_back({"pipeline.probe_name", tr("tui.pipeline.cmd.probe_name"), [this] { name_probe(); }});
+    out.push_back({"pipeline.sweep", tr("tui.pipeline.cmd.sweep"), [this] { start_sweep(); }});
     return out;
 }
 
@@ -146,7 +147,7 @@ std::vector<Hint> PipelineScreen::hints() const {
             {"Ctrl+Z/Y", tr("tui.pipeline.hint.undo")},    {"Ctrl+S", tr("tui.pipeline.hint.save")}, {"o", tr("tui.pipeline.hint.open")},
             {"r", tr("tui.pipeline.hint.run")},           {"A/B", tr("tui.pipeline.hint.ab")},      {"Space", tr("tui.pipeline.hint.listen")},
             {"+ − 0", tr("tui.pipeline.hint.zoom")},       {"O", tr("tui.pipeline.hint.examples")},  {"PgUp/PgDn", tr("tui.hint.page")},
-            {"v", tr("tui.pipeline.hint.view")},          {"n", tr("tui.pipeline.hint.name")},     {"k", tr("tui.pipeline.hint.channels")},     {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")},
+            {"v", tr("tui.pipeline.hint.view")},          {"n", tr("tui.pipeline.hint.name")},     {"k", tr("tui.pipeline.hint.channels")},     {"S", tr("tui.pipeline.hint.sweep")},     {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")},
             {"c/C", tr("tui.pipeline.hint.connect_keys")}};
 }
 
@@ -584,11 +585,16 @@ ftxui::Element PipelineScreen::run_panel(int width, int height) {
 void PipelineScreen::refresh_probe(const RunView& run) {
     std::vector<std::string> names;
     for (const auto& [name, value] : run.probes) names.push_back(name);
-    if (names.empty()) {
+    const std::size_t chips = names.size() + (has_sweep() ? 1 : 0);
+    if (chips == 0) {
         probe_ = {};
         return;
     }
-    probe_index_ = std::min(probe_index_, names.size() - 1);
+    probe_index_ = std::min(probe_index_, chips - 1);
+    if (probe_index_ >= names.size()) {
+        probe_ = {};
+        return;
+    }
     const auto& name = names[probe_index_];
     const bool spectrum = probe_view_ == ProbeView::spectrum;
     if (probe_.run == run.number && probe_.name == name && (!spectrum || !probe_.db.empty() || !probe_.samples)) return;
@@ -659,6 +665,231 @@ ftxui::Element PipelineScreen::probe_values(const core::AudioBuffer& audio, int 
         lines.push_back(hbox(std::move(row)));
     }
     return vbox({hbox(std::move(header)), scrolled(window, frames, std::move(lines), ui_)});
+}
+
+bool PipelineScreen::has_sweep() const {
+    const auto s = model_->sweep_view();
+    return s.running || s.result || s.error;
+}
+
+void PipelineScreen::start_sweep() {
+    const auto* n = selected_node();
+    if (!n) {
+        notice_ = tr("tui.pipeline.sweep.pick_node");
+        return;
+    }
+    if (n->type->params.empty()) {
+        notice_ = fmt::format(fmt::runtime(tr("tui.pipeline.sweep.no_params")), fmt::arg("node", n->id));
+        return;
+    }
+    if (!ui_.choose) return;
+    std::vector<Command> items;
+    for (const auto& spec : n->type->params) {
+        const auto current = n->params.count(spec.name) ? n->params.at(spec.name) : spec.fallback;
+        items.push_back({spec.name, spec.name + " = " + current, [this, id = n->id, spec, current] { ask_sweep_values(id, spec, current); }});
+    }
+    ui_.choose(fmt::format(fmt::runtime(tr("tui.pipeline.sweep.choose_param")), fmt::arg("node", n->id)), std::move(items));
+}
+
+namespace {
+
+std::string sweep_suggestion(const pipeline::ParamSpec& spec, const std::string& current) {
+    using Kind = pipeline::ParamSpec::Kind;
+    if (spec.kind == Kind::choice && !spec.choices.empty()) {
+        std::string out;
+        for (const auto& c : spec.choices) out += (out.empty() ? "" : ",") + c;
+        return out;
+    }
+    const auto v = pipeline::numeric(current);
+    if (!v || (spec.kind != Kind::integer && spec.kind != Kind::real)) return current;
+    double lo = *v == 0 ? 0.0 : std::min(*v / 2, *v * 2), hi = *v == 0 ? (spec.kind == Kind::integer ? 10.0 : 1.0) : std::max(*v / 2, *v * 2);
+    lo = std::max(lo, spec.min);
+    hi = std::min(hi, spec.max);
+    if (spec.kind == Kind::integer) {
+        lo = std::ceil(lo);
+        hi = std::floor(hi);
+        if (hi <= lo) return current;
+        return fmt::format("{:.0f}:{:.0f}:{:.0f}", lo, hi, std::max(1.0, std::round((hi - lo) / 10)));
+    }
+    if (hi <= lo) return current;
+    return fmt::format("{}:{}@11", format_number(lo, 6), format_number(hi, 6));
+}
+
+bool geometric(const std::vector<double>& xs) {
+    if (xs.size() < 3 || xs.front() <= 0) return false;
+    const double ratio = xs[1] / xs[0];
+    if (ratio <= 1.0 + 1e-9) return false;
+    for (std::size_t k = 1; k < xs.size(); ++k)
+        if (xs[k] <= 0 || std::abs(xs[k] / xs[k - 1] - ratio) > 1e-6 * ratio) return false;
+    return true;
+}
+
+}  // namespace
+
+void PipelineScreen::ask_sweep_values(const std::string& node, const pipeline::ParamSpec& spec, const std::string& current) {
+    if (!ui_.ask_text) return;
+    ui_.ask_text(fmt::format(fmt::runtime(tr("tui.pipeline.sweep.values_prompt")), fmt::arg("target", node + "." + spec.name)), sweep_suggestion(spec, current),
+                 [this, target = node + "." + spec.name](std::string text) {
+                     auto axis = pipeline::parse_vary(target + "=" + text);
+                     if (!axis) {
+                         notice_ = axis.error().message;
+                         return;
+                     }
+                     choose_sweep_measure(std::move(*axis));
+                 });
+}
+
+void PipelineScreen::choose_sweep_measure(pipeline::SweepAxis axis) {
+    if (!ui_.choose) return;
+    const auto start = [this, axis](std::vector<pipeline::Measure> measures) {
+        if (!ui_.jobs) return;
+        model_->sweep(*ui_.jobs, axis, std::move(measures));
+        probe_index_ = model_->run_view().probes.size();
+        probe_text_scroll_ = {};
+        focus_ = kProbe;
+        layout_.show_panel(kProbe);
+        notice_.clear();
+    };
+    std::vector<Command> items;
+    const auto run = model_->run_view();
+    for (const auto& nr : run.reports)
+        for (const auto& [name, field] : nr.report.fields) {
+            const auto value = std::holds_alternative<double>(field) ? std::optional{std::get<double>(field)} : pipeline::numeric(std::get<std::string>(field));
+            if (!value) continue;
+            const auto id = nr.node + "." + name;
+            items.push_back({id, id, [start, id] { start({*pipeline::parse_measure(id)}); },
+                             fmt::format(fmt::runtime(tr("tui.pipeline.sweep.report_field")), fmt::arg("value", format_number(*value, 4)))});
+        }
+    std::vector<std::string> nodes;
+    if (const auto* g = model_->graph())
+        for (const auto& n : g->nodes)
+            if (std::any_of(n.type->outputs.begin(), n.type->outputs.end(),
+                            [](const pipeline::PortSpec& p) { return p.type == pipeline::PortType::signal || p.type == pipeline::PortType::coeffs; }))
+                nodes.push_back(n.id);
+    std::stable_partition(nodes.begin(), nodes.end(), [&](const std::string& id) { return id == axis.node; });
+    for (const auto& id : nodes)
+        for (const char* metric : {"rms", "peak", "energy"}) {
+            const auto text = id + ":" + metric;
+            items.push_back({text, text, [start, text] { start({*pipeline::parse_measure(text)}); }, tr(std::string{"tui.pipeline.sweep.metric."} + metric)});
+        }
+    if (ui_.ask_text)
+        items.push_back({"manual", tr("tui.pipeline.sweep.type_measure"), [this, start] {
+                             ui_.ask_text(tr("tui.pipeline.sweep.measure_prompt"), "", [this, start](std::string text) {
+                                 std::vector<pipeline::Measure> measures;
+                                 std::replace(text.begin(), text.end(), ',', ' ');
+                                 std::istringstream in{text};
+                                 for (std::string word; in >> word;) {
+                                     auto m = pipeline::parse_measure(word);
+                                     if (!m) {
+                                         notice_ = m.error().message;
+                                         return;
+                                     }
+                                     measures.push_back(std::move(*m));
+                                 }
+                                 if (!measures.empty()) start(std::move(measures));
+                             });
+                         }});
+    ui_.choose(fmt::format(fmt::runtime(tr("tui.pipeline.sweep.choose_measure")), fmt::arg("target", axis.node + "." + axis.param),
+                           fmt::arg("count", axis.values.size())),
+               std::move(items));
+}
+
+ftxui::Element PipelineScreen::sweep_body(const SweepView& sweep, int width, int rows) {
+    using namespace ftxui;
+    const auto& th = ui_.theme;
+    if (sweep.running)
+        return paragraph(fmt::format(fmt::runtime(tr("tui.pipeline.sweep.progress")), fmt::arg("done", sweep.done), fmt::arg("total", sweep.total))) | fg(th.dim, ui_);
+    if (sweep.error) return paragraph(*sweep.error) | fg(th.err, ui_);
+    if (!sweep.result) return text("");
+    const auto& r = *sweep.result;
+    const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
+    const std::string missing = ascii ? "-" : "—";
+    if (probe_view_ == ProbeView::values) {
+        const bool errors = std::any_of(r.rows.begin(), r.rows.end(), [](const pipeline::SweepRow& row) { return !row.error.empty(); });
+        std::vector<std::string> header{r.axis.node + "." + r.axis.param};
+        for (const auto& m : r.measures) header.push_back(m.text);
+        std::vector<int> widths;
+        for (const auto& h : header) widths.push_back(display_width(h));
+        const auto window = list_window(probe_text_scroll_.first, r.rows.size(), std::max(1, rows - 1), 1, std::nullopt);
+        std::vector<std::vector<std::string>> cells;
+        for (std::size_t k = window.first; k < window.first + window.shown; ++k) {
+            const auto& row = r.rows[k];
+            auto& line = cells.emplace_back(std::vector<std::string>{row.value});
+            for (const auto& v : row.results) line.push_back(v ? format_number(*v, 6) : missing);
+            for (std::size_t c = 0; c < line.size(); ++c) widths[c] = std::max(widths[c], display_width(line[c]));
+        }
+        const std::string space(2, ' ');
+        int used = 0;
+        std::size_t shown = 0;
+        for (; shown < widths.size(); ++shown) {
+            const int next = used + (shown ? 2 : 0) + widths[shown];
+            if (shown > 0 && next > width) break;
+            used = next;
+        }
+        const auto cell = [&](std::size_t c, const std::string& s) { return (c ? space : std::string{}) + (c ? pad_left(s, widths[c]) : pad_right(s, widths[c])); };
+        Elements head;
+        for (std::size_t c = 0; c < shown; ++c) head.push_back(text(cell(c, header[c])) | fg(th.dim, ui_));
+        if (errors && used + 2 < width) head.push_back(text(space + tr("tui.pipeline.sweep.error_column")) | fg(th.dim, ui_));
+        Elements lines;
+        for (std::size_t k = 0; k < cells.size(); ++k) {
+            Elements line;
+            for (std::size_t c = 0; c < shown; ++c) line.push_back(text(cell(c, cells[k][c])) | fg(c ? th.fg : th.accent, ui_));
+            if (const auto& e = r.rows[window.first + k].error; !e.empty() && used + 2 < width)
+                line.push_back(text(space + ellipsize(e, std::max(4, width - used - 2), ascii)) | fg(th.err, ui_));
+            lines.push_back(hbox(std::move(line)));
+        }
+        return vbox({hbox(std::move(head)), scrolled(window, r.rows.size(), std::move(lines), ui_)});
+    }
+    std::vector<double> xs;
+    bool numeric_x = true;
+    for (const auto& row : r.rows)
+        if (const auto v = pipeline::numeric(row.value)) xs.push_back(*v);
+        else numeric_x = false;
+    if (!numeric_x) {
+        xs.clear();
+        for (std::size_t k = 0; k < r.rows.size(); ++k) xs.push_back(static_cast<double>(k));
+    }
+    PlotSpec spec;
+    double ylo = std::numeric_limits<double>::infinity(), yhi = -ylo;
+    for (std::size_t j = 0; j < r.measures.size(); ++j) {
+        Trace t{{}, {}, th.trace[j % th.trace.size()]};
+        for (std::size_t k = 0; k < r.rows.size(); ++k)
+            if (const auto& v = r.rows[k].results[j]; v && std::isfinite(*v)) {
+                t.x.push_back(xs[k]);
+                t.y.push_back(*v);
+                ylo = std::min(ylo, *v);
+                yhi = std::max(yhi, *v);
+            }
+        t.stems = t.y.size() == 1;
+        spec.traces.push_back(std::move(t));
+    }
+    if (!(ylo <= yhi)) return paragraph(tr("tui.pipeline.sweep.no_values")) | fg(th.dim, ui_);
+    const double pad = yhi > ylo ? (yhi - ylo) * 0.05 : std::max(1e-12, std::abs(yhi) * 0.1 + (yhi == 0 ? 1 : 0));
+    spec.y = {ylo - pad, yhi + pad};
+    const auto [xmin, xmax] = std::minmax_element(xs.begin(), xs.end());
+    const bool log = numeric_x && geometric(xs);
+    spec.x = probe_zoom_.axis("probe_sweep", {*xmin, *xmax > *xmin ? *xmax : *xmin + 1, log ? AxisScale::log10 : AxisScale::linear}).axis();
+    if (xs.size() <= 12) spec.x_marks = xs;
+    Elements out;
+    std::vector<std::string> names;
+    for (const auto& m : r.measures) names.push_back(m.text);
+    if (names.size() > 1) {
+        Elements legend;
+        for (std::size_t j = 0; j < names.size(); ++j)
+            legend.push_back(text((j ? "  " : "") + std::string{ascii ? "# " : "■ "} + names[j]) | fg(th.trace[j % th.trace.size()], ui_));
+        out.push_back(hbox(std::move(legend)));
+    }
+    if (!numeric_x) {
+        std::string labels;
+        for (std::size_t k = 0; k < r.rows.size(); ++k) labels += (k ? "  " : "") + std::to_string(k) + "=" + r.rows[k].value;
+        out.push_back(text(ellipsize(labels, std::max(10, width), ascii)) | fg(th.dim, ui_));
+    }
+    const int room = std::max(2, rows - static_cast<int>(out.size()));
+    auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, room);
+    const auto param = r.axis.node + "." + r.axis.param;
+    out.push_back(probe_zoom_.track("probe_sweep", std::move(spec), std::move(drawn),
+                                    {tr("tui.pipeline.sweep.chip") + " · " + param, names, numeric_x ? param : param + " (#)", ""}));
+    return vbox(std::move(out));
 }
 
 void PipelineScreen::name_probe() {
@@ -829,6 +1060,10 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
     const int view_width = display_width(word(0)) + display_width(word(1)) + display_width(word(2));
     std::vector<std::string> chips;
     for (const auto& [name, value] : run.probes) chips.push_back(name);
+    const auto sweep = model_->sweep_view();
+    if (has_sweep())
+        chips.push_back(sweep.running ? fmt::format(fmt::runtime(tr("tui.pipeline.sweep.chip_running")), fmt::arg("done", sweep.done), fmt::arg("total", sweep.total))
+                                      : tr("tui.pipeline.sweep.chip"));
     const auto chip = [&](std::size_t i) { return (i == probe_index_ ? "[" : " ") + ellipsize(chips[i], 16, ascii) + (i == probe_index_ ? "]" : " "); };
     const int room = std::max(8, width - view_width - 1);
     std::size_t lo = std::min(probe_index_, chips.empty() ? 0 : chips.size() - 1), hi = lo + 1;
@@ -849,12 +1084,28 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
     head.push_back(filler());
     for (std::size_t k = 0; k < words.size(); ++k) head.push_back(text(word(k)) | fg(k == current ? th.fg : th.dim, ui_) | reflect(probe_view_boxes_[k]));
     Elements rows;
-    if (run.probes.empty()) {
+    if (chips.empty()) {
         rows.push_back(paragraph(tr("tui.pipeline.probe_hint")) | fg(th.dim, ui_));
         return frame_panel(kProbe, vbox(std::move(rows)), {}, tr("tui.pipeline.probe"));
     }
     rows.push_back(hbox(std::move(head)));
     const int plot_rows = std::max(2, height - 3);
+    if (probe_index_ >= run.probes.size()) {
+        rows.push_back(sweep_body(sweep, width, plot_rows));
+        rows.push_back(filler());
+        std::string info;
+        if (sweep.result) {
+            info = tr_count("unit.run", static_cast<long long>(sweep.result->rows.size()));
+            const auto failed = std::count_if(sweep.result->rows.begin(), sweep.result->rows.end(), [](const pipeline::SweepRow& row) { return !row.error.empty(); });
+            if (failed > 0) info += " · " + fmt::format(fmt::runtime(tr("tui.pipeline.sweep.failed")), fmt::arg("count", failed));
+            info += " · ";
+        }
+        info += tr(sweep.running ? "tui.pipeline.sweep.keys_running" : "tui.pipeline.sweep.keys");
+        rows.push_back(text(ellipsize(info, std::max(10, width), ascii)) | fg(th.dim, ui_));
+        const auto title = sweep.result ? tr("tui.pipeline.probe") + " · " + tr("tui.pipeline.sweep.chip") + " · " + sweep.result->axis.node + "." + sweep.result->axis.param
+                                        : tr("tui.pipeline.probe") + " · " + tr("tui.pipeline.sweep.chip");
+        return frame_panel(kProbe, vbox(std::move(rows)), {}, title);
+    }
     const auto& value = *run.probes.at(probe_.name.empty() || !run.probes.contains(probe_.name) ? run.probes.begin()->first : probe_.name);
     const auto* audio = std::get_if<core::AudioBuffer>(&value);
     if (probe_.samples && probe_view_ == ProbeView::values && audio) {
@@ -1065,6 +1316,7 @@ ftxui::Box PipelineScreen::area(std::string_view id) const {
     if (id == "inspector") return panel_boxes_[kInspector];
     if (id == "text_panel") return panel_boxes_[kText];
     if (id == "probe_time_plot") return probe_zoom_.box("probe_time");
+    if (id == "probe_sweep_plot") return probe_zoom_.box("probe_sweep");
     if (id.starts_with("probe_time_plot:")) return probe_zoom_.box("probe_time:" + std::string{id.substr(16)});
     if (id == "probe_panel") return panel_boxes_[kProbe];
     for (std::size_t k = 0; k < probe_view_boxes_.size(); ++k)
@@ -1235,13 +1487,14 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
         if (ui_.jobs) model_->run(*ui_.jobs);
         return true;
     }
-    if (e == Event::Escape && model_->run_view().running) {
+    if (e == Event::Escape && (model_->run_view().running || model_->sweep_view().running)) {
         if (ui_.jobs) model_->cancel(*ui_.jobs);
         return true;
     }
     if (e == Event::Character('v')) return probe_view_ = static_cast<ProbeView>((static_cast<int>(probe_view_) + 1) % 3), true;
     if (e == Event::Character('n')) return name_probe(), true;
     if (e == Event::Character('k')) return stacked_ = !stacked_, true;
+    if (e == Event::Character('S')) return start_sweep(), true;
     if (e == Event::Character('A')) return play(true), true;
     if (e == Event::Character('B')) return play(false), true;
     if (e == Event::Character(' ')) {
@@ -1249,11 +1502,11 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
         else play(last_input_);
         return true;
     }
-    const bool table = probe_.samples && probe_view_ == ProbeView::values;
+    const bool table = (probe_.samples || probe_index_ >= model_->run_view().probes.size()) && probe_view_ == ProbeView::values;
     if (focus_ == kProbe && !table && probe_zoom_.on_key(e, probe_view_ == ProbeView::spectrum ? "probe_spectrum" : "probe_time")) return true;
     if (focus_ == kProbe && table && key_scroll(e, probe_text_scroll_)) return true;
     if (focus_ == kProbe && (e == Event::ArrowDown || e == Event::ArrowUp || e == Event::ArrowLeft || e == Event::ArrowRight)) {
-        const auto n = model_->run_view().probes.size();
+        const auto n = model_->run_view().probes.size() + (has_sweep() ? 1 : 0);
         const bool next = e == Event::ArrowDown || e == Event::ArrowRight;
         if (n > 0) probe_index_ = next ? (probe_index_ + 1) % n : (probe_index_ + n - 1) % n;
         probe_text_scroll_ = {};

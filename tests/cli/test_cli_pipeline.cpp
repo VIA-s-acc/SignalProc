@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -269,5 +271,37 @@ probe st as "st"
         ++images;
     }
     CHECK(images >= 3);
+}
+
+TEST_CASE("sweep runs the graph for every value and writes a table, csv, svg and json", "[cli][pipeline][sweep]") {
+    const auto dir = fresh_dir("cli-sweep");
+    const auto path = write_sig(dir, R"(node x = samples(values="1 -2 3 -4", rate=8)
+node g = gain(db=0)
+node s = stats()
+x -> g -> s
+)");
+    const auto csv = dir / "sweep.csv", svg = dir / "sweep.svg";
+    const auto text = run({"signals", "sweep", path.string(), "--vary", "g.db=0:12:6", "--measure", "g:peak", "--measure", "s.rms", "--csv", csv.string(), "--svg",
+                           svg.string()});
+    INFO(text.err);
+    REQUIRE(text.code == 0);
+    CHECK(text.out.find("g.db") != std::string::npos);
+    CHECK(text.out.find("g:peak") != std::string::npos);
+    CHECK(text.out.find("7.98") != std::string::npos);
+    const auto table = bytes_of(csv);
+    CHECK(table.starts_with("g.db,g:peak,s.rms\n0,4,"));
+    CHECK(std::count(table.begin(), table.end(), '\n') == 4);
+    CHECK(bytes_of(svg).starts_with("<svg"));
+    const auto js = run({"signals", "sweep", path.string(), "--vary", "g.db=0,oops", "--measure", "g:peak", "--json"});
+    REQUIRE(js.code == 0);
+    const auto j = nlohmann::json::parse(js.out);
+    CHECK(j["param"] == "g.db");
+    REQUIRE(j["rows"].size() == 2);
+    CHECK(j["rows"][0]["results"][0] == 4.0);
+    CHECK(j["rows"][1]["results"][0].is_null());
+    CHECK_FALSE(j["rows"][1]["error"].get<std::string>().empty());
+    const auto wrong = run({"signals", "sweep", path.string(), "--vary", "g.nope=0,1", "--measure", "g:peak"});
+    CHECK(wrong.code == 1);
+    CHECK(wrong.err.find("nope") != std::string::npos);
 }
 
