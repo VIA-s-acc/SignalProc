@@ -247,6 +247,11 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `n` | probe name |
 | `k` | channels overlaid or stacked |
 | `S` | parameter sweep |
+| `D` | duplicate node |
+| `y` | copy samples |
+| `x` | save probe |
+| `w` | compare two probes |
+| `+ − E` | digits and powers of 10 |
 | `L` | layout and view |
 | `drag ● → ○` | connect |
 | `c/C` | connect: c — output, arrows, Enter; C — list of inputs |

@@ -371,3 +371,23 @@ TEST_CASE("a probe takes a name, keeps its last value and an empty name restores
     REQUIRE(m.undo());
     CHECK(m.doc().probes[0].name == "выход \"y\"");
 }
+
+TEST_CASE("a node is duplicated with its parameters and comments but without wires", "[tui][pipeline_model][probe_tools]") {
+    PipelineModel m;
+    REQUIRE(m.load_text("g", "pipeline \"g\" v1\n\nnode x = samples(values=\"1 2\", rate=8)\nnode g = gain(db=-6)  # quieter\n\nx -> g\n"));
+    const auto id = m.duplicate_node("g");
+    CHECK(id == "gain");
+    const auto& doc = m.doc();
+    REQUIRE(doc.nodes.size() == 3);
+    CHECK(doc.nodes[2].id == "gain");
+    CHECK(doc.nodes[2].type == "gain");
+    CHECK(doc.nodes[2].params.at("db") == "-6");
+    CHECK(doc.nodes[2].comments.after == "# quieter");
+    CHECK(doc.edges.size() == 1);
+    CHECK(m.selection.kind == Selection::Kind::node);
+    CHECK(m.selection.node == "gain");
+    CHECK(m.duplicate_node("gain") == "gain2");
+    CHECK(m.duplicate_node("missing").empty());
+    REQUIRE(m.undo());
+    CHECK(m.doc().nodes.size() == 3);
+}

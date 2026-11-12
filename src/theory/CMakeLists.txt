@@ -31,6 +31,7 @@ add_library(signals_theory STATIC
   cards.cpp
   text.cpp
   sources.cpp
+  pipeline_cards.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theory_book.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theory_cards.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theory_book_en.cpp

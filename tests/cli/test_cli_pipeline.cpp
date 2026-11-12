@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -15,6 +16,9 @@
 #include <nlohmann/json.hpp>
 
 #include "commands/cli.hpp"
+#include "commands/watch.hpp"
+#include "i18n/i18n.hpp"
+#include "theory/cards.hpp"
 #include "support/paths.hpp"
 #include "tui/widgets/text_util.hpp"
 
@@ -305,3 +309,57 @@ x -> g -> s
     CHECK(wrong.err.find("nope") != std::string::npos);
 }
 
+
+TEST_CASE("explain describes a block, its ports, its parameters with their values and its theory card", "[cli][pipeline][explain]") {
+    const auto r = run({"signals", "explain", "gen"});
+    CHECK(r.code == 0);
+    CHECK(r.out.starts_with("gen"));
+    CHECK(r.out.find(signals::tr("pipeline.block.gen")) != std::string::npos);
+    CHECK(r.out.find(signals::tr("pipeline.about.gen")) != std::string::npos);
+    CHECK(r.out.find("kind = sine") != std::string::npos);
+    CHECK(r.out.find("white — " + signals::tr("pipeline.param.gen.kind.white")) != std::string::npos);
+    CHECK(r.out.find("channels = 1 (1…64)") != std::string::npos);
+    CHECK(r.out.find(signals::tr("pipeline.param.gen.channels")) != std::string::npos);
+    const auto* card = signals::theory::find_card("generator");
+    REQUIRE(card);
+    CHECK(r.out.find(card->title) != std::string::npos);
+    const auto bad = run({"signals", "explain", "gian"});
+    CHECK(bad.code != 0);
+    CHECK(bad.err.find("gain") != std::string::npos);
+}
+
+TEST_CASE("run --values N prints the first N samples of every signal probe", "[cli][pipeline][values]") {
+    const auto dir = fresh_dir("cli-run-values");
+    const auto sig = write_sig(dir, "pipeline \"v\" v1\nnode x = samples(values=\"1 2 3 4 5 6 7 8\", rate=8)\nprobe x as \"x\"\n").string();
+    const auto all = run({"signals", "run", sig});
+    CHECK(all.out.find("ch0: 1 2 3 4 5 6 7 8") != std::string::npos);
+    const auto three = run({"signals", "run", sig, "--values", "3"});
+    CHECK(three.code == 0);
+    CHECK(three.out.find("ch0: 1 2 3 …") != std::string::npos);
+    CHECK(three.out.find("ch0: 1 2 3 4") == std::string::npos);
+    const auto none = run({"signals", "run", sig, "--values", "0"});
+    CHECK(none.out.find("ch0:") == std::string::npos);
+    const auto json = nlohmann::json::parse(run({"signals", "run", sig, "--values", "2", "--json"}).out);
+    CHECK(json["probes"]["x"]["values"] == nlohmann::json::array({{1.0, 2.0}}));
+}
+
+TEST_CASE("watch reruns when the graph or an input changes and never because of an output", "[cli][pipeline][watch]") {
+    namespace fs = std::filesystem;
+    const auto dir = fresh_dir("cli-watch");
+    const auto sig = write_sig(dir, "pipeline \"w\" v1\nnode src = wav(path=\"in.wav\")\nnode out = wav_out(path=\"out.wav\")\nsrc -> out\n");
+    std::ofstream{dir / "in.wav"} << "x";
+    std::ofstream{dir / "out.wav"} << "x";
+    const auto files = signals::cli::watched_files(sig);
+    CHECK(files == std::vector<fs::path>{fs::absolute(sig), fs::absolute(dir / "in.wav")});
+    int runs = 0, ticks = 0;
+    const auto start = fs::last_write_time(sig);
+    const auto code = signals::cli::watch_loop([&] { return ++runs, 0; }, [&] { return signals::cli::watched_files(sig); }, [&] { return ticks < 6; },
+                                               [&] {
+                                                   ++ticks;
+                                                   if (ticks == 2) fs::last_write_time(dir / "out.wav", start + std::chrono::seconds{10});
+                                                   if (ticks == 3) fs::last_write_time(dir / "in.wav", start + std::chrono::seconds{20});
+                                                   if (ticks == 5) fs::last_write_time(sig, start + std::chrono::seconds{30});
+                                               });
+    CHECK(code == 0);
+    CHECK(runs == 3);
+}

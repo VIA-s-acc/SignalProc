@@ -72,22 +72,27 @@ std::string pi_label(int num, int den) {
 
 }  // namespace
 
+std::string format_scientific(double v, int significant) {
+    if (std::isnan(v)) return "—";
+    if (std::isinf(v)) return v > 0 ? "∞" : std::string{kMinus} + "∞";
+    if (v == 0) return "0";
+    int e = static_cast<int>(std::floor(std::log10(std::abs(v))));
+    double m = v / std::pow(10.0, e);
+    const double scale = std::pow(10.0, significant - 1);
+    m = std::round(m * scale) / scale;
+    if (std::abs(m) >= 10) {
+        m /= 10;
+        ++e;
+    }
+    return fixed(m, significant - 1, true) + "·10" + superscript(e);
+}
+
 std::string format_number(double v, int significant) {
     if (std::isnan(v)) return "—";
     if (std::isinf(v)) return v > 0 ? "∞" : std::string{kMinus} + "∞";
     if (v == 0) return "0";
     const double a = std::abs(v);
-    if (a < 1e-3 || a >= 1e6) {
-        int e = static_cast<int>(std::floor(std::log10(a)));
-        double m = v / std::pow(10.0, e);
-        const double scale = std::pow(10.0, significant - 1);
-        m = std::round(m * scale) / scale;
-        if (std::abs(m) >= 10) {
-            m /= 10;
-            ++e;
-        }
-        return fixed(m, significant - 1, true) + "·10" + superscript(e);
-    }
+    if (a < 1e-3 || a >= 1e6) return format_scientific(v, significant);
     const int decimals = std::max(0, significant - 1 - static_cast<int>(std::floor(std::log10(a))));
     return fixed(v, decimals, true);
 }
