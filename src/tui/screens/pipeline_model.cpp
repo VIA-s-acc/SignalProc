@@ -363,6 +363,44 @@ void PipelineModel::cancel(JobRunner& jobs) {
         job = run_->job;
     }
     if (job) jobs.cancel(*job);
+    std::lock_guard lock{sweep_->mutex};
+    if (sweep_->cancel && sweep_->view.running) sweep_->cancel->cancel();
+}
+
+void PipelineModel::sweep(JobRunner& jobs, pipeline::SweepAxis axis, std::vector<pipeline::Measure> measures) {
+    auto token = std::make_shared<core::CancelToken>();
+    std::uint64_t number = 0;
+    {
+        std::lock_guard lock{sweep_->mutex};
+        if (sweep_->cancel) sweep_->cancel->cancel();
+        sweep_->cancel = token;
+        number = ++sweep_->view.number;
+        sweep_->view = SweepView{number, true, 0, axis.values.size(), std::nullopt, std::nullopt};
+    }
+    auto state = sweep_;
+    auto doc = doc_;
+    auto dir = base_dir();
+    jobs.submit(tr("tui.pipeline.sweep.job"), {tr("tui.pipeline.sweep.job")}, [state, doc = std::move(doc), dir = std::move(dir), axis = std::move(axis),
+                                                                                 measures = std::move(measures), token, number](JobContext& ctx) mutable {
+        ctx.begin(0);
+        auto result = pipeline::run_sweep(doc, dir, std::move(axis), std::move(measures), *token, [&](std::size_t done, std::size_t total) {
+            ctx.report(total ? static_cast<double>(done) / static_cast<double>(total) : 1.0);
+            std::lock_guard lock{state->mutex};
+            if (state->view.number == number) state->view.done = done;
+        });
+        std::lock_guard lock{state->mutex};
+        if (state->view.number == number) {
+            state->view.running = false;
+            if (result) state->view.result = std::move(*result);
+            else state->view.error = result.error().message;
+        }
+        ctx.finish();
+    });
+}
+
+SweepView PipelineModel::sweep_view() const {
+    std::lock_guard lock{sweep_->mutex};
+    return sweep_->view;
 }
 
 RunView PipelineModel::run_view() const {

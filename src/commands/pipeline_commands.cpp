@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <csignal>
@@ -14,6 +15,9 @@
 
 #include "commands/command.hpp"
 #include "commands/run_report.hpp"
+#include "io/temp_file.hpp"
+#include "pipeline/sweep.hpp"
+#include "svg/svg.hpp"
 #include "i18n/i18n.hpp"
 #include "io/wav.hpp"
 #include "pipeline/executor.hpp"
@@ -280,6 +284,137 @@ private:
     bool json_ = false;
 };
 
+class SweepCommand final : public Command {
+public:
+    explicit SweepCommand(CLI::App& app) : sub_{app.add_subcommand("sweep", tr("cli.sweep.description"))} {
+        sub_->add_option("file", file_, tr("cli.run.file"))->required();
+        sub_->add_option("--vary", vary_, tr("cli.sweep.vary"))->required();
+        sub_->add_option("--measure", measures_, tr("cli.sweep.measure"))->required();
+        sub_->add_option("--set", sets_, tr("cli.run.set"));
+        sub_->add_option("--csv", csv_, tr("cli.sweep.csv"));
+        sub_->add_option("--svg", svg_, tr("cli.sweep.svg"));
+        sub_->add_flag("--json", json_, tr("cli.json.description"));
+    }
+    bool parsed() const override { return sub_->parsed(); }
+
+    int run(std::ostream& out, std::ostream& err) override {
+        const std::filesystem::path file{file_};
+        auto doc = load(file, err);
+        if (!doc) return 1;
+        for (const auto& s : sets_)
+            if (auto ok = pipeline::apply_set(*doc, s); !ok) return report_error(err, ok.error()), 1;
+        auto axis = pipeline::parse_vary(vary_);
+        if (!axis) return report_error(err, axis.error()), 1;
+        std::vector<pipeline::Measure> measures;
+        for (const auto& text : measures_) {
+            auto m = pipeline::parse_measure(text);
+            if (!m) return report_error(err, m.error()), 1;
+            measures.push_back(std::move(*m));
+        }
+        core::CancelToken cancel;
+        g_cancel.store(&cancel);
+        const auto previous = std::signal(SIGINT, cancel_on_interrupt);
+        const auto result = pipeline::run_sweep(*doc, std::filesystem::absolute(file).parent_path(), std::move(*axis), std::move(measures), cancel);
+        std::signal(SIGINT, previous);
+        g_cancel.store(nullptr);
+        if (!result) return report_error(err, result.error()), result.error().code == core::Errc::cancelled ? 130 : 1;
+        const auto param = result->axis.node + "." + result->axis.param;
+        if (!csv_.empty())
+            if (auto ok = io::write_file_atomic(csv_, sweep_csv(*result)); !ok) return report_error(err, ok.error()), 1;
+        if (!svg_.empty())
+            if (auto ok = io::write_file_atomic(svg_, svg::to_svg(sweep_chart(*result))); !ok) return report_error(err, ok.error()), 1;
+        if (json_) {
+            nlohmann::json j{{"param", param}, {"measures", nlohmann::json::array()}, {"rows", nlohmann::json::array()}};
+            for (const auto& m : result->measures) j["measures"].push_back(m.text);
+            for (const auto& row : result->rows) {
+                auto values = nlohmann::json::array();
+                for (const auto& v : row.results) values.push_back(v ? nlohmann::json(*v) : nlohmann::json(nullptr));
+                j["rows"].push_back({{"value", row.value}, {"results", values}, {"error", row.error}});
+            }
+            out << j.dump(2) << '\n';
+            return 0;
+        }
+        out << fmt::format(fmt::runtime(tr("pipeline.cli.sweep_header")), fmt::arg("param", param), fmt::arg("count", result->rows.size())) << '\n';
+        std::vector<std::string> header{param};
+        for (const auto& m : result->measures) header.push_back(m.text);
+        std::vector<std::vector<std::string>> cells;
+        for (const auto& row : result->rows) {
+            std::vector<std::string> line{row.value};
+            if (!row.error.empty()) line.push_back(tr("pipeline.cli.sweep_error") + ": " + row.error);
+            else
+                for (const auto& v : row.results) line.push_back(v ? fmt::format("{:.6g}", *v) : std::string{"—"});
+            cells.push_back(std::move(line));
+        }
+        std::vector<std::size_t> widths(header.size(), 0);
+        for (std::size_t c = 0; c < header.size(); ++c) widths[c] = columns(header[c]);
+        for (const auto& line : cells)
+            for (std::size_t c = 0; c < line.size() && c < widths.size(); ++c)
+                if (c + 1 < line.size() || line.size() == widths.size()) widths[c] = std::max(widths[c], columns(line[c]));
+        const auto print = [&](const std::vector<std::string>& line) {
+            std::string text = " ";
+            for (std::size_t c = 0; c < line.size(); ++c)
+                text += " " + line[c] + (c + 1 < line.size() && c < widths.size() ? std::string(widths[c] - std::min(widths[c], columns(line[c])) + 1, ' ') : std::string{});
+            out << text << '\n';
+        };
+        print(header);
+        for (const auto& line : cells) print(line);
+        return 0;
+    }
+
+private:
+    static std::string sweep_csv(const pipeline::SweepResult& r) {
+        std::string out = r.axis.node + "." + r.axis.param;
+        for (const auto& m : r.measures) out += "," + m.text;
+        out += "\n";
+        for (const auto& row : r.rows) {
+            out += row.value;
+            for (const auto& v : row.results) out += "," + (v ? fmt::format("{}", *v) : std::string{});
+            out += "\n";
+        }
+        return out;
+    }
+
+    static svg::Chart sweep_chart(const pipeline::SweepResult& r) {
+        svg::Chart c;
+        c.title = r.axis.node + "." + r.axis.param;
+        std::vector<double> xs;
+        bool numeric_axis = true;
+        for (std::size_t k = 0; k < r.rows.size(); ++k) {
+            const auto v = pipeline::numeric(r.rows[k].value);
+            numeric_axis = numeric_axis && v.has_value();
+            xs.push_back(v.value_or(static_cast<double>(k)));
+        }
+        if (!numeric_axis)
+            for (std::size_t k = 0; k < xs.size(); ++k) xs[k] = static_cast<double>(k);
+        const auto [lo, hi] = xs.empty() ? std::pair{0.0, 1.0} : std::pair{*std::min_element(xs.begin(), xs.end()), *std::max_element(xs.begin(), xs.end())};
+        c.x = {lo, hi > lo ? hi : lo + 1, svg::Scale::linear, c.title};
+        double ylo = 1e300, yhi = -1e300;
+        static constexpr std::array<const char*, 6> kColours{"#0072B2", "#D55E00", "#009E73", "#E69F00", "#56B4E9", "#CC79A7"};
+        for (std::size_t j = 0; j < r.measures.size(); ++j) {
+            svg::Series s{r.measures[j].text, kColours[j % kColours.size()]};
+            for (std::size_t k = 0; k < r.rows.size(); ++k) {
+                s.x.push_back(xs[k]);
+                const auto v = r.rows[k].results.size() > j ? r.rows[k].results[j] : std::nullopt;
+                s.y.push_back(v.value_or(NAN));
+                if (v) {
+                    ylo = std::min(ylo, *v);
+                    yhi = std::max(yhi, *v);
+                }
+            }
+            c.series.push_back(std::move(s));
+        }
+        if (ylo > yhi) ylo = 0, yhi = 1;
+        const double pad = yhi > ylo ? 0.05 * (yhi - ylo) : std::max(1.0, std::abs(yhi)) * 0.05;
+        c.y = {ylo - pad, yhi + pad};
+        return c;
+    }
+
+    CLI::App* sub_;
+    std::string file_, vary_, csv_, svg_;
+    std::vector<std::string> measures_, sets_;
+    bool json_ = false;
+};
+
 class GraphCommand final : public Command {
 public:
     explicit GraphCommand(CLI::App& app) : sub_{app.add_subcommand("graph", tr("cli.graph.description"))} {
@@ -327,6 +462,7 @@ private:
 void add_pipeline_commands(CLI::App& app, Commands& commands) {
     commands.push_back(std::make_unique<RunCommand>(app));
     commands.push_back(std::make_unique<GraphCommand>(app));
+    commands.push_back(std::make_unique<SweepCommand>(app));
     commands.push_back(std::make_unique<BlocksCommand>(app));
 }
 

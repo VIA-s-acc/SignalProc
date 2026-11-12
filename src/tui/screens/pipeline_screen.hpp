@@ -73,6 +73,11 @@ private:
     void refresh_probe(const RunView& run);
     ftxui::Element probe_values(const core::AudioBuffer& audio, int width, int height);
     void name_probe();
+    void start_sweep();
+    void ask_sweep_values(const std::string& node, const pipeline::ParamSpec& spec, const std::string& current);
+    void choose_sweep_measure(pipeline::SweepAxis axis);
+    bool has_sweep() const;
+    ftxui::Element sweep_body(const SweepView& sweep, int width, int rows);
     void sync_stacked();
     ftxui::Element probe_time(int width, int rows);
     ftxui::Element channel_legend(std::size_t channels, int width, bool keys) const;

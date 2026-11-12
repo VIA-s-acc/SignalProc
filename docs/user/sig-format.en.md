@@ -84,9 +84,29 @@ Before a run the whole graph is checked, and every error names its line:
   - `--set node.param=value` — override a parameter, may repeat: `--set x.path=other.wav --set dwt.levels=5`;
   - `-o out.wav` — where to write the first `wav_out`;
   - `--probe-dir folder` — save the probes: signals as WAV, the rest as JSON;
+  - `--report report.md` — a Markdown report: the graph, the node table, plots of the probes in time and spectrum (SVG and CSV in the `report_files` folder), the report fields;
   - `--json` — the run report as JSON.
   
   Exit code `0` — everything passed, `3` — some `check` failed, `1` — an error in the file or during the run, `130` — the run was interrupted with Ctrl+C.
+- `signals sweep graph.sig --vary node.param=values --measure measure` — a parameter sweep: the graph runs once for every value of the parameter, and each run prints a row of measures.
+  - Values: `0:1:0.1` (from, to, step), `1:100@5` (5 evenly spaced points), `1:100@5log` (5 points on a log scale), `haar,db4,sym8` (a list, which also works for choices). More than 1000 values are rejected.
+  - Measure: a report field `node.field` (for example `chk.snr_db`) or a measure of a node's output `node:rms`, `node:peak`, `node:energy`, `node:mean`, `node:length`. `--measure` may repeat.
+  - `--set` as in `run`; `--csv table.csv` and `--svg plot.svg` save the result, `--json` prints it as JSON.
+  - Blocks that write files (`wav_out`, `export`) do not run in a sweep unless they are measured, so a sweep does not overwrite the results of a normal run. A failed run does not stop the sweep: its row keeps empty measures and the error text.
+
+  For example, which wavelet removes the noise in `examples/denoise.sig` best:
+
+  ```
+  $ signals sweep examples/denoise.sig --vary "dwt.wavelet=haar,db4,sym8,coif3" --measure chk.snr_db
+  sweep: dwt.wavelet, 4 runs
+    dwt.wavelet  chk.snr_db
+    haar         27.9459
+    db4          46.3981
+    sym8         51.2006
+    coif3        49.7729
+  ```
+
+  In the «Pipeline» tab `S` on the selected node does the same: it asks for the parameter, the values (it suggests a range around the current one) and the measure, and the «sweep» probe shows the result as a plot or a table (`v`). `Esc` stops the sweep.
 - `signals graph graph.sig` — draw the graph as text (`--ascii` — ASCII only).
 - `signals blocks` — the block list; `--markdown` — the `docs/user/blocks.md` reference; `--json` — block descriptions for editors.
 

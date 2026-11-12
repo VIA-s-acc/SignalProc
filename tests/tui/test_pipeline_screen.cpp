@@ -2,6 +2,7 @@
 #include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <chrono>
 #include <functional>
 #include <filesystem>
@@ -1304,5 +1305,51 @@ TEST_CASE("the palette asks which plot to export and the shell says where it wen
     CHECK(std::filesystem::exists(dir / "stacked.csv"));
     frame = shell.frame();
     CHECK(frame.find("stacked.svg") != std::string::npos);
+}
+
+TEST_CASE("S sweeps a parameter of the selected node and the probe panel shows the plot and the table", "[tui][pipeline_screen][sweep]") {
+    PipelineFixture f{70, 44, false};
+    std::vector<Command> choices;
+    f.ui->choose = [&](std::string, std::vector<Command> items) { choices = std::move(items); };
+    std::function<void(std::string)> answer;
+    std::string prefill;
+    f.ui->ask_text = [&](std::string, std::string p, std::function<void(std::string)> done) {
+        prefill = std::move(p);
+        answer = std::move(done);
+    };
+    run_text(f, "pipeline \"g\" v1\n"
+                "node x = samples(values=\"1 -2 3 -4\", rate=8)\n"
+                "node g = gain(db=0)\n"
+                "node s = stats()\n"
+                "x -> g -> s\n"
+                "probe g as \"g\"\n");
+    f.model->selection = {};
+    f.h.send(ftxui::Event::Character('S'));
+    CHECK(f.screen->notice() == tr("tui.pipeline.sweep.pick_node"));
+    f.model->selection = {Selection::Kind::node, "g", {}};
+    f.h.send(ftxui::Event::Character('S'));
+    const auto pick = [&](std::string_view id) {
+        const auto it = std::find_if(choices.begin(), choices.end(), [&](const Command& c) { return c.id == id; });
+        REQUIRE(it != choices.end());
+        auto run = it->run;
+        run();
+    };
+    pick("db");
+    REQUIRE(answer);
+    CHECK_FALSE(prefill.empty());
+    answer("0:12:6");
+    CHECK(std::any_of(choices.begin(), choices.end(), [](const Command& c) { return c.id == "s.rms"; }));
+    pick("g:peak");
+    for (int k = 0; k < 2000 && f.model->sweep_view().running; ++k) std::this_thread::sleep_for(5ms);
+    auto frame = f.h.frame();
+    CHECK(frame.find("g.db") != std::string::npos);
+    const auto plot = f.screen->area("probe_sweep_plot");
+    CHECK(plot.x_max >= plot.x_min);
+    f.h.send(ftxui::Event::Character('v'));
+    f.h.send(ftxui::Event::Character('v'));
+    frame = f.h.frame();
+    CHECK(has_row(frame, {"g.db", "g:peak"}));
+    CHECK(has_row(frame, {"0", format_number(4, 6)}));
+    CHECK(has_row(frame, {"12", format_number(4 * std::pow(10.0, 12.0 / 20), 6)}));
 }
 
