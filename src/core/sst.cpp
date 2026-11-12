@@ -18,6 +18,7 @@ constexpr double kTwoPi = 6.283185307179586;
 constexpr double kMargin = 6;
 constexpr std::size_t kMaxPadded = std::size_t{1} << 28;
 constexpr std::size_t kMinSegment = std::size_t{1} << 15;
+constexpr double kMaxSample = 1e150;
 
 core::Error bad(std::string text) { return {Errc::invalid_argument, "sst: " + std::move(text)}; }
 
@@ -50,6 +51,7 @@ Result<void> check(std::span<const double> x, const Options& o) {
     if (!std::isfinite(scales(o).back())) return std::unexpected{bad("scales overflow")};
     if (x.size() > kMaxPadded / 4) return std::unexpected{bad("signal too long")};
     if (std::any_of(x.begin(), x.end(), [](double v) { return !std::isfinite(v); })) return std::unexpected{bad("the signal has NaN or infinite samples")};
+    if (std::any_of(x.begin(), x.end(), [](double v) { return std::abs(v) > kMaxSample; })) return std::unexpected{bad("samples above 1e150 would overflow")};
     return {};
 }
 
@@ -74,8 +76,10 @@ struct Mapper {
     }
 
     std::size_t operator()(double w) const {
-        const double at = ((log ? std::log2(w) : w) - v0) / dv;
-        return static_cast<std::size_t>(std::min(std::nearbyint(std::max(at, 0.0)), omax));
+        double at = std::nearbyint(((log ? std::log2(w) : w) - v0) / dv);
+        if (!(at > 0)) at = 0;
+        if (!(at < omax)) at = omax;
+        return static_cast<std::size_t>(at);
     }
 };
 

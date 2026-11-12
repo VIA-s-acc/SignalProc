@@ -175,3 +175,18 @@ TEST_CASE("the SST keeps a one- and two-sample signal finite", "[sst]") {
             for (const auto& z : row) CHECK(std::isfinite(z.real()));
     }
 }
+
+TEST_CASE("the SST refuses samples large enough to overflow and keeps large ones finite", "[sst]") {
+    const sst::Options o{6.0, 2.0, 8, 20};
+    const auto bins = sst::log_bins(0.02, 0.45, 20);
+    std::vector<double> x(256);
+    for (std::size_t k = 0; k < x.size(); ++k) x[k] = 1e149 * std::cos(0.7 * static_cast<double>(k));
+    const auto tx = sst::transform(x, o, bins);
+    REQUIRE(tx);
+    for (const auto& row : *tx)
+        for (const auto& z : row) REQUIRE(std::isfinite(std::abs(z)));
+    x[10] = 1e300;
+    CHECK_FALSE(sst::transform(x, o, bins));
+    CHECK_FALSE(sst::band(x, o, 0.0, 0.5));
+    CHECK_FALSE(sst::power_map(x, o, bins, 4));
+}
