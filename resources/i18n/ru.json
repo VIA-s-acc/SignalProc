@@ -1232,6 +1232,7 @@
   "pipeline.error.bad_samples": "{param} = {value}: нужно число отсчётов или секунды вида 1.5s",
   "pipeline.error.out_of_bounds": "{param} = {value}: допустимо от {min} до {max}",
   "pipeline.error.too_long": "{param} = {value}: слишком длинно, предел — 2²⁸ отсчётов",
+  "pipeline.error.file_too_long": "{path}: {frames} кадров × {channels} кан. — больше предела конвейера в 2²⁸ отсчётов",
   "pipeline.type.signal": "сигнал",
   "pipeline.type.coeffs": "коэффициенты",
   "pipeline.type.filter": "фильтр",

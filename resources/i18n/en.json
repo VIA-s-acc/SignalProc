@@ -586,6 +586,7 @@
   "pipeline.error.bad_samples": "{param} = {value}: a sample count or seconds like 1.5s is expected",
   "pipeline.error.out_of_bounds": "{param} = {value}: allowed from {min} to {max}",
   "pipeline.error.too_long": "{param} = {value}: too long, the limit is 2²⁸ samples",
+  "pipeline.error.file_too_long": "{path}: {frames} frames × {channels} channels is over the pipeline limit of 2²⁸ samples",
   "pipeline.type.signal": "signal",
   "pipeline.type.coeffs": "coefficients",
   "pipeline.type.filter": "filter",

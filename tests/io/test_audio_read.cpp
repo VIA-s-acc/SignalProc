@@ -71,6 +71,16 @@ TEST_CASE("24-bit flac keeps its resolution and 6-channel flac keeps its channel
     }
 }
 
+TEST_CASE("a flac stream whose header does not give its length is counted before it is read", "[audio][flac]") {
+    const auto info = probe_audio(audio_fixture("tone_stream.flac"));
+    REQUIRE(info);
+    CHECK(info->frames == 4410);
+    const auto flac = read_audio(audio_fixture("tone_stream.flac"));
+    REQUIRE(flac);
+    CHECK(flac->info.frames == 4410);
+    CHECK(flac->audio.channels == read_audio(audio_fixture("tone_stereo.flac"))->audio.channels);
+}
+
 TEST_CASE("mp3 decodes with the encoder delay removed and the channels in order", "[audio][mp3]") {
     const auto wav = signals::io::read_wav(audio_fixture("tone_stereo.wav"));
     const auto mp3 = read_audio(audio_fixture("tone_stereo.mp3"));
@@ -147,6 +157,24 @@ TEST_CASE("flac and mp3 reading report progress and can be cancelled", "[audio]"
         CHECK(read_audio(audio_fixture(name), &stop).error().code == Errc::cancelled);
         CHECK(stop.calls > 0);
     }
+}
+
+TEST_CASE("a header that claims more frames than the file holds does not make reading allocate them", "[audio][flac]") {
+    const auto info = probe_audio(audio_fixture("tone_huge_header.flac"));
+    REQUIRE(info);
+    CHECK(info->frames == std::uint64_t{1} << 35);
+    const auto flac = read_audio(audio_fixture("tone_huge_header.flac"));
+    REQUIRE(flac);
+    CHECK(flac->audio.frames() == 4410);
+    const auto* type = signals::pipeline::find_block_type("wav");
+    REQUIRE(type);
+    auto params = signals::pipeline::resolve_params(*type, {{"path", audio_fixture("tone_huge_header.flac").string()}});
+    REQUIRE(params);
+    signals::pipeline::RunContext ctx{std::filesystem::temp_directory_path()};
+    const auto out = type->run(ctx, {}, *params);
+    REQUIRE_FALSE(out);
+    CHECK(out.error().code == Errc::invalid_argument);
+    CHECK(out.error().message.find("2²⁸") != std::string::npos);
 }
 
 TEST_CASE("the wav block of the pipeline opens flac and mp3 too", "[audio][pipeline]") {

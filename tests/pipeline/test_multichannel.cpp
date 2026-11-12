@@ -168,6 +168,12 @@ TEST_CASE("gen makes several channels: independent noise, the same tone", "[pipe
     REQUIRE(tone.channels.size() == 2);
     CHECK(tone.channels[0] == tone.channels[1]);
     CHECK(run({{"kind", "sine"}, {"duration", "0.01"}}).channels.size() == 1);
+    auto huge = resolve_params(*gen, {{"kind", "white"}, {"duration", "10"}, {"rate", "768000"}, {"channels", "64"}});
+    REQUIRE(huge);
+    RunContext ctx{std::filesystem::temp_directory_path()};
+    const auto refused = gen->run(ctx, {}, *huge);
+    REQUIRE_FALSE(refused);
+    CHECK(refused.error().message.find("channels") != std::string::npos);
     CHECK_FALSE(resolve_params(*gen, {{"channels", "0"}}));
     CHECK_FALSE(resolve_params(*gen, {{"channels", "65"}}));
 }

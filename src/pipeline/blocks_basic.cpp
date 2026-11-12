@@ -39,7 +39,11 @@ const std::vector<PortSpec> kOneOut{{"out", PortType::signal}};
 
 void register_basic_blocks(std::vector<BlockType>& out) {
     out.push_back({"wav", {}, kOneOut, {{"path", Kind::path, ""}}, [](const RunContext& ctx, std::span<const Value>, const Params& p) -> Out {
-                       auto file = io::read_audio(resolve(ctx, param_text(p, "path")), ctx.progress);
+                       const auto path = resolve(ctx, param_text(p, "path"));
+                       if (const auto info = io::probe_audio(path); info && static_cast<double>(info->frames) * info->channels > kMaxSamples)
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.file_too_long")), fmt::arg("path", path.string()),
+                                                                                             fmt::arg("frames", info->frames), fmt::arg("channels", info->channels)));
+                       auto file = io::read_audio(path, ctx.progress);
                        if (!file) return std::unexpected{file.error()};
                        return std::vector<Value>{std::move(file->audio)};
                    }});
@@ -119,6 +123,9 @@ void register_basic_blocks(std::vector<BlockType>& out) {
                        if (param_real(p, "duration") * rate > kMaxSamples)
                            return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.too_long")), fmt::arg("param", "duration"),
                                                                                              fmt::arg("value", param_text(p, "duration"))));
+                       if (param_real(p, "duration") * rate * static_cast<double>(param_int(p, "channels")) > kMaxSamples)
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.too_long")), fmt::arg("param", "channels"),
+                                                                                             fmt::arg("value", param_text(p, "channels"))));
                        const auto n = static_cast<std::size_t>(std::llround(param_real(p, "duration") * rate));
                        const auto& kind = param_text(p, "kind");
                        const double f = param_real(p, "freq"), a = param_real(p, "amplitude");

@@ -82,21 +82,34 @@ WavInfo flac_info(const drflac& f, std::uint64_t frames) {
     return WavInfo{format_for_bits(f.bitsPerSample), f.channels, f.sampleRate, frames, false, Container::flac, f.bitsPerSample};
 }
 
+std::optional<std::uint64_t> flac_frames(drflac& f) {
+    if (f.totalPCMFrameCount > 0) return f.totalPCMFrameCount;
+    std::vector<drflac_int32> scratch(kBlockFrames * f.channels);
+    std::uint64_t frames = 0;
+    for (drflac_uint64 got; (got = drflac_read_pcm_frames_s32(&f, kBlockFrames, scratch.data())) > 0;) frames += got;
+    if (!drflac_seek_to_pcm_frame(&f, 0)) return std::nullopt;
+    return frames;
+}
+
 core::Result<WavFile> read_flac(const std::filesystem::path& path, core::ProgressSink* progress) {
     auto* f = open_flac(path);
     if (!f) return make_error(Errc::invalid_argument, "cannot parse FLAC file: " + path.string());
     FlacGuard guard{f};
     if (f->channels == 0) return make_error(Errc::invalid_argument, "FLAC file has no channels: " + path.string());
+    const auto total = flac_frames(*f);
+    if (!total) return make_error(Errc::io_error, "cannot rewind FLAC file: " + path.string());
     std::vector<std::vector<double>> channels(f->channels);
-    const auto reserve = static_cast<std::size_t>(std::min<std::uint64_t>(f->totalPCMFrameCount, kMaxReserveFrames));
+    const auto reserve = static_cast<std::size_t>(std::min<std::uint64_t>(*total, kMaxReserveFrames));
     for (auto& c : channels) c.reserve(reserve);
     std::vector<drflac_int32> block(kBlockFrames * f->channels);
-    for (;;) {
-        const auto got = static_cast<std::size_t>(drflac_read_pcm_frames_s32(f, kBlockFrames, block.data()));
+    for (std::uint64_t done = 0; done < *total;) {
+        const auto want = std::min<std::uint64_t>(kBlockFrames, *total - done);
+        const auto got = static_cast<std::size_t>(drflac_read_pcm_frames_s32(f, want, block.data()));
         for (std::size_t n = 0; n < got; ++n)
             for (std::size_t c = 0; c < channels.size(); ++c) channels[c].push_back(block[n * channels.size() + c] / 2147483648.0);
-        if (got > 0 && !keep_going(progress, channels.front().size(), f->totalPCMFrameCount)) return make_error(Errc::cancelled, "reading cancelled: " + path.string());
-        if (got < kBlockFrames) break;
+        done += got;
+        if (got > 0 && !keep_going(progress, done, *total)) return make_error(Errc::cancelled, "reading cancelled: " + path.string());
+        if (got < want) break;
     }
     if (channels.front().empty()) return make_error(Errc::invalid_argument, "empty FLAC: " + path.string());
     auto info = flac_info(*f, channels.front().size());
@@ -108,16 +121,19 @@ core::Result<WavFile> read_mp3(const std::filesystem::path& path, core::Progress
     if (!open_mp3(mp3, path)) return make_error(Errc::invalid_argument, "cannot parse MP3 file: " + path.string());
     Mp3Guard guard{mp3};
     if (mp3.channels == 0) return make_error(Errc::invalid_argument, "MP3 file has no channels: " + path.string());
-    const auto total = progress ? drmp3_get_pcm_frame_count(&mp3) : 0;
-    if (progress && !drmp3_seek_to_pcm_frame(&mp3, 0)) return make_error(Errc::io_error, "cannot rewind MP3 file: " + path.string());
+    const std::uint64_t total = drmp3_get_pcm_frame_count(&mp3);
+    if (!drmp3_seek_to_pcm_frame(&mp3, 0)) return make_error(Errc::io_error, "cannot rewind MP3 file: " + path.string());
     std::vector<std::vector<double>> channels(mp3.channels);
+    for (auto& c : channels) c.reserve(static_cast<std::size_t>(std::min<std::uint64_t>(total, kMaxReserveFrames)));
     std::vector<float> block(kBlockFrames * mp3.channels);
-    for (;;) {
-        const auto got = static_cast<std::size_t>(drmp3_read_pcm_frames_f32(&mp3, kBlockFrames, block.data()));
+    for (std::uint64_t done = 0; done < total;) {
+        const auto want = std::min<std::uint64_t>(kBlockFrames, total - done);
+        const auto got = static_cast<std::size_t>(drmp3_read_pcm_frames_f32(&mp3, want, block.data()));
         for (std::size_t n = 0; n < got; ++n)
             for (std::size_t c = 0; c < channels.size(); ++c) channels[c].push_back(block[n * channels.size() + c]);
-        if (got > 0 && !keep_going(progress, channels.front().size(), total)) return make_error(Errc::cancelled, "reading cancelled: " + path.string());
-        if (got < kBlockFrames) break;
+        done += got;
+        if (got > 0 && !keep_going(progress, done, total)) return make_error(Errc::cancelled, "reading cancelled: " + path.string());
+        if (got < want) break;
     }
     if (channels.front().empty()) return make_error(Errc::invalid_argument, "empty MP3: " + path.string());
     WavInfo info{SampleFormat::float32, mp3.channels, mp3.sampleRate, channels.front().size(), false, Container::mp3, 0};
@@ -135,7 +151,9 @@ core::Result<WavInfo> probe_audio(const std::filesystem::path& path) {
         auto* f = open_flac(path);
         if (!f) return make_error(Errc::invalid_argument, "cannot parse FLAC file: " + path.string());
         FlacGuard guard{f};
-        return flac_info(*f, f->totalPCMFrameCount);
+        const auto frames = flac_frames(*f);
+        if (!frames) return make_error(Errc::io_error, "cannot rewind FLAC file: " + path.string());
+        return flac_info(*f, *frames);
     }
     case Sniff::mp3: {
         drmp3 mp3;

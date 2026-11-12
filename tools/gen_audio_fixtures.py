@@ -43,6 +43,15 @@ def main():
     write_wav(six, 22050, 16, [tone(200 * (c + 1), 0.1 * (c + 1), 22050, 1000) for c in range(6)])
     for src in (stereo, mono24, six):
         subprocess.run(["flac", "-s", "-f", "-8", "--no-padding", "--channel-map=none", "-o", str(src.with_suffix(".flac")), str(src)], check=True)
+    raw = subprocess.run(["flac", "-s", "-d", "--force-raw-format", "--endian=little", "--sign=signed", "--stdout", str(stereo.with_suffix(".flac"))],
+                         check=True, capture_output=True).stdout
+    encode = subprocess.run(["flac", "-s", "-f", "--force-raw-format", "--endian=little", "--sign=signed", "--channels=2", "--bps=16", "--sample-rate=44100",
+                             "--no-seektable", "--no-padding", "--stdout", "-"], input=raw, check=True, capture_output=True)
+    (OUT / "tone_stream.flac").write_bytes(encode.stdout)
+    huge = bytearray((OUT / "tone_stereo.flac").read_bytes())
+    field = struct.unpack(">Q", bytes(huge[18:26]))[0]
+    huge[18:26] = struct.pack(">Q", (field & ~((1 << 36) - 1)) | (1 << 35))
+    (OUT / "tone_huge_header.flac").write_bytes(bytes(huge))
     subprocess.run(["lame", "--quiet", "-b", "192", "--noreplaygain", str(stereo), str(OUT / "tone_stereo.mp3")], check=True)
     subprocess.run(["lame", "--quiet", "-b", "128", "-m", "m", "--noreplaygain", "--add-id3v2", "--tt", "tone", str(mono24), str(OUT / "tone_mono_id3.mp3")], check=True)
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(OUT / "tone_stereo.mp3"), "-c:a", "pcm_f32le", str(OUT / "tone_stereo_mp3_ffmpeg.wav")], check=True)
