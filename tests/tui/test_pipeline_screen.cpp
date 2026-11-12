@@ -1353,3 +1353,24 @@ TEST_CASE("S sweeps a parameter of the selected node and the probe panel shows t
     CHECK(has_row(frame, {"12", format_number(4 * std::pow(10.0, 12.0 / 20), 6)}));
 }
 
+
+TEST_CASE("saving or opening a graph puts it first among the recent graphs", "[tui][pipeline_screen][session]") {
+    PipelineFixture f{150, 44, false};
+    const auto dir = signals::test::temp_path("pipeline-recent");
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    f.ui->session = std::make_shared<SessionStore>(dir / "session.toml");
+    f.model->add_node("gen");
+    const auto saved = dir / "new.sig";
+    std::string answer = saved.string();
+    f.ui->ask_text = [&](std::string, std::string, std::function<void(std::string)> done) { done(answer); };
+    f.h.send(ftxui::Event::CtrlS);
+    CHECK(f.ui->session->recent(RecentKind::graph) == std::vector<std::filesystem::path>{saved});
+    const auto example = (std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples" / "denoise.sig").lexically_normal();
+    answer = example.string();
+    f.h.send(ftxui::Event::Character('o'));
+    CHECK(f.ui->session->recent(RecentKind::graph) == std::vector<std::filesystem::path>{example, saved});
+    answer = (dir / "missing.sig").string();
+    f.h.send(ftxui::Event::Character('o'));
+    CHECK(f.ui->session->recent(RecentKind::graph).size() == 2);
+}

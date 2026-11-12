@@ -160,6 +160,11 @@ const pipeline::GraphNode* PipelineScreen::selected_node() const {
 
 void PipelineScreen::report(const core::Result<void>& r) { notice_ = r ? std::string{} : r.error().message; }
 
+void PipelineScreen::file_result(const core::Result<void>& r) {
+    report(r);
+    if (r && ui_.session && model_->path()) ui_.session->remember(RecentKind::graph, *model_->path());
+}
+
 ftxui::Element PipelineScreen::frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title) {
     if (breakpoint_ <= Breakpoint::small)
         chips.push_back({fmt::format(fmt::runtime(tr("tui.signal.chip.panel")), fmt::arg("index", static_cast<int>(p) + 1), fmt::arg("count", static_cast<int>(panel_count))),
@@ -1516,13 +1521,13 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
     if (e == Event::CtrlZ) return model_->undo(), true;
     if (e == Event::CtrlY) return model_->redo(), true;
     if (e == Event::CtrlS) {
-        if (model_->path()) report(model_->save(*model_->path()));
-        else if (ui_.ask_text) ui_.ask_text(tr("tui.pipeline.save_as"), "", [this](std::string path) { report(model_->save(utf8_file(path))); });
+        if (model_->path()) file_result(model_->save(*model_->path()));
+        else if (ui_.ask_text) ui_.ask_text(tr("tui.pipeline.save_as"), "", [this](std::string path) { file_result(model_->save(utf8_file(path))); });
         return true;
     }
     if (e == Event::Character('O')) return open_examples(), true;
     if (e == Event::Character('o')) {
-        if (ui_.ask_text) ui_.ask_text(tr("tui.pipeline.open_prompt"), "", [this](std::string path) { report(model_->load(utf8_file(path))); });
+        if (ui_.ask_text) ui_.ask_text(tr("tui.pipeline.open_prompt"), "", [this](std::string path) { file_result(model_->load(utf8_file(path))); });
         return true;
     }
     if (e == Event::Character('M')) {

@@ -1,5 +1,6 @@
 #include "tui/run.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <memory>
 #include <utility>
@@ -13,6 +14,7 @@
 #include "tui/app_screens.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/monitor/monitor.hpp"
+#include "tui/data/session.hpp"
 #include "tui/data/user_filters.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/term/caps.hpp"
@@ -34,7 +36,10 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme, std::
     set_language(language.value_or(Language::ru));
     auto app = ftxui::App::Fullscreen();
     UiContext ui;
-    ui.theme = builtin_theme(theme);
+    auto session = std::make_shared<SessionStore>(session_path(prefs_path(env)));
+    const auto restored = session->get();
+    ui.session = session;
+    ui.theme = builtin_theme(!theme.empty() ? theme : !restored.theme.empty() ? std::string_view{restored.theme} : std::string_view{"dark"});
     ui.caps = apply(detect_caps(env), prefs ? *prefs : TerminalPrefs{});
     ui.terminal_size = [] {
         const auto d = ftxui::Terminal::Size();
@@ -72,6 +77,15 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme, std::
     ui.first_run_check = !prefs || !prefs->checked;
     ui.warn = [signal = models.signal](std::string line) { signal->add_log(std::move(line), LogLine::warn); };
     ui.open_file = [signal = models.signal, &jobs](const std::filesystem::path& path) { signal->open(path, jobs); };
+    models.signal->set_on_loaded([session](const std::filesystem::path& path) { session->remember(RecentKind::audio, path); });
+    ui.open_graph = [&ui, pipeline = models.pipeline](const std::filesystem::path& path) {
+        if (auto ok = pipeline->load(path); !ok) {
+            if (ui.notice) ui.notice(ok.error().message);
+            return;
+        }
+        if (ui.session) ui.session->remember(RecentKind::graph, path);
+        if (ui.navigate) ui.navigate("tab:8", {});
+    };
     bool relaunch = false;
     ui.switch_language = [&](Language next) {
         auto saved = load_prefs(ui.prefs_file).value_or(TerminalPrefs{});
@@ -81,8 +95,14 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme, std::
         relaunch = true;
         app.Exit();
     };
-    if (file) models.signal->open(*file, jobs);
     int tab = 0;
+    if (file) {
+        models.signal->open(*file, jobs);
+    } else {
+        if (const auto audio = session->recent(RecentKind::audio); !audio.empty()) models.signal->open(audio.front(), jobs);
+        if (const auto graphs = session->recent(RecentKind::graph); !graphs.empty()) (void)models.pipeline->load(graphs.front());
+        tab = std::clamp(restored.tab, 0, 8);
+    }
     do {
         relaunch = false;
         auto shell = make_shell(ui, make_app_screens(ui, models), [&app] { app.Exit(); });
@@ -90,6 +110,7 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme, std::
         app.Loop(shell);
         tab = active_tab(shell);
     } while (relaunch);
+    session->set_tab(tab);
     return 0;
 }
 

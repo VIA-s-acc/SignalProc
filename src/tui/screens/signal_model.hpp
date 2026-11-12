@@ -52,6 +52,7 @@ public:
     explicit SignalModel(std::function<std::string()> clock = {}, std::size_t memory_budget = 0);
 
     void open(const std::filesystem::path& path, JobRunner& jobs);
+    void set_on_loaded(std::function<void(const std::filesystem::path&)> callback);
     std::shared_ptr<const SignalData> data() const;
     std::vector<LogLine> log() const;
     std::optional<std::uint64_t> job() const;
@@ -82,6 +83,7 @@ private:
     double clamp_time(double t) const;
 
     std::function<std::string()> clock_;
+    std::function<void(const std::filesystem::path&)> on_loaded_;
     std::size_t memory_budget_;
     mutable std::mutex mutex_;
     std::shared_ptr<const SignalData> data_;

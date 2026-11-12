@@ -14,11 +14,12 @@ The folder is chosen at start by the first rule that applies:
 
 On macOS this is also `~/.config/signals/`, not `~/Library/Application Support`. The program creates the folder and the files the first time it saves something. If even `HOME` is unset, settings go to `./.config/signals/` in the current folder and filters to `./signals-filters/`.
 
-The folder holds two things:
+The folder holds three things:
 
 | Path | What it is |
 |---|---|
 | `terminal.toml` | colour, glyphs, language, editor and the terminal-check mark |
+| `session.toml` | the session: theme, last tab, recent audio files and pipelines |
 | `filters/*.flt` | "My filters": your own banks and single filters |
 
 ### terminal.toml {#settings-terminal}
@@ -132,10 +133,31 @@ The language is chosen in this order: `--lang`, then `SIGNALS_LANG`, then `langu
 | `s` in the terminal check | yes, keys `color`, `glyphs`, `checked` |
 | "Editor for sources…" in the palette | yes, key `editor` |
 | saving a bank in the "Designer", `c` on "Filters" | yes, a file in `filters/` |
-| "Theme: light" and "Theme: dark", "Glyphs: …", "Color: …" in the palette | no, only until exit |
+| "Theme: light" and "Theme: dark" in the palette | yes, key `theme` in `session.toml` |
+| an opened audio file, an opened or saved pipeline | yes, the `audio` and `graphs` lists in `session.toml` |
+| the tab the program was closed on | yes, key `tab` in `session.toml` |
+| "Glyphs: …", "Color: …" in the palette | no, only until exit |
 | `--lang`, `--theme` on the command line | no, only for this run |
 
-The theme is not saved: every run starts dark; choose light with `signals tui --theme light` or the palette command.
+### session.toml {#settings-session-file}
+
+The program writes the session itself; there is no need to edit it by hand. An example:
+
+```toml
+theme = "light"
+tab = 7
+audio = ["/home/u/rec/take.flac", "/home/u/rec/test.wav"]
+graphs = ["/home/u/sig/denoise.sig"]
+```
+
+| Key | Meaning |
+|---|---|
+| `theme` | `dark` or `light`, the theme chosen in the palette; `--theme` on the command line wins and is not saved |
+| `tab` | the zero-based number of the tab the program was closed on |
+| `audio` | up to 10 recent audio files, newest first; a file gets here once it has been read without an error |
+| `graphs` | up to 10 recent `.sig` pipelines opened or saved in the "Pipeline" tab |
+
+`signals tui` without a file opens the first existing file from `audio`, the first existing pipeline from `graphs` and the tab `tab`. With a file on the command line, that file and the "Signal" tab open, and the pipeline and tab are not restored. The palette command "Open recent…" shows both lists (missing files are hidden), "Forget recent files" clears them. A broken `session.toml` does not stop the start: the program begins with an empty session and rewrites the file.
 
 ### Files next to pipelines {#settings-outputs}
 
@@ -151,4 +173,4 @@ When a pipeline is saved to another folder, the program rewrites relative paths 
 
 ### Resetting everything {#settings-reset}
 
-Delete `terminal.toml`: the next start shows the terminal check, the language becomes Russian and the editor falls back to `VISUAL`, `EDITOR` and the system program. Delete the `filters/` folder or single `.flt` files to remove your filters. The program keeps nothing else.
+Delete `terminal.toml`: the next start shows the terminal check, the language becomes Russian and the editor falls back to `VISUAL`, `EDITOR` and the system program. Delete `session.toml` to forget the theme, the tab and the recent files. Delete the `filters/` folder or single `.flt` files to remove your filters. The program keeps nothing else.
