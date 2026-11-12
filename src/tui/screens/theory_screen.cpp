@@ -113,6 +113,10 @@ std::vector<Hint> TheoryScreen::hints() const {
                           {"Home/End", tr("tui.hint.ends")},            {"←→", tr("tui.theory.hint.formulas")},
                           {"g", tr("tui.theory.hint.glyphs")},          {tr("tui.signal.key.wheel"), tr("tui.theory.hint.scroll")},
                           {tr("tui.signal.key.click"), tr("tui.theory.hint.click")}};
+    if (on_source_page()) {
+        out.front() = {"/", tr("tui.theory.hint.find")};
+        out.insert(out.begin() + 1, {"n/N", tr("tui.theory.hint.find_next")});
+    }
     if (mode_ == Mode::under_the_hood) {
         out.push_back({"n", tr("tui.theory.hint.numbers")});
         out.push_back({"o", tr("tui.theory.hint.source")});
@@ -287,6 +291,9 @@ ftxui::Element TheoryScreen::source_panel(const TheoryPage* p, int width, int he
     if (source_shown_ != path) {
         source_shown_ = path;
         source_blocks_ = {source_block(path, *code)};
+        finding_ = false;
+        find_.clear();
+        found_.clear();
     }
     std::string editor = tr("tui.theory.source.editor");
     if (!ui_.editor.empty()) editor += " (" + ui_.editor.substr(0, ui_.editor.find(' ')) + ")";
@@ -294,14 +301,94 @@ ftxui::Element TheoryScreen::source_panel(const TheoryPage* p, int width, int he
     const auto url = fmt::format(fmt::runtime(tr("tui.theory.source.url")), fmt::arg("version", core::version()), fmt::arg("path", path));
     auto top = hbox({text(button) | fg(th.accent, ui_) | reflect(source_editor_box_), text("  "),
                      text(clip(url, std::max(4, inner - display_width(button) - 2), ascii)) | fg(th.dim, ui_)});
-    visible_rows_ = std::max(1, height - 3 - (notice_.empty() ? 0 : static_cast<int>(wrap_words(notice_, inner).size())));
+    const bool find_row = finding_ || !find_.empty();
+    visible_rows_ = std::max(1, height - 3 - (find_row ? 1 : 0) - (notice_.empty() ? 0 : static_cast<int>(wrap_words(notice_, inner).size())));
     DocumentSpec spec{source_blocks_, inner, scroll_, hscroll_, glyphs_, focused_link_, nullptr, {}, visible_rows_};
+    if (!find_.empty()) {
+        spec.find = find_;
+        if (!found_.empty()) spec.find_current = found_[found_at_];
+    }
     Elements body{top, document(spec, ui_, &doc_) | reflect(doc_box_) | flex};
+    if (find_row) {
+        const auto count = found_.empty() ? (find_.empty() ? std::string{} : tr("tui.theory.find.none"))
+                                          : " " + std::to_string(found_at_ + 1) + "/" + std::to_string(found_.size());
+        const auto line = clip("/ " + find_ + (finding_ ? std::string{ascii ? "_" : "▏"} : std::string{}), inner - display_width(count) - 1, ascii);
+        body.push_back(hbox({text(line) | fg(finding_ ? th.accent : th.fg, ui_), filler(), text(count) | fg(found_.empty() ? th.warn : th.dim, ui_)}));
+    }
     if (!notice_.empty()) body.push_back(paragraph(notice_) | fg(th.warn, ui_));
     clamp_scroll();
     auto title = tr("tui.theory.source.title") + " · " + path;
     if (!p->link.label.empty()) title += " · " + p->link.label + "()";
     return panel(title, {}, vbox(std::move(body)), !searching_ && !contents_keys(), ui_);
+}
+
+void TheoryScreen::find_in_source() {
+    found_.clear();
+    found_at_ = 0;
+    if (find_.empty() || source_blocks_.empty()) return;
+    const auto& text = source_blocks_.front().text;
+    std::size_t line = 0;
+    for (std::size_t at = 0; at <= text.size(); ++line) {
+        const auto end = std::min(text.find('\n', at), text.size());
+        for (const auto column : find_columns(std::string_view{text}.substr(at, end - at), find_)) found_.emplace_back(line, column);
+        at = end + 1;
+    }
+    const auto top = static_cast<std::size_t>(std::max(0, scroll_));
+    const auto next = std::find_if(found_.begin(), found_.end(), [&](const auto& h) { return h.first >= top; });
+    found_at_ = next == found_.end() ? 0 : static_cast<std::size_t>(next - found_.begin());
+    show_found();
+}
+
+void TheoryScreen::show_found() {
+    if (found_.empty()) return;
+    const auto [line, column] = found_[found_at_];
+    const int row = static_cast<int>(line);
+    if (row < scroll_ || row >= scroll_ + visible_rows_) scroll_ = std::max(0, row - visible_rows_ / 3);
+    const auto lines = source_blocks_.empty() ? std::size_t{1} : static_cast<std::size_t>(std::count(source_blocks_.front().text.begin(), source_blocks_.front().text.end(), '\n')) + 1;
+    const int gutter = static_cast<int>(std::to_string(lines).size()) + 3;
+    const int room = std::max(8, doc_box_.x_max - doc_box_.x_min + 1 - gutter);
+    const int start = static_cast<int>(column), stop = start + static_cast<int>(find_.size());
+    if (start < hscroll_ || stop > hscroll_ + room - 1) hscroll_ = std::max(0, start - 8);
+}
+
+bool TheoryScreen::find_key(ftxui::Event e) {
+    using ftxui::Event;
+    if (finding_) {
+        if (e == Event::Escape) {
+            finding_ = false;
+            find_.clear();
+            found_.clear();
+        } else if (e == Event::Return) {
+            finding_ = false;
+            if (found_.empty()) find_.clear();
+        } else if (e == Event::Backspace) {
+            pop_codepoint(find_);
+            find_in_source();
+        } else if (e.is_character()) {
+            find_ += e.character();
+            find_in_source();
+        }
+        return true;
+    }
+    if (!on_source_page()) return false;
+    if (e == Event::Character('/')) {
+        finding_ = true;
+        find_.clear();
+        found_.clear();
+        return true;
+    }
+    if (found_.empty()) return false;
+    if (e == Event::Character('n') || e == Event::Character('N')) {
+        found_at_ = e == Event::Character('n') ? (found_at_ + 1) % found_.size() : (found_at_ + found_.size() - 1) % found_.size();
+        show_found();
+        return true;
+    }
+    if (e == Event::Escape) {
+        find_.clear();
+        found_.clear();
+        return true;
+    }
+    return false;
 }
 
 std::string TheoryScreen::card_markdown(const theory::Card& card, bool live) const {
@@ -657,6 +744,7 @@ bool TheoryScreen::on_mouse(ftxui::Mouse m) {
 bool TheoryScreen::OnEvent(ftxui::Event e) {
     using ftxui::Event;
     if (e.is_mouse()) return on_mouse(e.mouse());
+    if (find_key(e)) return true;
     if (searching_) {
         if (e == Event::Escape) {
             searching_ = false;

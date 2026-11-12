@@ -28,6 +28,7 @@ struct Span {
     std::string text;
     Style style = Style::normal;
     int link = -1;
+    int found = 0;
 };
 
 struct Line {
@@ -339,9 +340,23 @@ private:
         for (auto& s : spans) {
             const auto end = pos + s.text.size();
             const auto a = std::clamp(from, pos, end), z = std::clamp(to, pos, end);
-            if (a > pos) out.push_back({s.text.substr(0, a - pos), s.style, s.link});
-            if (z > a) out.push_back({s.text.substr(a - pos, z - a), s.style, link});
-            if (end > z) out.push_back({s.text.substr(z - pos), s.style, s.link});
+            if (a > pos) out.push_back({s.text.substr(0, a - pos), s.style, s.link, s.found});
+            if (z > a) out.push_back({s.text.substr(a - pos, z - a), s.style, link, s.found});
+            if (end > z) out.push_back({s.text.substr(z - pos), s.style, s.link, s.found});
+            pos = end;
+        }
+        spans = std::move(out);
+    }
+
+    static void mark_found(std::vector<Span>& spans, std::size_t from, std::size_t to, int found) {
+        std::vector<Span> out;
+        std::size_t pos = 0;
+        for (auto& s : spans) {
+            const auto end = pos + s.text.size();
+            const auto a = std::clamp(from, pos, end), z = std::clamp(to, pos, end);
+            if (a > pos) out.push_back({s.text.substr(0, a - pos), s.style, s.link, s.found});
+            if (z > a) out.push_back({s.text.substr(a - pos, z - a), s.style, s.link, found});
+            if (end > z) out.push_back({s.text.substr(z - pos), s.style, s.link, s.found});
             pos = end;
         }
         spans = std::move(out);
@@ -353,7 +368,7 @@ private:
         for (const auto& s : spans) {
             const int w = width_of(s.text);
             const int lo = std::max(from, column), hi = std::min(from + count, column + w);
-            if (hi > lo) out.push_back({cut_columns(s.text, lo - column, hi - lo), s.style, s.link});
+            if (hi > lo) out.push_back({cut_columns(s.text, lo - column, hi - lo), s.style, s.link, s.found});
             column += w;
         }
         return out;
@@ -391,6 +406,9 @@ private:
                 links_.push_back({l->target, line.substr(std::min(l->column, line.size()), l->length), kNoDocBox, static_cast<int>(lines_.size()), l->tab});
                 mark(spans, l->column, l->column + l->length, static_cast<int>(links_.size()) - 1);
             }
+            if (!spec_.find.empty())
+                for (const auto column : find_columns(line, spec_.find))
+                    mark_found(spans, column, column + spec_.find.size(), spec_.find_current == std::pair{n, column} ? 2 : 1);
             if (block_wide) {
                 const bool more = width_of(line) - from > room;
                 spans = cut_spans(spans, from, more ? room - 1 : room);
@@ -434,10 +452,24 @@ ftxui::Element span_element(const Span& s, const UiContext& ui, bool focused) {
     case Style::preproc: e = e | fg(th.trace[2], ui); break;
     }
     if (s.link >= 0 && s.style != Style::link && s.style != Style::path && focused) e = e | bg(th.accent, ui) | fg(th.bg, ui);
+    if (s.found == 1) e = e | bg(tint(th.bg, th.warn, 0.45), ui) | fg(th.fg, ui);
+    if (s.found == 2) e = e | bg(th.accent, ui) | fg(th.bg, ui) | bold;
     return e;
 }
 
 }  // namespace
+
+std::vector<std::size_t> find_columns(std::string_view line, std::string_view needle) {
+    std::vector<std::size_t> out;
+    if (needle.empty() || needle.size() > line.size()) return out;
+    const auto lower = [](char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); };
+    for (std::size_t at = 0; at + needle.size() <= line.size(); ++at) {
+        std::size_t k = 0;
+        while (k < needle.size() && lower(line[at + k]) == lower(needle[k])) ++k;
+        if (k == needle.size()) out.push_back(at), at += needle.size() - 1;
+    }
+    return out;
+}
 
 std::string cut_columns(const std::string& s, int from, int count) {
     const auto text = theory::to_u32(s);

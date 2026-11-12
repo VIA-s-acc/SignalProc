@@ -32,7 +32,7 @@ public:
     std::vector<Hint> hints() const override;
     std::string context() const override;
     void set_breakpoint(Breakpoint b) override { breakpoint_ = b; }
-    bool capturing_text() const override { return searching_; }
+    bool capturing_text() const override { return searching_ || finding_; }
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event e) override;
     std::vector<JumpTarget> jump_targets() const override;
@@ -44,6 +44,9 @@ public:
     std::string focused_target() const { return focused_link_ && *focused_link_ < doc_.links.size() ? doc_.links[*focused_link_].target : std::string{}; }
     const std::string& query() const { return query_; }
     int scroll() const { return scroll_; }
+    int visible_rows() const { return visible_rows_; }
+    std::size_t find_hits() const { return found_.size(); }
+    std::optional<std::size_t> find_current() const { return found_.empty() ? std::nullopt : std::optional{found_at_}; }
 
 private:
     struct Entry {
@@ -74,6 +77,9 @@ private:
     theory::Block source_block(const std::string& path, std::string_view code) const;
     bool on_source_page() const;
     ftxui::Element source_panel(const TheoryPage* page, int width, int height);
+    void find_in_source();
+    void show_found();
+    bool find_key(ftxui::Event e);
     void clamp_scroll();
     bool open_section_card();
     std::vector<Entry> toc_entries() const;
@@ -106,6 +112,10 @@ private:
     ftxui::Box blocks_box_{}, blocks_up_box_{}, blocks_down_box_{}, card_link_box_{}, source_editor_box_{};
     std::string source_shown_;
     std::vector<theory::Block> source_blocks_;
+    bool finding_ = false;
+    std::string find_;
+    std::vector<std::pair<std::size_t, std::size_t>> found_;
+    std::size_t found_at_ = 0;
     std::size_t blocks_first_ = 0, blocks_page_ = 1;
     std::string blocks_followed_;
     ftxui::Box toc_box_{}, toc_up_box_{}, toc_down_box_{};

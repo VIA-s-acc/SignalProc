@@ -725,3 +725,64 @@ TEST_CASE("a click on a name in the code opens its definition", "[tui][theory][s
     }
 }
 
+
+TEST_CASE("slash on the source page finds text in the file, n and N step through the hits and esc clears them", "[tui][theory][sources][find]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, dwt_values()});
+    f.h.frame();
+    f.h.send(ftxui::Event::Character('o'));
+    f.h.frame();
+    REQUIRE(f.nav->current()->link.kind == TheoryLink::Kind::source);
+    const auto code = signals::theory::embedded_source("src/core/dwt.hpp");
+    REQUIRE(code);
+    std::size_t expected = 0;
+    for (auto at = code->find("return"); at != std::string_view::npos; at = code->find("return", at + 1)) ++expected;
+    REQUIRE(expected > 2);
+    f.h.send(ftxui::Event::Character('/'));
+    CHECK(f.screen->capturing_text());
+    for (const char c : std::string{"RETURN"}) f.h.send(ftxui::Event::Character(std::string(1, c)));
+    auto frame = f.h.frame();
+    CHECK(f.screen->find_hits() == expected);
+    CHECK(frame.find("/ RETURN") != std::string::npos);
+    f.h.send(ftxui::Event::Return);
+    CHECK_FALSE(f.screen->capturing_text());
+    frame = f.h.frame();
+    const auto first = f.screen->find_current();
+    REQUIRE(first);
+    CHECK(frame.find(" " + std::to_string(*first + 1) + "/" + std::to_string(expected)) != std::string::npos);
+    const auto line_of = [&](std::size_t hit) {
+        std::size_t at = 0, k = 0;
+        for (at = code->find("return"); k < hit; at = code->find("return", at + 1)) ++k;
+        return static_cast<int>(std::count(code->begin(), code->begin() + static_cast<std::ptrdiff_t>(at), '\n'));
+    };
+    const auto shown = [&](std::size_t hit) {
+        const auto line = line_of(hit);
+        return line >= f.screen->scroll() && line < f.screen->scroll() + f.screen->visible_rows();
+    };
+    CHECK(shown(*first));
+    f.h.send(ftxui::Event::Character('n'));
+    f.h.frame();
+    REQUIRE(f.screen->find_current());
+    CHECK(*f.screen->find_current() == (*first + 1) % expected);
+    CHECK(shown(*f.screen->find_current()));
+    f.h.send(ftxui::Event::Character('N'));
+    f.h.send(ftxui::Event::Character('N'));
+    f.h.frame();
+    CHECK(*f.screen->find_current() == (*first + expected - 1) % expected);
+    CHECK(shown(*f.screen->find_current()));
+    f.h.send(ftxui::Event::Escape);
+    CHECK(f.screen->find_hits() == 0);
+    CHECK(f.nav->current()->link.kind == TheoryLink::Kind::source);
+    f.h.send(ftxui::Event::Character('/'));
+    for (const char c : std::string{"zzzqqq"}) f.h.send(ftxui::Event::Character(std::string(1, c)));
+    frame = f.h.frame();
+    CHECK(f.screen->find_hits() == 0);
+    CHECK(frame.find(signals::tr("tui.theory.find.none")) != std::string::npos);
+    f.h.send(ftxui::Event::Escape);
+    f.h.send(ftxui::Event::Escape);
+    CHECK(f.nav->current()->link.kind == TheoryLink::Kind::card);
+    f.h.send(ftxui::Event::Character('/'));
+    f.h.frame();
+    CHECK(f.screen->find_hits() == 0);
+    CHECK(f.screen->capturing_text());
+}
