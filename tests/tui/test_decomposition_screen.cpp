@@ -24,6 +24,7 @@
 #include "tui/harness.hpp"
 #include "tui/screens/decomposition_screen.hpp"
 #include "tui/shell/plot_export.hpp"
+#include "tui/widgets/text_util.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/ui_fixture.hpp"
 #include "tui/widgets/screen_util.hpp"
@@ -1083,4 +1084,19 @@ TEST_CASE("the band energy and the packet energy export as stem charts with a na
     CHECK(charts.front().id == "packet_energy");
     CHECK(charts.front().chart.series.front().y.size() == f.model->basis().size());
     CHECK(charts.front().csv.starts_with("node,lo_hz,hi_hz,energy_pct\n"));
+}
+
+TEST_CASE("the export palette command lists the strips and the energy chart", "[tui][decomposition][export]") {
+    DecompositionFixture f;
+    std::vector<std::shared_ptr<TabScreen>> screens{f.screen};
+    Harness shell{make_shell(*f.ui, screens, [] {}), 150, 44};
+    shell.frame();
+    shell.send(ftxui::Event::Character(':'));
+    for (const auto& c : split_codepoints(signals::tr("tui.cmd.export_plot"))) shell.send(ftxui::Event::Character(c));
+    shell.send(ftxui::Event::Return);
+    const auto frame = shell.frame();
+    CHECK(frame.find(signals::tr("tui.export.choose")) != std::string::npos);
+    CHECK(frame.find(signals::tr("tui.export.energy")) != std::string::npos);
+    CHECK(frame.find("Подполоса a₆") != std::string::npos);
+    CHECK(frame.find("Подполоса d₁") != std::string::npos);
 }
