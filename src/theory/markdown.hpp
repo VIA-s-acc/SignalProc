@@ -14,6 +14,12 @@ struct Inline {
     std::vector<Inline> children;
 };
 
+struct CodeLink {
+    std::size_t line = 0, column = 0, length = 0;
+    std::string target;
+    bool tab = true;
+};
+
 struct Block {
     enum class Kind { heading, paragraph, bullet, numbered, table, display_math, code, rule };
     Kind kind = Kind::paragraph;
@@ -23,6 +29,8 @@ struct Block {
     std::vector<std::vector<std::vector<Inline>>> table;
     std::string text;
     std::string language;
+    std::vector<CodeLink> links;
+    bool gutter = false;
 };
 
 std::vector<Block> parse_markdown(std::string_view md);

@@ -22,6 +22,7 @@ struct DocLink {
     std::string label;
     ftxui::Box box = kNoDocBox;
     int line = -1;
+    bool tab = true;
 };
 
 struct DocFormula {

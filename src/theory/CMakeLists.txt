@@ -4,6 +4,8 @@ signals_embed_dir(${PROJECT_SOURCE_DIR}/resources/theory/blocks "*.md" ${CMAKE_C
 signals_embed_text(${PROJECT_SOURCE_DIR}/docs/02-theory.en.md ${CMAKE_CURRENT_BINARY_DIR}/theory_book_en.cpp kSignalsTheoryBookEn)
 signals_embed_text(${PROJECT_SOURCE_DIR}/docs/user/sig-format.md ${CMAKE_CURRENT_BINARY_DIR}/sig_format.cpp kSignalsSigFormat)
 signals_embed_text(${PROJECT_SOURCE_DIR}/docs/user/sig-format.en.md ${CMAKE_CURRENT_BINARY_DIR}/sig_format_en.cpp kSignalsSigFormatEn)
+signals_embed_text(${PROJECT_SOURCE_DIR}/docs/user/config.md ${CMAKE_CURRENT_BINARY_DIR}/settings_doc.cpp kSignalsSettings)
+signals_embed_text(${PROJECT_SOURCE_DIR}/docs/user/config.en.md ${CMAKE_CURRENT_BINARY_DIR}/settings_doc_en.cpp kSignalsSettingsEn)
 signals_embed_dir(${PROJECT_SOURCE_DIR}/resources/theory/en/blocks "*.md" ${CMAKE_CURRENT_BINARY_DIR}/theory_cards_en.cpp kSignalsTheoryCardsEn)
 
 file(GLOB card_files CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/resources/theory/blocks/*.md)
@@ -17,7 +19,7 @@ foreach(card ${card_files})
 endforeach()
 list(REMOVE_DUPLICATES card_sources)
 list(SORT card_sources)
-signals_embed_files(${PROJECT_SOURCE_DIR} "${card_sources}" ${CMAKE_CURRENT_BINARY_DIR}/card_sources.cpp kSignalsCardSources)
+signals_embed_sources(${PROJECT_SOURCE_DIR} "${card_sources}" ${CMAKE_CURRENT_BINARY_DIR}/card_sources.cpp kSignalsCardSources)
 
 add_library(signals_theory STATIC
   sections.cpp
@@ -34,6 +36,8 @@ add_library(signals_theory STATIC
   ${CMAKE_CURRENT_BINARY_DIR}/theory_book_en.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/sig_format.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/sig_format_en.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/settings_doc.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/settings_doc_en.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theory_cards_en.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/card_sources.cpp
 )

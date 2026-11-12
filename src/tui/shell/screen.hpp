@@ -76,6 +76,7 @@ struct UiContext {
     std::function<void(std::string title, std::vector<Command> items)> choose;
     std::function<void(std::string line)> warn;
     std::function<void(std::filesystem::path)> open_in_editor;
+    std::string editor;
     std::function<void(std::string)> copy_text;
     std::function<void(Language)> switch_language;
     std::filesystem::path repo_root;

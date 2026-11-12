@@ -26,6 +26,8 @@ TEST_CASE("the editor comes from VISUAL, then EDITOR, then the platform opener",
     CHECK(editor_command("/x/a.cpp", env) == std::vector<std::string>{"code", "-w", "/x/a.cpp"});
     vars.erase("VISUAL");
     CHECK(editor_command("/x/a.cpp", env) == std::vector<std::string>{"nano", "/x/a.cpp"});
+    CHECK(editor_command("/x/a.cpp", env, "subl -w") == std::vector<std::string>{"subl", "-w", "/x/a.cpp"});
+    CHECK(editor_command("/x/a.cpp", env, "  ") == std::vector<std::string>{"nano", "/x/a.cpp"});
     vars.clear();
     const auto fallback = editor_command("/x/a.cpp", env);
     REQUIRE_FALSE(fallback.empty());

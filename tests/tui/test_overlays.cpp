@@ -12,6 +12,7 @@
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
 #include "tui/shell/palette.hpp"
+#include "tui/widgets/text_util.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/ui_fixture.hpp"
 
@@ -101,7 +102,7 @@ TEST_CASE("terminal check saves preferences", "[tui][caps]") {
     const auto dir = signals::test::temp_path("xdg-check");
     std::filesystem::remove_all(dir);
     ui->prefs_file = dir / "signals" / "terminal.toml";
-    REQUIRE(save_prefs(ui->prefs_file, {std::nullopt, std::nullopt, false, signals::Language::en}));
+    REQUIRE(save_prefs(ui->prefs_file, {std::nullopt, std::nullopt, false, signals::Language::en, std::nullopt}));
     Rig r{ui};
     r.h.send(ftxui::Event::Character(':'));
     type(r.h, {"п", "р", "о", "в", "е", "р"});
@@ -243,3 +244,56 @@ TEST_CASE("text prompts keep a space between the prompt and the typed value", "[
         CHECK(frame.find("Enter — открыть") == std::string::npos);
     }
 }
+
+TEST_CASE("the palette sets the editor for sources and saves it", "[tui][palette][editor]") {
+    auto ui = signals::test::make_ui(150, 44);
+    const auto dir = signals::test::temp_path("xdg-editor");
+    std::filesystem::remove_all(dir);
+    ui->prefs_file = dir / "signals" / "terminal.toml";
+    REQUIRE(save_prefs(ui->prefs_file, {std::nullopt, std::nullopt, true, signals::Language::ru, std::nullopt}));
+    Rig r{ui};
+    r.h.send(ftxui::Event::Character(':'));
+    type(r.h, {"р", "е", "д", "а", "к", "т"});
+    r.h.send(ftxui::Event::Return);
+    CHECK(r.h.frame().find(signals::tr("tui.cmd.editor_prompt")) != std::string::npos);
+    type(r.h, {"c", "o", "d", "e", " ", "-", "w"});
+    r.h.send(ftxui::Event::Return);
+    CHECK(ui->editor == "code -w");
+    auto saved = load_prefs(ui->prefs_file);
+    REQUIRE(saved);
+    CHECK(saved->editor == std::optional<std::string>{"code -w"});
+    CHECK(saved->checked);
+    CHECK(saved->language == signals::Language::ru);
+    r.h.send(ftxui::Event::Character(':'));
+    type(r.h, {"р", "е", "д", "а", "к", "т"});
+    r.h.send(ftxui::Event::Return);
+    for (int k = 0; k < 10; ++k) r.h.send(ftxui::Event::Backspace);
+    r.h.send(ftxui::Event::Return);
+    CHECK(ui->editor.empty());
+    CHECK_FALSE(load_prefs(ui->prefs_file)->editor);
+}
+
+TEST_CASE("an erased prompt answers empty, an untouched empty prompt does nothing", "[tui][palette][editor]") {
+    Palette palette;
+    std::optional<std::string> answer;
+    palette.ask_text("name", "abc", [&](std::string v) { answer = std::move(v); });
+    for (int k = 0; k < 3; ++k) palette.on_event(ftxui::Event::Backspace);
+    palette.on_event(ftxui::Event::Return);
+    CHECK(answer == std::optional<std::string>{""});
+    answer.reset();
+    palette.ask_text("path", "", [&](std::string v) { answer = std::move(v); });
+    palette.on_event(ftxui::Event::Return);
+    CHECK_FALSE(answer);
+}
+
+TEST_CASE("the palette opens the settings and files chapter", "[tui][palette][settings]") {
+    auto ui = signals::test::make_ui(150, 44);
+    std::string opened;
+    ui->open_theory = [&](TheoryPage page) { opened = page.link.id; };
+    Rig r{ui};
+    r.h.send(ftxui::Event::Character(':'));
+    for (const auto& c : split_codepoints(signals::tr("tui.cmd.settings_help"))) r.h.send(ftxui::Event::Character(c));
+    r.h.send(ftxui::Event::Return);
+    CHECK(opened == "settings");
+}
+

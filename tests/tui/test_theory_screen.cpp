@@ -68,7 +68,7 @@ TEST_CASE("search narrows the contents and enter opens the first hit", "[tui][th
     f.type("малла");
     const auto expected = signals::theory::search_sections("малла").size();
     auto frame = f.h.frame();
-    CHECK(frame.find(std::to_string(expected) + " из 140") != std::string::npos);
+    CHECK(frame.find(std::to_string(expected) + " из " + std::to_string(signals::theory::sections().size())) != std::string::npos);
     f.h.send(ftxui::Event::Return);
     CHECK_FALSE(f.screen->capturing_text());
     REQUIRE(f.nav->current());
@@ -81,7 +81,7 @@ TEST_CASE("search with no hits shows zero and keeps the selection valid", "[tui]
     f.type("нетакогослова");
     f.h.send(ftxui::Event::ArrowDown);
     f.h.send(ftxui::Event::ArrowUp);
-    CHECK(f.h.frame().find("0 из 140") != std::string::npos);
+    CHECK(f.h.frame().find("0 из " + std::to_string(signals::theory::sections().size())) != std::string::npos);
     f.h.send(ftxui::Event::Return);
     f.h.send(ftxui::Event::Escape);
     CHECK_FALSE(f.screen->capturing_text());
@@ -672,3 +672,56 @@ TEST_CASE("a card lists its pipeline blocks and links to the pipeline instead of
     CHECK(f.h.click(link.x_min, link.y_min));
     CHECK(target == "pipeline");
 }
+
+TEST_CASE("an include in the source opens that header, esc walks back to the card", "[tui][theory][sources]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, dwt_values()});
+    f.h.frame();
+    f.h.send(ftxui::Event::Character('o'));
+    f.h.send(ftxui::Event::Home);
+    f.h.frame();
+    bool found = false;
+    for (int k = 0; k < 20 && !found; ++k) {
+        f.h.send(ftxui::Event::Tab);
+        f.h.frame();
+        found = f.screen->focused_target() == "source:src/core/bank.hpp";
+    }
+    REQUIRE(found);
+    f.h.send(ftxui::Event::Return);
+    auto frame = f.h.frame();
+    REQUIRE(f.nav->current()->link.kind == TheoryLink::Kind::source);
+    CHECK(f.nav->current()->link.id == "src/core/bank.hpp");
+    CHECK(frame.find("src/core/bank.hpp") != std::string::npos);
+    CHECK(frame.find("struct BasicFilterBank") != std::string::npos);
+    std::filesystem::path opened;
+    f.ui->repo_root = SIGNALS_SOURCE_DIR;
+    f.ui->open_in_editor = [&](std::filesystem::path p) { opened = std::move(p); };
+    f.h.send(ftxui::Event::Character('e'));
+    CHECK(opened == std::filesystem::path{SIGNALS_SOURCE_DIR} / "src/core/bank.hpp");
+    f.h.send(ftxui::Event::Escape);
+    CHECK(f.nav->current()->link.id == "src/core/dwt.hpp");
+    f.h.send(ftxui::Event::Escape);
+    CHECK(f.nav->current()->link.kind == TheoryLink::Kind::card);
+}
+
+TEST_CASE("a click on a name in the code opens its definition", "[tui][theory][sources]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    f.nav->open({{TheoryLink::Kind::card, "dwt", ""}, dwt_values()});
+    f.h.frame();
+    f.h.send(ftxui::Event::Character('o'));
+    f.h.frame();
+    const auto target = f.screen->area("link:source:src/core/bank.hpp:" + std::to_string(signals::theory::find_definition("BasicFilterBank")->line));
+    REQUIRE(target.x_max >= target.x_min);
+    f.h.click(target.x_min, target.y_min);
+    const auto frame = f.h.frame();
+    CHECK(f.nav->current()->link.id == "src/core/bank.hpp");
+    CHECK(frame.find("struct BasicFilterBank") != std::string::npos);
+    f.h.send(ftxui::Event::Escape);
+    CHECK(f.nav->current()->link.id == "src/core/dwt.hpp");
+    for (int k = 0; k < 20; ++k) {
+        f.h.send(ftxui::Event::Tab);
+        f.h.frame();
+        CHECK(f.screen->focused_target().find(".hpp:") == std::string::npos);
+    }
+}
+

@@ -70,6 +70,8 @@ private:
     NavArgs view_args(const TheoryPage* page) const;
     void open_source();
     void edit_source();
+    void open_source_file(const std::string& path, std::size_t line, const std::string& label);
+    theory::Block source_block(const std::string& path, std::string_view code) const;
     bool on_source_page() const;
     ftxui::Element source_panel(const TheoryPage* page, int width, int height);
     void clamp_scroll();

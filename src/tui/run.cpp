@@ -42,8 +42,9 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme, std::
     };
     ui.user_filters = user_filters_dir(env);
     ui.repo_root = SIGNALS_SOURCE_DIR;
-    ui.open_in_editor = [&app, env](std::filesystem::path path) {
-        app.WithRestoredIO([argv = editor_command(path, env)] { launch(argv); })();
+    ui.editor = prefs && prefs->editor ? *prefs->editor : std::string{};
+    ui.open_in_editor = [&app, &ui, env](std::filesystem::path path) {
+        app.WithRestoredIO([argv = editor_command(path, env, ui.editor)] { launch(argv); })();
     };
     ui.copy_text = [](std::string text) {
         std::fputs(osc52(text).c_str(), stdout);

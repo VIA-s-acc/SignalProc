@@ -30,9 +30,9 @@ function(signals_embed_dir dir pattern output symbol)
   file(WRITE ${output} "${body}")
 endfunction()
 
-# Embeds files that change with the code (C++ sources) at build time, so editing one does not re-run CMake.
-function(signals_embed_files root files output symbol)
-  set(deps "")
+# Embeds C++ sources and the project headers they include at build time, so editing one does not re-run CMake.
+function(signals_embed_sources root files output symbol)
+  file(GLOB_RECURSE deps CONFIGURE_DEPENDS ${root}/src/*.hpp)
   foreach(file ${files})
     list(APPEND deps ${root}/${file})
   endforeach()
