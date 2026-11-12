@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <numbers>
 #include <numeric>
 
@@ -11,6 +12,7 @@
 #include "core/design/families.hpp"
 #include "core/metrics.hpp"
 #include "core/cwt.hpp"
+#include "core/dtcwt.hpp"
 #include "core/multirate.hpp"
 #include "core/sst.hpp"
 #include "core/swt.hpp"
@@ -20,8 +22,56 @@
 #include "tui/widgets/screen_util.hpp"
 
 namespace signals::tui {
+namespace {
+
+core::Result<std::pair<const core::dtcwt::Biort*, const core::dtcwt::Qshift*>> dtcwt_filters(const DecompositionOptions& o) {
+    const auto* b = core::dtcwt::find_biort(o.biort);
+    const auto* q = core::dtcwt::find_qshift(o.qshift);
+    if (!b || !q) return core::make_error(core::Errc::invalid_argument, "dtcwt: unknown filters " + o.biort + " + " + o.qshift);
+    return std::pair{b, q};
+}
+
+core::Result<core::BasicCoeffs<double>> dtcwt_forward(const std::vector<double>& x, const DecompositionOptions& o) {
+    auto filters = dtcwt_filters(o);
+    if (!filters) return std::unexpected{filters.error()};
+    if (x.empty()) return core::make_error(core::Errc::invalid_argument, "dtcwt: empty signal");
+    auto even = x;
+    if (even.size() % 2 != 0) even.push_back(even.back());
+    auto p = core::dtcwt::forward(even, o.levels, *filters->first, *filters->second);
+    if (!p) return std::unexpected{p.error()};
+    core::BasicCoeffs<double> c;
+    c.original_length = x.size();
+    c.bands.push_back(std::move(p->lowpass));
+    for (auto it = p->highpasses.rbegin(); it != p->highpasses.rend(); ++it) {
+        std::vector<double> pairs;
+        pairs.reserve(2 * it->size());
+        for (const auto& z : *it) pairs.push_back(z.real()), pairs.push_back(z.imag());
+        c.bands.push_back(std::move(pairs));
+    }
+    return c;
+}
+
+core::Result<std::vector<double>> dtcwt_inverse(const core::BasicCoeffs<double>& c, const DecompositionOptions& o) {
+    auto filters = dtcwt_filters(o);
+    if (!filters) return std::unexpected{filters.error()};
+    if (c.bands.empty()) return core::make_error(core::Errc::invalid_argument, "dtcwt: no bands");
+    core::dtcwt::Pyramid p;
+    p.lowpass = c.bands.front();
+    for (std::size_t b = c.bands.size(); b-- > 1;) {
+        std::vector<std::complex<double>> z(c.bands[b].size() / 2);
+        for (std::size_t k = 0; k < z.size(); ++k) z[k] = {c.bands[b][2 * k], c.bands[b][2 * k + 1]};
+        p.highpasses.push_back(std::move(z));
+    }
+    auto y = core::dtcwt::inverse(p, *filters->first, *filters->second);
+    if (y && c.original_length > 0) y->resize(c.original_length);
+    return y;
+}
+
+}  // namespace
+
 core::Result<core::BasicCoeffs<double>> forward_transform(const std::vector<double>& x, const core::FilterBank& bank, const DecompositionOptions& o) {
     if (o.transform == Transform::dwt) return core::wavedec<double>(x, bank, o.levels, {o.mode});
+    if (o.transform == Transform::dtcwt) return dtcwt_forward(x, o);
     if (x.empty()) return core::make_error(core::Errc::invalid_argument, "swt: empty signal");
     if (o.levels >= 63 || (std::size_t{1} << o.levels) > x.size()) return core::make_error(core::Errc::level_out_of_range, "swt: too many levels for the signal length");
     const std::size_t block = std::size_t{1} << o.levels;
@@ -35,6 +85,7 @@ core::Result<core::BasicCoeffs<double>> forward_transform(const std::vector<doub
 
 core::Result<std::vector<double>> inverse_transform(const core::BasicCoeffs<double>& c, const core::FilterBank& bank, const DecompositionOptions& o) {
     if (o.transform == Transform::dwt) return core::waverec<double>(c, bank, {o.mode});
+    if (o.transform == Transform::dtcwt) return dtcwt_inverse(c, o);
     auto y = core::iswt<double>(c, bank, {o.transform == Transform::modwt, false});
     if (y && c.original_length > 0) y->resize(c.original_length);
     return y;
@@ -53,8 +104,32 @@ double energy(std::span<const double> v) {
 
 std::vector<float> to_float(const std::vector<double>& v) { return {v.begin(), v.end()}; }
 
+std::vector<double> shrink_pairs(std::span<const double> band, double lambda, core::ThresholdMode mode) {
+    std::vector<double> magnitude(band.size() / 2);
+    for (std::size_t k = 0; k < magnitude.size(); ++k) magnitude[k] = std::hypot(band[2 * k], band[2 * k + 1]);
+    const auto kept = core::threshold(magnitude, lambda, mode);
+    std::vector<double> out(band.begin(), band.end());
+    for (std::size_t k = 0; k < magnitude.size(); ++k) {
+        const double f = magnitude[k] > 0 ? kept[k] / magnitude[k] : 0.0;
+        out[2 * k] *= f;
+        out[2 * k + 1] *= f;
+    }
+    return out;
+}
+
+void keep_largest_pairs(std::vector<std::vector<double>>& bands, double fraction) {
+    std::vector<std::pair<std::size_t, std::size_t>> where;
+    for (std::size_t b = 1; b < bands.size(); ++b)
+        for (std::size_t k = 0; k + 1 < bands[b].size(); k += 2) where.emplace_back(b, k);
+    const auto total = where.size();
+    const auto keep = std::min(total, static_cast<std::size_t>(std::ceil(std::clamp(fraction, 0.0, 1.0) * static_cast<double>(total))));
+    const auto magnitude = [&](const std::pair<std::size_t, std::size_t>& w) { return std::hypot(bands[w.first][w.second], bands[w.first][w.second + 1]); };
+    std::stable_sort(where.begin(), where.end(), [&](const auto& a, const auto& b) { return magnitude(a) > magnitude(b); });
+    for (std::size_t k = keep; k < total; ++k) bands[where[k].first][where[k].second] = bands[where[k].first][where[k].second + 1] = 0.0;
+}
+
 std::size_t undecimated_bytes(std::size_t n, const DecompositionOptions& o) {
-    if (o.transform == Transform::dwt || o.levels >= 63) return 0;
+    if ((o.transform != Transform::swt && o.transform != Transform::modwt) || o.levels >= 63) return 0;
     const std::size_t block = std::size_t{1} << o.levels;
     const auto size = (n + block - 1) / block * block;
     return (o.levels + 1) * size * 6 * sizeof(double);
@@ -110,6 +185,11 @@ void DecompositionModel::set_options(DecompositionOptions o, JobRunner& jobs) {
     if (auto bank = core::wavelet(o.wavelet); !bank) {
         std::lock_guard lock{mutex_};
         error_ = bank.error().message;
+        return;
+    }
+    if (auto filters = dtcwt_filters(o); !filters) {
+        std::lock_guard lock{mutex_};
+        error_ = filters.error().message;
         return;
     }
     {
@@ -197,7 +277,9 @@ void DecompositionModel::compute(JobRunner& jobs) {
         error_ = bank.error().message;
         return;
     }
-    const auto max_level = core::dwt_max_level(static_cast<std::size_t>(s->info.frames), bank->length());
+    const auto* qshift = core::dtcwt::find_qshift(options_.qshift);
+    const auto filter_length = options_.transform == Transform::dtcwt && qshift ? qshift->h0a.size() : bank->length();
+    const auto max_level = core::dwt_max_level(static_cast<std::size_t>(s->info.frames), filter_length);
     options_.levels = std::clamp<std::size_t>(options_.levels, 1, std::max<std::size_t>(1, max_level));
     if (options_.channel >= static_cast<int>(s->samples.size())) options_.channel = -1;
     enabled_.assign(options_.levels + 1, true);
@@ -245,15 +327,19 @@ void DecompositionModel::compute(JobRunner& jobs) {
             if (ctx.cancelled()) return;
             ctx.begin(1);
             const auto J = opts.levels;
-            const auto weights = opts.transform == Transform::dwt ? std::vector<double>{} : core::swt_energy_weights(J, opts.transform == Transform::modwt);
+            const bool undecimated = opts.transform == Transform::swt || opts.transform == Transform::modwt;
+            const auto weights = undecimated ? core::swt_energy_weights(J, opts.transform == Transform::modwt) : std::vector<double>{};
             const auto fractions = core::band_energy_fractions(d->coeffs, weights);
             std::size_t coeff_bytes = 0;
             for (std::size_t i = 0; i <= J; ++i) {
                 const auto k = J - i;
                 const auto [lo, hi] = band_range(k, J, d->fs);
-                d->bands.push_back({(k == 0 ? "a" : "d") + std::to_string(k == 0 ? J : i + 1), lo, hi, 100 * fractions[k], d->coeffs.bands[k].size()});
-                std::vector<float> a(d->coeffs.bands[k].size());
-                for (std::size_t c = 0; c < a.size(); ++c) a[c] = static_cast<float>(std::abs(d->coeffs.bands[k][c]));
+                const auto& band = d->coeffs.bands[k];
+                const bool complex = opts.transform == Transform::dtcwt && k > 0;
+                std::vector<float> a(complex ? band.size() / 2 : band.size());
+                for (std::size_t c = 0; c < a.size(); ++c)
+                    a[c] = static_cast<float>(complex ? std::hypot(band[2 * c], band[2 * c + 1]) : std::abs(band[c]));
+                d->bands.push_back({(k == 0 ? "a" : "d") + std::to_string(k == 0 ? J : i + 1), lo, hi, 100 * fractions[k], a.size()});
                 d->band_abs.push_back(std::move(a));
                 coeff_bytes += d->coeffs.bands[k].size() * sizeof(double);
             }
@@ -282,7 +368,7 @@ void DecompositionModel::compute(JobRunner& jobs) {
             double total = 0;
             for (std::size_t k = 0; k < d->coeffs.bands.size(); ++k) total += energy(d->coeffs.bands[k]) * (k < weights.size() ? weights[k] : 1.0);
             double ex = energy(d->x);
-            if (opts.transform != Transform::dwt)
+            if (undecimated)
                 for (std::size_t i = n; i < d->coeffs.bands.front().size(); ++i) ex += d->x[i % n] * d->x[i % n];
             d->parseval_error = ex > 0 ? std::abs(total - ex) / ex : 0;
             d->sigma = core::noise_sigma_mad(d->coeffs.bands.back());
@@ -379,6 +465,7 @@ void DecompositionModel::reconstruct(JobRunner& jobs) {
                                     rec->processing = processing;
                                     rec->processed = d->coeffs;
                                     auto& bands = rec->processed.bands;
+                                    const bool complex = d->options.transform == Transform::dtcwt;
                                     if (processing.rule) {
                                         const auto last = std::min(processing.last_level, J);
                                         for (std::size_t level = std::max<std::size_t>(1, processing.first_level); level <= last; ++level) {
@@ -386,10 +473,14 @@ void DecompositionModel::reconstruct(JobRunner& jobs) {
                                             const double sigma = d->sigma * core::swt_noise_scale(level, d->options.transform == Transform::modwt);
                                             const double lambda = core::rule_threshold(*processing.rule, band, sigma, n);
                                             rec->lambdas.push_back(lambda);
-                                            if (sigma > 0) band = core::threshold(band, lambda, processing.mode);
+                                            if (sigma > 0)
+                                                band = complex ? shrink_pairs(band, lambda, processing.mode) : core::threshold(band, lambda, processing.mode);
                                         }
                                     }
-                                    if (processing.keep_fraction) core::keep_largest(bands, *processing.keep_fraction, 1);
+                                    if (processing.keep_fraction) {
+                                        if (complex) keep_largest_pairs(bands, *processing.keep_fraction);
+                                        else core::keep_largest(bands, *processing.keep_fraction, 1);
+                                    }
                                     for (std::size_t i = 0; i < processing.gains_db.size() && i <= J; ++i)
                                         if (processing.gains_db[i] != 0) {
                                             const double g = std::pow(10.0, processing.gains_db[i] / 20);

@@ -54,6 +54,7 @@ public:
     std::vector<HeatmapExport> heatmap_exports() override;
     std::vector<PlotExport> plot_exports() override { return shown_plots_; }
     std::vector<ChartExport> chart_exports() override;
+    void open_filters();
 
 private:
     enum Panel { view_panel, energy, cursor_panel, denoise, listen, summary, panel_count };
