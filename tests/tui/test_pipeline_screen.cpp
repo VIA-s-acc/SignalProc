@@ -27,6 +27,7 @@
 #include "pipeline/sig.hpp"
 #include "support/paths.hpp"
 #include "pipeline/block.hpp"
+#include "pipeline/examples.hpp"
 #include "theory/cards.hpp"
 #include "theory/live.hpp"
 #include "theory/sections.hpp"
@@ -1001,4 +1002,28 @@ TEST_CASE("every pipeline block opens a theory card or a book section with F1", 
         else CHECK(signals::theory::find_section(link.id));
     }
     CHECK(blocks > 100);
+}
+
+TEST_CASE("a node cut by the graph edge ends with an ellipsis and counts as more to the right", "[tui][pipeline_screen][fit]") {
+    PipelineFixture f{150, 44, false};
+    const auto examples = signals::pipeline::examples();
+    const auto ex = std::find_if(examples.begin(), examples.end(), [](const auto& e) { return std::string{e.name} == "haar_two_levels"; });
+    REQUIRE(ex != examples.end());
+    REQUIRE(f.model->load_text(ex->name, ex->text));
+    f.model->run(f.jobs);
+    for (int k = 0; k < 2000 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    const auto frame = f.h.frame();
+    std::istringstream lines{frame};
+    bool cut = false;
+    for (std::string line; std::getline(lines, line);) {
+        const auto at = line.find("✓ h00 · ");
+        if (at == std::string::npos) continue;
+        const auto edge = line.find("│", at);
+        REQUIRE(edge != std::string::npos);
+        INFO(line.substr(at, edge - at));
+        CHECK(line.substr(at, edge - at).find("…") != std::string::npos);
+        cut = true;
+    }
+    CHECK(cut);
+    CHECK(frame.find("▸ ") != std::string::npos);
 }

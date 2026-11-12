@@ -89,6 +89,7 @@ add_executable(signals_tests
   tui/test_matrix_model.cpp
   tui/test_matrix_screen.cpp
   tui/test_app_screens.cpp
+  tui/test_fit_audit.cpp
   tui/harness.cpp
   audio/test_player.cpp
   theory/test_sections.cpp

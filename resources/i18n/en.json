@@ -652,7 +652,7 @@
   "tui.theory.view.explain": "Explain on the Haar bank",
   "tui.theory.view.under_the_hood": "Under the hood",
   "tui.theory.view.tutorial": "Tutorial",
-  "tui.theory.view.pipeline_later": "Block in the graph — arrives in M5",
+  "tui.theory.view.pipeline": "In «Pipeline»",
   "tui.theory.footer": "{source} · {function}() · test: {test} · o — open",
   "tui.theory.from_book": "tutorial",
   "tui.theory.snapshot": "snapshot",

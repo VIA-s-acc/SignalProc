@@ -199,7 +199,7 @@ TEST_CASE("view buttons navigate with the bank", "[tui][theory]") {
     CHECK(args.wavelet == "db4");
     REQUIRE(args.n);
     CHECK(*args.n == 64);
-    CHECK(f.h.frame().find("Блок в графе") != std::string::npos);
+    CHECK(f.h.frame().find("M5") == std::string::npos);
 }
 
 TEST_CASE("o opens the source and esc returns to the origin", "[tui][theory]") {
@@ -584,4 +584,25 @@ TEST_CASE("hovering a tutorial link explains what it does", "[tui][theory][expla
     const auto& b = targets.front().box;
     CHECK(f.screen->explain_at(b.x_min, b.y_min) == signals::tr("tui.explain.theory.link"));
     CHECK_FALSE(f.screen->explain_at(0, 0).has_value());
+}
+
+TEST_CASE("a card lists its pipeline blocks and links to the pipeline instead of a milestone", "[tui][theory][stale]") {
+    TheoryFixture f{TheoryScreen::Mode::under_the_hood};
+    std::string target;
+    f.ui->navigate = [&](std::string_view t, const NavArgs&) { target = std::string{t}; };
+    f.nav->open({{TheoryLink::Kind::card, "dynamics", ""}, std::make_shared<signals::theory::LiveValues>()});
+    f.h.frame();
+    for (int i = 0; i < 40 && f.screen->focused_target() != "view:pipeline"; ++i) {
+        f.h.send(ftxui::Event::Tab);
+        f.h.frame();
+    }
+    REQUIRE(f.screen->focused_target() == "view:pipeline");
+    const auto frame = f.h.frame();
+    CHECK(frame.find("M5") == std::string::npos);
+    CHECK(frame.find("compressor") != std::string::npos);
+    CHECK(frame.find("limiter") != std::string::npos);
+    const auto link = f.screen->area("view:pipeline");
+    REQUIRE(link.x_max >= link.x_min);
+    CHECK(f.h.click(link.x_min, link.y_min));
+    CHECK(target == "pipeline");
 }
