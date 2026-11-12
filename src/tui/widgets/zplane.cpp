@@ -162,6 +162,13 @@ std::complex<double> ZView::at(const ftxui::Box& box, int x, int y, double base)
     return center_ + std::complex<double>{dx / scale, -dy / scale};
 }
 
+std::pair<int, int> ZView::cell(const ftxui::Box& box, std::complex<double> z, double base) const {
+    const double scale = dot_scale(box, extent(base));
+    const int W = box.x_max - box.x_min + 1, H = box.y_max - box.y_min + 1;
+    const double dx = (2 * W - 1) / 2.0 + scale * (z.real() - center_.real()), dy = (4 * H - 1) / 2.0 - scale * (z.imag() - center_.imag());
+    return {box.x_min + static_cast<int>(std::floor(static_cast<double>(std::lround(dx)) / 2)), box.y_min + static_cast<int>(std::floor(static_cast<double>(std::lround(dy)) / 4))};
+}
+
 void ZView::zoom_by(double factor, std::optional<std::complex<double>> anchor, double base) {
     const double next = std::clamp(zoom_ * factor, 1.0, kZMax);
     if (next == 1.0) {

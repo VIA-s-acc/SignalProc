@@ -57,8 +57,29 @@ public:
     std::optional<std::pair<int, int>> menu_anchor() const override;
     std::vector<JumpTarget> jump_targets() const override;
     std::optional<std::string> explain_at(int x, int y) const override;
+    std::vector<Command> commands() override;
+    std::optional<std::pair<int, int>> root_cell(bool pole, std::size_t index) const;
 
 private:
+    struct RootDrag {
+        bool pole = false;
+        std::size_t index = 0;
+        core::Zpk base;
+        bool moved = false;
+    };
+
+    struct Edit {
+        FilterRef after;
+        std::optional<FilterRef> before;
+    };
+
+    std::optional<std::pair<bool, std::size_t>> root_at(int x, int y) const;
+    void edit_zpk(const core::Zpk& zpk, bool fresh);
+    void add_edited(const FilterRef& ref);
+    bool undo_edit();
+    void ask_ba();
+    void ask_roots();
+
     enum Panel { magnitude, phase, delay, impulse, zeros, properties, measures, library, comparison, panel_count };
     enum class Plot { magnitude, phase, delay };
 
@@ -170,6 +191,8 @@ private:
     std::string query_;
     std::size_t match_index_ = 0;
     Drag drag_;
+    std::optional<RootDrag> root_drag_;
+    std::vector<Edit> edits_;
 };
 
 std::shared_ptr<TabScreen> make_filters_screen(UiContext& ui, std::shared_ptr<ComparisonSet> set);

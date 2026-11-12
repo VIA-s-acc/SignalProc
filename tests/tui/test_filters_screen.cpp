@@ -5,7 +5,11 @@
 
 #include <ftxui/component/event.hpp>
 
+#include <algorithm>
 #include <chrono>
+#include <complex>
+#include <functional>
+#include <vector>
 #include <filesystem>
 #include <fstream>
 #include <cmath>
@@ -634,4 +638,176 @@ TEST_CASE("hovering filters chips, roles and titles explains them", "[tui][filte
     CHECK(over(frame, signals::tr("tui.filters.chip.log")) == signals::tr("tui.explain.filters.chip.log"));
     CHECK(over(frame, signals::tr("tui.filters.chip.normalised")) == signals::tr("tui.explain.filters.chip.normalised"));
     CHECK(over(frame, signals::tr("tui.filters.delay")) == signals::tr("tui.explain.filters.panel.delay"));
+}
+
+namespace {
+
+void run_command(FiltersScreen& s, std::string_view id) {
+    const auto commands = s.commands();
+    const auto it = std::find_if(commands.begin(), commands.end(), [&](const Command& c) { return c.id == id; });
+    REQUIRE(it != commands.end());
+    it->run();
+}
+
+}  // namespace
+
+TEST_CASE("b and a typed in the palette become a filter with its zeros and poles", "[tui][filters][zpk]") {
+    Fixture f;
+    Harness h{f.screen, 150, 41};
+    h.frame();
+    std::vector<std::string> answers{"0.2 0.4 0.2", "1 -0.6 0.25"};
+    std::size_t asked = 0;
+    f.ui->ask_text = [&](std::string, std::string, std::function<void(std::string)> done) { done(answers.at(asked++)); };
+    run_command(*f.screen, "filters.from_ba");
+    REQUIRE(f.set->entries().size() == 1);
+    const auto e = f.set->entries()[0];
+    CHECK(e.ref.kind == Kind::zpk);
+    REQUIRE(e.analysis);
+    REQUIRE(e.analysis->stable);
+    CHECK(*e.analysis->stable);
+    CHECK(e.analysis->response.magnitude.front() == Catch::Approx(0.8 / 0.65));
+    CHECK(h.frame().find(e.ref.label()) != std::string::npos);
+    answers = {"1 x", "1"};
+    asked = 0;
+    run_command(*f.screen, "filters.from_ba");
+    CHECK(f.set->entries().size() == 1);
+    CHECK(h.frame().find("x") != std::string::npos);
+}
+
+TEST_CASE("dragging a pole on the z-plane edits a copy of the filter and Ctrl+Z undoes it", "[tui][filters][zpk]") {
+    Fixture f;
+    Harness h{f.screen, 150, 41};
+    REQUIRE(f.set->add(classical_ref(ClassicalSpec{})));
+    f.set->request(f.jobs, FiltersScreen::kPoints);
+    h.frame();
+    const auto original = f.set->entries()[0];
+    REQUIRE(original.analysis);
+    REQUIRE(original.analysis->zpk);
+    const auto from = f.screen->root_cell(true, 0);
+    REQUIRE(from);
+    const auto plane = f.screen->area("zplane");
+    const int cx = (plane.x_min + plane.x_max) / 2, cy = (plane.y_min + plane.y_max) / 2;
+    CHECK(h.drag(from->first, from->second, cx, from->second + (from->second < cy ? 1 : -1)));
+    h.frame();
+    auto entries = f.set->entries();
+    REQUIRE(entries.size() == 2);
+    CHECK(f.set->focus() == 1);
+    CHECK(entries[0].ref == original.ref);
+    CHECK(entries[1].ref.kind == Kind::zpk);
+    REQUIRE(entries[1].analysis);
+    REQUIRE(entries[1].analysis->zpk);
+    const auto& moved = entries[1].analysis->zpk->p;
+    REQUIRE(moved.size() == original.analysis->zpk->p.size());
+    CHECK(std::abs(moved[0] - original.analysis->zpk->p[0]) > 0.05);
+    CHECK(std::any_of(moved.begin(), moved.end(), [&](std::complex<double> p) { return std::abs(p - std::conj(moved[0])) < 1e-12; }));
+    CHECK(h.frame().find(entries[1].ref.label()) != std::string::npos);
+    h.send(ftxui::Event::CtrlZ);
+    h.frame();
+    CHECK(f.set->entries().size() == 1);
+    const auto before = f.screen->plot_view("zplane");
+    CHECK(h.wheel(cx, cy, true));
+    h.frame();
+    const auto zoomed = f.screen->plot_view("zplane");
+    h.drag(plane.x_max - 1, plane.y_max - 1, plane.x_max - 4, plane.y_max - 1);
+    h.frame();
+    CHECK(f.set->entries().size() == 1);
+    CHECK(f.screen->plot_view("zplane")->lo != zoomed->lo);
+    CHECK(zoomed->hi - zoomed->lo < before->hi - before->lo);
+}
+
+TEST_CASE("the zeros, poles and gain of a filter can be typed in", "[tui][filters][zpk]") {
+    Fixture f;
+    Harness h{f.screen, 150, 41};
+    REQUIRE(f.set->add(classical_ref(ClassicalSpec{})));
+    f.set->request(f.jobs, FiltersScreen::kPoints);
+    h.frame();
+    std::vector<std::string> prefills;
+    std::vector<std::string> answers{"-1, -1", "0.5∠±0.25π", "0.1"};
+    std::size_t asked = 0;
+    f.ui->ask_text = [&](std::string, std::string prefill, std::function<void(std::string)> done) {
+        prefills.push_back(std::move(prefill));
+        done(answers.at(asked++));
+    };
+    run_command(*f.screen, "filters.edit_roots");
+    REQUIRE(prefills.size() == 3);
+    CHECK(prefills[0].find("-1") != std::string::npos);
+    CHECK(prefills[1].find("∠±") != std::string::npos);
+    auto entries = f.set->entries();
+    REQUIRE(entries.size() == 2);
+    REQUIRE(entries[1].analysis);
+    REQUIRE(entries[1].analysis->zpk);
+    CHECK(entries[1].analysis->zpk->z.size() == 2);
+    CHECK(entries[1].analysis->zpk->k == 0.1);
+    for (const auto& p : entries[1].analysis->zpk->p) CHECK(std::abs(p) == Catch::Approx(0.5));
+    answers = {"-1", "0.9", "1"};
+    asked = 0;
+    run_command(*f.screen, "filters.edit_roots");
+    entries = f.set->entries();
+    CHECK(entries.size() == 2);
+    REQUIRE(entries[1].analysis);
+    CHECK(entries[1].analysis->zpk->p == std::vector<std::complex<double>>{{0.9, 0}});
+}
+
+TEST_CASE("long filter names keep the measure columns aligned and an edited copy reads differently", "[tui][filters][zpk]") {
+    Fixture f;
+    Harness h{f.screen, 150, 41};
+    REQUIRE(f.set->add(classical_ref(ClassicalSpec{})));
+    f.set->request(f.jobs, FiltersScreen::kPoints);
+    h.frame();
+    std::vector<std::string> answers{"-1, -1", "0.5∠±0.25π", "0.1"};
+    std::size_t asked = 0;
+    f.ui->ask_text = [&](std::string, std::string, std::function<void(std::string)> done) { done(answers.at(asked++)); };
+    run_command(*f.screen, "filters.edit_roots");
+    const auto frame = h.frame();
+    const auto entries = f.set->entries();
+    REQUIRE(entries.size() == 2);
+    const auto marker = signals::tr("tui.filters.zpk.edited").substr(0, signals::tr("tui.filters.zpk.edited").find('{'));
+    CHECK(entries[1].ref.label().starts_with(marker));
+    const auto cells = [](const std::string& line) {
+        std::vector<std::string> out;
+        for (std::size_t at = 0; at < line.size();) {
+            std::size_t len = 1;
+            const auto c = static_cast<unsigned char>(line[at]);
+            if (c >= 0xF0) len = 4;
+            else if (c >= 0xE0) len = 3;
+            else if (c >= 0xC0) len = 2;
+            out.push_back(line.substr(at, len));
+            at += len;
+        }
+        return out;
+    };
+    const auto header = signals::tr("tui.filters.col.cutoff");
+    std::istringstream in{frame};
+    std::optional<std::size_t> end;
+    int rows = 0;
+    for (std::string line; std::getline(in, line);) {
+        if (!end) {
+            const auto at = line.find(signals::tr("tui.filters.col.filter") + " ");
+            const auto h_at = line.find(header);
+            if (at != std::string::npos && h_at != std::string::npos) end = cells(line.substr(0, h_at + header.size())).size();
+            continue;
+        }
+        const bool data = line.find("Баттерворт") != std::string::npos && line.find(" ◉") == std::string::npos;
+        if (!data) continue;
+        const auto c = cells(line);
+        REQUIRE(c.size() > *end);
+        INFO(line);
+        CHECK(c[*end - 1] == "π");
+        CHECK(c[*end] == " ");
+        ++rows;
+    }
+    REQUIRE(end);
+    CHECK(rows == 2);
+}
+
+TEST_CASE("a double real root made by dragging a pair onto the axis splits into a pair again", "[tui][filters][zpk]") {
+    using C = std::complex<double>;
+    const signals::core::Zpk zpk{{}, {C{0.5, 0}, C{0.5, 0}}, 1};
+    const auto split = move_root(zpk, true, 0, C{0.3, 0.4});
+    CHECK(std::count(split.p.begin(), split.p.end(), C{0.3, 0.4}) == 1);
+    CHECK(std::count(split.p.begin(), split.p.end(), C{0.3, -0.4}) == 1);
+    const signals::core::Zpk single{{}, {C{0.5, 0}, C{-0.2, 0}}, 1};
+    const auto moved = move_root(single, true, 0, C{0.3, 0.4});
+    CHECK(moved.p[0] == C{0.3, 0});
+    CHECK(moved.p[1] == C{-0.2, 0});
 }

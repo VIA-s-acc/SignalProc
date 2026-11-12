@@ -1,8 +1,10 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <complex>
 #include <functional>
 #include <numbers>
 #include <set>
@@ -10,6 +12,7 @@
 #include <thread>
 
 #include "core/design/families.hpp"
+#include "core/design/iir.hpp"
 #include "i18n/i18n.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/screens/filters_model.hpp"
@@ -491,4 +494,86 @@ TEST_CASE("m7d: a custom filter keeps the offset of its first tap", "[tui][filte
     CHECK(ref.label() == "свой фильтр, 2 отвода");
     const auto plain = custom_ref(signals::core::Laurent{{0.5, 0.5}, 0}, "");
     CHECK(plain.wavelet == "0.5,0.5");
+}
+
+TEST_CASE("a filter given by zeros, poles and a gain is analysed like a designed IIR", "[tui][filters][zpk]") {
+    const auto zpk = signals::core::tf_to_zpk({0.2, 0.4, 0.2}, {1, -0.6, 0.25});
+    REQUIRE(zpk);
+    const auto ref = zpk_ref(*zpk, "b, a");
+    CHECK(ref.kind == FilterRef::Kind::zpk);
+    CHECK(ref.label() == "b, a");
+    const auto back = parse_zpk(ref.wavelet);
+    REQUIRE(back);
+    CHECK(back->k == zpk->k);
+    CHECK(back->z == zpk->z);
+    CHECK(back->p == zpk->p);
+    const auto a = analyze(ref, 256);
+    REQUIRE(a);
+    REQUIRE(a->stable);
+    CHECK(*a->stable);
+    REQUIRE(a->zpk);
+    REQUIRE(a->zp);
+    CHECK(a->zp->poles.size() == 2);
+    CHECK(a->response.magnitude.front() == Catch::Approx(0.8 / 0.65));
+    REQUIRE(a->h.coeffs.size() > 3);
+    CHECK(a->h.coeffs[0] == Catch::Approx(0.2));
+    CHECK(a->h.coeffs[1] == Catch::Approx(0.4 + 0.6 * 0.2));
+    auto bad = *zpk;
+    bad.p = {{1.2, 0}, {0.1, 0}};
+    const auto unstable = analyze(zpk_ref(bad, "x"), 64);
+    REQUIRE(unstable);
+    CHECK_FALSE(*unstable->stable);
+    CHECK_FALSE(parse_zpk("k=1|z=1,0|p=oops"));
+}
+
+TEST_CASE("any analysed filter becomes an editable zpk with the same response", "[tui][filters][zpk]") {
+    for (const auto& ref : {custom_ref(signals::core::Laurent{{1, 2, 1}, 0}, "fir"), FilterRef{FilterRef::Kind::bank, "db2", FilterRole::h0},
+                            classical_ref(ClassicalSpec{})}) {
+        INFO(ref.label());
+        const auto a = analyze(ref, 128);
+        REQUIRE(a);
+        const auto zpk = editable_zpk(*a);
+        REQUIRE(zpk);
+        const auto b = analyze(zpk_ref(*zpk, "edit"), 128);
+        REQUIRE(b);
+        for (std::size_t k = 0; k < 128; k += 9) CHECK(std::abs(b->response.h[k] - a->response.h[k]) < 1e-6 * std::max(1.0, std::abs(a->response.h[k])));
+    }
+}
+
+TEST_CASE("moving a root keeps the coefficients real", "[tui][filters][zpk]") {
+    using C = std::complex<double>;
+    const auto zpk = signals::core::tf_to_zpk({1, 0.5}, {1, -0.9, 0.5});
+    REQUIRE(zpk);
+    const auto pole = std::find_if(zpk->p.begin(), zpk->p.end(), [](C p) { return p.imag() > 0; }) - zpk->p.begin();
+    const auto moved = move_root(*zpk, true, static_cast<std::size_t>(pole), C{0.3, 0.8});
+    CHECK(std::count(moved.p.begin(), moved.p.end(), C{0.3, 0.8}) == 1);
+    CHECK(std::count(moved.p.begin(), moved.p.end(), C{0.3, -0.8}) == 1);
+    const auto real = std::find_if(zpk->z.begin(), zpk->z.end(), [](C z) { return std::abs(z - C{-0.5, 0}) < 1e-12; }) - zpk->z.begin();
+    REQUIRE(static_cast<std::size_t>(real) < zpk->z.size());
+    const auto zero = move_root(*zpk, false, static_cast<std::size_t>(real), C{0.4, 0.7});
+    CHECK(zero.z[static_cast<std::size_t>(real)] == C{0.4, 0});
+    CHECK(zero.k == zpk->k);
+    const auto a = analyze(zpk_ref(moved, "m"), 64);
+    REQUIRE(a);
+    for (double v : a->h.coeffs) CHECK(std::isfinite(v));
+}
+
+TEST_CASE("roots are typed as numbers, a+bi or r∠aπ, with ± for a conjugate pair, and written back the same way", "[tui][filters][zpk]") {
+    using C = std::complex<double>;
+    const auto roots = parse_roots("1, -1; 0.9∠±0.25π 0.3±0.4i, 0.5@-0.5pi, 2j, -0.2-0.1i");
+    REQUIRE(roots);
+    const auto polar = [](double r, double a) { return std::polar(r, a * std::numbers::pi); };
+    const std::vector<C> expected{{1, 0}, {-1, 0}, polar(0.9, 0.25), polar(0.9, -0.25), {0.3, 0.4}, {0.3, -0.4}, polar(0.5, -0.5), {0, 2}, {-0.2, -0.1}};
+    REQUIRE(roots->size() == expected.size());
+    for (std::size_t k = 0; k < expected.size(); ++k) CHECK(std::abs((*roots)[k] - expected[k]) < 1e-12);
+    for (const char* bad : {"1 x", "0.9∠", "∠0.5", "1+", "0.3±"}) {
+        INFO(bad);
+        CHECK_FALSE(parse_roots(bad));
+    }
+    CHECK(parse_roots("")->empty());
+    const auto text = roots_text({{-1, 0}, polar(0.9, 0.25), polar(0.9, -0.25), {0.5, 0}});
+    CHECK(text == "-1, 0.9∠±0.25π, 0.5");
+    const auto again = parse_roots(text);
+    REQUIRE(again);
+    CHECK(again->size() == 4);
 }

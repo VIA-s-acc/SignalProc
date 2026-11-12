@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <ftxui/component/event.hpp>
@@ -51,6 +52,7 @@ public:
     void reset() { zoom_ = 1.0, center_ = {}, dragging_ = false; }
     void apply(ZPlaneSpec& spec) const { spec.extent = extent(spec.extent), spec.center = center_; }
     std::complex<double> at(const ftxui::Box& box, int x, int y, double base) const;
+    std::pair<int, int> cell(const ftxui::Box& box, std::complex<double> z, double base) const;
     bool on_mouse(const ftxui::Mouse& m, const ftxui::Box& box, double base);
     bool on_key(const ftxui::Event& e, double base);
 

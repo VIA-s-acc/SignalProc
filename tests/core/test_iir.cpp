@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
@@ -112,4 +113,51 @@ TEST_CASE("iir specs are validated and instability is detected", "[iir]") {
     Zpk bad;
     bad.p = {C{1.01, 0}};
     CHECK_FALSE(is_stable(bad));
+}
+
+TEST_CASE("tf_to_zpk turns b and a into zeros, poles and a gain with the same response", "[iir][tf]") {
+    const std::vector<double> b{0.2, 0.4, 0.2}, a{1, -0.6, 0.25};
+    const auto zpk = signals::core::tf_to_zpk(b, a);
+    REQUIRE(zpk);
+    CHECK(zpk->z.size() == 2);
+    CHECK(zpk->p.size() == 2);
+    CHECK(zpk->k == Catch::Approx(0.2));
+    for (const auto& z : zpk->z) CHECK(std::abs(z - C{-1, 0}) < 1e-6);
+    for (const auto& p : zpk->p) CHECK(std::abs(p) == Catch::Approx(0.5));
+    std::vector<double> w;
+    for (int k = 0; k <= 64; ++k) w.push_back(std::numbers::pi * k / 64);
+    const auto h = signals::core::zpk_response(*zpk, w);
+    for (std::size_t k = 0; k < w.size(); ++k) {
+        const C e = std::exp(C{0, -w[k]});
+        const C expected = (b[0] + b[1] * e + b[2] * e * e) / (a[0] + a[1] * e + a[2] * e * e);
+        CHECK(std::abs(h[k] - expected) < 1e-12);
+    }
+    CHECK(signals::core::is_stable(*zpk));
+}
+
+TEST_CASE("tf_to_zpk handles a delay, a pure FIR and a pole outside the circle", "[iir][tf]") {
+    std::vector<double> w{0.0, 0.7, 2.0};
+    const auto check_same = [&](const std::vector<double>& b, const std::vector<double>& a, double tol = 1e-12) {
+        const auto zpk = signals::core::tf_to_zpk(b, a);
+        REQUIRE(zpk);
+        const auto h = signals::core::zpk_response(*zpk, w);
+        for (std::size_t k = 0; k < w.size(); ++k) {
+            const C e = std::exp(C{0, -w[k]});
+            C num = 0, den = 0, p = 1;
+            for (double c : b) num += c * p, p *= e;
+            p = 1;
+            for (double c : a) den += c * p, p *= e;
+            CHECK(std::abs(h[k] - num / den) < tol);
+        }
+        return *zpk;
+    };
+    check_same({0, 0, 1}, {1});
+    const auto fir = check_same({1, 0.5, -0.25, 0.125, 0.3}, {1});
+    CHECK(fir.p.size() == 4);
+    check_same({1, 2, 3, 2, 1}, {1}, 1e-6);
+    for (const auto& p : fir.p) CHECK(p == C{0, 0});
+    CHECK_FALSE(signals::core::is_stable(check_same({1}, {1, -1.5})));
+    CHECK_FALSE(signals::core::tf_to_zpk({1}, {0, 1}));
+    CHECK_FALSE(signals::core::tf_to_zpk({0, 0}, {1}));
+    CHECK_FALSE(signals::core::tf_to_zpk({}, {1}));
 }

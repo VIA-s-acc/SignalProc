@@ -9,7 +9,9 @@
 #include <cmath>
 #include <complex>
 #include <limits>
+#include <locale>
 #include <numbers>
+#include <sstream>
 
 #include <fmt/format.h>
 
@@ -87,6 +89,7 @@ std::string describe(const FilterRef& r) {
     case FilterRef::Kind::cwt: return tr("tui.filters.role.cwt");
     case FilterRef::Kind::packet: return tr("tui.filters.role.packet");
     case FilterRef::Kind::custom: return tr("tui.filters.role.custom");
+    case FilterRef::Kind::zpk: return tr("tui.filters.role.zpk");
     }
     return {};
 }
@@ -148,7 +151,8 @@ std::vector<Hint> FiltersScreen::hints() const {
             {"l", tr("tui.filters.hint.log")},         {"d", tr("tui.filters.hint.db")},
             {"n", tr("tui.filters.hint.normalise")},   {"t", tr("tui.filters.hint.role")},
             {"o/O", tr("tui.filters.hint.order")},      {"f/F", tr("tui.filters.hint.edge")},
-            {"c", tr("tui.filters.hint.custom")},
+            {"c", tr("tui.filters.hint.custom")},       {"Ctrl+Z", tr("tui.filters.hint.undo")},
+            {tr("tui.filters.key.drag_root"), tr("tui.filters.hint.drag_root")},
             {"F1", tr("tui.filters.hint.f1")},         {tr("tui.signal.key.wheel"), tr("tui.filters.hint.zoom")},
             {tr("tui.signal.key.click"), tr("tui.signal.hint.click")}};
 }
@@ -923,7 +927,11 @@ ftxui::Element FiltersScreen::measures_panel(int width) {
     for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
     std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) { return columns[a].priority < columns[b].priority; });
     std::vector<bool> keep(columns.size(), false);
-    int room = std::max(0, width - 4 - 16);
+    int longest = 16;
+    for (const auto& e : entries_)
+        if (e.visible && e.analysis) longest = std::max(longest, display_width(e.ref.label()) + 1);
+    int name_width = std::min(longest, 32);
+    int room = std::max(0, width - 4 - name_width);
     std::size_t dropped = 0;
     for (auto i : order) {
         if (columns[i].width <= room) {
@@ -933,14 +941,16 @@ ftxui::Element FiltersScreen::measures_panel(int width) {
             ++dropped;
         }
     }
-    Elements header{text(pad_right(tr("tui.filters.col.filter"), 16)) | fg(th.dim, ui_)};
+    name_width = std::min(longest, name_width + room);
+    const bool ascii = g == GlyphMode::ascii;
+    Elements header{text(pad_right(tr("tui.filters.col.filter"), name_width)) | fg(th.dim, ui_)};
     for (std::size_t i = 0; i < columns.size(); ++i)
         if (keep[i]) header.push_back(text(pad_left(columns[i].header, columns[i].width)) | fg(th.dim, ui_));
     Elements rows{hbox(std::move(header))};
     for (std::size_t i = 0; i < entries_.size(); ++i) {
         const auto& e = entries_[i];
         if (!e.visible || !e.analysis) continue;
-        Elements row{text(pad_right(e.ref.label(), 16)) | fg(color_of(i), ui_)};
+        Elements row{text(pad_right(ellipsize(e.ref.label(), name_width - 1, ascii), name_width)) | fg(color_of(i), ui_)};
         for (std::size_t c = 0; c < columns.size(); ++c)
             if (keep[c]) row.push_back(columns[c].draw(e));
         rows.push_back(hbox(std::move(row)));
@@ -1057,6 +1067,152 @@ void FiltersScreen::zoom(double factor, double anchor) {
     hi_ = lo + s;
 }
 
+std::optional<std::pair<int, int>> FiltersScreen::root_cell(bool pole, std::size_t index) const {
+    const auto* e = focused();
+    if (!e || !e->analysis || !e->analysis->zp || zplane_box_.x_max < zplane_box_.x_min) return std::nullopt;
+    const auto& roots = pole ? e->analysis->zp->poles : e->analysis->zp->zeros;
+    if (index >= roots.size()) return std::nullopt;
+    const auto cell = zview_.cell(zplane_box_, roots[index], ZPlaneSpec{}.extent);
+    if (!zplane_box_.Contain(cell.first, cell.second)) return std::nullopt;
+    return cell;
+}
+
+std::optional<std::pair<bool, std::size_t>> FiltersScreen::root_at(int x, int y) const {
+    const auto* e = focused();
+    if (!e || !e->analysis || !e->analysis->zp || !editable_zpk(*e->analysis)) return std::nullopt;
+    std::optional<std::pair<bool, std::size_t>> best;
+    int best_distance = 3;
+    for (const bool pole : {true, false}) {
+        const auto count = (pole ? e->analysis->zp->poles : e->analysis->zp->zeros).size();
+        for (std::size_t i = 0; i < count; ++i)
+            if (const auto c = root_cell(pole, i)) {
+                const int d = std::abs(c->first - x) + std::abs(c->second - y);
+                if (std::abs(c->first - x) <= 1 && std::abs(c->second - y) <= 1 && d < best_distance) best_distance = d, best = std::pair{pole, i};
+            }
+    }
+    return best;
+}
+
+void FiltersScreen::add_edited(const FilterRef& ref) {
+    if (auto r = set_->add(ref); !r) {
+        notice_ = r.error().message;
+        return;
+    }
+    const auto entries = set_->entries();
+    for (std::size_t i = 0; i < entries.size(); ++i)
+        if (entries[i].ref == ref) set_->set_focus(i);
+    edits_.push_back({ref, std::nullopt});
+    if (ui_.jobs) set_->request(*ui_.jobs, kPoints);
+}
+
+void FiltersScreen::edit_zpk(const core::Zpk& zpk, bool fresh) {
+    const auto entries = set_->entries();
+    const auto i = set_->focus();
+    if (i >= entries.size()) return;
+    const auto current = entries[i].ref;
+    if (current.kind != FilterRef::Kind::zpk) {
+        add_edited(zpk_ref(zpk, fmt::format(fmt::runtime(tr("tui.filters.zpk.edited")), fmt::arg("name", current.label()))));
+        return;
+    }
+    const auto next = zpk_ref(zpk, current.title);
+    if (fresh || edits_.empty() || !(edits_.back().after == current)) edits_.push_back({next, current});
+    else edits_.back().after = next;
+    (void)set_->replace(i, next);
+    if (ui_.jobs) set_->request(*ui_.jobs, kPoints);
+}
+
+bool FiltersScreen::undo_edit() {
+    if (edits_.empty()) return false;
+    const auto edit = edits_.back();
+    edits_.pop_back();
+    const auto entries = set_->entries();
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        if (!(entries[i].ref == edit.after)) continue;
+        if (edit.before) {
+            (void)set_->replace(i, *edit.before);
+            set_->set_focus(i);
+        } else {
+            set_->remove(i);
+        }
+        if (ui_.jobs) set_->request(*ui_.jobs, kPoints);
+        notice_ = tr("tui.filters.zpk.undone");
+        return true;
+    }
+    return true;
+}
+
+namespace {
+
+std::optional<std::vector<double>> coefficients(std::string text) {
+    for (auto& c : text)
+        if (c == ',' || c == ';') c = ' ';
+    std::istringstream in{text};
+    in.imbue(std::locale::classic());
+    std::vector<double> out;
+    for (std::string token; in >> token;) {
+        std::istringstream one{token};
+        one.imbue(std::locale::classic());
+        double v = 0;
+        if (!(one >> v) || one.peek() != std::char_traits<char>::eof() || !std::isfinite(v)) return std::nullopt;
+        out.push_back(v);
+    }
+    if (out.empty()) return std::nullopt;
+    return out;
+}
+
+}  // namespace
+
+void FiltersScreen::ask_ba() {
+    if (!ui_.ask_text) return;
+    ui_.ask_text(tr("tui.filters.ba.b"), "", [this](std::string b_text) {
+        ui_.ask_text(tr("tui.filters.ba.a"), "1", [this, b_text](std::string a_text) {
+            const auto b = coefficients(b_text), a = coefficients(a_text);
+            if (!b || !a) {
+                notice_ = fmt::format(fmt::runtime(tr("tui.filters.ba.bad")), fmt::arg("text", !b ? b_text : a_text));
+                return;
+            }
+            auto zpk = core::tf_to_zpk(*b, *a);
+            if (!zpk) {
+                notice_ = zpk.error().message;
+                return;
+            }
+            notice_.clear();
+            add_edited(zpk_ref(*zpk, fmt::format(fmt::runtime(tr("tui.filters.ba.title")), fmt::arg("order", std::max(b->size(), a->size()) - 1))));
+        });
+    });
+}
+
+void FiltersScreen::ask_roots() {
+    const auto entries = set_->entries();
+    const auto focus = set_->focus();
+    const auto* e = focus < entries.size() ? &entries[focus] : nullptr;
+    const auto zpk = e && e->analysis ? editable_zpk(*e->analysis) : std::nullopt;
+    if (!zpk) {
+        notice_ = tr("tui.filters.zpk.not_editable");
+        return;
+    }
+    if (!ui_.ask_text) return;
+    ui_.ask_text(tr("tui.filters.zpk.zeros_prompt"), roots_text(zpk->z), [this, base = *zpk](std::string zeros_text) {
+        ui_.ask_text(tr("tui.filters.zpk.poles_prompt"), roots_text(base.p), [this, base, zeros_text](std::string poles_text) {
+            ui_.ask_text(tr("tui.filters.zpk.gain_prompt"), fmt::format("{:.10g}", base.k), [this, zeros_text, poles_text](std::string gain_text) {
+                const auto z = parse_roots(zeros_text), p = parse_roots(poles_text);
+                const auto k = coefficients(gain_text);
+                if (!z || !p || !k || k->size() != 1) {
+                    notice_ = fmt::format(fmt::runtime(tr("tui.filters.ba.bad")), fmt::arg("text", !z ? zeros_text : !p ? poles_text : gain_text));
+                    return;
+                }
+                notice_.clear();
+                edit_zpk(core::Zpk{*z, *p, k->front()}, true);
+            });
+        });
+    });
+}
+
+std::vector<Command> FiltersScreen::commands() {
+    return {{"filters.from_ba", tr("tui.filters.cmd.from_ba"), [this] { ask_ba(); }},
+            {"filters.edit_roots", tr("tui.filters.cmd.edit_roots"), [this] { ask_roots(); }}};
+}
+
 void FiltersScreen::pan(double delta) {
     const double span = hi_ - lo_;
     lo_ = std::clamp(lo_ + delta, 0.0, span_ - span);
@@ -1066,6 +1222,28 @@ void FiltersScreen::pan(double delta) {
 bool FiltersScreen::on_mouse(const ftxui::Mouse& m) {
     using ftxui::Mouse;
     const bool press = m.button == Mouse::Left && m.motion == Mouse::Pressed;
+    if (root_drag_ && !press) {
+        if (m.motion == Mouse::Released) {
+            root_drag_.reset();
+            return true;
+        }
+        const auto z = zview_.at(zplane_box_, m.x, m.y, ZPlaneSpec{}.extent);
+        const auto moved = move_root(root_drag_->base, root_drag_->pole, root_drag_->index, z);
+        const auto& now = (root_drag_->pole ? moved.p : moved.z)[root_drag_->index];
+        edit_zpk(moved, !root_drag_->moved);
+        root_drag_->moved = true;
+        notice_ = fmt::format(fmt::runtime(tr(root_drag_->pole ? "tui.filters.zpk.moved_pole" : "tui.filters.zpk.moved_zero")), fmt::arg("value", roots_text({now})),
+                              fmt::arg("radius", format_number(std::abs(now), 4)));
+        return true;
+    }
+    if (press && zplane_box_.Contain(m.x, m.y))
+        if (const auto hit = root_at(m.x, m.y))
+            if (const auto* e = focused(); e && e->analysis)
+                if (auto zpk = editable_zpk(*e->analysis)) {
+                    focus_ = zeros;
+                    root_drag_ = RootDrag{hit->first, hit->second, std::move(*zpk), false};
+                    return true;
+                }
     if (!press && (zview_.on_mouse(m, zplane_box_, ZPlaneSpec{}.extent) || impulse_zoom_.on_mouse(m))) return true;
     if (m.button == Mouse::WheelUp || m.button == Mouse::WheelDown) {
         if (wheel_scroll(m, panel_boxes_[library], library_scroll_) || wheel_scroll(m, roots_box_, roots_scroll_)) return true;
@@ -1273,6 +1451,7 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (e.is_mouse()) return on_mouse(e.mouse());
+    if (e == Event::CtrlZ) return undo_edit();
     if (focus_ == impulse && impulse_zoom_.on_key(e, "impulse")) return true;
     if (focus_ == library && key_scroll(e, library_scroll_, false)) return true;
     if (focus_ == zeros && zview_.on_key(e, ZPlaneSpec{}.extent)) return true;

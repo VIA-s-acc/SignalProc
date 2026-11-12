@@ -36,6 +36,7 @@ std::vector<Sos> zpk_to_sos(const Zpk& zpk);
 std::vector<std::complex<double>> zpk_response(const Zpk& zpk, std::span<const double> w);
 std::vector<std::complex<double>> sos_response(std::span<const Sos> sos, std::span<const double> w);
 bool is_stable(const Zpk& zpk);
+Result<Zpk> tf_to_zpk(const std::vector<double>& b, const std::vector<double>& a);
 FrequencyResponse zpk_frequency_response(const Zpk& zpk, std::span<const double> omega);
 std::vector<double> sos_impulse(std::span<const Sos> sos, std::size_t n);
 std::optional<IirFamily> parse_iir_family(std::string_view name);

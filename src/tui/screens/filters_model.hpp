@@ -20,7 +20,7 @@ namespace signals::tui {
 enum class FilterRole { h0, h1, f0, f1 };
 
 struct FilterRef {
-    enum class Kind { bank, equivalent, distortion, alias, user, classical, scaling, wavelet_fn, cwt, packet, custom };
+    enum class Kind { bank, equivalent, distortion, alias, user, classical, scaling, wavelet_fn, cwt, packet, custom, zpk };
     Kind kind = Kind::bank;
     std::string wavelet;
     FilterRole role = FilterRole::h0;
@@ -51,6 +51,10 @@ std::optional<FilterRef> classical_step(const FilterRef& ref, int order_step, do
 std::optional<FilterRef> spectrum_step(const FilterRef& ref, int step);
 double span_of(const FilterRef& ref);
 FilterRef custom_ref(const core::Laurent& h, std::string title);
+FilterRef zpk_ref(const core::Zpk& zpk, std::string title);
+std::optional<core::Zpk> parse_zpk(std::string_view key);
+std::optional<std::vector<std::complex<double>>> parse_roots(std::string_view text);
+std::string roots_text(const std::vector<std::complex<double>>& roots);
 
 struct LibraryNode {
     std::string label;
@@ -80,6 +84,8 @@ struct FilterAnalysis {
 };
 
 core::Result<FilterAnalysis> analyze(const FilterRef& ref, std::size_t points);
+std::optional<core::Zpk> editable_zpk(const FilterAnalysis& a);
+core::Zpk move_root(core::Zpk zpk, bool pole, std::size_t index, std::complex<double> to);
 
 core::FrequencyResponse range_response(const core::Laurent& h, double lo, double hi, std::size_t points,
                                        const core::FrequencyResponse* full = nullptr);
