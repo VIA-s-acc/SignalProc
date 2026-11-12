@@ -1,6 +1,6 @@
 ## Appendix. The .sig pipeline format {#sig-format}
 
-A `.sig` file is a text description of a «Pipeline» graph: which blocks to use, with which parameters and how they are connected. The «Pipeline» tab writes and reads it, `signals run` executes it and `signals graph` draws it, and it is easy to edit by hand in any editor (for VS Code there is an extension in `editors/vscode`: highlighting, hovers and completion).
+A `.sig` file is a text description of a «Pipeline» graph: which blocks to use, with which parameters and how they are connected. The «Pipeline» tab writes and reads it, `signals run` executes it and `signals graph` draws it, and it can be edited by hand in any text editor (for VS Code there is an extension in `editors/vscode`: highlighting, hovers and completion).
 
 A small example — a one-level Haar bank:
 
@@ -36,7 +36,7 @@ One statement per line. The order of lines does not matter: a wire may come befo
 - `pipeline "name" v1` — the header: the graph name in quotes and the format version. Only `v1` exists today.
 - `node id = block(param=value, …)` — a node. The id consists of Latin letters, digits and underscores and starts with a letter or `_`; ids are unique. Parameters are comma-separated in any order; omitted ones take their defaults, so `add()` and plain `add` are the same. A line may break inside the parentheses.
 - `node id = block(…) bypass` — the node is bypassed: its input goes straight to its output and the block is not computed. Only blocks whose input and output have the same type can be bypassed.
-- `a -> b -> c` — a chain of wires: the output of `a` into `b`, the output of `b` into `c`. A port follows a dot: `x -> pr.ref`, `sum -> pr.in`, `lms.e -> out`. A port is not allowed in the middle of a chain — split such a chain into two lines.
+- `a -> b -> c` — a chain of wires: the output of `a` into `b`, the output of `b` into `c`. A port follows a dot: `x -> pr.ref`, `sum -> pr.in`, `lms.e -> out`. A port is not allowed in the middle of a chain; split such a chain into two lines.
 - `probe node as "name"` or `probe node.port as "name"` — a probe: this output is shown in the «Probe» panel. The name is optional but must not repeat.
 - `#` — a comment to the end of the line (except `#` inside quotes).
 
@@ -50,7 +50,7 @@ Every block has inputs and outputs of a given type (listed in the block referenc
 - `scalar` — a single number;
 - `report` — a report: fields and whether the check passed.
 
-The port may be omitted when the choice is unambiguous: the node has one input or one required input, or a source has one output. With several inputs or outputs the program asks for a port and lists the options. An optional input with nothing connected receives an empty signal — for example, `multiply` without input `b` multiplies by a constant, and `spectral_subtract` without input `noise` takes the noise from the start of the signal.
+The port may be omitted when the choice is unambiguous: the node has one input or one required input, or a source has one output. With several inputs or outputs the program asks for a port and lists the options. An optional input with nothing connected receives an empty signal: for example, `multiply` without input `b` multiplies by a constant, and `spectral_subtract` without input `noise` takes the noise from the start of the signal.
 
 A `coeffs` output has bands: `dwt.a` — the approximation of the last level, `dwt.d1` … `dwt.dJ` — the details of levels 1…J. A band can feed a signal input or carry a probe. The band number is checked in advance for a `dwt` with a set number of levels; `wpt` packet bands are named by node paths (`aa`, `ad`, …) and are chosen in `mra.component` and `band_edit.enabled`.
 
@@ -73,7 +73,7 @@ Before a run the whole graph is checked, and every error names its line:
 
 - an unknown block or node — with a «did you mean …» hint when a similar name exists;
 - two wires into one input, or a required input left unconnected;
-- an output type that does not fit the input — for example `coeffs` into `signal`; the program suggests inserting `idwt` or `dwt`;
+- an output type that does not fit the input (for example `coeffs` into `signal`); the program suggests inserting `idwt` or `dwt`;
 - a cycle: the graph must flow from sources to outputs without loops;
 - a band `dJ` beyond the number of levels;
 - one name for two probes.

@@ -18,13 +18,13 @@ Hard clipping at threshold $A$ and soft saturation with drive $k$:
 
 $$y_{\mathrm{clip}} = \begin{cases} x, & \lvert x\rvert \le A \\ A\,\mathrm{sgn}\,x, & \lvert x\rvert > A \end{cases} \qquad y_{\mathrm{soft}} = \tanh(kx)$$
 
-Folding: $u = kx$, $v = (u + 1) \bmod 4 \in [0, 4)$ — a triangle wave of period 4 in $u$, which is just $y = u$ for $\lvert u\rvert \le 1$; the `sine` shape is the smooth variant:
+Folding: $u = kx$, $v = (u + 1) \bmod 4 \in [0, 4)$, a triangle wave of period 4 in $u$, which is just $y = u$ for $\lvert u\rvert \le 1$; the `sine` shape is the smooth variant:
 
 $$y_{\mathrm{tri}} = \begin{cases} v - 1, & v < 2 \\ 3 - v, & v \ge 2 \end{cases} \qquad y_{\sin} = \sin\frac{\pi u}{2}$$
 
 All the functions are odd, $F(-x) = -F(x)$: a sine $f_0$ at the input gives only odd harmonics $3f_0, 5f_0, \dots$. For small $kx$, $\tanh(kx) \approx kx - (kx)^3/3$, and $\sin^3\theta = \tfrac34\sin\theta - \tfrac14\sin 3\theta$ — the third harmonic of a tone of amplitude $a$ is about $(ka)^3/12$.
 
-There is no oversampling: harmonics above $f_s/2$ are not suppressed and reflect to $\lvert n f_0 - j f_s\rvert$ — the same aliasing as downsampling without a filter.
+There is no oversampling: harmonics above $f_s/2$ are not suppressed and reflect to $\lvert n f_0 - j f_s\rvert$: the same aliasing as downsampling without a filter.
 
 ## Algorithm and cost
 

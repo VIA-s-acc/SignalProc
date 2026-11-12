@@ -53,6 +53,8 @@ std::optional<pipeline::PipelineDoc> load(const std::filesystem::path& file, std
     return std::move(*doc);
 }
 
+constexpr std::size_t kListedFrames = 64;
+
 nlohmann::json summary(const pipeline::Value& v) {
     using namespace pipeline;
     nlohmann::json j{{"kind", std::string{to_string(type_of(v))}}};
@@ -68,6 +70,7 @@ nlohmann::json summary(const pipeline::Value& v) {
         j["rate"] = a->sample_rate;
         j["energy"] = energy;
         j["peak"] = peak;
+        if (a->frames() <= kListedFrames) j["values"] = a->channels;
     } else if (const auto* c = std::get_if<Coeffs>(&v)) {
         std::size_t total = 0;
         for (const auto& ch : c->channels)
@@ -223,6 +226,12 @@ private:
             if (j.contains("length")) line += fmt::format(" · {} × {}", j["channels"].get<std::size_t>(), j["length"].get<std::size_t>());
             if (j.contains("energy")) line += fmt::format(" · energy {:.6g} · peak {:.6g}", j["energy"].get<double>(), j["peak"].get<double>());
             out << line << '\n';
+            if (j.contains("values"))
+                for (std::size_t c = 0; c < j["values"].size(); ++c) {
+                    std::string row = fmt::format("    ch{}:", c);
+                    for (const auto& x : j["values"][c]) row += fmt::format(" {:.6g}", x.get<double>());
+                    out << row << '\n';
+                }
         }
         if (!r.reports.empty()) out << tr("pipeline.cli.reports") << '\n';
         for (const auto& nr : r.reports) {

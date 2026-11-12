@@ -69,6 +69,7 @@ public:
     core::Result<void> set_param(std::string_view node, std::string_view param, std::string_view value);
     core::Result<void> toggle_bypass(std::string_view node);
     void toggle_probe(const pipeline::PortRef& at);
+    core::Result<void> rename_probe(const pipeline::PortRef& at, std::string name);
     bool undo();
     bool redo();
 

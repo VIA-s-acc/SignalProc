@@ -27,7 +27,7 @@ Numbers marked "verified" were obtained numerically (Python 3.13, NumPy 2.3, PyW
 
 A filter is stored as a pair (start index $n_0$, coefficient array): $H(z)=\sum_{n=n_0}^{n_1}h[n]z^{-n}$, length $L=n_1-n_0+1$. Negative $n_0$ is allowed (non-centered and symmetric filters, lifting). All operations (convolution, modulation, polyphase decomposition, reversal) are defined on this type.
 
-**Trap.** The modulation $(-1)^n h[n]$ depends on the *absolute* index: shifting a filter by an odd number of samples flips the sign of the highpass. An array without an offset loses this information — that is why the offset is always stored.
+**Trap.** The modulation $(-1)^n h[n]$ depends on the *absolute* index: shifting a filter by an odd number of samples flips the sign of the highpass. An array without an offset loses this information, so the offset is always stored.
 
 ### 0.3. Normalization {#conv-normalisation}
 
@@ -157,7 +157,7 @@ Whole-sample (WS, `reflect`): $\tilde x[-n]=x[n]$; $(H_L)_{ij}=h[i+j]$ for $j\ge
 $$k_m=-\frac{r_m+\sum_{j=1}^{m-1}a^{(m-1)}_jr_{m-j}}{E_{m-1}},\quad a^{(m)}=\begin{pmatrix}a^{(m-1)}\\0\end{pmatrix}+k_m\begin{pmatrix}Ja^{(m-1)}\\1\end{pmatrix},\quad E_m=(1-k_m^2)E_{m-1}.$$
 $T$ is positive definite $\iff |k_m|<1$ for all $m$. An arbitrary right-hand side calls for the Levinson algorithm; both take $O(n^2)$ operations and $O(n)$ memory. Weakly stable for SPD; a zero leading minor (indefinite matrices) causes a breakdown: look-ahead or dense LU with pivoting is needed.
 
-**Schur** computes the same reflection coefficients and $LDL^{\mathsf T}$ without inner products — it parallelizes better; Bauer's method is also done with it. Superfast $O(n\log^2n)$ algorithms are [research], not needed for our sizes.
+**Schur** computes the same reflection coefficients and $LDL^{\mathsf T}$ without inner products and parallelizes better; Bauer's method is also done with it. Superfast $O(n\log^2n)$ algorithms are [research], not needed for our sizes.
 
 **Check.** Solution = dense solution; $|k_m|<1$ on AR spectra; breakdown detection on a matrix with a singular leading minor.
 
@@ -196,7 +196,7 @@ The "compression/stretching" of the old code is exactly $\downarrow2/\uparrow2$;
 - **Decimation:** a lowpass with cutoff $\pi/M$ and gain $1$ in the passband, then $\downarrow M$.
 - **Interpolation:** $\uparrow M$, then a lowpass with cutoff $\pi/M$ and **gain $M$**: inserting zeros reduces the mean (DC) by a factor of $M$, and the filter restores the amplitude.
 
-A practical audio specification: passband up to 20 kHz, stopband from half the new sampling rate, attenuation 90–120 dB. In a two-channel bank, by contrast, aliasing in each channel is allowed because the synthesis cancels it (§4.2) — a different philosophy from the decimator's.
+A practical audio specification: passband up to 20 kHz, stopband from half the new sampling rate, attenuation 90–120 dB. In a two-channel bank, by contrast, aliasing in each channel is allowed because the synthesis cancels it (§4.2).
 
 **Check.** The residual aliasing (a tone in the stopband) is below the specification; the amplitude error of a passband tone is within the ripple.
 
@@ -274,7 +274,7 @@ $$T=\tfrac12\big[P_0(z)-P_0(-z)\big],\quad P_0=F_0H_0 .$$
 
 ### 4.3. QMF (Croisier–Esteban–Galand) {#fb-qmf}
 
-$H_1(z)=H_0(-z)$, $F_0=H_0$, $F_1=-H_1$: aliasing is cancelled, $T=\tfrac12[H_0^2(z)-H_0^2(-z)]=2z^{-1}E_0(z^2)E_1(z^2)$ for $H_0=E_0(z^2)+z^{-1}E_1(z^2)$. FIR PR is possible only for monomial $E_0,E_1$, that is, for the two-tap (Haar) filter. Practical QMFs (Johnston) are linear-phase with near-perfect reconstruction. The "mirror" property: $|H_1(e^{i\omega})|=|H_0(e^{i(\pi-\omega)})|$ — symmetry about $\pi/2$. In the project it serves only as a historical and teaching example.
+$H_1(z)=H_0(-z)$, $F_0=H_0$, $F_1=-H_1$: aliasing is cancelled, $T=\tfrac12[H_0^2(z)-H_0^2(-z)]=2z^{-1}E_0(z^2)E_1(z^2)$ for $H_0=E_0(z^2)+z^{-1}E_1(z^2)$. FIR PR is possible only for monomial $E_0,E_1$, that is, for the two-tap (Haar) filter. Practical QMFs (Johnston) are linear-phase with near-perfect reconstruction. The "mirror" property: $|H_1(e^{i\omega})|=|H_0(e^{i(\pi-\omega)})|$ — symmetry about $\pi/2$. In the project it is only a historical and teaching example.
 
 ### 4.4. CQF / orthogonal bank (Smith–Barnwell) {#fb-cqf}
 
@@ -405,11 +405,11 @@ When the details are zeroed: $T=\tfrac12F_0H_0=\cos^2(\omega/2)e^{-i\omega}$, al
 
 The lowpass after $j$ levels is a "box" of length $2^j$: $G_j(z)=\prod_{k=0}^{j-1}H_0(z^{2^k})=2^{-j/2}\sum_{n=0}^{2^j-1}z^{-n}$. Details of level $j$: $H^{eq}_j(z)=H_1(z^{2^{j-1}})G_{j-1}(z)=2^{-j/2}\Big(\sum_{n=0}^{2^{j-1}-1}z^{-n}-\sum_{n=2^{j-1}}^{2^j-1}z^{-n}\Big)$.
 $$|G_j(e^{i\omega})|=2^{-j/2}\left|\frac{\sin(2^{j-1}\omega)}{\sin(\omega/2)}\right|,\qquad |H^{eq}_j(e^{i\omega})|=2^{1-j/2}\frac{\sin^2(2^{j-2}\omega)}{|\sin(\omega/2)|}.$$
-The sidelobes decay only as $1/\omega$ (the first sidelobe of the "box" is at $\approx-13$ dB) — the octave bands overlap heavily.
+The sidelobes decay only as $1/\omega$ (the first sidelobe of the "box" is at $\approx-13$ dB), so the octave bands overlap heavily.
 
 ### 5.7. Why Haar is good in time and bad in frequency {#haar-tradeoff}
 
-The support is exactly $2^j$ samples, shifts do not overlap (a block transform), steps and transients are localized perfectly, and the arithmetic is integer. But: there is one vanishing moment (only constants are annihilated), so a smooth signal produces noticeable details — poor energy compaction; $|H_0|\sim\cos$ — a huge transition band and strong aliasing when subbands are modified; $\psi$ is discontinuous — blocking artifacts after thresholding or zeroing.
+The support is exactly $2^j$ samples, shifts do not overlap (a block transform), steps and transients are localized perfectly, and the arithmetic is integer. But there is a single vanishing moment (only constants are annihilated), so a smooth signal produces noticeable details and energy compaction is poor; $|H_0|\sim\cos$, hence a huge transition band and strong aliasing when subbands are modified; $\psi$ is discontinuous, so thresholding or zeroing leaves blocking artifacts.
 
 ### 5.8. Explain mode script {#haar-explain-script}
 
@@ -627,7 +627,7 @@ Wavelet packets: node $(j,n)$ is the product of $H_0/H_1$ along the bits of the 
 
 $\Phi(\omega)=\prod_{j=1}^{\infty}m_0(\omega/2^j)$, $m_0=H(e^{i\omega})/H(1)$ ($H=f_0$ for $\varphi$; the reversed $h_0$ for $\tilde\varphi$ — reversal does not affect the modulus); truncate after $J$ factors once $2^{-J}|\omega|$ is small ($J=20..30$); $\Psi(\omega)=m_1(\omega/2)\Phi(\omega/2)$, $m_1=F_1/\sqrt2$ (with $m_0=F_0/\sqrt2$).
 
-What you see: $|\Phi|$ is a lowpass with zeros of order $N$ at $2\pi k$, $k\ne0$ (Strang–Fix), which show up as deep notches on the log-magnitude plot; $|\Psi|$ is bandpass, peaking in the octave $[\pi,2\pi]$. The flatness of $|m_0|$ at $\pi$ (a zero of order $N$) $\leftrightarrow|\Psi(\omega)|\sim|\omega|^{\tilde N}$ near zero: on a log–log plot the slope is $20\tilde N$ dB/decade — a visual "vanishing-moment counter" ($\tilde N$ is the number of zeros at $\pi$ of the dual lowpass).
+What you see: $|\Phi|$ is a lowpass with zeros of order $N$ at $2\pi k$, $k\ne0$ (Strang–Fix), which show up as deep notches on the log-magnitude plot; $|\Psi|$ is bandpass, peaking in the octave $[\pi,2\pi]$. The flatness of $|m_0|$ at $\pi$ (a zero of order $N$) $\leftrightarrow|\Psi(\omega)|\sim|\omega|^{\tilde N}$ near zero: on a log–log plot the slope is $20\tilde N$ dB/decade, so the slope shows the number of vanishing moments ($\tilde N$ is the number of zeros at $\pi$ of the dual lowpass).
 
 **Check.** $\sum_k|\Phi(\omega+2\pi k)|^2=1$ (orthogonal, truncated sum); $\sum_{j\in\mathbb Z}|\Psi(2^j\omega)|^2=1$ for $\omega\neq0$ (follows from $|m_0|^2+|m_1|^2=1$ by telescoping).
 
@@ -635,7 +635,7 @@ What you see: $|\Phi|$ is a lowpass with zeros of order $N$ at $2\pi k$, $k\ne0$
 
 For an atom $g$, $\|g\|=1$: $\bar t=\int t|g|^2$, $\sigma_t^2=\int(t-\bar t)^2|g|^2$, $\sigma_\omega^2=\frac1{2\pi}\int(\omega-\bar\omega)^2|\hat g|^2$ (for real atoms, over the positive frequencies, otherwise $\bar\omega=0$); $\sigma_t\sigma_\omega\ge\tfrac12$, with equality for a Gaussian. The discrete version used by the app works with the equivalent filters: $\bar n,\sigma_n$ from $|h|^2$, $\bar\omega,\sigma_\omega$ from $|H|^2$ on $[0,\pi]$. There is no exact bound $\tfrac12$ for finite sequences — the quantities are descriptive.
 
-Tilings: STFT — identical boxes at all frequencies; DWT — $\sigma_t\propto2^j$, $\sigma_\omega\propto2^{-j}$, one coefficient per $2^j$ samples; packets — any admissible dyadic tiling (chosen by the best basis). The continuous Haar $\psi$ has $\sigma_\omega=\infty$ ($|\Psi|\sim1/\omega$) — a vivid illustration of poor frequency localization; hence the discrete $\sigma$ on $[0,\pi]$. A box is drawn centered at $(k2^j,\bar\omega_j)$ with size $2\sigma_t\times2\sigma_\omega$.
+Tilings: STFT — identical boxes at all frequencies; DWT — $\sigma_t\propto2^j$, $\sigma_\omega\propto2^{-j}$, one coefficient per $2^j$ samples; packets — any admissible dyadic tiling (chosen by the best basis). The continuous Haar $\psi$ is so poorly localized in frequency that $\sigma_\omega=\infty$ ($|\Psi|\sim1/\omega$); hence the discrete $\sigma$ on $[0,\pi]$ are used. A box is drawn centered at $(k2^j,\bar\omega_j)$ with size $2\sigma_t\times2\sigma_\omega$.
 
 ### 8.11. Response of the whole analysis → synthesis chain {#freq-full-chain}
 
@@ -769,7 +769,7 @@ The equivalent lowpass is $(-1,2,6,2,-1)/8$ (centered at $2n$), the highpass $(-
 ### 10.4. CDF 9/7 {#lift-97}
 
 $$\begin{aligned}d&\leftarrow d+\alpha(s_n+s_{n+1}),& s&\leftarrow s+\beta(d_{n-1}+d_n),\\ d&\leftarrow d+\gamma(s_n+s_{n+1}),& s&\leftarrow s+\delta(d_{n-1}+d_n),\\ s&\leftarrow\zeta s,& d&\leftarrow d/\zeta,\end{aligned}$$
-$\alpha=-1.586134342$, $\beta=-0.05298011854$, $\gamma=0.8829110762$, $\delta=0.4435068522$, $\zeta=1.149604398$ (Daubechies–Sweldens 1998). Verified: the equivalent lowpass of these steps matches `bior4.4.dec_lo` to 9 digits (sum $\sqrt2$), and the highpass $=-$`dec_hi`. JPEG 2000 scales the bands differently, so its $K$ differs by a normalization. The published 10-digit constants give a deviation of $\sim3\cdot10^{-10}$ (verified) — for full double precision they have to be computed from the filter with the Euclidean algorithm.
+$\alpha=-1.586134342$, $\beta=-0.05298011854$, $\gamma=0.8829110762$, $\delta=0.4435068522$, $\zeta=1.149604398$ (Daubechies–Sweldens 1998). Verified: the equivalent lowpass of these steps matches `bior4.4.dec_lo` to 9 digits (sum $\sqrt2$), and the highpass $=-$`dec_hi`. JPEG 2000 scales the bands differently, so its $K$ differs by a normalization. The published 10-digit constants give a deviation of $\sim3\cdot10^{-10}$ (verified); for full double precision they have to be computed from the filter with the Euclidean algorithm.
 
 ### 10.5. Benefits and traps {#lift-benefits}
 
@@ -795,7 +795,7 @@ Lifting without translation and dilation invariance (Sweldens): non-uniform samp
 
 **SWT.** No downsampling; the level-$j$ filters are dilated with holes: $h^{(j)}(z)=H(z^{2^{j-1}})$; $a_j=h_0^{(j)}*a_{j-1}$, $d_j=h_1^{(j)}*a_{j-1}$; redundancy $J+1$; cost $O(NLJ)$; equivariance under (circular) shifts. Inverse: $a_{j-1}=\tfrac12\big(f_0^{(j)}*a_j+f_1^{(j)}*d_j\big)$ with a delay alignment of $\ell\cdot2^{j-1}$ at each level. pywt `swt` uses periodic extension, $2^J\mid N$. SWT = the DWT of all $2^J$ circular shifts, organized without repetition.
 
-**MODWT** (Percival–Walden 2000): filters $\tilde h=h/\sqrt2$, then $|\tilde H_0|^2+|\tilde H_1|^2=1$ and $\|x\|^2=\sum_j\|\tilde W_j\|^2+\|\tilde V_J\|^2$ exactly; any $N$. For display the coefficients are shifted by the group delay of the equivalent filter so that they line up with events in time. **MRA decomposition** $x=\sum_jD_j+S_J$, where $D_j$ is the synthesis of one level: it is additive, and each component is an LTI filtering; ideal for display and for zeroing a subband without aliasing.
+**MODWT** (Percival–Walden 2000): filters $\tilde h=h/\sqrt2$, then $|\tilde H_0|^2+|\tilde H_1|^2=1$ and $\|x\|^2=\sum_j\|\tilde W_j\|^2+\|\tilde V_J\|^2$ exactly; any $N$. For display the coefficients are shifted by the group delay of the equivalent filter so that they line up with events in time. **MRA decomposition** $x=\sum_jD_j+S_J$, where $D_j$ is the synthesis of one level: it is additive, and each component is an LTI filtering, so a subband can be displayed or zeroed without aliasing.
 
 **Check.** The MODWT energy identity; $\sum D_j+S_J=x$; shift equivariance.
 
@@ -931,7 +931,7 @@ Rational arithmetic (Boost.Multiprecision `cpp_rational` or GMP `mpq`) for filte
 
 ### 13.4. Conditioning of biorthogonal pairs {#num-conditioning}
 
-$\kappa(A)=\sup_\omega\sigma_{\max}(H_p)/\inf_\omega\sigma_{\min}(H_p)$ with $\sqrt2$ normalization of both lowpass filters. Computed: Haar and dbN — 1; `bior1.3` — 1.28; 9/7 — 1.32; `bior6.8` — 1.33; 5/3 — 2.0; `bior3.1` and `bior3.3` — 4.0; the non-wavelet factorizations of §4.8 — up to 10.9. The noise of quantized coefficients in synthesis is proportional to $\|f^{eq}\|$ — this matters for compression and denoising.
+$\kappa(A)=\sup_\omega\sigma_{\max}(H_p)/\inf_\omega\sigma_{\min}(H_p)$ with $\sqrt2$ normalization of both lowpass filters. Computed: Haar and dbN — 1; `bior1.3` — 1.28; 9/7 — 1.32; `bior6.8` — 1.33; 5/3 — 2.0; `bior3.1` and `bior3.3` — 4.0; the non-wavelet factorizations of §4.8 — up to 10.9. In compression and denoising, the noise of quantized coefficients in synthesis is proportional to $\|f^{eq}\|$.
 
 ### 13.5. Root finding for spectral factorization {#num-root-finding}
 

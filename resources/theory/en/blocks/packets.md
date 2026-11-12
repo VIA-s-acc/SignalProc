@@ -10,7 +10,7 @@ views = ["decomposition"]
 
 ## Purpose
 
-Split into bands not only the low-pass branch, as the DWT does, but the details too — and pick from the full tree the partition that compresses the signal best: `wpt` builds the packet tree and outputs the coefficients of the chosen basis, `iwpt` rebuilds the signal from any admissible basis.
+Split into bands the details as well as the low-pass branch (the DWT splits only the latter), and pick from the full tree the partition that compresses the signal best: `wpt` builds the packet tree and outputs the coefficients of the chosen basis, `iwpt` rebuilds the signal from any admissible basis.
 
 ## Formulas
 

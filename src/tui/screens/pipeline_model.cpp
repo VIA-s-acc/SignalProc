@@ -218,6 +218,30 @@ void PipelineModel::toggle_probe(const pipeline::PortRef& at) {
     (void)commit(std::move(next));
 }
 
+core::Result<void> PipelineModel::rename_probe(const pipeline::PortRef& at, std::string name) {
+    auto next = doc_;
+    const auto decl = std::find_if(next.probes.begin(), next.probes.end(), [&](const auto& p) { return same_port(p.at, at); });
+    if (decl == next.probes.end()) return core::make_error(core::Errc::invalid_argument, tr("tui.pipeline.no_probe"));
+    const auto resolved = [&]() -> std::string {
+        if (graph_)
+            for (const auto& p : graph_->probes)
+                if (same_port(p.at, at)) return p.name;
+        return {};
+    };
+    const auto before = resolved();
+    decl->name = std::move(name);
+    if (auto r = commit(std::move(next)); !r) return r;
+    const auto after = resolved();
+    std::lock_guard lock{run_->mutex};
+    auto& probes = run_->view.probes;
+    if (const auto it = probes.find(before); it != probes.end() && before != after) {
+        auto value = it->second;
+        probes.erase(it);
+        probes.insert_or_assign(after, std::move(value));
+    }
+    return {};
+}
+
 bool PipelineModel::undo() {
     if (undo_.empty()) return false;
     redo_.push_back(snapshot());

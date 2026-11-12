@@ -10,7 +10,7 @@ views = ["designer", "filters"]
 
 ## Purpose
 
-Describe the bank $(h_0, h_1, f_0, f_1)$: analysis, downsampling $\downarrow 2$, zero insertion $\uparrow 2$ and synthesis — and check that the output is the original signal with a pure delay $\ell$, i.e. without aliasing or distortion.
+Describe the bank $(h_0, h_1, f_0, f_1)$: analysis, downsampling $\downarrow 2$, zero insertion $\uparrow 2$ and synthesis, and check that the output is the original signal with a pure delay $\ell$, i.e. without aliasing or distortion.
 
 ## Formulas
 

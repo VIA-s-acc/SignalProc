@@ -344,3 +344,30 @@ TEST_CASE("the CLI line is withheld when the graph structure changed", "[tui][pi
     REQUIRE(m.toggle_bypass("thr"));
     CHECK(m.run_view().structure_changed);
 }
+
+TEST_CASE("a probe takes a name, keeps its last value and an empty name restores the default", "[tui][pipeline_model][probe_name]") {
+    PipelineModel m;
+    REQUIRE(m.load_text("conv", "pipeline \"conv\" v1\n"
+                                "node x = samples(values=\"2 -1 3 1\", rate=1)\n"
+                                "node y = fir_taps(taps=\"0.5 -0.5\")\n"
+                                "x -> y\n"
+                                "probe y\n"
+                                "probe x as \"вход\"\n"));
+    auto jobs = inline_jobs();
+    m.run(jobs);
+    for (int k = 0; k < 2000 && m.run_view().running; ++k) std::this_thread::sleep_for(std::chrono::milliseconds{5});
+    REQUIRE(m.run_view().probes.contains("y"));
+    REQUIRE(m.rename_probe(port("y"), "выход \"y\""));
+    CHECK(m.doc().probes[0].name == "выход \"y\"");
+    CHECK_THAT(pipeline::write_sig(m.doc()), ContainsSubstring("probe y as \"выход \\\"y\\\"\""));
+    CHECK(m.run_view().probes.contains("выход \"y\""));
+    CHECK_FALSE(m.run_view().probes.contains("y"));
+    CHECK_FALSE(m.rename_probe(port("y"), "вход"));
+    CHECK(m.doc().probes[0].name == "выход \"y\"");
+    CHECK_FALSE(m.rename_probe(port("missing"), "z"));
+    REQUIRE(m.rename_probe(port("y"), ""));
+    CHECK(m.doc().probes[0].name.empty());
+    CHECK(m.run_view().probes.contains("y"));
+    REQUIRE(m.undo());
+    CHECK(m.doc().probes[0].name == "выход \"y\"");
+}

@@ -29,7 +29,7 @@ $$\sigma(A) = \bigcup_{k=0}^{N/2-1} \sigma\Big(H_p\big(e^{2\pi i k / (N/2)}\big)
 1. Band length per level $\mathrm{len}$ (here $L$ is the filter length): $\lfloor (N+L-1)/2 \rfloor$ for all modes except `periodization`, where it is $\lceil N/2 \rceil$. There are $2\,\mathrm{len}$ rows and $N$ columns.
 2. Column $j$ is the result of one DWT level of the unit signal $e_j$ in the chosen edge mode: approximation coefficients on top, details below. This way the matrix accounts for the extension of the signal beyond the edges.
 3. Synthesis $S$ is built the same way, by the inverse level on unit coefficients.
-4. The interleaved row order takes rows in pairs $(a_k, d_k)$ — then the $2 \times 2$ block Toeplitz structure becomes visible (§6.2).
+4. The interleaved row order takes rows in pairs $(a_k, d_k)$: then the $2 \times 2$ block Toeplitz structure becomes visible (§6.2).
 5. $\operatorname{cond}(A)$ — from the singular values (SVD).
 
 Construction costs $N$ runs of a level at $O(NL)$ each, i.e. $O(N^2 L)$; SVD is $O(N^3)$. The matrices are built only for the explanation mode and for tests.

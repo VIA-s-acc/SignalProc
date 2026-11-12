@@ -8,23 +8,28 @@
 #include "i18n/i18n.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/shell/screen.hpp"
-#include "tui/widgets/list_window.hpp"
 
 namespace signals::tui {
 
 ftxui::Element scrolled(std::vector<ftxui::Element> rows, Scroll& scroll, int height, std::optional<std::size_t> follow, const UiContext& ui, int row_height) {
-    using namespace ftxui;
-    if (rows.empty()) return text("");
+    if (rows.empty()) return ftxui::text("");
     const auto window = list_window(scroll.first, rows.size(), std::max(1, height), std::max(1, row_height), follow);
+    std::vector<ftxui::Element> shown;
+    for (std::size_t k = window.first; k < window.first + window.shown; ++k) shown.push_back(std::move(rows[k]));
+    return scrolled(window, rows.size(), std::move(shown), ui);
+}
+
+ftxui::Element scrolled(ListWindow window, std::size_t count, std::vector<ftxui::Element> shown, const UiContext& ui) {
+    using namespace ftxui;
     const bool ascii = ui.caps.glyphs == GlyphMode::ascii;
-    auto marker = [&](bool up, std::size_t count) {
+    auto marker = [&](bool up, std::size_t more) {
         const std::string arrow = ascii ? (up ? "^ " : "v ") : (up ? "▲ " : "▼ ");
-        return text(arrow + fmt::format(fmt::runtime(tr("tui.theory.blocks_more")), fmt::arg("count", count))) | fg(ui.theme.dim, ui);
+        return text(arrow + fmt::format(fmt::runtime(tr("tui.theory.blocks_more")), fmt::arg("count", more))) | fg(ui.theme.dim, ui);
     };
     Elements out;
     if (window.first > 0) out.push_back(marker(true, window.first));
-    for (std::size_t k = window.first; k < window.first + window.shown; ++k) out.push_back(std::move(rows[k]));
-    if (window.first + window.shown < rows.size()) out.push_back(marker(false, rows.size() - window.first - window.shown));
+    for (auto& row : shown) out.push_back(std::move(row));
+    if (window.first + window.shown < count) out.push_back(marker(false, count - window.first - window.shown));
     return vbox(std::move(out));
 }
 

@@ -7,7 +7,7 @@ Support for Signals pipeline files (`.sig`):
 - completion: after `node id =` the block list (inserted with every parameter at its default), inside the parentheses the parameters, after `param=` the values with their meaning;
 - snippets: `pipeline`, `node`, `probe`, `wire`, `haarbank`.
 
-and filter files (`.flt`) — the banks and single filters of «My filters», kept in `~/.config/signals/filters/`:
+and filter files (`.flt`), the banks and single filters of «My filters» kept in `~/.config/signals/filters/`:
 
 - highlighting of keys, coefficient arrays, offsets and `kind`;
 - hover over a key explains it; over `h0`, `f0` or `h` shows the number of taps, the gains at 0 and π and the energy, and for a bank whether it reconstructs perfectly (P₀(z) − P₀(−z) = 2z^{−ℓ}, the same check and tolerance as Signals) with the delay ℓ;
