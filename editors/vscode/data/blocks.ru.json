@@ -2653,6 +2653,92 @@
   "title": "Лифтинг 9/7"
  },
  {
+  "about": "Двухдеревное комплексное DWT Кингсбери: полосы почти не зависят от сдвига сигнала и почти не дают наложения",
+  "id": "dtcwt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Число уровней J; полоса уровня j — комплексные коэффициенты с шагом 2ʲ, записанные парами re, im",
+    "choices": [],
+    "default": "4",
+    "max": 20.0,
+    "min": 1.0,
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "Фильтры первого уровня: биортогональные и почти симметричные, оба дерева берут их со сдвигом на отсчёт",
+    "choices": [
+     "near_sym_a",
+     "near_sym_b",
+     "antonini",
+     "legall"
+    ],
+    "default": "near_sym_a",
+    "name": "biort",
+    "values": {
+     "antonini": "9 и 7 отводов, фильтры Антонини (CDF 9/7)",
+     "legall": "5 и 3 отвода, LeGall 5/3",
+     "near_sym_a": "5 и 7 отводов, как по умолчанию в пакете dtcwt",
+     "near_sym_b": "13 и 19 отводов: глаже и уже по частоте"
+    }
+   },
+   {
+    "about": "Q-shift фильтры уровней от второго: у деревьев задержка ¼ и ¾ отсчёта, поэтому они расходятся на полотсчёта",
+    "choices": [
+     "qshift_a",
+     "qshift_b",
+     "qshift_c",
+     "qshift_d",
+     "qshift_06"
+    ],
+    "default": "qshift_a",
+    "name": "qshift",
+    "values": {
+     "qshift_06": "10 отводов, из них 6 ненулевых: ранний вариант Кингсбери",
+     "qshift_a": "10 отводов, как по умолчанию в пакете dtcwt",
+     "qshift_b": "14 отводов",
+     "qshift_c": "16 отводов",
+     "qshift_d": "18 отводов: вейвлет ближе всего к аналитическому"
+    }
+   }
+  ],
+  "title": "DTCWT"
+ },
+ {
+  "about": "Восстанавливает сигнал из коэффициентов DTCWT теми же фильтрами, что их получили",
+  "id": "idtcwt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Обратное DTCWT"
+ },
+ {
   "about": "Обратный лифтинг 9/7: собирает сигнал из полос lift97",
   "id": "ilift97",
   "inputs": [

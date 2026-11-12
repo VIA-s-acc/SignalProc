@@ -2653,6 +2653,92 @@
   "title": "Lifting 9/7"
  },
  {
+  "about": "Kingsbury's dual-tree complex DWT: bands that barely depend on a shift of the signal and barely alias",
+  "id": "dtcwt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Number of levels J; the band of level j holds complex coefficients with step 2ʲ, stored as re, im pairs",
+    "choices": [],
+    "default": "4",
+    "max": 20.0,
+    "min": 1.0,
+    "name": "levels",
+    "values": {}
+   },
+   {
+    "about": "Level 1 filters: biorthogonal and near-symmetric, the two trees take them one sample apart",
+    "choices": [
+     "near_sym_a",
+     "near_sym_b",
+     "antonini",
+     "legall"
+    ],
+    "default": "near_sym_a",
+    "name": "biort",
+    "values": {
+     "antonini": "9 and 7 taps, the Antonini filters (CDF 9/7)",
+     "legall": "5 and 3 taps, LeGall 5/3",
+     "near_sym_a": "5 and 7 taps, the default of the dtcwt package",
+     "near_sym_b": "13 and 19 taps: smoother and narrower in frequency"
+    }
+   },
+   {
+    "about": "Q-shift filters for level 2 and up: the trees have delays of ¼ and ¾ sample, so they drift half a sample apart",
+    "choices": [
+     "qshift_a",
+     "qshift_b",
+     "qshift_c",
+     "qshift_d",
+     "qshift_06"
+    ],
+    "default": "qshift_a",
+    "name": "qshift",
+    "values": {
+     "qshift_06": "10 taps of which 6 are non-zero: Kingsbury's early design",
+     "qshift_a": "10 taps, the default of the dtcwt package",
+     "qshift_b": "14 taps",
+     "qshift_c": "16 taps",
+     "qshift_d": "18 taps: the wavelet closest to analytic"
+    }
+   }
+  ],
+  "title": "DTCWT"
+ },
+ {
+  "about": "Rebuilds the signal from DTCWT coefficients with the filters that produced them",
+  "id": "idtcwt",
+  "inputs": [
+   {
+    "name": "in",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "out",
+    "optional": false,
+    "type": "signal"
+   }
+  ],
+  "params": [],
+  "title": "Inverse DTCWT"
+ },
+ {
   "about": "Inverse 9/7 lifting: rebuilds the signal from lift97 bands",
   "id": "ilift97",
   "inputs": [

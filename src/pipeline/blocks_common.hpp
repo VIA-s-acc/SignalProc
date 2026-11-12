@@ -117,6 +117,7 @@ inline std::string_view inverse_of(std::string_view transform) {
     if (transform == "lift53" || transform == "lift53i") return "ilift53";
     if (transform == "lift97") return "ilift97";
     if (transform == "wpt") return "iwpt";
+    if (transform == "dtcwt") return "idtcwt";
     return "idwt";
 }
 
