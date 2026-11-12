@@ -1,12 +1,14 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <optional>
 
 #include <chrono>
 #include <cmath>
 #include <future>
 #include <numbers>
+#include <numeric>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -96,7 +98,7 @@ TEST_CASE("arrows and enter toggle the selected band", "[tui][decomposition]") {
     CHECK(f.h.frame().find("☐ d₃") != std::string::npos);
 }
 
-TEST_CASE("v cycles subbands, MRA, tiles, packets and the scalogram", "[tui][decomposition]") {
+TEST_CASE("v cycles subbands, MRA, tiles, packets, the scalogram and synchrosqueezing", "[tui][decomposition]") {
     DecompositionFixture f;
     CHECK(f.screen->view() == DecompositionScreen::View::subbands);
     f.h.send(ftxui::Event::Character('v'));
@@ -111,6 +113,9 @@ TEST_CASE("v cycles subbands, MRA, tiles, packets and the scalogram", "[tui][dec
     f.h.send(ftxui::Event::Character('v'));
     CHECK(f.screen->view() == DecompositionScreen::View::scalogram);
     CHECK(f.h.frame().find("Скалограмма · CWT") != std::string::npos);
+    f.h.send(ftxui::Event::Character('v'));
+    CHECK(f.screen->view() == DecompositionScreen::View::sst);
+    CHECK(f.h.frame().find("Синхросжатие · CWT") != std::string::npos);
     f.h.send(ftxui::Event::Character('v'));
     CHECK(f.screen->view() == DecompositionScreen::View::subbands);
 }
@@ -541,7 +546,7 @@ TEST_CASE("the scalogram chip shows the CWT heat map", "[tui][decomposition][sca
     f.click("chip_scalogram");
     CHECK(f.screen->view() == DecompositionScreen::View::scalogram);
     const auto frame = f.h.frame();
-    REQUIRE(f.model->scalogram());
+    REQUIRE(f.model->map(MapKind::cwt));
     CHECK(frame.find("Скалограмма · CWT") != std::string::npos);
     CHECK(f.screen->theory_link()->id == "cwt");
 }
@@ -550,18 +555,18 @@ TEST_CASE("the scalogram survives a new wavelet and follows a new channel", "[tu
     DecompositionFixture f;
     f.screen->set_view(DecompositionScreen::View::scalogram);
     f.h.frame();
-    const auto first = f.model->scalogram();
+    const auto first = f.model->map(MapKind::cwt);
     REQUIRE(first);
     auto o = f.model->options();
     o.wavelet = "db4";
     f.model->set_options(o, f.jobs);
     f.h.frame();
-    CHECK(f.model->scalogram() == first);
+    CHECK(f.model->map(MapKind::cwt) == first);
     o.channel = 0;
     f.model->set_options(o, f.jobs);
-    CHECK_FALSE(f.model->scalogram());
+    CHECK_FALSE(f.model->map(MapKind::cwt));
     f.h.frame();
-    const auto second = f.model->scalogram();
+    const auto second = f.model->map(MapKind::cwt);
     REQUIRE(second);
     CHECK(second != first);
     CHECK(second->channel == 0);
@@ -571,7 +576,7 @@ TEST_CASE("the scalogram fits a small terminal and zooms in time", "[tui][decomp
     DecompositionFixture f{true, 80, 24};
     f.screen->set_view(DecompositionScreen::View::scalogram);
     f.h.frame();
-    REQUIRE(f.model->scalogram());
+    REQUIRE(f.model->map(MapKind::cwt));
     const auto box = f.screen->area("view_plot");
     REQUIRE(box.x_max > box.x_min);
     CHECK(box.x_max < 80);
@@ -579,6 +584,84 @@ TEST_CASE("the scalogram fits a small terminal and zooms in time", "[tui][decomp
     f.h.wheel((box.x_min + box.x_max) / 2, (box.y_min + box.y_max) / 2, true);
     const auto [b1, e1] = f.screen->time_view();
     CHECK(e1 - b1 < e0 - b0);
+}
+
+TEST_CASE("synchrosqueezing gathers a tone into fewer rows than the scalogram", "[tui][decomposition][sst]") {
+    const double fs = 8000;
+    std::vector<double> x(16000);
+    for (std::size_t k = 0; k < x.size(); ++k) x[k] = std::sin(2 * std::numbers::pi * 1000 * static_cast<double>(k) / fs);
+    const auto s = compute_synchrosqueezed(x, fs, 64);
+    const auto w = compute_scalogram(x, fs, 64);
+    REQUIRE(s);
+    REQUIRE(w);
+    CHECK(s->kind == MapKind::sst);
+    CHECK(w->kind == MapKind::cwt);
+    CHECK(s->cols == 64);
+    REQUIRE(s->rows == s->freq_hz.size());
+    REQUIRE(s->db.size() == s->rows * s->cols);
+    REQUIRE(s->coi.size() == s->rows * s->cols);
+    CHECK(s->freq_hz.front() > s->freq_hz.back());
+    for (const double v : s->db) {
+        CHECK(std::isfinite(v));
+        CHECK(v <= 0);
+        CHECK(v >= -48);
+    }
+    const auto share_of_best = [](const ScalogramData& m, std::size_t& best) {
+        std::vector<double> power(m.rows, 0.0);
+        for (std::size_t r = 0; r < m.rows; ++r)
+            for (std::size_t c = 16; c < 48; ++c) power[r] += std::pow(10.0, m.db[r * m.cols + c] / 10);
+        best = static_cast<std::size_t>(std::max_element(power.begin(), power.end()) - power.begin());
+        return power[best] / std::accumulate(power.begin(), power.end(), 0.0);
+    };
+    std::size_t sharp = 0, wide = 0;
+    const double squeezed = share_of_best(*s, sharp), spread = share_of_best(*w, wide);
+    CHECK(std::abs(std::log(s->freq_hz[sharp] / 1000)) < 0.1);
+    CHECK(squeezed > 0.6);
+    CHECK(squeezed > 2 * spread);
+    CHECK_FALSE(compute_synchrosqueezed(std::vector<double>(10, 1.0), fs, 64));
+    CHECK_FALSE(compute_synchrosqueezed(x, fs, 64, nullptr, 1000));
+}
+
+TEST_CASE("the synchrosqueezing chip shows its own heat map and exports it", "[tui][decomposition][sst]") {
+    DecompositionFixture f;
+    f.click("chip_sst");
+    CHECK(f.screen->view() == DecompositionScreen::View::sst);
+    const auto frame = f.h.frame();
+    REQUIRE(f.model->map(MapKind::sst));
+    CHECK_FALSE(f.model->map(MapKind::cwt));
+    CHECK(frame.find("Синхросжатие · CWT") != std::string::npos);
+    CHECK(f.screen->theory_link()->id == "synchrosqueezing");
+    const auto maps = f.screen->heatmap_exports();
+    REQUIRE(maps.size() == 1);
+    CHECK(maps.front().id == "sst");
+    f.click("chip_scalogram");
+    f.h.frame();
+    REQUIRE(f.model->map(MapKind::cwt));
+    CHECK(f.model->map(MapKind::sst));
+    CHECK(f.screen->heatmap_exports().front().id == "scalogram");
+}
+
+TEST_CASE("synchrosqueezing fits a small terminal, zooms in time and follows a new channel", "[tui][decomposition][sst]") {
+    DecompositionFixture f{true, 80, 24};
+    f.screen->set_view(DecompositionScreen::View::sst);
+    f.h.frame();
+    const auto first = f.model->map(MapKind::sst);
+    REQUIRE(first);
+    const auto box = f.screen->area("view_plot");
+    REQUIRE(box.x_max > box.x_min);
+    CHECK(box.x_max < 80);
+    const auto [b0, e0] = f.screen->time_view();
+    f.h.wheel((box.x_min + box.x_max) / 2, (box.y_min + box.y_max) / 2, true);
+    const auto [b1, e1] = f.screen->time_view();
+    CHECK(e1 - b1 < e0 - b0);
+    auto o = f.model->options();
+    o.channel = 0;
+    f.model->set_options(o, f.jobs);
+    CHECK_FALSE(f.model->map(MapKind::sst));
+    f.h.frame();
+    const auto second = f.model->map(MapKind::sst);
+    REQUIRE(second);
+    CHECK(second != first);
 }
 
 TEST_CASE("swt energy shares and parseval match modwt", "[tui][decomposition][swt][review]") {
@@ -673,19 +756,19 @@ TEST_CASE("a new file never shows the previous file's scalogram", "[tui][decompo
     };
     model.sync(jobs);
     idle();
-    model.request_scalogram(jobs);
+    model.request_map(MapKind::cwt, jobs);
     idle();
-    REQUIRE(model.scalogram());
+    REQUIRE(model.map(MapKind::cwt));
     signal->open(second, inline_jobs);
     for (int i = 0; i < 5; ++i) {
         model.sync(jobs);
-        if (model.data()) model.request_scalogram(jobs);
+        if (model.data()) model.request_map(MapKind::cwt, jobs);
         idle();
     }
     const auto d = model.data();
     REQUIRE(d);
     REQUIRE(d->x.size() == 24000);
-    const auto shown = model.scalogram();
+    const auto shown = model.map(MapKind::cwt);
     REQUIRE(shown);
     const auto fresh = compute_scalogram(d->x, d->fs, 512);
     REQUIRE(fresh);
@@ -870,7 +953,7 @@ TEST_CASE("m7c review: a cancelled scalogram does not swallow r in the packets v
     std::promise<void> release;
     auto gate = release.get_future().share();
     background.submit("gate", {}, [gate](JobContext&) { gate.wait(); });
-    f.model->request_scalogram(background);
+    f.model->request_map(MapKind::cwt, background);
     f.model->cancel(background);
     release.set_value();
     for (int k = 0; k < 200 && background.queued() > 0; ++k) std::this_thread::sleep_for(10ms);

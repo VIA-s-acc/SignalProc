@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <numeric>
 
 #include <fmt/format.h>
@@ -11,6 +12,7 @@
 #include "core/metrics.hpp"
 #include "core/cwt.hpp"
 #include "core/multirate.hpp"
+#include "core/sst.hpp"
 #include "core/swt.hpp"
 #include "i18n/i18n.hpp"
 #include "tui/monitor/sampler.hpp"
@@ -80,7 +82,7 @@ std::optional<std::string> DecompositionModel::error() const {
 
 std::optional<std::uint64_t> DecompositionModel::job() const {
     std::lock_guard lock{mutex_};
-    return data_job_ ? data_job_ : recon_job_ ? recon_job_ : packets_job_ ? packets_job_ : scalogram_job_;
+    return data_job_ ? data_job_ : recon_job_ ? recon_job_ : packets_job_ ? packets_job_ : maps_[0].job ? maps_[0].job : maps_[1].job;
 }
 
 bool DecompositionModel::cancelled() const {
@@ -120,14 +122,15 @@ void DecompositionModel::set_options(DecompositionOptions o, JobRunner& jobs) {
 
 void DecompositionModel::cancel(JobRunner& jobs) {
     std::lock_guard lock{mutex_};
-    if (!data_job_ && !recon_job_ && !packets_job_ && !scalogram_job_) return;
+    if (!data_job_ && !recon_job_ && !packets_job_ && !maps_[0].job && !maps_[1].job) return;
     const bool decomposition = data_job_ || recon_job_;
-    if (scalogram_job_) {
-        jobs.cancel(*scalogram_job_);
-        scalogram_error_ = tr("tui.decomposition.cancelled");
-        scalogram_job_.reset();
-        scalogram_cancelled_ = true;
-        ++scalogram_gen_;
+    for (auto& m : maps_) {
+        if (!m.job) continue;
+        jobs.cancel(*m.job);
+        m.error = tr("tui.decomposition.cancelled");
+        m.job.reset();
+        m.cancelled = true;
+        ++m.gen;
     }
     if (data_job_) jobs.cancel(*data_job_);
     if (recon_job_) jobs.cancel(*recon_job_);
@@ -146,7 +149,7 @@ void DecompositionModel::cancel(JobRunner& jobs) {
     if (decomposition) cancelled_ = true;
 }
 
-bool DecompositionModel::retry_cancelled(bool packets) {
+bool DecompositionModel::retry_cancelled(bool packets, MapKind kind) {
     std::lock_guard lock{mutex_};
     if (packets && packets_cancelled_) {
         packets_for_.reset();
@@ -154,10 +157,10 @@ bool DecompositionModel::retry_cancelled(bool packets) {
         packets_cancelled_ = false;
         return true;
     }
-    if (!packets && scalogram_cancelled_) {
-        scalogram_for_.reset();
-        scalogram_error_.reset();
-        scalogram_cancelled_ = false;
+    if (auto& m = slot(kind); !packets && m.cancelled) {
+        m.made_for.reset();
+        m.error.reset();
+        m.cancelled = false;
         return true;
     }
     return false;
@@ -166,7 +169,8 @@ bool DecompositionModel::retry_cancelled(bool packets) {
 void DecompositionModel::recompute(JobRunner& jobs) {
     {
         std::lock_guard lock{mutex_};
-        if (scalogram_error_) scalogram_for_.reset();
+        for (auto& m : maps_)
+            if (m.error) m.made_for.reset();
     }
     if (seen_) compute(jobs);
 }
@@ -670,45 +674,70 @@ std::optional<double> DecompositionModel::basis_pr_error() const {
     return basis_pr_;
 }
 
-core::Result<ScalogramData> compute_scalogram(std::span<const double> x, double fs, std::size_t cols, core::ProgressSink* progress, std::size_t budget) {
+namespace {
+
+constexpr double kMapVoicesPerOctave = 8, kMapLowestHz = 20, kMapFloorDb = -48;
+
+struct Decimated {
+    std::vector<double> x;
+    std::size_t factor = 1;
+};
+
+core::Result<Decimated> decimate_for_map(std::span<const double> x, core::ProgressSink* progress) {
     constexpr std::size_t kMaxSamples = std::size_t{1} << 20;
-    constexpr double kVoicesPerOctave = 8, kLowestHz = 20, kFloorDb = -48;
+    Decimated out;
+    out.factor = (x.size() + kMaxSamples - 1) / kMaxSamples;
+    if (out.factor <= 1) {
+        out.factor = 1;
+        out.x.assign(x.begin(), x.end());
+        return out;
+    }
+    core::MultirateOptions aa;
+    aa.attenuation_db = 60;
+    const auto h = core::anti_alias_filter(out.factor, aa).coeffs;
+    const auto delay = (h.size() - 1) / 2;
+    out.x.resize((x.size() + out.factor - 1) / out.factor);
+    for (std::size_t k = 0; k < out.x.size(); ++k) {
+        if (progress && (k & 0xFFFF) == 0 && progress->cancelled()) return core::make_error(core::Errc::cancelled, "map: cancelled");
+        const auto centre = k * out.factor + delay;
+        const auto first = centre >= x.size() ? centre - x.size() + 1 : 0;
+        const auto last = std::min(h.size(), centre + 1);
+        double acc = 0;
+        for (std::size_t j = first; j < last; ++j) acc += h[j] * x[centre - j];
+        out.x[k] = acc;
+    }
+    return out;
+}
+
+std::size_t map_rows(double lo, double hi) {
+    return std::clamp<std::size_t>(static_cast<std::size_t>(std::ceil(kMapVoicesPerOctave * std::log2(hi / lo))) + 1, 2, 128);
+}
+
+core::Error map_memory(std::string_view key, std::size_t need, std::size_t budget) {
+    return {core::Errc::invalid_argument, fmt::format(fmt::runtime(tr(std::string{key})), fmt::arg("need", format_si(static_cast<double>(need), tr("unit.byte"))),
+                                                      fmt::arg("budget", format_si(static_cast<double>(budget), tr("unit.byte"))))};
+}
+
+}  // namespace
+
+core::Result<ScalogramData> compute_scalogram(std::span<const double> x, double fs, std::size_t cols, core::ProgressSink* progress, std::size_t budget) {
     if (x.size() < 64 || !(fs > 0) || cols == 0) return core::make_error(core::Errc::invalid_argument, tr("tui.decomposition.scalogram_short"));
     ScalogramData out;
-    out.decimation = (x.size() + kMaxSamples - 1) / kMaxSamples;
-    std::vector<double> signal;
-    if (out.decimation > 1) {
-        core::MultirateOptions aa;
-        aa.attenuation_db = 60;
-        const auto h = core::anti_alias_filter(out.decimation, aa).coeffs;
-        const auto delay = (h.size() - 1) / 2;
-        signal.resize((x.size() + out.decimation - 1) / out.decimation);
-        for (std::size_t k = 0; k < signal.size(); ++k) {
-            if (progress && (k & 0xFFFF) == 0 && progress->cancelled()) return core::make_error(core::Errc::cancelled, "scalogram: cancelled");
-            const auto centre = k * out.decimation + delay;
-            const auto first = centre >= x.size() ? centre - x.size() + 1 : 0;
-            const auto last = std::min(h.size(), centre + 1);
-            double acc = 0;
-            for (std::size_t j = first; j < last; ++j) acc += h[j] * x[centre - j];
-            signal[k] = acc;
-        }
-    } else {
-        signal.assign(x.begin(), x.end());
-    }
+    auto decimated = decimate_for_map(x, progress);
+    if (!decimated) return std::unexpected{decimated.error()};
+    out.decimation = decimated->factor;
+    const auto signal = std::move(decimated->x);
     const double rate = fs / static_cast<double>(out.decimation);
     const auto n = signal.size();
     const auto w = *core::continuous_wavelet("morl");
     const double fc = core::center_frequency(w);
-    const double hi = 0.4 * rate, lo = std::max(kLowestHz, 16 * fc * rate / static_cast<double>(n));
+    const double hi = 0.4 * rate, lo = std::max(kMapLowestHz, 16 * fc * rate / static_cast<double>(n));
     if (!(lo < hi)) return core::make_error(core::Errc::invalid_argument, tr("tui.decomposition.scalogram_short"));
-    out.rows = std::clamp<std::size_t>(static_cast<std::size_t>(std::ceil(kVoicesPerOctave * std::log2(hi / lo))) + 1, 2, 128);
+    out.rows = map_rows(lo, hi);
     out.cols = std::min(cols, n);
     const auto longest = static_cast<std::size_t>(16 * fc * rate / lo) + 2;
     const auto need = 56 * (n + longest) + out.rows * out.cols * (2 * sizeof(double) + 1);
-    if (budget > 0 && need > budget)
-        return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("tui.decomposition.scalogram_memory")),
-                                                                          fmt::arg("need", format_si(static_cast<double>(need), tr("unit.byte"))),
-                                                                          fmt::arg("budget", format_si(static_cast<double>(budget), tr("unit.byte")))));
+    if (budget > 0 && need > budget) return std::unexpected{map_memory("tui.decomposition.scalogram_memory", need, budget)};
     std::vector<double> scales(out.rows);
     for (std::size_t r = 0; r < out.rows; ++r) {
         out.freq_hz.push_back(hi * std::pow(lo / hi, static_cast<double>(r) / static_cast<double>(out.rows - 1)));
@@ -732,7 +761,7 @@ core::Result<ScalogramData> compute_scalogram(std::span<const double> x, double 
     for (std::size_t r = 0; r < out.rows; ++r)
         for (std::size_t c = 0; c < out.cols; ++c) {
             const auto i = r * out.cols + c;
-            out.db[i] = peak > 0 && sum[i] > 0 ? std::max(kFloorDb, 10 * std::log10(sum[i] / peak)) : kFloorDb;
+            out.db[i] = peak > 0 && sum[i] > 0 ? std::max(kMapFloorDb, 10 * std::log10(sum[i] / peak)) : kMapFloorDb;
             const double centre = (static_cast<double>(c) + 0.5) * static_cast<double>(n) / static_cast<double>(out.cols);
             const double edge = std::min(centre, static_cast<double>(n) - centre);
             out.coi[i] = edge < std::sqrt(2.0) * scales[r] ? 1 : 0;
@@ -741,35 +770,83 @@ core::Result<ScalogramData> compute_scalogram(std::span<const double> x, double 
     return out;
 }
 
-void DecompositionModel::request_scalogram(JobRunner& jobs) {
+core::Result<ScalogramData> compute_synchrosqueezed(std::span<const double> x, double fs, std::size_t cols, core::ProgressSink* progress,
+                                                    std::size_t budget) {
+    constexpr int kVoices = 16;
+    constexpr double kMu = 6, kCover = 1.25;
+    if (x.size() < 64 || !(fs > 0) || cols == 0) return core::make_error(core::Errc::invalid_argument, tr("tui.decomposition.sst_short"));
+    ScalogramData out;
+    out.kind = MapKind::sst;
+    auto decimated = decimate_for_map(x, progress);
+    if (!decimated) return std::unexpected{decimated.error()};
+    out.decimation = decimated->factor;
+    const auto signal = std::move(decimated->x);
+    const double rate = fs / static_cast<double>(out.decimation);
+    const auto n = signal.size();
+    const double peak_cycles = core::sst::peak_frequency(kMu) / (2 * std::numbers::pi);
+    const double hi = 0.4 * rate, lo = std::max(kMapLowestHz, 16 * peak_cycles * rate / static_cast<double>(n));
+    if (!(lo < hi)) return core::make_error(core::Errc::invalid_argument, tr("tui.decomposition.sst_short"));
+    out.rows = map_rows(lo, hi);
+    const auto bins = core::sst::log_bins(lo / rate, hi / rate, out.rows);
+    const auto o = core::sst::covering(lo / rate / kCover, std::min(0.5, kCover * hi / rate), kVoices, kMu);
+    const auto need = core::sst::map_bytes(n, o, out.rows) + n * sizeof(double) + out.rows * std::min(cols, n) * (2 * sizeof(double) + 1);
+    if (budget > 0 && need > budget) return std::unexpected{map_memory("tui.decomposition.sst_memory", need, budget)};
+    auto map = core::sst::power_map(signal, o, bins, cols, progress);
+    if (!map) return std::unexpected{map.error()};
+    out.cols = map->cols;
+    const double peak = map->power.empty() ? 0.0 : *std::max_element(map->power.begin(), map->power.end());
+    out.db.resize(out.rows * out.cols);
+    out.coi.resize(out.rows * out.cols);
+    for (std::size_t r = 0; r < out.rows; ++r) {
+        const auto from = out.rows - 1 - r;
+        out.freq_hz.push_back(bins.freqs[from] * rate);
+        const double scale = peak_cycles / bins.freqs[from];
+        for (std::size_t c = 0; c < out.cols; ++c) {
+            const double p = map->power[from * out.cols + c];
+            const auto i = r * out.cols + c;
+            out.db[i] = peak > 0 && p > 0 ? std::max(kMapFloorDb, 10 * std::log10(p / peak)) : kMapFloorDb;
+            const double centre = (static_cast<double>(c) + 0.5) * static_cast<double>(n) / static_cast<double>(out.cols);
+            out.coi[i] = std::min(centre, static_cast<double>(n) - centre) < std::sqrt(2.0) * scale ? 1 : 0;
+        }
+    }
+    out.memory = core::TrackedBytes{core::MemoryCategory::display, out.db.size() * (sizeof(double) + 1)};
+    return out;
+}
+
+void DecompositionModel::request_map(MapKind kind, JobRunner& jobs) {
     const auto d = data();
     const auto s = source_->data();
     if (!d || !s) return;
     std::uint64_t gen = 0;
     {
         std::lock_guard lock{mutex_};
+        auto& m = slot(kind);
         if (d->source.lock() != s) return;
-        if (scalogram_for_.lock() == s && scalogram_channel_ == d->options.channel) return;
-        scalogram_.reset();
-        if (scalogram_job_) jobs.cancel(*scalogram_job_);
-        scalogram_job_.reset();
-        scalogram_error_.reset();
-        scalogram_cancelled_ = false;
-        scalogram_for_ = s;
-        scalogram_channel_ = d->options.channel;
-        gen = ++scalogram_gen_;
+        if (m.made_for.lock() == s && m.channel == d->options.channel) return;
+        m.data.reset();
+        if (m.job) jobs.cancel(*m.job);
+        m.job.reset();
+        m.error.reset();
+        m.cancelled = false;
+        m.made_for = s;
+        m.channel = d->options.channel;
+        gen = ++m.gen;
     }
-    constexpr std::size_t kScalogramColumns = 512;
-    const auto id = jobs.submit(tr("tui.decomposition.job_scalogram"), {tr("tui.decomposition.stage.scalogram")}, [this, d, s, gen, budget = budget_](JobContext& ctx) {
+    constexpr std::size_t kMapColumns = 512;
+    const bool squeezed = kind == MapKind::sst;
+    const auto title = tr(squeezed ? "tui.decomposition.job_sst" : "tui.decomposition.job_scalogram");
+    const auto stage = tr(squeezed ? "tui.decomposition.stage.sst" : "tui.decomposition.stage.scalogram");
+    const auto id = jobs.submit(title, {stage}, [this, d, s, gen, kind, squeezed, budget = budget_](JobContext& ctx) {
         ctx.begin(0);
-        auto out = compute_scalogram(d->x, d->fs, kScalogramColumns, &ctx, budget);
+        auto out = squeezed ? compute_synchrosqueezed(d->x, d->fs, kMapColumns, &ctx, budget) : compute_scalogram(d->x, d->fs, kMapColumns, &ctx, budget);
         if (!out) {
             ctx.fail(out.error().message);
             std::lock_guard lock{mutex_};
-            if (gen != scalogram_gen_) return;
-            if (out.error().code != core::Errc::cancelled) scalogram_error_ = out.error().message;
-            scalogram_job_.reset();
-            scalogram_done_ = gen;
+            auto& m = slot(kind);
+            if (gen != m.gen) return;
+            if (out.error().code != core::Errc::cancelled) m.error = out.error().message;
+            m.job.reset();
+            m.done = gen;
             return;
         }
         out->signal = s;
@@ -777,24 +854,26 @@ void DecompositionModel::request_scalogram(JobRunner& jobs) {
         ctx.finish(out->db.size() * sizeof(double));
         auto published = std::make_shared<const ScalogramData>(std::move(*out));
         std::lock_guard lock{mutex_};
-        if (gen != scalogram_gen_) return;
-        scalogram_ = std::move(published);
-        scalogram_job_.reset();
-        scalogram_done_ = gen;
+        auto& m = slot(kind);
+        if (gen != m.gen) return;
+        m.data = std::move(published);
+        m.job.reset();
+        m.done = gen;
     });
     std::lock_guard lock{mutex_};
-    if (scalogram_done_ != gen && scalogram_gen_ == gen) scalogram_job_ = id;
+    if (auto& m = slot(kind); m.done != gen && m.gen == gen) m.job = id;
 }
 
-std::shared_ptr<const ScalogramData> DecompositionModel::scalogram() const {
+std::shared_ptr<const ScalogramData> DecompositionModel::map(MapKind kind) const {
     const auto s = source_->data();
     std::lock_guard lock{mutex_};
-    return scalogram_ && s && scalogram_->signal.lock() == s && scalogram_->channel == options_.channel ? scalogram_ : nullptr;
+    const auto& m = slot(kind);
+    return m.data && s && m.data->signal.lock() == s && m.data->channel == options_.channel ? m.data : nullptr;
 }
 
-std::optional<std::string> DecompositionModel::scalogram_error() const {
+std::optional<std::string> DecompositionModel::map_error(MapKind kind) const {
     std::lock_guard lock{mutex_};
-    return scalogram_error_;
+    return slot(kind).error;
 }
 
 }  // namespace signals::tui

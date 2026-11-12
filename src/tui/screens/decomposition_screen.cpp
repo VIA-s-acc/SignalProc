@@ -98,6 +98,7 @@ std::vector<Hint> DecompositionScreen::hints() const {
 std::optional<TheoryLink> DecompositionScreen::theory_link() const {
     if (view_ == View::packets && focus_ != denoise) return TheoryLink{TheoryLink::Kind::section, "wavelet-packets"};
     if (view_ == View::scalogram && focus_ != denoise) return TheoryLink{TheoryLink::Kind::section, "cwt"};
+    if (view_ == View::sst && focus_ != denoise) return TheoryLink{TheoryLink::Kind::section, "synchrosqueezing"};
     return TheoryLink{TheoryLink::Kind::card, focus_ == denoise ? "threshold" : "dwt"};
 }
 
@@ -292,7 +293,7 @@ ftxui::Element DecompositionScreen::frame_panel(Panel p, ftxui::Element body, st
                                      fmt::arg("count", static_cast<int>(panel_count))),
                          false});
     static constexpr const char* kTitles[]{"", "panel.energy", "panel.cursor", "panel.denoise", "panel.listen", "panel.summary"};
-    const std::string title_id = p == view_panel ? std::string{(view_ == View::subbands ? "view.subbands" : view_ == View::mra ? "view.mra" : view_ == View::tiles ? "view.tiles" : view_ == View::packets ? "view.packets" : "view.scalogram")} : kTitles[static_cast<std::size_t>(p)];
+    const std::string title_id = p == view_panel ? std::string{(view_ == View::subbands ? "view.subbands" : view_ == View::mra ? "view.mra" : view_ == View::tiles ? "view.tiles" : view_ == View::packets ? "view.packets" : view_ == View::scalogram ? "view.scalogram" : "view.sst")} : kTitles[static_cast<std::size_t>(p)];
     return panel(title, std::move(chips), std::move(body), focus_ == p, ui_, notes_.box(title_id)) | ftxui::reflect(panel_boxes_[static_cast<std::size_t>(p)]);
 }
 
@@ -323,7 +324,8 @@ ftxui::Element DecompositionScreen::toolbar(bool two_rows, int cols) {
                    chip("view_mra", "MRA", view_ == View::mra, false, [this] { view_ = View::mra; }),
                    chip("view_tiles", tr("tui.decomposition.view.tiles"), view_ == View::tiles, false, [this] { view_ = View::tiles; }),
                    chip("chip_packets", tr("tui.decomposition.view.packets"), view_ == View::packets, false, [this] { view_ = View::packets; }),
-                   chip("chip_scalogram", tr("tui.decomposition.view.scalogram"), view_ == View::scalogram, false, [this] { view_ = View::scalogram; })};
+                   chip("chip_scalogram", tr("tui.decomposition.view.scalogram"), view_ == View::scalogram, false, [this] { view_ = View::scalogram; }),
+                   chip("chip_sst", tr("tui.decomposition.view.sst"), view_ == View::sst, false, [this] { view_ = View::sst; })};
     Elements second{notes_.mark("transform", text((two_rows ? "" : " │ ") + tr("tui.decomposition.transform") + " ") | fg(th.dim, ui_)),
                     chip("chip_dwt", "DWT", o.transform == Transform::dwt, packets_view, [this, &jobs] { set_transform(Transform::dwt, jobs); }),
                     chip("chip_swt", "SWT", o.transform == Transform::swt, packets_view, [this, &jobs] { set_transform(Transform::swt, jobs); }),
@@ -612,7 +614,8 @@ ftxui::Element DecompositionScreen::scalogram_body(const ScalogramData& s, int w
         f_lo = *std::min_element(s.freq_hz.begin(), s.freq_hz.end());
         f_hi = *std::max_element(s.freq_hz.begin(), s.freq_hz.end());
     }
-    shown_map_ = HeatmapExport{"scalogram", tr("tui.export.scalogram"), spec, Axis{begin_, end_}, Axis{f_lo, f_hi, f_lo > 0 ? AxisScale::log10 : AxisScale::linear},
+    const bool squeezed = s.kind == MapKind::sst;
+    shown_map_ = HeatmapExport{squeezed ? "sst" : "scalogram", tr(squeezed ? "tui.export.sst" : "tui.export.scalogram"), spec, Axis{begin_, end_}, Axis{f_lo, f_hi, f_lo > 0 ? AxisScale::log10 : AxisScale::linear},
                                tr("tui.export.time_s"), tr("tui.export.freq_hz")};
     Elements labels;
     for (int y = 0; y < height; ++y) {
@@ -893,10 +896,12 @@ ftxui::Element DecompositionScreen::OnRender() {
                        : view_ == View::mra    ? fmt::format(fmt::runtime(tr("tui.decomposition.title.mra")), fmt::arg("a", band_label(d->bands.size() - 1)))
                        : view_ == View::packets ? tr("tui.decomposition.title.packets")
                        : view_ == View::scalogram ? tr("tui.decomposition.title.scalogram")
+                       : view_ == View::sst       ? tr("tui.decomposition.title.sst")
                                                : tr("tui.decomposition.title.tiles");
     const auto chip_key = view_ == View::tiles       ? "tui.decomposition.chip.tiles"
                           : view_ == View::packets   ? "tui.decomposition.chip.packets"
                           : view_ == View::scalogram ? "tui.decomposition.chip.scalogram"
+                          : view_ == View::sst       ? "tui.decomposition.chip.sst"
                                                      : "tui.decomposition.chip.scale";
     std::shared_ptr<const PacketData> packets;
     std::shared_ptr<const ScalogramData> scalogram;
@@ -908,9 +913,11 @@ ftxui::Element DecompositionScreen::OnRender() {
             pk_pos_ = std::min(pk_pos_, (std::size_t{1} << pk_level_) - 1);
         }
     }
-    if (view_ == View::scalogram) {
-        model_->request_scalogram(*ui_.jobs);
-        scalogram = model_->scalogram();
+    const bool map_view = view_ == View::scalogram || view_ == View::sst;
+    const auto map_kind = view_ == View::sst ? MapKind::sst : MapKind::cwt;
+    if (map_view) {
+        model_->request_map(map_kind, *ui_.jobs);
+        scalogram = model_->map(map_kind);
     }
     auto chip_text = tr(chip_key);
     if (scalogram && scalogram->decimation > 1)
@@ -926,15 +933,15 @@ ftxui::Element DecompositionScreen::OnRender() {
     const int body_rows = small ? total - toolbar_rows - 2 : std::max(6, total - toolbar_rows - 1 - 2 - 1 - 9);
     Element body;
     int used = std::min(body_rows, static_cast<int>(2 * std::min(d->bands.size(), static_cast<std::size_t>(body_rows))) + 3);
-    if (view_ == View::scalogram) {
+    if (map_view) {
         label_boxes_.clear();
         plot_boxes_.clear();
         if (scalogram) {
             body = scalogram_body(*scalogram, main_width, body_rows);
             used = body_rows;
         } else {
-            const auto e = model_->scalogram_error();
-            body = text(e ? *e : tr("tui.decomposition.scalogram_wait")) | fg(e ? th.err : th.dim, ui_);
+            const auto e = model_->map_error(map_kind);
+            body = text(e ? *e : tr(view_ == View::sst ? "tui.decomposition.sst_wait" : "tui.decomposition.scalogram_wait")) | fg(e ? th.err : th.dim, ui_);
             used = 3;
         }
     } else if (view_ != View::packets) {
@@ -1073,8 +1080,8 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
         maximized_ = maximized_ ? std::nullopt : std::optional<Panel>{focus_};
         return true;
     }
-    if (e == Event::Character('r') && (view_ == View::packets || view_ == View::scalogram) && !model_->cancelled() &&
-        model_->retry_cancelled(view_ == View::packets))
+    if (e == Event::Character('r') && (view_ == View::packets || view_ == View::scalogram || view_ == View::sst) && !model_->cancelled() &&
+        model_->retry_cancelled(view_ == View::packets, view_ == View::sst ? MapKind::sst : MapKind::cwt))
         return true;
     if (e == Event::Character('r') && !model_->job()) return model_->recompute(jobs), true;
     if (e == Event::Character('o') && ui_.ask_open) return ui_.ask_open(), true;
@@ -1144,6 +1151,7 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
                 : view_ == View::mra    ? View::tiles
                 : view_ == View::tiles  ? View::packets
                 : view_ == View::packets ? View::scalogram
+                : view_ == View::scalogram ? View::sst
                                          : View::subbands;
         return true;
     }
@@ -1206,7 +1214,7 @@ std::optional<std::string> DecompositionScreen::explain_at(int x, int y) const {
     for (const auto& c : clickables_) {
         if (!valid(c.box) || !c.box.Contain(x, y)) continue;
         std::string id = c.id;
-        if (id == "chip_packets" || id == "chip_scalogram") id = "view_" + id.substr(5);
+        if (id == "chip_packets" || id == "chip_scalogram" || id == "chip_sst") id = "view_" + id.substr(5);
         else if (id.starts_with("chip_")) id = "transform_" + id.substr(5);
         else if (id == "edges") id = "edges_" + std::string{core::to_string(model_->options().mode)};
         else if (id == "rule") id = "rule_" + std::string{core::shrink_rule_name(draft_.rule.value_or(core::ShrinkRule::bayes))};
