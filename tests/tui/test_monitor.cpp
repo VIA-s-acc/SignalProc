@@ -7,10 +7,12 @@
 #include <cmath>
 #include <cstdio>
 #include <ctime>
+#include <span>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include <sys/mman.h>
 #include <unistd.h>
 
 #if defined(__APPLE__)
@@ -27,7 +29,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
-void touch(std::vector<char>& v) {
+void touch(std::span<char> v) {
     // Pseudo-random bytes through a volatile pointee: the macOS memory compressor squeezes a constant ballast under load,
     // and GCC drops plain stores to memory that is freed before it is read.
     volatile char* data = v.data();
@@ -39,6 +41,23 @@ void touch(std::vector<char>& v) {
         data[i] = static_cast<char>(x);
     }
 }
+
+// Fresh anonymous pages: memory recycled from the allocator's free cache stays out of the macOS physical
+// footprint even after it is written, so a malloc'd ballast reads as 0 MB late in a long test run.
+class Ballast {
+public:
+    explicit Ballast(std::size_t size) : size_{size}, data_{mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0)} {
+        REQUIRE(data_ != MAP_FAILED);
+        touch({static_cast<char*>(data_), size_});
+    }
+    ~Ballast() { munmap(data_, size_); }
+    Ballast(const Ballast&) = delete;
+    Ballast& operator=(const Ballast&) = delete;
+
+private:
+    std::size_t size_;
+    void* data_;
+};
 
 #if defined(__APPLE__)
 double top_memory_kib(pid_t pid) {
@@ -68,14 +87,15 @@ double clock_seconds(clockid_t id) {
 }  // namespace
 
 TEST_CASE("process memory agrees with top within 5 percent", "[tui][monitor]") {
-    std::vector<char> ballast(64 << 20, 1);
-    touch(ballast);
+    const auto before = sample_process();
+    REQUIRE(before);
+    const Ballast ballast{64u << 20};
     auto s = sample_process();
     REQUIRE(s);
     const double top_kib = top_memory_kib(getpid());
     CHECK(std::abs(static_cast<double>(s->rss_bytes) / 1024.0 - top_kib) <= 0.05 * top_kib);
     CHECK(s->peak_rss_bytes >= s->rss_bytes);
-    CHECK(s->rss_bytes > (48u << 20));
+    CHECK(s->rss_bytes >= before->rss_bytes + (48u << 20));
 }
 
 TEST_CASE("cpu load of a busy thread is about one core", "[tui][monitor]") {
@@ -158,4 +178,18 @@ TEST_CASE("threads are sampled with their names and cpu time", "[tui][monitor]")
     CHECK(it->pct > 50);
     CHECK(snap.thread_load.front().pct >= snap.thread_load.back().pct);
 #endif
+}
+
+TEST_CASE("a fresh allocation shows up in process memory after the process freed a lot", "[tui][monitor]") {
+    for (int k = 0; k < 4; ++k) {
+        std::vector<char> earlier(64 << 20);
+        touch(earlier);
+    }
+    const auto before = sample_process();
+    REQUIRE(before);
+    const Ballast ballast{64u << 20};
+    const auto after = sample_process();
+    REQUIRE(after);
+    INFO("before " << (before->rss_bytes >> 20) << " MiB, after " << (after->rss_bytes >> 20) << " MiB");
+    CHECK(after->rss_bytes >= before->rss_bytes + (48u << 20));
 }
