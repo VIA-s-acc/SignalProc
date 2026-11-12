@@ -1,8 +1,8 @@
 {
   "name": "signals-sig",
-  "displayName": "Signals .sig",
-  "description": "Syntax highlighting, hovers, completion and snippets for Signals pipeline files (.sig)",
-  "version": "0.1.0",
+  "displayName": "Signals .sig and .flt",
+  "description": "Signals pipeline files (.sig) and filter files (.flt): highlighting, hovers, completion, checks and snippets",
+  "version": "0.2.0",
   "publisher": "via-s-acc",
   "license": "MIT",
   "repository": {
@@ -18,7 +18,8 @@
   ],
   "main": "./extension.js",
   "activationEvents": [
-    "onLanguage:signals-sig"
+    "onLanguage:signals-sig",
+    "onLanguage:signals-flt"
   ],
   "contributes": {
     "languages": [
@@ -32,6 +33,17 @@
           ".sig"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "signals-flt",
+        "aliases": [
+          "Signals filter",
+          "flt"
+        ],
+        "extensions": [
+          ".flt"
+        ],
+        "configuration": "./language-configuration-flt.json"
       }
     ],
     "grammars": [
@@ -39,12 +51,21 @@
         "language": "signals-sig",
         "scopeName": "source.signals-sig",
         "path": "./syntaxes/sig.tmLanguage.json"
+      },
+      {
+        "language": "signals-flt",
+        "scopeName": "source.signals-flt",
+        "path": "./syntaxes/flt.tmLanguage.json"
       }
     ],
     "snippets": [
       {
         "language": "signals-sig",
         "path": "./snippets/sig.json"
+      },
+      {
+        "language": "signals-flt",
+        "path": "./snippets/flt.json"
       }
     ]
   }
