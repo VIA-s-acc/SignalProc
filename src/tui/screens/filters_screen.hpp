@@ -53,6 +53,7 @@ public:
     void set_cursor_a(double w) { cursor_a_ = std::clamp(w, 0.0, span_); }
     double omega_at(std::string_view plot, int x) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<PlotExport> plot_exports() override;
     std::optional<std::pair<int, int>> menu_anchor() const override;
     std::vector<JumpTarget> jump_targets() const override;
     std::optional<std::string> explain_at(int x, int y) const override;
@@ -88,6 +89,7 @@ private:
     ftxui::Element frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title);
     ftxui::Element build(Panel p, int rows, int width);
     ftxui::Element magnitude_panel(int width);
+    std::vector<std::string> trace_names(const std::vector<Trace>& ts) const;
     ftxui::Element phase_panel();
     ftxui::Element delay_panel();
     ftxui::Element impulse_panel(int width);
@@ -149,6 +151,7 @@ private:
     Scroll library_scroll_, roots_scroll_;
     std::size_t match_follow_ = static_cast<std::size_t>(-1);
     std::string follow_query_;
+    std::array<std::optional<PlotExport>, 3> shown_plots_{};
     PlotZoom impulse_zoom_;
     ZView zview_;
     ftxui::Box zplane_box_{}, roots_box_{};

@@ -269,7 +269,7 @@ ftxui::Element ProcessingScreen::signal_body(const ProcessingResult& r, int widt
     spec.envelopes.push_back(Envelope{columns_of(slice(r.clean), 2 * plot_width, peak), th.dim, {}});
     spec.envelopes.push_back(Envelope{columns_of(slice(shown), 2 * plot_width, peak), view_ == View::x ? th.warn : th.trace[0], {}});
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, std::max(3, height)) | size(WIDTH, EQUAL, plot_width);
-    return zoom_.track("signal", std::move(spec), std::move(drawn));
+    return zoom_.track("signal", std::move(spec), std::move(drawn), {tr("tui.processing.signal_chip"), {}, tr("tui.export.time_s"), ""});
 }
 
 ftxui::Element ProcessingScreen::curve_body(const ProcessingResult& r, int width, int height) {
@@ -287,7 +287,7 @@ ftxui::Element ProcessingScreen::curve_body(const ProcessingResult& r, int width
     spec.traces.push_back(std::move(t));
     spec.x_marks = {static_cast<double>(std::max<std::size_t>(1, r.kept))};
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, std::max(3, height)) | size(WIDTH, EQUAL, std::max(10, width - 4));
-    return zoom_.track("curve", std::move(spec), std::move(drawn));
+    return zoom_.track("curve", std::move(spec), std::move(drawn), {tr("tui.processing.curve")});
 }
 
 ftxui::Element ProcessingScreen::eq_body(const ProcessingResult& r, int width, int height) {
@@ -315,7 +315,7 @@ ftxui::Element ProcessingScreen::eq_body(const ProcessingResult& r, int width, i
     spec.traces.push_back(std::move(t));
     spec.traces.push_back(std::move(a));
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, std::max(3, height - 1)) | size(WIDTH, EQUAL, std::max(10, width - 4));
-    return vbox({hbox(std::move(chips)), zoom_.track("eq", std::move(spec), std::move(drawn))});
+    return vbox({hbox(std::move(chips)), zoom_.track("eq", std::move(spec), std::move(drawn), {tr("tui.processing.eq")})});
 }
 
 ftxui::Element ProcessingScreen::summary_body(const ProcessingResult& r) {
@@ -542,7 +542,7 @@ std::optional<Axis> ProcessingScreen::plot_view(std::string_view id) const {
 }
 
 std::vector<MenuItem> ProcessingScreen::context_menu(int x, int y) {
-    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
+    if (auto items = zoom_.menu(x, y, ui_); !items.empty()) return items;
     if (panel_boxes_[coeffs_panel].Contain(x, y) && coeff_zoom_.zoomed()) return {MenuItem{tr("tui.menu.reset_zoom"), "", [this] { coeff_zoom_.reset(); }}};
     return {};
 }

@@ -43,6 +43,7 @@ public:
     ftxui::Box area(std::string_view id) const;
     Axis plot_axis(std::string_view id) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<PlotExport> plot_exports() override { return zoom_.exports(); }
     std::optional<std::pair<int, int>> menu_anchor() const override;
 
 private:

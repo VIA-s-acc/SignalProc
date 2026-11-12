@@ -46,6 +46,7 @@ public:
     ftxui::Box area(std::string_view id) const;
     std::optional<Axis> plot_view(std::string_view id) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<PlotExport> plot_exports() override { return zoom_.exports(); }
     View view() const { return view_; }
     std::size_t preset() const { return preset_; }
     std::size_t active_preset() const;

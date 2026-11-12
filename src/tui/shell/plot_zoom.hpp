@@ -20,11 +20,13 @@ class PlotZoom {
 public:
     void begin_frame();
     AxisZoom& axis(const std::string& id, Axis full);
-    ftxui::Element track(const std::string& id, PlotSpec spec, ftxui::Element plot);
+    ftxui::Element track(const std::string& id, PlotSpec spec, ftxui::Element plot, PlotMeta meta = {});
     bool on_mouse(const ftxui::Mouse& m);
     bool on_key(const ftxui::Event& e, std::string_view id);
     bool press(int x, int y);
     std::optional<MenuItem> reset_item(int x, int y);
+    std::vector<MenuItem> menu(int x, int y, UiContext& ui);
+    std::vector<PlotExport> exports() const;
     std::optional<Axis> view(std::string_view id) const;
     ftxui::Box box(std::string_view id) const;
 
@@ -33,6 +35,7 @@ private:
         AxisZoom zoom;
         ftxui::Box box{};
         PlotSpec spec;
+        PlotMeta meta = {};
     };
     Entry* under(int x, int y);
 

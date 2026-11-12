@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "i18n/i18n.hpp"
+#include "tui/shell/plot_export.hpp"
 
 namespace signals::tui {
 namespace {
@@ -23,11 +24,10 @@ AxisZoom& PlotZoom::axis(const std::string& id, Axis full) {
     return it->second.zoom;
 }
 
-ftxui::Element PlotZoom::track(const std::string& id, PlotSpec spec, ftxui::Element plot) {
+ftxui::Element PlotZoom::track(const std::string& id, PlotSpec spec, ftxui::Element plot, PlotMeta meta) {
     auto& e = plots_[id];
-    spec.traces.clear();
-    spec.envelopes.clear();
     e.spec = std::move(spec);
+    e.meta = std::move(meta);
     return plot | ftxui::reflect(e.box);
 }
 
@@ -84,6 +84,25 @@ std::optional<MenuItem> PlotZoom::reset_item(int x, int y) {
     auto* e = under(x, y);
     if (!e || !e->zoom.zoomed()) return std::nullopt;
     return MenuItem{tr("tui.menu.reset_zoom"), "", [e] { e->zoom.reset(); }};
+}
+
+std::vector<MenuItem> PlotZoom::menu(int x, int y, UiContext& ui) {
+    std::vector<MenuItem> out;
+    auto* e = under(x, y);
+    if (!e) return out;
+    if (auto reset = reset_item(x, y)) out.push_back(*reset);
+    for (auto& [id, entry] : plots_)
+        if (&entry == e) {
+            out.push_back(export_item(ui, {id, entry.meta.title.empty() ? id : entry.meta.title, entry.spec, entry.meta.names, entry.meta.x_label, entry.meta.y_label}));
+        }
+    return out;
+}
+
+std::vector<PlotExport> PlotZoom::exports() const {
+    std::vector<PlotExport> out;
+    for (const auto& [id, e] : plots_)
+        if (e.box.x_max >= e.box.x_min) out.push_back({id, e.meta.title.empty() ? id : e.meta.title, e.spec, e.meta.names, e.meta.x_label, e.meta.y_label});
+    return out;
 }
 
 std::optional<Axis> PlotZoom::view(std::string_view id) const {

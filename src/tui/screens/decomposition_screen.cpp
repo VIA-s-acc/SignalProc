@@ -12,6 +12,7 @@
 
 #include "core/design/families.hpp"
 #include "i18n/i18n.hpp"
+#include "tui/shell/plot_export.hpp"
 #include "core/check.hpp"
 #include "core/wavedec.hpp"
 #include "core/wavelet/regularity.hpp"
@@ -216,12 +217,18 @@ void DecompositionScreen::sync_view(const std::shared_ptr<const DecompositionDat
     draft_.gains_db.assign(d->bands.size(), 0.0);
 }
 
+std::vector<HeatmapExport> DecompositionScreen::heatmap_exports() {
+    if (shown_map_) return {*shown_map_};
+    return {};
+}
+
 std::vector<MenuItem> DecompositionScreen::context_menu(int x, int y) {
     const auto d = model_->data();
     const auto plot = plot_area();
-    if (d && valid(plot) && plot.Contain(x, y) && (begin_ > 0 || end_ < d->duration()))
-        return {{tr("tui.menu.reset_zoom"), "0", [this] { zoom(1e-12, begin_); }}};
-    return {};
+    std::vector<MenuItem> items;
+    if (d && valid(plot) && plot.Contain(x, y) && (begin_ > 0 || end_ < d->duration())) items.push_back({tr("tui.menu.reset_zoom"), "0", [this] { zoom(1e-12, begin_); }});
+    if (shown_map_ && valid(plot) && plot.Contain(x, y)) items.push_back(export_item(ui_, *shown_map_));
+    return items;
 }
 
 void DecompositionScreen::zoom(double factor, double anchor) {
@@ -410,6 +417,8 @@ ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const 
             for (std::size_t c = c0; c < c1; ++c) spec.values.push_back(d.tiles.db[row * d.tiles.cols + c]);
         spec.floor = -48;
         spec.ceil = 0;
+        shown_map_ = HeatmapExport{"bands", tr("tui.export.coefficients_map"), spec, Axis{begin_, end_}, Axis{static_cast<double>(first + spec.rows), static_cast<double>(first)}, tr("tui.export.time_s"),
+                                   tr("tui.export.band")};
         Elements labels;
         for (std::size_t i = first; i < first + spec.rows; ++i) {
             labels.push_back(text(band_label(i) + " " + hz_text(d.bands[i].lo_hz) + "–" + hz_text(d.bands[i].hi_hz) + " " + tr("unit.hz")) |
@@ -598,6 +607,13 @@ ftxui::Element DecompositionScreen::scalogram_body(const ScalogramData& s, int w
             spec.values.push_back(s.db[r * s.cols + c]);
             spec.shade.push_back(s.coi[r * s.cols + c]);
         }
+    double f_lo = 0, f_hi = 1;
+    if (!s.freq_hz.empty()) {
+        f_lo = *std::min_element(s.freq_hz.begin(), s.freq_hz.end());
+        f_hi = *std::max_element(s.freq_hz.begin(), s.freq_hz.end());
+    }
+    shown_map_ = HeatmapExport{"scalogram", tr("tui.export.scalogram"), spec, Axis{begin_, end_}, Axis{f_lo, f_hi, f_lo > 0 ? AxisScale::log10 : AxisScale::linear},
+                               tr("tui.export.time_s"), tr("tui.export.freq_hz")};
     Elements labels;
     for (int y = 0; y < height; ++y) {
         const auto row = std::min(s.rows - 1, static_cast<std::size_t>(2 * y + 1) * s.rows / static_cast<std::size_t>(2 * height));
@@ -848,6 +864,7 @@ ftxui::Element DecompositionScreen::summary_panel(const DecompositionData& d, co
 
 ftxui::Element DecompositionScreen::OnRender() {
     using namespace ftxui;
+    shown_map_.reset();
     panel_boxes_.fill(kNoBox);
     clickables_.clear();
     notes_.clear();

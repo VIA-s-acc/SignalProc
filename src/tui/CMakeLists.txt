@@ -36,6 +36,7 @@ add_library(signals_tui STATIC
   shell/overlays.cpp
   shell/ticker.cpp
   shell/plot_zoom.cpp
+  shell/plot_export.cpp
   shell/subtabs.cpp
   shell/errors.cpp
   screens/signal_model.cpp
@@ -76,7 +77,7 @@ add_library(signals_tui STATIC
 target_include_directories(signals_tui PUBLIC ${PROJECT_SOURCE_DIR}/src)
 find_package(Threads REQUIRED)
 target_link_libraries(signals_tui
-  PUBLIC signals_core signals_io signals_audio signals_i18n signals_theory signals_pipeline ftxui::component ftxui::dom ftxui::screen Threads::Threads
+  PUBLIC signals_core signals_io signals_svg signals_audio signals_i18n signals_theory signals_pipeline ftxui::component ftxui::dom ftxui::screen Threads::Threads
   PRIVATE tomlplusplus::tomlplusplus fmt::fmt)
 target_compile_definitions(signals_tui PRIVATE SIGNALS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 signals_configure_target(signals_tui)

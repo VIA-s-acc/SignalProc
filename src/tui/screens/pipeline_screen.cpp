@@ -735,10 +735,14 @@ ftxui::Element PipelineScreen::probe_time(int width, int rows) {
             const auto* pyramid = probe_.pyramids[c].get();
             const auto first = static_cast<std::size_t>(std::clamp(spec.x.lo * rate, 0.0, static_cast<double>(pyramid->size())));
             const auto last = std::max(first + 1, static_cast<std::size_t>(std::clamp(spec.x.hi * rate, 0.0, static_cast<double>(pyramid->size()))));
-            spec.envelopes.push_back(Envelope{{}, th.trace[c % th.trace.size()], [pyramid, first, last](int cols) { return pyramid->query(first, last, static_cast<std::size_t>(cols)); }});
+            spec.envelopes.push_back(
+                Envelope{{}, th.trace[c % th.trace.size()], [pyramid, first, last](int cols) { return pyramid->query(first, last, static_cast<std::size_t>(cols)); }, last - first});
         }
         return spec;
     };
+    const auto title = tr("tui.pipeline.probe") + " · " + probe_.name + " · " + tr("tui.pipeline.view.time");
+    std::vector<std::string> names;
+    for (std::size_t c = 0; c < channels; ++c) names.push_back("ch" + std::to_string(c));
     Elements out;
     if (channels > 1) out.push_back(channel_legend(channels, width, true));
     const int room = std::max(2, rows - (channels > 1 ? 1 : 0));
@@ -747,7 +751,7 @@ ftxui::Element PipelineScreen::probe_time(int width, int rows) {
         for (const auto& p : probe_.pyramids) m = std::max(m, peak(*p));
         auto spec = make(0, channels, m);
         auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, room);
-        out.push_back(probe_zoom_.track("probe_time", std::move(spec), std::move(drawn)));
+        out.push_back(probe_zoom_.track("probe_time", std::move(spec), std::move(drawn), {title, names, tr("tui.export.time_s"), ""}));
         return vbox(std::move(out));
     }
     const auto fits = static_cast<std::size_t>(std::max(1, room / 2));
@@ -758,7 +762,7 @@ ftxui::Element PipelineScreen::probe_time(int width, int rows) {
         if (c > 0) probe_zoom_.axis(id, full) = master;
         auto spec = make(c, c + 1, peak(*probe_.pyramids[c]));
         auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, each);
-        out.push_back(probe_zoom_.track(id, std::move(spec), std::move(drawn)));
+        out.push_back(probe_zoom_.track(id, std::move(spec), std::move(drawn), {title + " · " + names[c], {names[c]}, tr("tui.export.time_s"), ""}));
     }
     if (shown < channels)
         out.push_back(text(fmt::format(fmt::runtime(tr("tui.pipeline.channels_hidden")), fmt::arg("count", channels - shown))) | fg(th.warn, ui_));
@@ -868,7 +872,10 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
         const bool legend = probe_.db.size() > 1;
         if (legend) rows.push_back(channel_legend(probe_.db.size(), width, false));
         auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, plot_rows - (legend ? 1 : 0));
-        rows.push_back(probe_zoom_.track("probe_spectrum", std::move(spec), std::move(drawn)));
+        std::vector<std::string> names;
+        for (std::size_t c = 0; c < probe_.db.size(); ++c) names.push_back("ch" + std::to_string(c));
+        rows.push_back(probe_zoom_.track("probe_spectrum", std::move(spec), std::move(drawn),
+                                         {tr("tui.pipeline.probe") + " · " + probe_.name + " · " + tr("tui.pipeline.view.spectrum"), names, tr("tui.export.freq_hz"), tr("tui.filters.db")}));
     } else if (!probe_.samples) {
         Elements lines;
         if (const auto* r = std::get_if<pipeline::Report>(&value)) {
@@ -1025,7 +1032,7 @@ std::optional<std::string> PipelineScreen::explain_at(int x, int y) const {
 }
 
 std::vector<MenuItem> PipelineScreen::context_menu(int x, int y) {
-    if (auto reset = probe_zoom_.reset_item(x, y)) return {*reset};
+    if (auto items = probe_zoom_.menu(x, y, ui_); !items.empty()) return items;
     if (valid(graph_box_) && graph_box_.Contain(x, y) && graph_zoom_ != kGraphZoomDefault)
         return {{tr("tui.menu.reset_zoom"), "0", [this] { set_graph_zoom(kGraphZoomDefault, std::nullopt); }}};
     return {};

@@ -287,7 +287,7 @@ ftxui::Element DesignerScreen::magnitude_panel(const DesignerResult* r) {
         add(r->h0_response, th.trace[0], LineStyle::solid);
     }
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs);
-    return frame_panel(magnitude, zoom_.track("magnitude", std::move(spec), std::move(drawn)),
+    return frame_panel(magnitude, zoom_.track("magnitude", std::move(spec), std::move(drawn), {tr("tui.designer.magnitude"), {}, "ω", ""}),
                        {{tr("tui.designer.same_view"), false}},
                        tr("tui.designer.magnitude"));
 }
@@ -324,7 +324,7 @@ ftxui::Element DesignerScreen::cascade_panel(const DesignerResult* r, bool dual)
                            : fmt::format(fmt::runtime(tr("tui.designer.diverges")), fmt::arg("mark", std::string{glyph(Glyph::cross, ui_.caps.glyphs)}),
                                          fmt::arg("ratio", last ? format_fixed(last->norm_ratio, 2) : std::string{"—"}));
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs);
-    auto body = vbox({zoom_.track(dual ? "phi_dual" : "phi", std::move(spec), std::move(drawn)) | flex, text(status) | fg(ok ? th.ok : th.err, ui_)});
+    auto body = vbox({zoom_.track(dual ? "phi_dual" : "phi", std::move(spec), std::move(drawn), {iterations_title(iterations, dual)}) | flex, text(status) | fg(ok ? th.ok : th.err, ui_)});
     return frame_panel(id, body, std::move(chips), iterations_title(iterations, dual));
 }
 
@@ -539,7 +539,7 @@ std::vector<Command> DesignerScreen::commands() {
 }
 
 std::vector<MenuItem> DesignerScreen::context_menu(int x, int y) {
-    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
+    if (auto items = zoom_.menu(x, y, ui_); !items.empty()) return items;
     if (roots_box_.Contain(x, y) && zview_.zoomed()) {
         std::vector<MenuItem> items;
         if (hits_)

@@ -39,6 +39,7 @@ public:
     ftxui::Box area(std::string_view id) const;
     Axis plot_axis(std::string_view id) const;
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<PlotExport> plot_exports() override;
     std::optional<std::pair<int, int>> menu_anchor() const override;
     std::vector<JumpTarget> jump_targets() const override;
     std::optional<std::string> explain_at(int x, int y) const override;
@@ -89,6 +90,7 @@ private:
     bool wave_labels_ = true;
     bool wave_split_ = true;
     Drag drag_;
+    std::vector<PlotExport> shown_waves_;
     PlotZoom zoom_;
     Scroll source_scroll_, log_scroll_;
     std::size_t log_seen_ = 0;

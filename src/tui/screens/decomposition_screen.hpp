@@ -51,6 +51,7 @@ public:
     void set_cursor(double t);
     std::pair<double, double> time_view() const { return {begin_, end_}; }
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<HeatmapExport> heatmap_exports() override;
 
 private:
     enum Panel { view_panel, energy, cursor_panel, denoise, listen, summary, panel_count };
@@ -97,6 +98,7 @@ private:
     std::array<ftxui::Box, panel_count> panel_boxes_{};
     std::deque<Clickable> clickables_;
     Notes notes_{"decomposition"};
+    std::optional<HeatmapExport> shown_map_;
     std::vector<ftxui::Box> plot_boxes_;
     std::shared_ptr<const DecompositionData> seen_;
     double begin_ = 0, end_ = 0;

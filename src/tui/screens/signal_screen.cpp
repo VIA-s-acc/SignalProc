@@ -12,6 +12,7 @@
 #include <ftxui/dom/elements.hpp>
 
 #include "i18n/i18n.hpp"
+#include "tui/shell/plot_export.hpp"
 #include "tui/screens/publish_util.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/widgets/format.hpp"
@@ -325,11 +326,14 @@ ftxui::Element SignalScreen::wave_panel(const std::shared_ptr<const SignalData>&
         const auto s0 = std::min(n, static_cast<std::size_t>(std::floor(b * fs)));
         const auto s1 = std::min(n, static_cast<std::size_t>(std::ceil(e * fs)));
         spec.envelopes.push_back(
-            Envelope{{}, c == 0 ? th.fg : th.dim, [d, c, s0, s1](int cols) { return d->pyramids[c].query(s0, s1, static_cast<std::size_t>(cols)); }});
+            Envelope{{}, c == 0 ? th.fg : th.dim, [d, c, s0, s1](int cols) { return d->pyramids[c].query(s0, s1, static_cast<std::size_t>(cols)); }, s1 - s0});
         spec.cursor_a = cursor_a;
         spec.cursor_b = cursor_b;
         spec.playhead = head_at;
         spec.selection = selection;
+        const auto channel = channel_name(c, d->samples.size());
+        shown_waves_.push_back({"wave" + std::to_string(c), tr("tui.signal.wave") + (channel.empty() ? std::string{} : " · " + channel), spec,
+                                {channel.empty() ? std::string{"x"} : channel}, tr("tui.export.time_s"), ""});
         auto chart = plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | reflect(wave_boxes_[c]);
         auto label = vbox({text(channel_name(c, d->samples.size())) | fg(th.dim, ui_)});
         plots.push_back(dbox({chart, label}) | size(HEIGHT, EQUAL, c == 0 ? l_rows : r_rows));
@@ -439,7 +443,7 @@ ftxui::Element SignalScreen::spectrum_panel(const SignalData* d, int, int width)
         pos = col + display_width(name);
     }
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs);
-    return frame_panel(spectrum, vbox({hbox(std::move(marks)), zoom_.track("spectrum", std::move(spec), std::move(drawn)) | flex}), std::move(chips),
+    return frame_panel(spectrum, vbox({hbox(std::move(marks)), zoom_.track("spectrum", std::move(spec), std::move(drawn), {tr("tui.signal.spectrum"), {}, tr("tui.export.freq_hz"), tr("tui.filters.db")}) | flex}), std::move(chips),
                        tr("tui.signal.spectrum"));
 }
 
@@ -481,6 +485,7 @@ ftxui::Element SignalScreen::build(Panel p, const std::shared_ptr<const SignalDa
 ftxui::Element SignalScreen::OnRender() {
     using namespace ftxui;
     zoom_.begin_frame();
+    shown_waves_.clear();
     notes_.clear();
     panel_boxes_.fill(kNoBox);
     title_boxes_.fill(kNoBox);
@@ -778,12 +783,21 @@ void SignalScreen::toggle_playback() {
     }
 }
 
+std::vector<PlotExport> SignalScreen::plot_exports() {
+    auto out = shown_waves_;
+    for (auto& p : zoom_.exports()) out.push_back(std::move(p));
+    return out;
+}
+
 std::vector<MenuItem> SignalScreen::context_menu(int x, int y) {
-    if (auto reset = zoom_.reset_item(x, y)) return {*reset};
+    if (auto items = zoom_.menu(x, y, ui_); !items.empty()) return items;
     if (!model_->data() || !in_wave(x, y)) return {};
+    std::vector<MenuItem> exports;
+    for (std::size_t c = 0; c < shown_waves_.size() && c < wave_boxes_.size(); ++c)
+        if (wave_boxes_[c].Contain(x, y)) exports.push_back(export_item(ui_, shown_waves_[c]));
     const double t = time_at(x);
     const bool both = model_->cursor_a() && model_->cursor_b();
-    return {
+    std::vector<MenuItem> items{
         {tr("tui.menu.cursor_a"), tr("tui.signal.key.click"), [this, t] { model_->set_cursor_a(t); }},
         {tr("tui.menu.cursor_b"), "Shift+" + tr("tui.signal.key.click"), [this, t] { model_->set_cursor_b(t); }},
         {tr("tui.menu.select_ab"), "", [this] {
@@ -796,6 +810,8 @@ std::vector<MenuItem> SignalScreen::context_menu(int x, int y) {
              model_->zoom_amplitude(1e-12);
          }},
     };
+    items.insert(items.end(), exports.begin(), exports.end());
+    return items;
 }
 
 std::vector<JumpTarget> SignalScreen::jump_targets() const {

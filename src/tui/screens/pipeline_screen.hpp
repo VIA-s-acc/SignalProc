@@ -47,6 +47,7 @@ public:
     std::optional<Axis> plot_view(std::string_view id) const;
     int graph_zoom() const { return graph_zoom_; }
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<PlotExport> plot_exports() override { return probe_zoom_.exports(); }
     const std::string& notice() const { return notice_; }
     std::pair<int, int> view_offset() const { return {ox_, oy_}; }
 

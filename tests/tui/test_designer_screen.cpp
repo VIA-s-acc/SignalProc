@@ -1,6 +1,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+
 #include <optional>
 
 #include <chrono>
@@ -189,8 +191,9 @@ TEST_CASE("the wheel zooms designer plots at the mouse and the menu resets them"
     CHECK(a.hi < 0.95 * pi);
     auto items = f.screen->context_menu(x, y);
     REQUIRE_FALSE(items.empty());
-    CHECK(items.back().label == "Сбросить масштаб");
-    items.back().action();
+    const auto reset = std::find_if(items.begin(), items.end(), [](const MenuItem& m) { return m.label == signals::tr("tui.menu.reset_zoom"); });
+    REQUIRE(reset != items.end());
+    reset->action();
     f.h.frame();
     a = f.screen->plot_axis("magnitude");
     CHECK(a.lo == 0);

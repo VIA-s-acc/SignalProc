@@ -21,6 +21,7 @@
 #include "core/bank.hpp"
 #include "tui/screens/publish_util.hpp"
 #include "tui/shell/palette.hpp"
+#include "tui/shell/plot_export.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/scroll.hpp"
 #include "tui/widgets/text_util.hpp"
@@ -616,6 +617,7 @@ ftxui::Element FiltersScreen::magnitude_panel(int) {
         }
         spec.traces.push_back(std::move(tr_));
     }
+    shown_plots_[0] = PlotExport{"magnitude", title, spec, trace_names(ts), "ω", decibels_ ? tr("tui.filters.db") : std::string{}};
     auto chart = plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | reflect(plot_boxes_[0]);
     const std::string unit = decibels_ ? " " + tr("tui.filters.db") : "";
     auto readout = [&](const char* name, const std::optional<double>& at, const std::optional<double>& base) {
@@ -678,6 +680,7 @@ ftxui::Element FiltersScreen::phase_panel() {
             return r.magnitude[k] < kMaskRelative * t.peak ? std::numeric_limits<double>::quiet_NaN() : r.phase_unwrapped[k] / kPi;
         },
         "π");
+    shown_plots_[1] = PlotExport{"phase", tr("tui.filters.phase"), spec, trace_names(ts), "ω", "×π"};
     return frame_panel(phase, vbox({plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | reflect(plot_boxes_[1]) | flex, readout}), {},
                        tr("tui.filters.phase"));
 }
@@ -715,8 +718,23 @@ ftxui::Element FiltersScreen::delay_panel() {
             return r.magnitude[k] < kMaskRelative * t.peak ? std::numeric_limits<double>::quiet_NaN() : r.group_delay[k];
         },
         "");
+    shown_plots_[2] = PlotExport{"delay", tr("tui.filters.delay"), spec, trace_names(ts), "ω", tr("tui.filters.samples_unit")};
     return frame_panel(delay, vbox({plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | reflect(plot_boxes_[2]) | flex, readout}), {},
                        tr("tui.filters.delay"));
+}
+
+std::vector<std::string> FiltersScreen::trace_names(const std::vector<Trace>& ts) const {
+    std::vector<std::string> out;
+    for (const auto& t : ts) out.push_back(t.entry ? t.entry->ref.label() : std::string{});
+    return out;
+}
+
+std::vector<PlotExport> FiltersScreen::plot_exports() {
+    std::vector<PlotExport> out;
+    for (const auto& p : shown_plots_)
+        if (p) out.push_back(*p);
+    for (auto& p : impulse_zoom_.exports()) out.push_back(std::move(p));
+    return out;
 }
 
 ftxui::Element FiltersScreen::impulse_panel(int width) {
@@ -745,7 +763,7 @@ ftxui::Element FiltersScreen::impulse_panel(int width) {
     for (double c : h.coeffs) values += (values.empty() ? "" : " ") + std::string{c >= 0 ? "+" : ""} + format_fixed(c, 3);
     const auto color = color_of(set_->focus());
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | flex;
-    Elements body{impulse_zoom_.track("impulse", std::move(spec), std::move(drawn)) | flex};
+    Elements body{impulse_zoom_.track("impulse", std::move(spec), std::move(drawn), {tr("tui.filters.impulse"), {}, "n", ""}) | flex};
     if (h.coeffs.size() <= 8 && display_width(values) <= width - 4) body.push_back(text(values) | fg(color, ui_));
     return frame_panel(impulse, vbox(std::move(body)), {}, tr("tui.filters.impulse") + " · " + e->ref.label());
 }
@@ -950,6 +968,7 @@ ftxui::Element FiltersScreen::build(Panel p, int rows, int width) {
 
 ftxui::Element FiltersScreen::OnRender() {
     using namespace ftxui;
+    shown_plots_ = {};
     panel_boxes_.fill(kNoBox);
     title_boxes_.fill(kNoBox);
     plot_boxes_.fill(kNoBox);
@@ -1111,11 +1130,11 @@ std::optional<Axis> FiltersScreen::plot_view(std::string_view id) const {
 }
 
 std::vector<MenuItem> FiltersScreen::context_menu(int x, int y) {
-    if (auto reset = impulse_zoom_.reset_item(x, y)) return {*reset};
+    if (auto items = impulse_zoom_.menu(x, y, ui_); !items.empty()) return items;
     if (zplane_box_.Contain(x, y) && zview_.zoomed()) return {{tr("tui.menu.reset_zoom"), "", [this] { zview_.reset(); }}};
     if (const int p = plot_under(x, y); p >= 0) {
         const double w = omega_at(p == 1 ? "phase" : p == 2 ? "delay" : "magnitude", x);
-        return {{tr("tui.menu.cursor_a"), tr("tui.signal.key.click"), [this, w] { cursor_a_ = w; }},
+        auto items = std::vector<MenuItem>{{tr("tui.menu.cursor_a"), tr("tui.signal.key.click"), [this, w] { cursor_a_ = w; }},
                 {tr("tui.menu.cursor_b"), "Shift+" + tr("tui.signal.key.click"), [this, w] { cursor_b_ = w; }},
                 {tr("tui.menu.reset_zoom"), "", [this] {
                      lo_ = 0;
@@ -1123,6 +1142,8 @@ std::vector<MenuItem> FiltersScreen::context_menu(int x, int y) {
                      phase_zoom_ = delay_zoom_ = linear_zoom_ = 1;
                      db_floor_ = -80;
                  }}};
+        if (shown_plots_[static_cast<std::size_t>(p)]) items.push_back(export_item(ui_, *shown_plots_[static_cast<std::size_t>(p)]));
+        return items;
     }
     for (std::size_t i = 0; i < row_boxes_.size() && i < entries_.size(); ++i) {
         if (!row_boxes_[i].Contain(x, y)) continue;

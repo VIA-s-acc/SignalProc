@@ -50,6 +50,8 @@ public:
     double floor_db() const { return floor_db_; }
     std::pair<double, double> time_view() const { return {begin_, end_}; }
     std::vector<MenuItem> context_menu(int x, int y) override;
+    std::vector<HeatmapExport> heatmap_exports() override;
+    std::vector<PlotExport> plot_exports() override { return zoom_.exports(); }
     std::vector<JumpTarget> jump_targets() const override;
     std::optional<std::string> explain_at(int x, int y) const override;
 
@@ -85,6 +87,7 @@ private:
     PanelLayout layout_;
     Breakpoint breakpoint_ = Breakpoint::primary;
     Panel focus_ = spectrogram_panel;
+    std::optional<HeatmapExport> spectrogram_export() const;
     PlotZoom zoom_;
     std::optional<Panel> maximized_;
     std::array<ftxui::Box, panel_count> panel_boxes_{};
