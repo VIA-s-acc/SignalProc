@@ -1453,6 +1453,7 @@
   "tui.pipeline.hint.save_probe": "save probe",
   "tui.pipeline.hint.digits": "digits and powers of 10",
   "tui.pipeline.compare.stats": "b = «{name}» · max|a−b| {max} · RMS(a−b) {rms} · SNR {snr} dB",
+  "tui.pipeline.compare.correlation": "r at zero lag {zero} · largest r {peak} with b shifted {lag} samples",
   "tui.pipeline.compare.shorter": "compared over the first {frames} samples and {channels} channels",
   "tui.pipeline.compare.none": "There is no other signal probe to compare with",
   "tui.pipeline.compare.choose": "Compare probe «{name}» with…",

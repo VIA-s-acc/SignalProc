@@ -1453,6 +1453,7 @@
   "tui.pipeline.hint.save_probe": "сохранить щуп",
   "tui.pipeline.hint.digits": "знаков и степени 10 в числах",
   "tui.pipeline.compare.stats": "b = «{name}» · max|a−b| {max} · СКО(a−b) {rms} · ОСШ {snr} дБ",
+  "tui.pipeline.compare.correlation": "r при нуле {zero} · наибольший r {peak} при сдвиге b {lag} отсч.",
   "tui.pipeline.compare.shorter": "сравнение по первым {frames} отсчётам и {channels} кан.",
   "tui.pipeline.compare.none": "Других щупов-сигналов нет: сравнивать не с чем",
   "tui.pipeline.compare.choose": "Сравнить щуп «{name}» с…",

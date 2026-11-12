@@ -1491,3 +1491,21 @@ TEST_CASE("w compares the shown probe with another one and w again stops", "[tui
     frame = f.h.frame();
     CHECK(frame.find(stats) == std::string::npos);
 }
+
+TEST_CASE("comparing probes also gives the correlation and how far b is shifted", "[tui][pipeline_screen][probe_tools]") {
+    PipelineFixture f{150, 44, false};
+    run_text(f, "pipeline \"d\" v1\n"
+                "node a = samples(values=\"0 1 0.5 0 0 0\", rate=8)\n"
+                "node b = samples(values=\"0 0 0 1 0.5 0\", rate=8)\n"
+                "node ga = gain(db=0)\n"
+                "node gb = gain(db=0)\n"
+                "a -> ga\n"
+                "b -> gb\n"
+                "probe ga as \"a\"\n"
+                "probe gb as \"b\"\n");
+    f.h.send(ftxui::Event::Character('w'));
+    auto line = tr("tui.pipeline.compare.correlation");
+    for (const auto& [key, value] : std::vector<std::pair<std::string, std::string>>{{"{zero}", format_number(0, 4)}, {"{peak}", format_number(1, 4)}, {"{lag}", "+2"}})
+        line.replace(line.find(key), key.size(), value);
+    CHECK(f.h.frame().find(line) != std::string::npos);
+}

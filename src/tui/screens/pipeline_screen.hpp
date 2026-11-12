@@ -140,7 +140,7 @@ private:
         std::size_t frames = 0;
     } probe_, other_;
     std::optional<std::string> compare_;
-    std::string compare_stats_, compare_key_;
+    std::string compare_stats_, compare_correlation_, compare_key_;
     std::size_t probe_index_ = 0;
     enum class ProbeView { time, spectrum, values } probe_view_ = ProbeView::time;
     bool last_input_ = false, stacked_ = false;

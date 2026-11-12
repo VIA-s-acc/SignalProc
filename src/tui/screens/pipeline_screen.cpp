@@ -9,6 +9,8 @@
 
 #include <fmt/format.h>
 
+#include "core/analysis.hpp"
+#include "core/metrics.hpp"
 #include "core/spectral.hpp"
 #include "core/design/families.hpp"
 #include "i18n/i18n.hpp"
@@ -731,6 +733,20 @@ void PipelineScreen::refresh_compare(const RunView& run) {
                                  fmt::arg("rms", format_number(std::sqrt(difference / count), 4)), fmt::arg("snr", format_number(snr, 4)));
     if (frames != a->frames() || frames != b->frames() || channels != a->channels.size() || channels != b->channels.size())
         compare_stats_ += " · " + fmt::format(fmt::runtime(tr("tui.pipeline.compare.shorter")), fmt::arg("frames", frames), fmt::arg("channels", channels));
+    compare_correlation_.clear();
+    const auto& x = a->channels.front();
+    const auto& y = b->channels.front();
+    const double norms = std::sqrt(core::energy(x) * core::energy(y));
+    if (const auto z = core::correlate(y, x, core::CorrelationMode::full); z && norms > 0) {
+        double zero = 0;
+        for (std::size_t n = 0; n < std::min(x.size(), y.size()); ++n) zero += x[n] * y[n];
+        std::size_t k = 0;
+        for (std::size_t i = 1; i < z->size(); ++i)
+            if (std::abs((*z)[i]) > std::abs((*z)[k])) k = i;
+        const auto lag = static_cast<long long>(k) - static_cast<long long>(x.size() - 1);
+        compare_correlation_ = fmt::format(fmt::runtime(tr("tui.pipeline.compare.correlation")), fmt::arg("zero", format_number(zero / norms, 4)),
+                                           fmt::arg("peak", format_number((*z)[k] / norms, 4)), fmt::arg("lag", fmt::format("{:+}", lag)));
+    }
 }
 
 void PipelineScreen::toggle_compare() {
@@ -738,6 +754,7 @@ void PipelineScreen::toggle_compare() {
         compare_.reset();
         other_ = {};
         compare_stats_.clear();
+        compare_correlation_.clear();
         compare_key_.clear();
         notice_ = tr("tui.pipeline.compare.off");
         return;
@@ -1147,8 +1164,10 @@ ftxui::Element PipelineScreen::probe_time(int width, int rows) {
     for (std::size_t c = 0; c < channels; ++c) names.push_back("ch" + std::to_string(c));
     Elements out;
     if (channels > 1) out.push_back(channel_legend(channels, width, true));
+    const bool correlation = overlay && !compare_correlation_.empty();
     if (overlay) out.push_back(text(ellipsize(compare_stats_, std::max(10, width), ui_.caps.glyphs == GlyphMode::ascii)) | fg(th.warn, ui_));
-    const int room = std::max(2, rows - (channels > 1 ? 1 : 0) - (overlay ? 1 : 0));
+    if (correlation) out.push_back(text(ellipsize(compare_correlation_, std::max(10, width), ui_.caps.glyphs == GlyphMode::ascii)) | fg(th.warn, ui_));
+    const int room = std::max(2, rows - (channels > 1 ? 1 : 0) - (overlay ? 1 : 0) - (correlation ? 1 : 0));
     if (!stacked_ || channels == 1) {
         double m = 1e-12;
         for (const auto& p : probe_.pyramids) m = std::max(m, peak(*p));
