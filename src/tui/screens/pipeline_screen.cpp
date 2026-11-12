@@ -699,7 +699,7 @@ void PipelineScreen::refresh_compare(const RunView& run) {
     if (!compare_) return;
     const auto* b = probe_signal(run, *compare_);
     const auto* a = probe_signal(run, probe_.name);
-    if (!a || !b || *compare_ == probe_.name) {
+    if (!a || !b || a->channels.empty() || b->channels.empty() || *compare_ == probe_.name) {
         compare_.reset();
         other_ = {};
         compare_stats_.clear();
