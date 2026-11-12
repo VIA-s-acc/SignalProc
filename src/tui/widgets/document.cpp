@@ -3,11 +3,14 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <string>
+#include <vector>
 #include <utility>
 
 #include <fmt/format.h>
 
 #include "i18n/i18n.hpp"
+#include "theory/sources.hpp"
 #include "theory/text.hpp"
 #include "tui/shell/panel.hpp"
 #include "tui/widgets/format.hpp"
@@ -19,7 +22,7 @@ namespace {
 using theory::Block;
 using theory::Inline;
 
-enum class Style { normal, dim, strong, emphasis, code, link, path, heading, keyword, math, ok, err };
+enum class Style { normal, dim, strong, emphasis, code, link, path, heading, keyword, math, ok, err, type, function, string, number, comment, preproc };
 
 struct Span {
     std::string text;
@@ -158,7 +161,7 @@ private:
             }
             case Inline::Kind::ref:
                 links_.push_back({i.target.find(':') == std::string::npos ? "#" + i.target : i.target, i.text, kNoDocBox});
-                out.push_back({i.text, i.target.starts_with("file://") ? Style::path : Style::link, static_cast<int>(links_.size()) - 1, pending});
+                out.push_back({i.text, i.target.starts_with("source:") ? Style::path : Style::link, static_cast<int>(links_.size()) - 1, pending});
                 pending = false;
                 break;
             case Inline::Kind::placeholder: {
@@ -295,6 +298,67 @@ private:
         }
     }
 
+    static Style style_of(theory::Piece::Kind kind) {
+        switch (kind) {
+        case theory::Piece::Kind::keyword: return Style::keyword;
+        case theory::Piece::Kind::type: return Style::type;
+        case theory::Piece::Kind::function: return Style::function;
+        case theory::Piece::Kind::string: return Style::string;
+        case theory::Piece::Kind::number: return Style::number;
+        case theory::Piece::Kind::comment: return Style::comment;
+        case theory::Piece::Kind::preproc: return Style::preproc;
+        case theory::Piece::Kind::plain: break;
+        }
+        return Style::code;
+    }
+
+    static std::vector<Span> simple_spans(const std::string& line) {
+        std::vector<Span> out;
+        std::string word;
+        auto flush = [&] {
+            if (word.empty()) return;
+            const bool key = std::find(kKeywords.begin(), kKeywords.end(), word) != kKeywords.end();
+            out.push_back({word, key ? Style::keyword : Style::code});
+            word.clear();
+        };
+        for (char c : line) {
+            if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
+                word += c;
+                continue;
+            }
+            flush();
+            out.push_back({std::string(1, c), Style::code});
+        }
+        flush();
+        return out;
+    }
+
+    static void mark(std::vector<Span>& spans, std::size_t from, std::size_t to, int link) {
+        std::vector<Span> out;
+        std::size_t pos = 0;
+        for (auto& s : spans) {
+            const auto end = pos + s.text.size();
+            const auto a = std::clamp(from, pos, end), z = std::clamp(to, pos, end);
+            if (a > pos) out.push_back({s.text.substr(0, a - pos), s.style, s.link});
+            if (z > a) out.push_back({s.text.substr(a - pos, z - a), s.style, link});
+            if (end > z) out.push_back({s.text.substr(z - pos), s.style, s.link});
+            pos = end;
+        }
+        spans = std::move(out);
+    }
+
+    static std::vector<Span> cut_spans(const std::vector<Span>& spans, int from, int count) {
+        std::vector<Span> out;
+        int column = 0;
+        for (const auto& s : spans) {
+            const int w = width_of(s.text);
+            const int lo = std::max(from, column), hi = std::min(from + count, column + w);
+            if (hi > lo) out.push_back({cut_columns(s.text, lo - column, hi - lo), s.style, s.link});
+            column += w;
+        }
+        return out;
+    }
+
     void code(const Block& b) {
         std::vector<std::string> raw;
         for (std::size_t at = 0; at < b.text.size();) {
@@ -302,34 +366,40 @@ private:
             raw.push_back(b.text.substr(at, end == std::string::npos ? std::string::npos : end - at));
             at = end == std::string::npos ? b.text.size() : end + 1;
         }
+        const bool cpp = b.language == "cpp" || b.language == "c++" || b.language == "hpp";
+        const int digits = static_cast<int>(std::to_string(raw.size()).size());
+        const std::string bar = ascii() ? " | " : " │ ";
+        const int gutter = b.gutter ? digits + width_of(bar) : 0;
+        const int room = std::max(4, spec_.width - gutter);
         int widest = 0;
         for (const auto& l : raw) widest = std::max(widest, width_of(l));
-        const bool block_wide = widest > spec_.width;
-        if (block_wide) max_hscroll_ = std::max(max_hscroll_, widest - spec_.width);
-        const int from = block_wide ? std::clamp(spec_.hscroll, 0, widest - spec_.width) : 0;
-        for (auto line : raw) {
+        const bool block_wide = widest > room;
+        if (block_wide) max_hscroll_ = std::max(max_hscroll_, widest - room);
+        const int from = block_wide ? std::clamp(spec_.hscroll, 0, widest - room) : 0;
+        std::vector<std::vector<const theory::CodeLink*>> by_line(raw.size());
+        for (const auto& l : b.links)
+            if (l.line < raw.size()) by_line[l.line].push_back(&l);
+        bool comment = false;
+        for (std::size_t n = 0; n < raw.size(); ++n) {
+            const auto& line = raw[n];
+            std::vector<Span> spans;
+            if (cpp)
+                for (auto& p : theory::highlight_cpp(line, comment)) spans.push_back({std::move(p.text), style_of(p.kind)});
+            else
+                spans = simple_spans(line);
+            for (const auto* l : by_line[n]) {
+                links_.push_back({l->target, line.substr(std::min(l->column, line.size()), l->length), kNoDocBox, static_cast<int>(lines_.size()), l->tab});
+                mark(spans, l->column, l->column + l->length, static_cast<int>(links_.size()) - 1);
+            }
             if (block_wide) {
-                const bool more = width_of(line) - from > spec_.width;
-                line = cut_columns(line, from, more ? spec_.width - 1 : spec_.width) + (more ? (ascii() ? "~" : "…") : "");
+                const bool more = width_of(line) - from > room;
+                spans = cut_spans(spans, from, more ? room - 1 : room);
+                if (more) spans.push_back({ascii() ? "~" : "…", Style::dim});
             }
             Line out;
             out.code = true;
-            std::string word;
-            auto flush = [&] {
-                if (word.empty()) return;
-                const bool key = std::find(kKeywords.begin(), kKeywords.end(), word) != kKeywords.end();
-                out.spans.push_back({word, key ? Style::keyword : Style::code});
-                word.clear();
-            };
-            for (char c : line) {
-                if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
-                    word += c;
-                    continue;
-                }
-                flush();
-                out.spans.push_back({std::string(1, c), Style::code});
-            }
-            flush();
+            if (b.gutter) out.spans.push_back({std::string(static_cast<std::size_t>(digits) - std::to_string(n + 1).size(), ' ') + std::to_string(n + 1) + bar, Style::dim});
+            for (auto& s : spans) out.spans.push_back(std::move(s));
             lines_.push_back(std::move(out));
         }
     }
@@ -356,7 +426,14 @@ ftxui::Element span_element(const Span& s, const UiContext& ui, bool focused) {
     case Style::link: e = focused ? e | bg(th.accent, ui) | fg(th.bg, ui) : e | fg(th.accent, ui); break;
     case Style::path: e = focused ? e | bg(th.accent, ui) | fg(th.bg, ui) : e | fg(th.accent, ui) | underlined; break;
     case Style::normal: e = e | fg(th.fg, ui); break;
+    case Style::type: e = e | fg(th.trace[0], ui); break;
+    case Style::function: e = e | fg(th.trace[6], ui); break;
+    case Style::string: e = e | fg(th.trace[3], ui); break;
+    case Style::number: e = e | fg(th.trace[1], ui); break;
+    case Style::comment: e = e | italic | fg(th.dim, ui); break;
+    case Style::preproc: e = e | fg(th.trace[2], ui); break;
     }
+    if (s.link >= 0 && s.style != Style::link && s.style != Style::path && focused) e = e | bg(th.accent, ui) | fg(th.bg, ui);
     return e;
 }
 
@@ -411,7 +488,9 @@ ftxui::Element document(const DocumentSpec& spec, const UiContext& ui, DocumentL
         for (const auto& s : l.spans) {
             const bool focused = s.link >= 0 && spec.focused_link && *spec.focused_link == static_cast<std::size_t>(s.link);
             auto e = span_element(s, ui, focused);
-            if (s.style == Style::path) e = e | hyperlink(layout.links[static_cast<std::size_t>(s.link)].target);
+            if (s.style == Style::path && layout.links[static_cast<std::size_t>(s.link)].target.find("://") != std::string::npos)
+                e = e | hyperlink(layout.links[static_cast<std::size_t>(s.link)].target);
+            if (s.link >= 0 && s.style != Style::link && s.style != Style::path && layout.links[static_cast<std::size_t>(s.link)].tab) e = e | underlined;
             if (s.link >= 0 && !link_reflected[static_cast<std::size_t>(s.link)]) {
                 e = e | reflect(layout.links[static_cast<std::size_t>(s.link)].box);
                 link_reflected[static_cast<std::size_t>(s.link)] = true;

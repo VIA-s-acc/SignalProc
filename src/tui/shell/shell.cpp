@@ -307,6 +307,21 @@ private:
         out.push_back({"color.16", tr("tui.cmd.color_16"), [this] { ui_.caps.color = ColorDepth::ansi16; }});
         out.push_back({"color.none", tr("tui.cmd.color_none"), [this] { ui_.caps.color = ColorDepth::none; }});
         out.push_back({"terminal.check", tr("tui.cmd.check"), [this] { check_.open(); }});
+        out.push_back({"settings.help", tr("tui.cmd.settings_help"), [this] {
+                           if (ui_.open_theory) ui_.open_theory(TheoryPage{TheoryLink{TheoryLink::Kind::section, "settings", tr("tui.cmd.settings_help")}});
+                       }});
+        out.push_back({"editor", tr("tui.cmd.editor"), [this] {
+                           if (!ui_.ask_text) return;
+                           ui_.ask_text(tr("tui.cmd.editor_prompt"), ui_.editor, [this](std::string value) {
+                               const auto first = value.find_first_not_of(' ');
+                               value = first == std::string::npos ? std::string{} : value.substr(first, value.find_last_not_of(' ') - first + 1);
+                               ui_.editor = value;
+                               if (ui_.prefs_file.empty()) return;
+                               auto saved = load_prefs(ui_.prefs_file).value_or(TerminalPrefs{});
+                               saved.editor = value.empty() ? std::nullopt : std::optional{value};
+                               (void)save_prefs(ui_.prefs_file, saved);
+                           });
+                       }});
         out.push_back({"language.en", tr("tui.cmd.language_en"), [this] {
                            if (ui_.switch_language) ui_.switch_language(Language::en);
                        }});

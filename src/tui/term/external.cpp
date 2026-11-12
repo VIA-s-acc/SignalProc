@@ -36,9 +36,9 @@ std::string base64(std::string_view bytes) {
 
 std::string osc52(std::string_view text) { return "\x1b]52;c;" + base64(text) + "\x07"; }
 
-std::vector<std::string> editor_command(const std::filesystem::path& file, const EnvLookup& env) {
-    for (const char* key : {"VISUAL", "EDITOR"}) {
-        const auto value = env(key);
+std::vector<std::string> editor_command(const std::filesystem::path& file, const EnvLookup& env, std::string_view configured) {
+    for (const char* key : {"", "VISUAL", "EDITOR"}) {
+        const auto value = *key ? env(key) : std::optional<std::string>{std::string{configured}};
         if (!value || value->empty()) continue;
         std::vector<std::string> argv;
         std::istringstream in{*value};

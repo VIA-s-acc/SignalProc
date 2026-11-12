@@ -69,6 +69,11 @@ private:
     ftxui::Element card_panel(const TheoryPage* page, int width, int height);
     NavArgs view_args(const TheoryPage* page) const;
     void open_source();
+    void edit_source();
+    void open_source_file(const std::string& path, std::size_t line, const std::string& label);
+    theory::Block source_block(const std::string& path, std::string_view code) const;
+    bool on_source_page() const;
+    ftxui::Element source_panel(const TheoryPage* page, int width, int height);
     void clamp_scroll();
     bool open_section_card();
     std::vector<Entry> toc_entries() const;
@@ -98,7 +103,9 @@ private:
     std::map<std::size_t, std::vector<theory::Block>> cache_;
     std::vector<theory::Block> card_blocks_;
     std::vector<std::pair<ftxui::Box, std::string>> block_boxes_;
-    ftxui::Box blocks_box_{}, blocks_up_box_{}, blocks_down_box_{}, card_link_box_{};
+    ftxui::Box blocks_box_{}, blocks_up_box_{}, blocks_down_box_{}, card_link_box_{}, source_editor_box_{};
+    std::string source_shown_;
+    std::vector<theory::Block> source_blocks_;
     std::size_t blocks_first_ = 0, blocks_page_ = 1;
     std::string blocks_followed_;
     ftxui::Box toc_box_{}, toc_up_box_{}, toc_down_box_{};

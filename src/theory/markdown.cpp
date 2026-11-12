@@ -160,7 +160,7 @@ std::vector<Inline> inlines(std::string_view s, std::vector<std::string>* unreso
             const auto close = s.find("](", i + 1);
             const auto end = close == std::string_view::npos ? close : s.find(')', close + 2);
             const auto target = close == std::string_view::npos || end == std::string_view::npos ? std::string_view{} : s.substr(close + 2, end - close - 2);
-            const bool external = target.starts_with("view:") || target.starts_with("card:") || target.starts_with("file://");
+            const bool external = target.starts_with("view:") || target.starts_with("card:") || target.starts_with("source:");
             if (external && s.substr(i + 1, close - i - 1).find('\n') == std::string_view::npos) {
                 flush(out, text);
                 out.push_back({Inline::Kind::ref, std::string{s.substr(i + 1, close - i - 1)}, std::string{target}, {}});

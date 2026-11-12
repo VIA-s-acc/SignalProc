@@ -10,9 +10,9 @@
 
 using namespace signals::theory;
 
-TEST_CASE("the theory book splits into 140 sections", "[theory][sections]") {
+TEST_CASE("the theory book splits into 149 sections", "[theory][sections]") {
     const auto& s = sections();
-    CHECK(s.size() == 140);
+    CHECK(s.size() == 149);
     const auto* dwt = find_section("dwt-mallat");
     REQUIRE(dwt);
     CHECK(dwt->number == "11.1");
@@ -101,3 +101,22 @@ TEST_CASE("the .sig format reference is the last chapter in both languages", "[t
         CHECK(find_section("sig-values")->body.find("db4.f1") != std::string::npos);
     }
 }
+
+TEST_CASE("the settings and files reference is a chapter in both languages", "[theory][sections][settings]") {
+    for (const auto lang : {signals::Language::ru, signals::Language::en}) {
+        const signals::LanguageScope scope{lang};
+        const auto* settings = find_section("settings");
+        REQUIRE(settings);
+        CHECK(settings->level == 2);
+        for (const char* id : {"settings-dir", "settings-terminal", "settings-editor", "settings-filters", "settings-env", "settings-session", "settings-outputs", "settings-reset"}) {
+            INFO(id);
+            const auto* s = find_section(id);
+            REQUIRE(s);
+            REQUIRE(s->parent);
+            CHECK(sections()[*s->parent].id == "settings");
+        }
+        CHECK(find_section("settings-terminal")->body.find("editor") != std::string::npos);
+        CHECK(find_section("settings-env")->body.find("SIGNALS_LANG") != std::string::npos);
+    }
+}
+

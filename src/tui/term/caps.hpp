@@ -32,6 +32,7 @@ struct TerminalPrefs {
     std::optional<GlyphMode> glyphs;
     bool checked = false;
     std::optional<Language> language;
+    std::optional<std::string> editor;
 };
 
 std::filesystem::path prefs_path(const EnvLookup& env);

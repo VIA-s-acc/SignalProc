@@ -31,6 +31,7 @@ public:
 private:
     std::vector<Command> commands_;
     std::string query_;
+    bool prefilled_ = false;
     void select(std::size_t index, std::size_t count);
 
     std::size_t selected_ = 0;

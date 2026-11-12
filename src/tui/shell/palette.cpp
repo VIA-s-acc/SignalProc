@@ -81,6 +81,7 @@ void Palette::open(std::vector<Command> commands, std::string filter, std::strin
 void Palette::ask_path(std::string prompt, std::function<void(std::string)> done) { ask_text(std::move(prompt), {}, std::move(done)); }
 
 void Palette::ask_text(std::string prompt, std::string initial, std::function<void(std::string)> done) {
+    prefilled_ = !initial.empty();
     query_ = std::move(initial);
     prompt_ = std::move(prompt);
     if (!prompt_.empty() && !prompt_.ends_with(' ')) prompt_ += prompt_.ends_with(':') ? " " : ": ";
@@ -108,7 +109,7 @@ bool Palette::on_event(const ftxui::Event& e) {
             auto done = std::move(path_done_);
             const auto path = query_;
             close();
-            if (!path.empty()) done(path);
+            if (!path.empty() || prefilled_) done(path);
             return true;
         }
         if (e.is_character()) query_ += e.character();
