@@ -1,4 +1,5 @@
 # Run with cmake -P: ROOT, OUTPUT, SYMBOL and FILES (paths relative to ROOT, separated by "|").
+cmake_minimum_required(VERSION 3.28)
 string(REPLACE "|" ";" pending "${FILES}")
 set(files "")
 while(pending)
