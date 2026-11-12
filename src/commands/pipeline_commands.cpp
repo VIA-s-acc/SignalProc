@@ -1,5 +1,8 @@
 #include <algorithm>
 #include <array>
+#include <thread>
+#include <optional>
+#include <chrono>
 #include <atomic>
 #include <cmath>
 #include <csignal>
@@ -15,6 +18,7 @@
 
 #include "commands/command.hpp"
 #include "commands/run_report.hpp"
+#include "commands/watch.hpp"
 #include "io/temp_file.hpp"
 #include "pipeline/sweep.hpp"
 #include "svg/svg.hpp"
@@ -25,11 +29,21 @@
 #include "pipeline/layout.hpp"
 #include "pipeline/docs.hpp"
 #include "pipeline/sig.hpp"
+#include "theory/cards.hpp"
+#include "theory/pipeline_cards.hpp"
+#include "theory/sections.hpp"
 
 namespace signals::cli {
 namespace {
 
 std::atomic<core::CancelToken*> g_cancel{nullptr};
+
+std::atomic<bool> g_stop{false};
+
+extern "C" void stop_on_interrupt(int) {
+    g_stop.store(true);
+    if (auto* token = g_cancel.load()) token->cancel();
+}
 
 extern "C" void cancel_on_interrupt(int) {
     if (auto* token = g_cancel.load()) token->cancel();
@@ -80,7 +94,7 @@ std::string shape_text(const std::vector<pipeline::OutputShape>& shapes) {
     return out;
 }
 
-nlohmann::json summary(const pipeline::Value& v) {
+nlohmann::json summary(const pipeline::Value& v, std::optional<std::size_t> listed = std::nullopt) {
     using namespace pipeline;
     nlohmann::json j{{"kind", std::string{to_string(type_of(v))}}};
     if (const auto* a = std::get_if<core::AudioBuffer>(&v)) {
@@ -95,7 +109,13 @@ nlohmann::json summary(const pipeline::Value& v) {
         j["rate"] = a->sample_rate;
         j["energy"] = energy;
         j["peak"] = peak;
-        if (a->frames() <= kListedFrames) j["values"] = a->channels;
+        if (!listed && a->frames() <= kListedFrames) j["values"] = a->channels;
+        if (listed && *listed > 0) {
+            auto values = nlohmann::json::array();
+            for (const auto& c : a->channels) values.push_back(std::vector<double>(c.begin(), c.begin() + static_cast<std::ptrdiff_t>(std::min(*listed, c.size()))));
+            j["values"] = std::move(values);
+            j["values_cut"] = *listed < a->frames();
+        }
     } else if (const auto* c = std::get_if<Coeffs>(&v)) {
         std::size_t total = 0;
         for (const auto& ch : c->channels)
@@ -162,11 +182,32 @@ public:
         sub_->add_option("-o,--output", output_, tr("cli.run.output"));
         sub_->add_option("--probe-dir", probe_dir_, tr("cli.run.probe_dir"));
         sub_->add_option("--report", report_, tr("cli.run.report"));
+        sub_->add_option("--values", values_, tr("cli.run.values"));
+        sub_->add_flag("--watch", watch_, tr("cli.run.watch"));
         sub_->add_flag("--json", json_, tr("cli.json.description"));
     }
     bool parsed() const override { return sub_->parsed(); }
 
     int run(std::ostream& out, std::ostream& err) override {
+        if (!watch_) return run_once(out, err);
+        const std::filesystem::path file{file_};
+        g_stop.store(false);
+        const auto previous = std::signal(SIGINT, stop_on_interrupt);
+        const auto code = watch_loop(
+            [&] {
+                const int c = run_once(out, err);
+                std::string names;
+                for (const auto& f : watched_files(file)) names += (names.empty() ? "" : ", ") + f.filename().string();
+                out << fmt::format(fmt::runtime(tr("pipeline.cli.watching")), fmt::arg("files", names)) << std::endl;
+                return c;
+            },
+            [&] { return watched_files(file); }, [] { return !g_stop.load(); }, [] { std::this_thread::sleep_for(std::chrono::milliseconds{300}); });
+        std::signal(SIGINT, previous);
+        return g_stop.load() ? 0 : code;
+    }
+
+private:
+    int run_once(std::ostream& out, std::ostream& err) {
         const std::filesystem::path file{file_};
         auto doc = load(file, err);
         if (!doc) return 1;
@@ -185,9 +226,9 @@ public:
         pipeline::ResultCache cache{0};
         core::CancelToken cancel;
         g_cancel.store(&cancel);
-        const auto previous = std::signal(SIGINT, cancel_on_interrupt);
+        const auto previous = watch_ ? SIG_ERR : std::signal(SIGINT, cancel_on_interrupt);
         const auto result = pipeline::run_graph(*graph, cache, {}, cancel);
-        std::signal(SIGINT, previous);
+        if (!watch_) std::signal(SIGINT, previous);
         g_cancel.store(nullptr);
         if (!result) {
             if (result.error().code == core::Errc::cancelled) {
@@ -201,13 +242,12 @@ public:
                 if (auto ok = save_probe(probe_dir_, name, value); !ok) return report_error(err, ok.error()), 1;
         if (!report_.empty())
             if (auto ok = write_run_report(report_, *doc, *graph, *result, file); !ok) return report_error(err, ok.error()), 1;
-        if (json_) print_json(*doc, *graph, *result, out);
-        else print_text(*doc, *graph, *result, out);
+        if (json_) print_json(*doc, *graph, *result, out, values_);
+        else print_text(*doc, *graph, *result, out, values_);
         return result->checks_passed ? 0 : 3;
     }
 
-private:
-    static void print_json(const pipeline::PipelineDoc& doc, const pipeline::Graph& g, const pipeline::RunResult& r, std::ostream& out) {
+    static void print_json(const pipeline::PipelineDoc& doc, const pipeline::Graph& g, const pipeline::RunResult& r, std::ostream& out, std::optional<std::size_t> listed) {
         nlohmann::json j{{"pipeline", doc.name}, {"checks_passed", r.checks_passed}};
         j["nodes"] = nlohmann::json::array();
         for (std::size_t i = 0; i < r.nodes.size(); ++i) {
@@ -222,7 +262,7 @@ private:
                                   {"message", s.message}});
         }
         j["probes"] = nlohmann::json::object();
-        for (const auto& [name, value] : r.probes) j["probes"][name] = summary(value);
+        for (const auto& [name, value] : r.probes) j["probes"][name] = summary(value, listed);
         j["reports"] = nlohmann::json::array();
         for (const auto& nr : r.reports) {
             nlohmann::json fields = nlohmann::json::object();
@@ -233,7 +273,7 @@ private:
         out << j.dump(2) << '\n';
     }
 
-    static void print_text(const pipeline::PipelineDoc& doc, const pipeline::Graph& g, const pipeline::RunResult& r, std::ostream& out) {
+    static void print_text(const pipeline::PipelineDoc& doc, const pipeline::Graph& g, const pipeline::RunResult& r, std::ostream& out, std::optional<std::size_t> listed) {
         out << fmt::format(fmt::runtime(tr("pipeline.cli.header")), fmt::arg("name", doc.name.empty() ? std::string{"—"} : doc.name),
                            fmt::arg("nodes", g.nodes.size()))
             << '\n';
@@ -252,7 +292,7 @@ private:
         }
         if (!r.probes.empty()) out << tr("pipeline.cli.probes") << '\n';
         for (const auto& [name, value] : r.probes) {
-            const auto j = summary(value);
+            const auto j = summary(value, listed);
             std::string line = "  " + name + ": " + j["kind"].get<std::string>();
             if (j.contains("length")) line += fmt::format(" · {} × {}", j["channels"].get<std::size_t>(), j["length"].get<std::size_t>());
             if (j.contains("energy")) line += fmt::format(" · energy {:.6g} · peak {:.6g}", j["energy"].get<double>(), j["peak"].get<double>());
@@ -261,6 +301,7 @@ private:
                 for (std::size_t c = 0; c < j["values"].size(); ++c) {
                     std::string row = fmt::format("    ch{}:", c);
                     for (const auto& x : j["values"][c]) row += fmt::format(" {:.6g}", x.get<double>());
+                    if (j.value("values_cut", false)) row += " …";
                     out << row << '\n';
                 }
         }
@@ -281,7 +322,64 @@ private:
     CLI::App* sub_;
     std::string file_, output_, probe_dir_, report_;
     std::vector<std::string> sets_;
-    bool json_ = false;
+    std::optional<std::size_t> values_;
+    bool json_ = false, watch_ = false;
+};
+
+class ExplainCommand final : public Command {
+public:
+    explicit ExplainCommand(CLI::App& app) : sub_{app.add_subcommand("explain", tr("cli.explain.description"))} {
+        sub_->add_option("block", block_, tr("cli.explain.block"))->required();
+    }
+    bool parsed() const override { return sub_->parsed(); }
+
+    int run(std::ostream& out, std::ostream& err) override {
+        const auto* type = pipeline::find_block_type(block_);
+        if (!type) {
+            std::vector<std::string> names;
+            for (const auto& b : pipeline::block_types()) names.push_back(b.id);
+            const auto near = pipeline::nearest_name(block_, names);
+            return report_error(err, {core::Errc::invalid_argument, fmt::format(fmt::runtime(tr(near ? "cli.explain.unknown_near" : "cli.explain.unknown")),
+                                                                                fmt::arg("block", block_), fmt::arg("near", near.value_or("")))});
+        }
+        out << type->id << " — " << tr_opt("pipeline.block." + type->id).value_or(type->id) << '\n';
+        if (const auto about = tr_opt("pipeline.about." + type->id)) out << *about << '\n';
+        const auto ports = [](const std::vector<pipeline::PortSpec>& list) {
+            std::string text;
+            for (const auto& p : list)
+                text += (text.empty() ? "" : ", ") + p.name + " (" + std::string{pipeline::to_string(p.type)} + (p.optional ? ", " + tr("docs.blocks.optional") : "") + ")";
+            return text.empty() ? std::string{"—"} : text;
+        };
+        out << '\n' << tr("cli.explain.inputs") << ' ' << ports(type->inputs) << '\n' << tr("cli.explain.outputs") << ' ' << ports(type->outputs) << '\n';
+        if (!type->params.empty()) out << tr("cli.explain.params") << '\n';
+        for (const auto& p : type->params) {
+            std::string head = "  " + p.name + " = " + (p.fallback.empty() ? std::string{"—"} : p.fallback);
+            if (!p.choices.empty()) {
+                std::string list;
+                for (const auto& c : p.choices) list += (list.empty() ? "" : ", ") + c;
+                head += " (" + list + ")";
+            } else if (std::isfinite(p.min) && std::isfinite(p.max)) {
+                head += fmt::format(" ({:g}…{:g})", p.min, p.max);
+            }
+            out << head << '\n';
+            if (const auto note = tr_opt("pipeline.param." + type->id + "." + p.name)) out << "      " << *note << '\n';
+            for (const auto& c : p.choices)
+                if (const auto note = tr_opt("pipeline.param." + type->id + "." + p.name + "." + c)) out << "      " << c << " — " << *note << '\n';
+        }
+        const auto target = theory::block_theory(type->id);
+        std::string where;
+        if (target.section) {
+            if (const auto* s = theory::find_section(target.id)) where = s->number + " " + s->title;
+        } else if (const auto* card = theory::find_card(target.id)) {
+            where = card->title;
+        }
+        if (!where.empty()) out << '\n' << fmt::format(fmt::runtime(tr(target.section ? "cli.explain.section" : "cli.explain.card")), fmt::arg("title", where)) << '\n';
+        return 0;
+    }
+
+private:
+    CLI::App* sub_;
+    std::string block_;
 };
 
 class SweepCommand final : public Command {
@@ -464,6 +562,7 @@ void add_pipeline_commands(CLI::App& app, Commands& commands) {
     commands.push_back(std::make_unique<GraphCommand>(app));
     commands.push_back(std::make_unique<SweepCommand>(app));
     commands.push_back(std::make_unique<BlocksCommand>(app));
+    commands.push_back(std::make_unique<ExplainCommand>(app));
 }
 
 }  // namespace signals::cli

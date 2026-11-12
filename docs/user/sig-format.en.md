@@ -84,6 +84,8 @@ Before a run the whole graph is checked, and every error names its line:
   - `--set node.param=value` — override a parameter, may repeat: `--set x.path=other.wav --set dwt.levels=5`;
   - `-o out.wav` — where to write the first `wav_out`;
   - `--probe-dir folder` — save the probes: signals as WAV, the rest as JSON;
+  - `--values N` — print the first N samples of every signal probe (`0` for none); without it, all samples of signals up to 64 long are printed;
+  - `--watch` — after the run, watch the graph file and its input files (the `wav` block) and run again on every change; output files are not watched, so a run does not restart itself. `Ctrl+C` exits with code 0;
   - `--report report.md` — a Markdown report: the graph, the node table, plots of the probes in time and spectrum (SVG and CSV in the `report_files` folder), the report fields;
   - `--json` — the run report as JSON.
   
@@ -109,6 +111,7 @@ Before a run the whole graph is checked, and every error names its line:
   In the «Pipeline» tab `S` on the selected node does the same: it asks for the parameter, the values (it suggests a range around the current one) and the measure, and the «sweep» probe shows the result as a plot or a table (`v`). `Esc` stops the sweep.
 - `signals graph graph.sig` — draw the graph as text (`--ascii` — ASCII only).
 - `signals blocks` — the block list; `--markdown` — the `docs/user/blocks.md` reference; `--json` — block descriptions for editors.
+- `signals explain block` — one block in detail: what it does, its ports, every parameter with its default, range and explanation, the meaning of every choice and the theory card. A typo in the name suggests the nearest block.
 
 ### Where to look up blocks {#sig-blocks}
 
