@@ -368,4 +368,55 @@ std::optional<BandType> parse_band_type(std::string_view name) {
     return std::nullopt;
 }
 
+namespace {
+
+Result<std::vector<std::complex<double>>> roots_in_z(std::vector<double> descending) {
+    std::vector<std::complex<double>> out;
+    while (descending.size() > 1 && descending.back() == 0.0) {
+        descending.pop_back();
+        out.emplace_back(0.0, 0.0);
+    }
+    if (descending.size() <= 1) return out;
+    std::vector<double> ascending(descending.rbegin(), descending.rend());
+    double norm = 0;
+    for (double v : ascending) norm += std::abs(v);
+    for (const double r : {-1.0, 1.0})
+        while (ascending.size() > 1) {
+            std::vector<double> q(ascending.size() - 1);
+            double acc = ascending.back();
+            for (std::size_t i = ascending.size() - 1; i-- > 0;) {
+                q[i] = acc;
+                acc = acc * r + ascending[i];
+            }
+            if (std::abs(acc) > 1e-10 * norm) break;
+            ascending = std::move(q);
+            out.emplace_back(r, 0.0);
+        }
+    if (ascending.size() <= 1) return out;
+    auto roots = polynomial_roots<double>(ascending);
+    if (!roots) return std::unexpected{roots.error()};
+    for (const auto& r : *roots) out.emplace_back(r.re, std::abs(r.im) <= 1e-12 * std::max(1.0, std::abs(r.re)) ? 0.0 : r.im);
+    return out;
+}
+
+}  // namespace
+
+Result<Zpk> tf_to_zpk(const std::vector<double>& b, const std::vector<double>& a) {
+    if (a.empty() || a.front() == 0.0) return make_error(Errc::invalid_argument, "tf_to_zpk: a[0] must not be zero");
+    const auto first = std::find_if(b.begin(), b.end(), [](double v) { return v != 0.0; });
+    if (first == b.end()) return make_error(Errc::invalid_argument, "tf_to_zpk: b has no nonzero coefficient");
+    for (const auto* list : {&b, &a})
+        for (double v : *list)
+            if (!std::isfinite(v)) return make_error(Errc::invalid_argument, "tf_to_zpk: coefficients must be finite");
+    const auto length = std::max(b.size(), a.size());
+    std::vector<double> num(first, b.end()), den = a;
+    num.resize(length - static_cast<std::size_t>(first - b.begin()), 0.0);
+    den.resize(length, 0.0);
+    auto z = roots_in_z(num);
+    if (!z) return std::unexpected{z.error()};
+    auto p = roots_in_z(den);
+    if (!p) return std::unexpected{p.error()};
+    return Zpk{std::move(*z), std::move(*p), *first / a.front()};
+}
+
 }  // namespace signals::core

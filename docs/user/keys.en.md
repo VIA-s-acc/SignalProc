@@ -117,6 +117,8 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `o/O` | order |
 | `f/F` | cutoff |
 | `c` | custom filter |
+| `Ctrl+Z` | undo a zero/pole edit |
+| `drag ○ ×` | move a zero or pole |
 | `F1` | response theory |
 | `wheel` | zoom ω |
 | `click` | cursor A/B |

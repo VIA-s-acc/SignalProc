@@ -160,6 +160,209 @@ FilterRef custom_ref(const core::Laurent& h, std::string title) {
     return r;
 }
 
+FilterRef zpk_ref(const core::Zpk& zpk, std::string title) {
+    const auto list = [](const std::vector<std::complex<double>>& roots) {
+        std::string out;
+        for (const auto& r : roots) out += (out.empty() ? "" : ";") + fmt::format("{:.17g},{:.17g}", r.real(), r.imag());
+        return out;
+    };
+    FilterRef r{FilterRef::Kind::zpk, fmt::format("k={:.17g}|z={}|p={}", zpk.k, list(zpk.z), list(zpk.p)), FilterRole::h0};
+    r.title = std::move(title);
+    return r;
+}
+
+std::optional<core::Zpk> parse_zpk(std::string_view key) {
+    const auto number = [](std::string_view text) -> std::optional<double> {
+        std::istringstream in{std::string{text}};
+        in.imbue(std::locale::classic());
+        double v = 0;
+        if (!(in >> v) || in.peek() != std::char_traits<char>::eof() || !std::isfinite(v)) return std::nullopt;
+        return v;
+    };
+    const auto roots = [&](std::string_view text) -> std::optional<std::vector<std::complex<double>>> {
+        std::vector<std::complex<double>> out;
+        while (!text.empty()) {
+            const auto end = std::min(text.find(';'), text.size());
+            const auto item = text.substr(0, end);
+            const auto comma = item.find(',');
+            if (comma == std::string_view::npos) return std::nullopt;
+            const auto re = number(item.substr(0, comma)), im = number(item.substr(comma + 1));
+            if (!re || !im) return std::nullopt;
+            out.emplace_back(*re, *im);
+            text.remove_prefix(std::min(end + 1, text.size()));
+        }
+        return out;
+    };
+    const auto k_at = key.find("k="), z_at = key.find("|z="), p_at = key.find("|p=");
+    if (k_at != 0 || z_at == std::string_view::npos || p_at == std::string_view::npos || p_at < z_at) return std::nullopt;
+    const auto k = number(key.substr(2, z_at - 2));
+    auto z = roots(key.substr(z_at + 3, p_at - z_at - 3));
+    auto p = roots(key.substr(p_at + 3));
+    if (!k || !z || !p) return std::nullopt;
+    return core::Zpk{std::move(*z), std::move(*p), *k};
+}
+
+namespace {
+
+std::optional<double> plain_number(std::string_view text) {
+    if (text.empty()) return std::nullopt;
+    std::istringstream in{std::string{text}};
+    in.imbue(std::locale::classic());
+    double v = 0;
+    if (!(in >> v) || in.peek() != std::char_traits<char>::eof() || !std::isfinite(v)) return std::nullopt;
+    return v;
+}
+
+std::string replace_all(std::string s, std::string_view from, std::string_view to) {
+    for (std::size_t at = s.find(from); at != std::string::npos; at = s.find(from, at + to.size())) s.replace(at, from.size(), to);
+    return s;
+}
+
+std::optional<std::vector<std::complex<double>>> parse_root(std::string token) {
+    token = replace_all(replace_all(replace_all(std::move(token), "∠", "@"), "±", "~"), "π", "pi");
+    std::vector<std::complex<double>> out;
+    if (const auto at = token.find('@'); at != std::string::npos) {
+        const auto r = plain_number(std::string_view{token}.substr(0, at));
+        auto angle = token.substr(at + 1);
+        const bool pair = angle.starts_with('~');
+        if (pair) angle.erase(0, 1);
+        if (angle.ends_with("pi")) angle.resize(angle.size() - 2);
+        const auto a = plain_number(angle);
+        if (!r || !a) return std::nullopt;
+        out.push_back(std::polar(*r, *a * std::numbers::pi));
+        if (pair) out.push_back(std::conj(out.back()));
+        return out;
+    }
+    if (token.ends_with('i') || token.ends_with('j')) {
+        const std::string body = token.substr(0, token.size() - 1);
+        std::size_t split = std::string::npos;
+        for (std::size_t k = body.size(); k-- > 1;)
+            if ((body[k] == '+' || body[k] == '-' || body[k] == '~') && body[k - 1] != 'e' && body[k - 1] != 'E') {
+                split = k;
+                break;
+            }
+        const auto imaginary = [](std::string_view s) -> std::optional<double> {
+            if (s.empty() || s == "+") return 1.0;
+            if (s == "-") return -1.0;
+            return plain_number(s);
+        };
+        double re = 0;
+        std::optional<double> im;
+        bool pair = false;
+        if (split == std::string::npos) {
+            im = imaginary(body);
+        } else {
+            const auto real = plain_number(std::string_view{body}.substr(0, split));
+            if (!real) return std::nullopt;
+            re = *real;
+            pair = body[split] == '~';
+            im = imaginary(pair ? std::string_view{body}.substr(split + 1) : std::string_view{body}.substr(split));
+            if (pair && split + 1 == body.size()) return std::nullopt;
+        }
+        if (!im) return std::nullopt;
+        out.emplace_back(re, *im);
+        if (pair) out.push_back(std::conj(out.back()));
+        return out;
+    }
+    const auto real = plain_number(token);
+    if (!real) return std::nullopt;
+    out.emplace_back(*real, 0.0);
+    return out;
+}
+
+}  // namespace
+
+std::optional<std::vector<std::complex<double>>> parse_roots(std::string_view text) {
+    std::vector<std::complex<double>> out;
+    std::string token;
+    const auto flush = [&]() -> bool {
+        if (token.empty()) return true;
+        auto roots = parse_root(std::move(token));
+        token.clear();
+        if (!roots) return false;
+        out.insert(out.end(), roots->begin(), roots->end());
+        return true;
+    };
+    for (const char c : text) {
+        if (c == ',' || c == ';' || c == ' ' || c == '\t') {
+            if (!flush()) return std::nullopt;
+        } else {
+            token += c;
+        }
+    }
+    if (!flush()) return std::nullopt;
+    return out;
+}
+
+std::string roots_text(const std::vector<std::complex<double>>& roots) {
+    std::vector<bool> used(roots.size(), false);
+    std::string out;
+    for (std::size_t i = 0; i < roots.size(); ++i) {
+        if (used[i]) continue;
+        const auto r = roots[i];
+        const double size = std::max(1.0, std::abs(r));
+        std::string item;
+        if (std::abs(r.imag()) <= 1e-12 * size) {
+            item = fmt::format("{:.10g}", r.real());
+        } else {
+            std::size_t mate = roots.size();
+            for (std::size_t j = i + 1; j < roots.size(); ++j)
+                if (!used[j] && std::abs(roots[j] - std::conj(r)) < 1e-9 * size) {
+                    mate = j;
+                    break;
+                }
+            if (mate < roots.size()) {
+                used[mate] = true;
+                item = fmt::format("{:.10g}∠±{:.10g}π", std::abs(r), std::abs(std::arg(r)) / std::numbers::pi);
+            } else {
+                item = fmt::format("{:.10g}{}{:.10g}i", r.real(), r.imag() < 0 ? "-" : "+", std::abs(r.imag()));
+            }
+        }
+        out += (out.empty() ? "" : ", ") + item;
+    }
+    return out;
+}
+
+std::optional<core::Zpk> editable_zpk(const FilterAnalysis& a) {
+    if (a.zpk) return *a.zpk;
+    if (!a.zp) return std::nullopt;
+    const auto first = std::find_if(a.h.coeffs.begin(), a.h.coeffs.end(), [](double v) { return v != 0.0; });
+    if (first == a.h.coeffs.end()) return std::nullopt;
+    core::Zpk out{a.zp->zeros, a.zp->poles, *first};
+    for (std::ptrdiff_t k = 0; k < a.zp->poles_at_origin; ++k) out.p.emplace_back(0.0, 0.0);
+    for (std::ptrdiff_t k = 0; k < -a.zp->poles_at_origin; ++k) out.z.emplace_back(0.0, 0.0);
+    return out;
+}
+
+core::Zpk move_root(core::Zpk zpk, bool pole, std::size_t index, std::complex<double> to) {
+    auto& roots = pole ? zpk.p : zpk.z;
+    if (index >= roots.size()) return zpk;
+    const auto from = roots[index];
+    const double size = std::max(1.0, std::abs(from));
+    if (std::abs(from.imag()) <= 1e-12 * size) {
+        std::size_t mate = roots.size();
+        for (std::size_t j = 0; j < roots.size(); ++j)
+            if (j != index && std::abs(roots[j] - from) < 1e-9 * size) {
+                mate = j;
+                break;
+            }
+        if (mate == roots.size() || to.imag() == 0.0) {
+            roots[index] = {to.real(), 0.0};
+            return zpk;
+        }
+        roots[index] = to;
+        roots[mate] = std::conj(to);
+        return zpk;
+    }
+    std::size_t mate = index;
+    double best = std::numeric_limits<double>::infinity();
+    for (std::size_t j = 0; j < roots.size(); ++j)
+        if (j != index && std::abs(roots[j] - std::conj(from)) < best) best = std::abs(roots[j] - std::conj(from)), mate = j;
+    roots[index] = to;
+    if (mate != index) roots[mate] = std::conj(to);
+    return zpk;
+}
+
 double span_of(const FilterRef& ref) { return ref.kind == FilterRef::Kind::scaling || ref.kind == FilterRef::Kind::wavelet_fn ? 8.0 : 1.0; }
 
 std::string FilterRef::label() const {
@@ -182,6 +385,7 @@ std::string FilterRef::label() const {
         const auto taps = static_cast<std::size_t>(std::count(wavelet.begin(), wavelet.end(), ',')) + 1;
         return fmt::format(fmt::runtime(tr("tui.filters.custom.label")), fmt::arg("taps", tr_count("unit.tap", static_cast<long long>(taps))));
     }
+    case Kind::zpk: return title.empty() ? tr("tui.filters.zpk.label") : title;
     case Kind::classical: break;
     }
     return wavelet;
@@ -503,8 +707,29 @@ core::Result<FilterAnalysis> analyze_custom(const FilterRef& ref, std::size_t po
     return a;
 }
 
+core::Result<FilterAnalysis> analyze_zpk(const FilterRef& ref, std::size_t points) {
+    const auto zpk = parse_zpk(ref.wavelet);
+    if (!zpk) return core::make_error(core::Errc::invalid_argument, "zpk filter: cannot read " + ref.wavelet);
+    FilterAnalysis a;
+    a.ref = ref;
+    std::vector<double> omega(points);
+    for (std::size_t k = 0; k < points; ++k) omega[k] = std::numbers::pi * static_cast<double>(k) / static_cast<double>(points);
+    a.response = core::zpk_frequency_response(*zpk, omega);
+    auto square = *zpk;
+    const auto size = std::max(square.z.size(), square.p.size());
+    square.z.resize(size, {0.0, 0.0});
+    square.p.resize(size, {0.0, 0.0});
+    a.h = core::Laurent{core::sos_impulse(core::zpk_to_sos(square), 128), static_cast<std::ptrdiff_t>(zpk->p.size()) - static_cast<std::ptrdiff_t>(zpk->z.size())};
+    a.zp = core::ZerosPoles{zpk->z, 0, zpk->p};
+    a.stable = core::is_stable(*zpk);
+    a.zpk = *zpk;
+    a.metrics = core::band_metrics(a.response, -1.0, 2.0);
+    return a;
+}
+
 core::Result<FilterAnalysis> analyze_any(const FilterRef& ref, std::size_t points) {
     if (ref.kind == FilterRef::Kind::classical) return analyze_classical(ref, points);
+    if (ref.kind == FilterRef::Kind::zpk) return analyze_zpk(ref, points);
     if (ref.kind == FilterRef::Kind::custom) return analyze_custom(ref, points);
     if (ref.kind == FilterRef::Kind::cwt) return analyze_cwt(ref, points);
     const auto bank = bank_of(ref);
@@ -540,6 +765,7 @@ core::Result<FilterAnalysis> analyze_any(const FilterRef& ref, std::size_t point
     }
     case FilterRef::Kind::classical:
     case FilterRef::Kind::custom:
+    case FilterRef::Kind::zpk:
     case FilterRef::Kind::scaling:
     case FilterRef::Kind::wavelet_fn:
     case FilterRef::Kind::cwt: break;
