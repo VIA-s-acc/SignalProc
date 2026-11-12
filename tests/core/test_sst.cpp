@@ -190,3 +190,45 @@ TEST_CASE("the SST refuses samples large enough to overflow and keeps large ones
     CHECK_FALSE(sst::band(x, o, 0.0, 0.5));
     CHECK_FALSE(sst::power_map(x, o, bins, 4));
 }
+
+TEST_CASE("the SST ridge follows a chirp and reports its amplitude", "[sst]") {
+    constexpr std::size_t n = 4096, edge = 400;
+    constexpr double f0 = 0.05, f1 = 0.2, a = 0.7;
+    std::vector<double> x(n);
+    for (std::size_t k = 0; k < n; ++k) {
+        const double t = static_cast<double>(k);
+        x[k] = a * std::cos(2 * std::numbers::pi * (f0 * t + (f1 - f0) * t * t / (2 * n)));
+    }
+    const auto o = sst::covering(0.02, 0.4, 32, 6.0);
+    const auto r = sst::ridge(x, o, 0.02, 0.4);
+    REQUIRE(r);
+    REQUIRE(r->freq.size() == n);
+    REQUIRE(r->amp.size() == n);
+    for (std::size_t k = edge; k < n - edge; k += 37) {
+        const double expected = f0 + (f1 - f0) * static_cast<double>(k) / n;
+        CHECK(std::abs(r->freq[k] - expected) < 0.01 * expected);
+        CHECK(std::abs(r->amp[k] - a) < 0.02 * a);
+    }
+}
+
+TEST_CASE("the SST ridge picks the strongest tone and a band picks the weaker", "[sst]") {
+    constexpr std::size_t n = 4096;
+    const auto low = tone(n, 0.05, 1.0), high = tone(n, 0.2, 0.3, 1.0);
+    std::vector<double> x(n);
+    for (std::size_t k = 0; k < n; ++k) x[k] = low[k] + high[k];
+    const auto o = sst::covering(0.02, 0.45, 32, 6.0);
+    const auto all = sst::ridge(x, o, 0.0, 0.5), upper = sst::ridge(x, o, 0.12, 0.3);
+    REQUIRE(all);
+    REQUIRE(upper);
+    for (std::size_t k = 500; k < n - 500; k += 101) {
+        CHECK(std::abs(all->freq[k] - 0.05) < 5e-4);
+        CHECK(std::abs(all->amp[k] - 1.0) < 0.02);
+        CHECK(std::abs(upper->freq[k] - 0.2) < 2e-3);
+        CHECK(std::abs(upper->amp[k] - 0.3) < 0.02);
+    }
+    const auto silent = sst::ridge(std::vector<double>(256, 0.0), o, 0.0, 0.5);
+    REQUIRE(silent);
+    CHECK(std::ranges::all_of(silent->freq, [](double f) { return f == 0; }));
+    CHECK(std::ranges::all_of(silent->amp, [](double v) { return v == 0; }));
+    CHECK_FALSE(sst::ridge(x, o, 0.3, 0.1));
+}

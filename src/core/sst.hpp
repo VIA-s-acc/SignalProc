@@ -28,6 +28,10 @@ struct Bins {
 using Plane = std::vector<std::vector<std::complex<double>>>;
 using Row = std::function<void(std::size_t scale, std::span<const std::complex<double>> wx, std::span<const std::complex<double>> dwx)>;
 
+struct Ridge {
+    std::vector<double> freq, amp;
+};
+
 struct PowerMap {
     std::size_t rows = 0, cols = 0;
     std::vector<double> power;
@@ -43,8 +47,11 @@ Bins log_bins(double lo, double hi, std::size_t count);
 Result<void> cwt_rows(std::span<const double> x, const Options& o, const Row& row, ProgressSink* progress = nullptr);
 Result<Plane> transform(std::span<const double> x, const Options& o, const Bins& bins, ProgressSink* progress = nullptr);
 std::vector<double> inverse(const Plane& tx, double mu);
-Result<std::vector<double>> band(std::span<const double> x, const Options& o, double lo, double hi, ProgressSink* progress = nullptr);
+Result<std::vector<double>> band(std::span<const double> x, const Options& o, double lo, double hi, ProgressSink* progress = nullptr,
+                                 std::size_t segment = 0);
+Result<Ridge> ridge(std::span<const double> x, const Options& o, double lo, double hi, ProgressSink* progress = nullptr, std::size_t segment = 0);
 Result<PowerMap> power_map(std::span<const double> x, const Options& o, const Bins& bins, std::size_t cols, ProgressSink* progress = nullptr,
                            std::size_t segment = 0);
+std::size_t map_bytes(std::size_t n, const Options& o, std::size_t bins);
 
 }  // namespace signals::core::sst
