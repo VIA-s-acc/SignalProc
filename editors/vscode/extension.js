@@ -1,6 +1,7 @@
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
+const flt = require('./flt');
 
 const NODE_LINE = /^\s*node\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)/;
 
@@ -94,6 +95,7 @@ function nodeContext(document, position) {
 
 function activate(context) {
   const { blocks, ru } = loadBlocks(context);
+  activateFlt(context, ru);
   const selector = { language: 'signals-sig' };
 
   context.subscriptions.push(
@@ -174,6 +176,54 @@ function activate(context) {
       '=',
       '(',
       ',',
+      ' ',
+    ),
+  );
+}
+
+function activateFlt(context, ru) {
+  const selector = { language: 'signals-flt' };
+  const diagnostics = vscode.languages.createDiagnosticCollection('signals-flt');
+  context.subscriptions.push(diagnostics);
+  const severity = { error: vscode.DiagnosticSeverity.Error, warning: vscode.DiagnosticSeverity.Warning };
+  const refresh = (document) => {
+    if (document.languageId !== 'signals-flt') return;
+    const found = flt.check(document.getText(), ru).map((d) => {
+      const item = new vscode.Diagnostic(new vscode.Range(document.positionAt(d.start), document.positionAt(d.end)), d.message, severity[d.severity]);
+      item.source = 'signals';
+      return item;
+    });
+    diagnostics.set(document.uri, found);
+  };
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument(refresh),
+    vscode.workspace.onDidChangeTextDocument((e) => refresh(e.document)),
+    vscode.workspace.onDidCloseTextDocument((d) => diagnostics.delete(d.uri)),
+  );
+  for (const d of vscode.workspace.textDocuments) refresh(d);
+
+  context.subscriptions.push(
+    vscode.languages.registerHoverProvider(selector, {
+      provideHover(document, position) {
+        const text = flt.hover(document.getText(), document.offsetAt(position), ru);
+        return text ? new vscode.Hover(new vscode.MarkdownString(text)) : null;
+      },
+    }),
+    vscode.languages.registerCompletionItemProvider(
+      selector,
+      {
+        provideCompletionItems(document, position) {
+          const line = document.lineAt(position.line).text.slice(0, position.character);
+          return flt.completions(document.getText(), line, ru).map((c) => {
+            const item = new vscode.CompletionItem(c.label, c.snippet ? vscode.CompletionItemKind.Property : vscode.CompletionItemKind.EnumMember);
+            item.detail = c.detail;
+            item.insertText = c.snippet ? new vscode.SnippetString(c.snippet) : c.insert;
+            return item;
+          });
+        },
+      },
+      '=',
+      '"',
       ' ',
     ),
   );

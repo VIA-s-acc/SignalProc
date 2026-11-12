@@ -1,0 +1,69 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Signals filter",
+  "scopeName": "source.signals-flt",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#table" },
+    { "include": "#entry" }
+  ],
+  "repository": {
+    "comment": {
+      "match": "#.*$",
+      "name": "comment.line.number-sign.signals-flt"
+    },
+    "table": {
+      "match": "^\\s*\\[.*$",
+      "name": "invalid.illegal.table.signals-flt"
+    },
+    "entry": {
+      "begin": "^\\s*([A-Za-z0-9_-]+)\\s*(=)",
+      "beginCaptures": {
+        "1": { "patterns": [{ "include": "#key" }] },
+        "2": { "name": "keyword.operator.assignment.signals-flt" }
+      },
+      "end": "(?<=\\])|$",
+      "patterns": [{ "include": "#value" }]
+    },
+    "key": {
+      "patterns": [
+        { "match": "\\b(h0|f0|h)\\b", "name": "entity.name.function.filter.signals-flt" },
+        { "match": "\\b(h0_offset|f0_offset|h_offset)\\b", "name": "variable.parameter.offset.signals-flt" },
+        { "match": "\\b(name|kind|note)\\b", "name": "variable.other.key.signals-flt" },
+        { "match": ".+", "name": "variable.other.key.unknown.signals-flt" }
+      ]
+    },
+    "value": {
+      "patterns": [
+        { "include": "#comment" },
+        {
+          "match": "\"(bank|filter)\"",
+          "name": "constant.language.kind.signals-flt"
+        },
+        {
+          "begin": "\"",
+          "end": "\"|$",
+          "name": "string.quoted.double.signals-flt",
+          "patterns": [{ "match": "\\\\([\"\\\\nrt]|u[0-9A-Fa-f]{4})", "name": "constant.character.escape.signals-flt" }]
+        },
+        {
+          "begin": "'",
+          "end": "'|$",
+          "name": "string.quoted.single.signals-flt"
+        },
+        {
+          "begin": "\\[",
+          "beginCaptures": { "0": { "name": "punctuation.section.array.begin.signals-flt" } },
+          "end": "\\]",
+          "endCaptures": { "0": { "name": "punctuation.section.array.end.signals-flt" } },
+          "patterns": [{ "include": "#value" }, { "match": ",", "name": "punctuation.separator.array.signals-flt" }]
+        },
+        {
+          "match": "[+-]?(?:inf|nan|(?:0|[1-9](?:_?\\d)*)(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)(?![A-Za-z0-9_.])",
+          "name": "constant.numeric.signals-flt"
+        },
+        { "match": "\\b(true|false)\\b", "name": "constant.language.boolean.signals-flt" }
+      ]
+    }
+  }
+}

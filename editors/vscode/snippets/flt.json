@@ -1,0 +1,28 @@
+{
+  "Bank": {
+    "prefix": "bank",
+    "body": [
+      "name = \"${1:my_bank}\"",
+      "kind = \"bank\"",
+      "h0_offset = ${2:0}",
+      "h0 = [${3:0.7071067811865476, 0.7071067811865476}]",
+      "f0_offset = ${4:0}",
+      "f0 = [${5:0.7071067811865476, 0.7071067811865476}]",
+      "note = \"${6}\"",
+      "$0"
+    ],
+    "description": "A two-channel bank: analysis lowpass h0 and synthesis lowpass f0 (Haar by default)"
+  },
+  "Filter": {
+    "prefix": "filter",
+    "body": [
+      "name = \"${1:my_filter}\"",
+      "kind = \"filter\"",
+      "h_offset = ${2:0}",
+      "h = [${3:0.25, 0.5, 0.25}]",
+      "note = \"${4}\"",
+      "$0"
+    ],
+    "description": "A single FIR filter h"
+  }
+}
