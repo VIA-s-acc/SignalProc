@@ -154,6 +154,22 @@ std::string PipelineModel::add_node(std::string_view type) {
     return id;
 }
 
+std::string PipelineModel::duplicate_node(std::string_view source) {
+    const auto it = std::find_if(doc_.nodes.begin(), doc_.nodes.end(), [&](const auto& n) { return n.id == source; });
+    if (it == doc_.nodes.end()) return {};
+    std::string id = it->type;
+    for (int k = 2; std::any_of(doc_.nodes.begin(), doc_.nodes.end(), [&](const auto& n) { return n.id == id; }); ++k) id = it->type + std::to_string(k);
+    auto next = doc_;
+    auto copy = *it;
+    copy.id = id;
+    copy.line = 0;
+    copy.comments = {false, {}, it->comments.after};
+    next.nodes.insert(next.nodes.begin() + (it - doc_.nodes.begin()) + 1, std::move(copy));
+    if (!commit(std::move(next))) return {};
+    selection = {Selection::Kind::node, id, {}};
+    return id;
+}
+
 core::Result<void> PipelineModel::insert_into_wire(const pipeline::Edge& wire, std::string_view type) {
     std::string id{type};
     for (int k = 2; std::any_of(doc_.nodes.begin(), doc_.nodes.end(), [&](const auto& n) { return n.id == id; }); ++k) id = std::string{type} + std::to_string(k);

@@ -12,6 +12,8 @@
 #include "core/spectral.hpp"
 #include "core/design/families.hpp"
 #include "i18n/i18n.hpp"
+#include "io/temp_file.hpp"
+#include "io/wav.hpp"
 #include "pipeline/examples.hpp"
 #include "pipeline/block.hpp"
 #include "pipeline/sig.hpp"
@@ -27,6 +29,7 @@ namespace signals::tui {
 namespace {
 
 constexpr int kRightWidth = 44, kBottomHeight = 12, kTextWidth = 46, kRunHeight = 16;
+constexpr std::size_t kStemFrames = 64;
 
 std::filesystem::path utf8_file(const std::string& text) { return expand_path(text); }
 
@@ -134,6 +137,10 @@ std::vector<Command> PipelineScreen::commands() {
     out.push_back({"pipeline.open", tr("tui.pipeline.cmd.open"), [this] { OnEvent(ftxui::Event::Character('o')); }});
     out.push_back({"pipeline.probe_name", tr("tui.pipeline.cmd.probe_name"), [this] { name_probe(); }});
     out.push_back({"pipeline.sweep", tr("tui.pipeline.cmd.sweep"), [this] { start_sweep(); }});
+    out.push_back({"pipeline.duplicate", tr("tui.pipeline.cmd.duplicate"), [this] { duplicate_selected(); }});
+    out.push_back({"pipeline.probe_copy", tr("tui.pipeline.cmd.probe_copy"), [this] { copy_probe(); }});
+    out.push_back({"pipeline.probe_compare", tr("tui.pipeline.cmd.compare"), [this] { toggle_compare(); }});
+    out.push_back({"pipeline.probe_save", tr("tui.pipeline.cmd.probe_save"), [this] { save_probe(); }});
     return out;
 }
 
@@ -147,7 +154,7 @@ std::vector<Hint> PipelineScreen::hints() const {
             {"Ctrl+Z/Y", tr("tui.pipeline.hint.undo")},    {"Ctrl+S", tr("tui.pipeline.hint.save")}, {"o", tr("tui.pipeline.hint.open")},
             {"r", tr("tui.pipeline.hint.run")},           {"A/B", tr("tui.pipeline.hint.ab")},      {"Space", tr("tui.pipeline.hint.listen")},
             {"+ − 0", tr("tui.pipeline.hint.zoom")},       {"O", tr("tui.pipeline.hint.examples")},  {"PgUp/PgDn", tr("tui.hint.page")},
-            {"v", tr("tui.pipeline.hint.view")},          {"n", tr("tui.pipeline.hint.name")},     {"k", tr("tui.pipeline.hint.channels")},     {"S", tr("tui.pipeline.hint.sweep")},     {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")},
+            {"v", tr("tui.pipeline.hint.view")},          {"n", tr("tui.pipeline.hint.name")},     {"k", tr("tui.pipeline.hint.channels")},     {"S", tr("tui.pipeline.hint.sweep")},     {"D", tr("tui.pipeline.hint.duplicate")},  {"y", tr("tui.pipeline.hint.copy_probe")},  {"x", tr("tui.pipeline.hint.save_probe")},  {"w", tr("tui.pipeline.hint.compare")},  {"+ − E", tr("tui.pipeline.hint.digits")},     {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")},
             {"c/C", tr("tui.pipeline.hint.connect_keys")}};
 }
 
@@ -629,6 +636,28 @@ void PipelineScreen::refresh_probe(const RunView& run) {
     }
 }
 
+namespace {
+
+const core::AudioBuffer* probe_signal(const RunView& run, const std::string& name) {
+    const auto it = run.probes.find(name);
+    return it == run.probes.end() || !it->second ? nullptr : std::get_if<core::AudioBuffer>(it->second.get());
+}
+
+std::string probe_table(const core::AudioBuffer& audio, char separator, std::size_t limit) {
+    std::string out = "n";
+    for (std::size_t c = 0; c < audio.channels.size(); ++c) out += separator + ("ch" + std::to_string(c));
+    out += '\n';
+    const auto rows = std::min(audio.frames(), limit);
+    for (std::size_t n = 0; n < rows; ++n) {
+        out += std::to_string(n);
+        for (const auto& ch : audio.channels) out += separator + fmt::format("{:.15g}", ch[n]);
+        out += '\n';
+    }
+    return out;
+}
+
+}  // namespace
+
 ftxui::Element PipelineScreen::probe_values(const core::AudioBuffer& audio, int width, int height) {
     using namespace ftxui;
     const auto& th = ui_.theme;
@@ -644,7 +673,7 @@ ftxui::Element PipelineScreen::probe_values(const core::AudioBuffer& audio, int 
     for (std::size_t c = 0; c < channels; ++c) {
         widths[c] = display_width(label(c));
         for (std::size_t k = window.first; k < window.first + window.shown; ++k) {
-            cells[c].push_back(format_number(audio.channels[c][k], 6));
+            cells[c].push_back(scientific_ ? format_scientific(audio.channels[c][k], value_digits_) : format_number(audio.channels[c][k], value_digits_));
             widths[c] = std::max(widths[c], display_width(cells[c].back()));
         }
         all += gap + widths[c];
@@ -670,6 +699,123 @@ ftxui::Element PipelineScreen::probe_values(const core::AudioBuffer& audio, int 
         lines.push_back(hbox(std::move(row)));
     }
     return vbox({hbox(std::move(header)), scrolled(window, frames, std::move(lines), ui_)});
+}
+
+
+void PipelineScreen::refresh_compare(const RunView& run) {
+    if (!compare_) return;
+    const auto* b = probe_signal(run, *compare_);
+    const auto* a = probe_signal(run, probe_.name);
+    if (!a || !b || *compare_ == probe_.name) {
+        compare_.reset();
+        other_ = {};
+        compare_stats_.clear();
+        return;
+    }
+    const auto key = std::to_string(run.number) + "\n" + probe_.name + "\n" + *compare_;
+    if (key == compare_key_) return;
+    compare_key_ = key;
+    other_ = {};
+    other_.run = run.number;
+    other_.name = *compare_;
+    auto samples = std::make_shared<std::vector<std::vector<float>>>();
+    for (const auto& ch : b->channels) samples->emplace_back(ch.begin(), ch.end());
+    other_.samples = samples;
+    for (const auto& ch : *samples) other_.pyramids.push_back(std::make_unique<MinMaxPyramid>(std::span<const float>{ch}));
+    other_.rate = b->sample_rate;
+    other_.frames = b->frames();
+    const auto frames = std::min(a->frames(), b->frames());
+    const auto channels = std::min(a->channels.size(), b->channels.size());
+    double worst = 0, difference = 0, energy = 0;
+    for (std::size_t ch = 0; ch < channels; ++ch)
+        for (std::size_t n = 0; n < frames; ++n) {
+            const double d = a->channels[ch][n] - b->channels[ch][n];
+            worst = std::max(worst, std::abs(d));
+            difference += d * d;
+            energy += a->channels[ch][n] * a->channels[ch][n];
+        }
+    const auto count = static_cast<double>(std::max<std::size_t>(1, frames * channels));
+    const double snr = difference > 0 ? 10 * std::log10(energy / difference) : std::numeric_limits<double>::infinity();
+    compare_stats_ = fmt::format(fmt::runtime(tr("tui.pipeline.compare.stats")), fmt::arg("name", *compare_), fmt::arg("max", format_number(worst, 4)),
+                                 fmt::arg("rms", format_number(std::sqrt(difference / count), 4)), fmt::arg("snr", format_number(snr, 4)));
+    if (frames != a->frames() || frames != b->frames() || channels != a->channels.size() || channels != b->channels.size())
+        compare_stats_ += " · " + fmt::format(fmt::runtime(tr("tui.pipeline.compare.shorter")), fmt::arg("frames", frames), fmt::arg("channels", channels));
+}
+
+void PipelineScreen::toggle_compare() {
+    if (compare_) {
+        compare_.reset();
+        other_ = {};
+        compare_stats_.clear();
+        compare_key_.clear();
+        notice_ = tr("tui.pipeline.compare.off");
+        return;
+    }
+    const auto run = model_->run_view();
+    refresh_probe(run);
+    std::vector<std::string> others;
+    for (const auto& [name, value] : run.probes)
+        if (name != probe_.name && probe_signal(run, name)) others.push_back(name);
+    if (others.empty() || !probe_signal(run, probe_.name)) {
+        notice_ = tr("tui.pipeline.compare.none");
+        return;
+    }
+    if (others.size() == 1 || !ui_.choose) {
+        compare_ = others.front();
+        return;
+    }
+    std::vector<Command> items;
+    for (const auto& name : others) items.push_back({name, name, [this, name] { compare_ = name; }});
+    ui_.choose(fmt::format(fmt::runtime(tr("tui.pipeline.compare.choose")), fmt::arg("name", probe_.name)), std::move(items));
+}
+
+void PipelineScreen::copy_probe() {
+    const auto run = model_->run_view();
+    const auto* audio = probe_signal(run, probe_.name);
+    if (!audio) {
+        notice_ = tr("tui.pipeline.probe.not_signal");
+        return;
+    }
+    constexpr std::size_t kCopyRows = 100000;
+    if (ui_.copy_text) ui_.copy_text(probe_table(*audio, '\t', kCopyRows));
+    notice_ = audio->frames() > kCopyRows ? fmt::format(fmt::runtime(tr("tui.pipeline.probe.copied_part")), fmt::arg("rows", kCopyRows), fmt::arg("total", audio->frames()))
+                                          : fmt::format(fmt::runtime(tr("tui.pipeline.probe.copied")), fmt::arg("rows", audio->frames()));
+}
+
+void PipelineScreen::save_probe() {
+    if (!probe_signal(model_->run_view(), probe_.name)) {
+        notice_ = tr("tui.pipeline.probe.not_signal");
+        return;
+    }
+    if (!ui_.ask_text) return;
+    ui_.ask_text(tr("tui.pipeline.probe.save_prompt"), probe_.name + ".csv", [this, name = probe_.name](std::string answer) {
+        const auto run = model_->run_view();
+        const auto* audio = probe_signal(run, name);
+        if (!audio) return;
+        auto path = utf8_file(answer);
+        if (path.is_relative()) path = model_->base_dir() / path;
+        const auto ext = path.extension().string();
+        core::Result<void> written;
+        if (ext == ".wav") {
+            if (auto r = io::write_wav(path, *audio, {io::SampleFormat::float32, false}); !r) written = std::unexpected{r.error()};
+        } else if (ext == ".csv") {
+            written = io::write_file_atomic(path, probe_table(*audio, ',', audio->frames()));
+        } else {
+            notice_ = tr("tui.pipeline.probe.save_kinds");
+            return;
+        }
+        notice_ = written ? fmt::format(fmt::runtime(tr("tui.pipeline.probe.saved")), fmt::arg("path", path.string())) : written.error().message;
+    });
+}
+
+void PipelineScreen::duplicate_selected() {
+    const auto* n = selected_node();
+    if (!n) {
+        notice_ = tr("tui.pipeline.duplicate.pick");
+        return;
+    }
+    const auto id = model_->duplicate_node(n->id);
+    notice_ = id.empty() ? std::string{} : fmt::format(fmt::runtime(tr("tui.pipeline.duplicate.done")), fmt::arg("id", id));
 }
 
 bool PipelineScreen::has_sweep() const {
@@ -962,11 +1108,40 @@ ftxui::Element PipelineScreen::probe_time(int width, int rows) {
         const auto all = p.query(0, p.size(), 1);
         return all.empty() ? 1.0 : std::max({1e-12, std::abs(static_cast<double>(all[0].lo)), std::abs(static_cast<double>(all[0].hi))});
     };
+    const auto run = model_->run_view();
+    refresh_compare(run);
+    const auto* exact = probe_.frames <= kStemFrames ? probe_signal(run, probe_.name) : nullptr;
+    const auto* exact_other = compare_ && other_.frames <= kStemFrames ? probe_signal(run, *compare_) : nullptr;
+    const bool overlay = compare_ && !other_.pyramids.empty();
     const auto make = [&](std::size_t from, std::size_t to, double m) {
         PlotSpec spec;
         spec.x = master.axis();
         spec.y = {-m, m};
         spec.playhead = playhead();
+        if (exact) {
+            std::vector<double> times(exact->frames());
+            for (std::size_t n = 0; n < times.size(); ++n) times[n] = static_cast<double>(n) / rate;
+            for (std::size_t c = from; c < to && c < exact->channels.size(); ++c) {
+                Trace t{exact->channels[c], times, th.trace[c % th.trace.size()]};
+                t.stems = true;
+                spec.traces.push_back(std::move(t));
+            }
+        }
+        if (overlay && exact_other) {
+            std::vector<double> times(exact_other->frames());
+            for (std::size_t n = 0; n < times.size(); ++n) times[n] = static_cast<double>(n) / std::max(1.0, other_.rate);
+            for (std::size_t c = from; c < to && c < exact_other->channels.size(); ++c) spec.traces.push_back(Trace{exact_other->channels[c], times, th.warn});
+        } else if (overlay) {
+            const double other_rate = std::max(1.0, other_.rate);
+            for (std::size_t c = from; c < to && c < other_.pyramids.size(); ++c) {
+                const auto* pyramid = other_.pyramids[c].get();
+                const auto first = static_cast<std::size_t>(std::clamp(spec.x.lo * other_rate, 0.0, static_cast<double>(pyramid->size())));
+                const auto last = std::max(first + 1, static_cast<std::size_t>(std::clamp(spec.x.hi * other_rate, 0.0, static_cast<double>(pyramid->size()))));
+                if (first < pyramid->size())
+                    spec.envelopes.push_back(Envelope{{}, th.warn, [pyramid, first, last](int cols) { return pyramid->query(first, last, static_cast<std::size_t>(cols)); }, last - first});
+            }
+        }
+        if (exact) return spec;
         for (std::size_t c = from; c < to; ++c) {
             const auto* pyramid = probe_.pyramids[c].get();
             const auto first = static_cast<std::size_t>(std::clamp(spec.x.lo * rate, 0.0, static_cast<double>(pyramid->size())));
@@ -981,10 +1156,13 @@ ftxui::Element PipelineScreen::probe_time(int width, int rows) {
     for (std::size_t c = 0; c < channels; ++c) names.push_back("ch" + std::to_string(c));
     Elements out;
     if (channels > 1) out.push_back(channel_legend(channels, width, true));
-    const int room = std::max(2, rows - (channels > 1 ? 1 : 0));
+    if (overlay) out.push_back(text(ellipsize(compare_stats_, std::max(10, width), ui_.caps.glyphs == GlyphMode::ascii)) | fg(th.warn, ui_));
+    const int room = std::max(2, rows - (channels > 1 ? 1 : 0) - (overlay ? 1 : 0));
     if (!stacked_ || channels == 1) {
         double m = 1e-12;
         for (const auto& p : probe_.pyramids) m = std::max(m, peak(*p));
+        if (overlay)
+            for (const auto& p : other_.pyramids) m = std::max(m, peak(*p));
         auto spec = make(0, channels, m);
         auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, room);
         out.push_back(probe_zoom_.track("probe_time", std::move(spec), std::move(drawn), {title, names, tr("tui.export.time_s"), ""}));
@@ -996,7 +1174,7 @@ ftxui::Element PipelineScreen::probe_time(int width, int rows) {
     for (std::size_t c = 0; c < shown; ++c) {
         const auto id = c == 0 ? std::string{"probe_time"} : "probe_time:" + std::to_string(c);
         if (c > 0) probe_zoom_.axis(id, full) = master;
-        auto spec = make(c, c + 1, peak(*probe_.pyramids[c]));
+        auto spec = make(c, c + 1, overlay && c < other_.pyramids.size() ? std::max(peak(*probe_.pyramids[c]), peak(*other_.pyramids[c])) : peak(*probe_.pyramids[c]));
         auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, each);
         out.push_back(probe_zoom_.track(id, std::move(spec), std::move(drawn), {title + " · " + names[c], {names[c]}, tr("tui.export.time_s"), ""}));
     }
@@ -1500,6 +1678,15 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
     if (e == Event::Character('n')) return name_probe(), true;
     if (e == Event::Character('k')) return stacked_ = !stacked_, true;
     if (e == Event::Character('S')) return start_sweep(), true;
+    if (e == Event::Character('D')) return duplicate_selected(), true;
+    if (e == Event::Character('y')) return copy_probe(), true;
+    if (e == Event::Character('w')) return toggle_compare(), true;
+    if (e == Event::Character('x')) return save_probe(), true;
+    if (focus_ == kProbe && probe_view_ == ProbeView::values) {
+        if (e == Event::Character('+') || e == Event::Character('=')) return value_digits_ = std::min(15, value_digits_ + 1), true;
+        if (e == Event::Character('-')) return value_digits_ = std::max(1, value_digits_ - 1), true;
+        if (e == Event::Character('E')) return scientific_ = !scientific_, true;
+    }
     if (e == Event::Character('A')) return play(true), true;
     if (e == Event::Character('B')) return play(false), true;
     if (e == Event::Character(' ')) {

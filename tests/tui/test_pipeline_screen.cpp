@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
@@ -1275,7 +1276,7 @@ TEST_CASE("the probe plot menu exports the plot to svg and csv", "[tui][pipeline
     const std::string svg_text{std::istreambuf_iterator<char>{svg}, std::istreambuf_iterator<char>{}};
     const std::string csv_text{std::istreambuf_iterator<char>{csv}, std::istreambuf_iterator<char>{}};
     CHECK(svg_text.starts_with("<svg"));
-    CHECK(svg_text.find("<polyline") != std::string::npos);
+    CHECK(svg_text.find("<circle") != std::string::npos);
     CHECK(svg_text.find("<polygon") == std::string::npos);
     CHECK(csv_text.starts_with("x,"));
 }
@@ -1373,4 +1374,120 @@ TEST_CASE("saving or opening a graph puts it first among the recent graphs", "[t
     answer = (dir / "missing.sig").string();
     f.h.send(ftxui::Event::Character('o'));
     CHECK(f.ui->session->recent(RecentKind::graph).size() == 2);
+}
+
+namespace {
+
+std::string read_file(const std::filesystem::path& p) {
+    std::ifstream in{p, std::ios::binary};
+    return {std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+}
+
+constexpr const char* kTwoChannels = "pipeline \"t\" v1\n"
+                                     "node x = samples(values=\"0.125 -0.5 | 1 0.333333333333\", rate=8)\n"
+                                     "node g = gain(db=0)\n"
+                                     "x -> g\n"
+                                     "probe g as \"g\"\n";
+
+}  // namespace
+
+TEST_CASE("D duplicates the selected node and leaves its wires alone", "[tui][pipeline_screen][probe_tools]") {
+    PipelineFixture f{150, 44, false};
+    run_text(f, kTwoChannels);
+    f.model->selection = {Selection::Kind::node, "g", {}};
+    f.h.send(ftxui::Event::Character('D'));
+    CHECK(f.model->doc().nodes.size() == 3);
+    CHECK(f.model->selection.node == "gain");
+    CHECK(f.model->doc().edges.size() == 1);
+}
+
+TEST_CASE("y copies the probe values and x saves them to CSV or WAV", "[tui][pipeline_screen][probe_tools]") {
+    PipelineFixture f{150, 44, false};
+    std::string copied;
+    f.ui->copy_text = [&](std::string t) { copied = std::move(t); };
+    run_text(f, kTwoChannels);
+    f.h.send(ftxui::Event::Character('y'));
+    CHECK(copied == "n\tch0\tch1\n0\t0.125\t1\n1\t-0.5\t0.333333333333\n");
+    CHECK(f.screen->notice().find("2") != std::string::npos);
+    const auto dir = signals::test::temp_path("probe-save");
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    std::string answer = (dir / "g.csv").string(), prefill;
+    f.ui->ask_text = [&](std::string, std::string p, std::function<void(std::string)> done) {
+        prefill = std::move(p);
+        done(answer);
+    };
+    f.h.send(ftxui::Event::Character('x'));
+    CHECK(prefill == "g.csv");
+    CHECK(read_file(dir / "g.csv") == "n,ch0,ch1\n0,0.125,1\n1,-0.5,0.333333333333\n");
+    CHECK(f.screen->notice().find("g.csv") != std::string::npos);
+    answer = (dir / "g.wav").string();
+    f.h.send(ftxui::Event::Character('x'));
+    const auto wav = io::read_wav(dir / "g.wav");
+    REQUIRE(wav);
+    REQUIRE(wav->audio.channels.size() == 2);
+    CHECK(wav->audio.sample_rate == 8);
+    CHECK(wav->audio.channels[1][1] == Catch::Approx(0.333333333333).margin(1e-7));
+    answer = (dir / "g.txt").string();
+    f.h.send(ftxui::Event::Character('x'));
+    CHECK_FALSE(std::filesystem::exists(dir / "g.txt"));
+    CHECK(f.screen->notice().find(".csv") != std::string::npos);
+}
+
+TEST_CASE("+ and - change the digits of the values view and E switches to powers of ten", "[tui][pipeline_screen][probe_tools]") {
+    PipelineFixture f{150, 44, false};
+    run_text(f, kTwoChannels);
+    f.h.send(ftxui::Event::Character('v'));
+    f.h.send(ftxui::Event::Character('v'));
+    const auto panel = f.box("probe_panel");
+    f.h.click(panel.x_max - 2, panel.y_max - 1);
+    CHECK(f.h.frame().find(format_number(0.333333333333, 6)) != std::string::npos);
+    f.h.send(ftxui::Event::Character('-'));
+    f.h.send(ftxui::Event::Character('-'));
+    CHECK(f.h.frame().find(format_number(0.333333333333, 4)) != std::string::npos);
+    f.h.send(ftxui::Event::Character('+'));
+    CHECK(f.h.frame().find(format_number(0.333333333333, 5)) != std::string::npos);
+    f.h.send(ftxui::Event::Character('E'));
+    CHECK(f.h.frame().find(format_scientific(0.125, 5)) != std::string::npos);
+    CHECK(format_scientific(0.125, 3) == format_number(1.25, 3) + "·10⁻¹");
+}
+
+TEST_CASE("a short probe is drawn as stems at its exact samples", "[tui][pipeline_screen][probe_tools]") {
+    PipelineFixture f{150, 44, false};
+    run_text(f, kTwoChannels);
+    const auto plots = f.screen->plot_exports();
+    const auto time = std::find_if(plots.begin(), plots.end(), [](const PlotExport& p) { return p.id == "probe_time"; });
+    REQUIRE(time != plots.end());
+    REQUIRE(time->spec.traces.size() == 2);
+    CHECK(time->spec.traces[0].stems);
+    CHECK(time->spec.traces[0].y == std::vector<double>{0.125, -0.5});
+    CHECK(time->spec.traces[1].x == std::vector<double>{0, 0.125});
+}
+
+TEST_CASE("w compares the shown probe with another one and w again stops", "[tui][pipeline_screen][probe_tools]") {
+    PipelineFixture f{150, 44, false};
+    run_text(f, "pipeline \"c\" v1\n"
+                "node a = samples(values=\"1 2 3 4\", rate=8)\n"
+                "node b = samples(values=\"1 2 3 3\", rate=8)\n"
+                "node ga = gain(db=0)\n"
+                "node gb = gain(db=0)\n"
+                "a -> ga\n"
+                "b -> gb\n"
+                "probe ga as \"a\"\n"
+                "probe gb as \"b\"\n");
+    f.h.send(ftxui::Event::Character('w'));
+    auto frame = f.h.frame();
+    auto stats = tr("tui.pipeline.compare.stats");
+    for (const auto& [key, value] : std::vector<std::pair<std::string, std::string>>{
+             {"{name}", "b"}, {"{max}", format_number(1, 4)}, {"{rms}", format_number(0.5, 4)}, {"{snr}", format_number(10 * std::log10(30.0), 4)}})
+        stats.replace(stats.find(key), key.size(), value);
+    CHECK(frame.find(stats) != std::string::npos);
+    const auto plots = f.screen->plot_exports();
+    const auto time = std::find_if(plots.begin(), plots.end(), [](const PlotExport& p) { return p.id == "probe_time"; });
+    REQUIRE(time != plots.end());
+    REQUIRE(time->spec.traces.size() == 2);
+    CHECK(time->spec.traces[1].y == std::vector<double>{1, 2, 3, 3});
+    f.h.send(ftxui::Event::Character('w'));
+    frame = f.h.frame();
+    CHECK(frame.find(stats) == std::string::npos);
 }

@@ -7,6 +7,7 @@
 namespace signals::tui {
 
 std::string format_number(double v, int significant = 3);
+std::string format_scientific(double v, int significant = 3);
 std::string format_si(double v, std::string_view unit, int significant = 3);
 std::string format_fixed(double v, int decimals);
 

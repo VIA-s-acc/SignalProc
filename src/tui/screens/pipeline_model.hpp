@@ -71,6 +71,7 @@ public:
     core::Result<void> load_text(std::string_view name, std::string_view text);
     core::Result<void> save(const std::filesystem::path& file);
     std::string add_node(std::string_view type);
+    std::string duplicate_node(std::string_view id);
     core::Result<void> insert_into_wire(const pipeline::Edge& wire, std::string_view type);
     core::Result<void> connect(const pipeline::PortRef& from, const pipeline::PortRef& to);
     void disconnect(const pipeline::Edge& wire);

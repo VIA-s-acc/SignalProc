@@ -75,6 +75,11 @@ private:
     ftxui::Element probe_values(const core::AudioBuffer& audio, int width, int height);
     void name_probe();
     void start_sweep();
+    void copy_probe();
+    void toggle_compare();
+    void refresh_compare(const RunView& run);
+    void save_probe();
+    void duplicate_selected();
     void ask_sweep_values(const std::string& node, const pipeline::ParamSpec& spec, const std::string& current);
     void choose_sweep_measure(pipeline::SweepAxis axis);
     bool has_sweep() const;
@@ -133,10 +138,14 @@ private:
         std::vector<std::vector<double>> db;
         double rate = 0;
         std::size_t frames = 0;
-    } probe_;
+    } probe_, other_;
+    std::optional<std::string> compare_;
+    std::string compare_stats_, compare_key_;
     std::size_t probe_index_ = 0;
     enum class ProbeView { time, spectrum, values } probe_view_ = ProbeView::time;
     bool last_input_ = false, stacked_ = false;
+    int value_digits_ = 6;
+    bool scientific_ = false;
     bool adding_ = false;
     std::optional<pipeline::PortRef> connecting_;
     std::string query_;
