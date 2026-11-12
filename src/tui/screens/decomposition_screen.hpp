@@ -52,6 +52,8 @@ public:
     std::pair<double, double> time_view() const { return {begin_, end_}; }
     std::vector<MenuItem> context_menu(int x, int y) override;
     std::vector<HeatmapExport> heatmap_exports() override;
+    std::vector<PlotExport> plot_exports() override { return shown_plots_; }
+    std::vector<ChartExport> chart_exports() override;
 
 private:
     enum Panel { view_panel, energy, cursor_panel, denoise, listen, summary, panel_count };
@@ -64,7 +66,7 @@ private:
     ftxui::Element frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title);
     ftxui::Element clickable(std::string id, ftxui::Element e, std::function<void()> action);
     ftxui::Element toolbar(bool two_rows, int cols);
-    ftxui::Element view_body(const DecompositionData& d, const Reconstruction* r, int width, int max_rows);
+    ftxui::Element view_body(std::shared_ptr<const DecompositionData> data, std::shared_ptr<const Reconstruction> recon, int width, int max_rows);
     ftxui::Element more_row(bool up, std::size_t count) const;
     ftxui::Element time_axis(int width) const;
     ftxui::Element energy_panel(const DecompositionData& d, int max_rows, int width, bool wide);
@@ -99,6 +101,8 @@ private:
     std::deque<Clickable> clickables_;
     Notes notes_{"decomposition"};
     std::optional<HeatmapExport> shown_map_;
+    std::vector<PlotExport> shown_plots_;
+    std::optional<ChartExport> shown_chart_;
     std::vector<ftxui::Box> plot_boxes_;
     std::shared_ptr<const DecompositionData> seen_;
     double begin_ = 0, end_ = 0;

@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <complex>
 #include <filesystem>
+#include <numbers>
 #include <utility>
 
 #include <fmt/format.h>
@@ -165,6 +167,65 @@ svg::Heatmap to_heatmap(const HeatmapExport& h, const Theme& theme) {
     return m;
 }
 
+svg::Chart to_chart(const ChartExport& e, const Theme& theme) {
+    const auto light = builtin_theme("light");
+    auto c = e.chart;
+    for (std::size_t k = 0; k < c.series.size() && k < e.colors.size(); ++k) c.series[k].color = colour(e.colors[k], theme, light);
+    return c;
+}
+
+ChartExport zplane_export(std::string id, std::string title, const ZPlaneSpec& spec, const Theme& theme,
+                          const std::map<std::string, std::string, std::less<>>& marker_names) {
+    ChartExport out{std::move(id), title, {}, {}, "kind,re,im,abs,angle_pi\n", 640, 640};
+    auto& c = out.chart;
+    c.title = std::move(title);
+    c.square = true;
+    c.x = {spec.center.real() - spec.extent, spec.center.real() + spec.extent, svg::Scale::linear, "Re z"};
+    c.y = {spec.center.imag() - spec.extent, spec.center.imag() + spec.extent, svg::Scale::linear, "Im z"};
+    svg::Series circle{"|z| = 1"};
+    constexpr int kCircle = 360;
+    for (int k = 0; k <= kCircle; ++k) {
+        const double a = 2 * std::numbers::pi * k / kCircle;
+        circle.x.push_back(std::cos(a));
+        circle.y.push_back(std::sin(a));
+    }
+    c.series.push_back(std::move(circle));
+    out.colors.push_back(theme.dim);
+    const auto row = [&](const std::string& kind, std::complex<double> z) {
+        out.csv += kind + "," + fmt::format("{}", z.real()) + "," + fmt::format("{}", z.imag()) + "," + fmt::format("{}", std::abs(z)) + "," +
+                   fmt::format("{}", std::arg(z) / std::numbers::pi) + "\n";
+    };
+    const auto add = [&](std::string name, svg::Marker marker, Rgb color, const std::vector<std::complex<double>>& roots) {
+        if (roots.empty()) return;
+        svg::Series s{name};
+        s.marker = marker;
+        for (const auto& z : roots) {
+            s.x.push_back(z.real());
+            s.y.push_back(z.imag());
+            row(name, z);
+        }
+        c.series.push_back(std::move(s));
+        out.colors.push_back(color);
+    };
+    add(tr("tui.export.zeros"), svg::Marker::ring, theme.trace[0], spec.zeros);
+    auto poles = spec.poles;
+    for (std::ptrdiff_t k = 0; k < spec.poles_at_origin; ++k) poles.emplace_back(0.0, 0.0);
+    add(tr("tui.export.poles"), svg::Marker::cross, theme.trace[1], poles);
+    std::vector<std::pair<std::pair<std::string, Rgb>, std::vector<std::complex<double>>>> groups;
+    for (const auto& m : spec.markers) {
+        auto it = std::find_if(groups.begin(), groups.end(), [&](const auto& g) { return g.first.first == m.glyph && g.first.second == m.color; });
+        if (it == groups.end()) it = groups.insert(groups.end(), {{m.glyph, m.color}, {}});
+        it->second.push_back(m.z);
+    }
+    for (const auto& [key, roots] : groups) {
+        const auto& [glyph, color] = key;
+        const auto named = marker_names.find(glyph);
+        const auto marker = glyph == "○" ? svg::Marker::ring : glyph == "×" ? svg::Marker::cross : svg::Marker::dot;
+        add(named == marker_names.end() ? glyph : named->second, marker, color, roots);
+    }
+    return out;
+}
+
 void export_plot(UiContext& ui, PlotExport plot) {
     const auto chart = to_chart(plot, ui.theme);
     ask(ui, export_stem(plot.title.empty() ? plot.id : plot.title), [chart] { return std::pair{svg::to_svg(chart), svg::to_csv(chart)}; });
@@ -175,12 +236,22 @@ void export_heatmap(UiContext& ui, HeatmapExport map) {
     ask(ui, export_stem(map.title.empty() ? map.id : map.title), [m] { return std::pair{svg::to_svg(m), svg::to_csv(m)}; });
 }
 
+void export_chart(UiContext& ui, ChartExport chart) {
+    const auto c = to_chart(chart, ui.theme);
+    ask(ui, export_stem(chart.title.empty() ? chart.id : chart.title),
+        [c, csv = chart.csv, w = chart.width, h = chart.height] { return std::pair{svg::to_svg(c, w, h), csv.empty() ? svg::to_csv(c) : csv}; });
+}
+
 MenuItem export_item(UiContext& ui, PlotExport plot) {
     return {tr("tui.menu.export_plot"), "", [&ui, plot = std::move(plot)] { export_plot(ui, plot); }};
 }
 
 MenuItem export_item(UiContext& ui, HeatmapExport map) {
     return {tr("tui.menu.export_plot"), "", [&ui, map = std::move(map)] { export_heatmap(ui, map); }};
+}
+
+MenuItem export_item(UiContext& ui, ChartExport chart) {
+    return {tr("tui.menu.export_plot"), "", [&ui, chart = std::move(chart)] { export_chart(ui, chart); }};
 }
 
 }  // namespace signals::tui

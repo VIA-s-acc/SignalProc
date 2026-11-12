@@ -180,7 +180,14 @@ std::string frame_rect(const Frame& f) {
 std::string hex(unsigned r, unsigned g, unsigned b) { return fmt::format("#{:02X}{:02X}{:02X}", r & 255U, g & 255U, b & 255U); }
 
 std::string to_svg(const Chart& c, int width, int height) {
-    const Frame f{kLeft, kTop, width - kLeft - kRight, height - kTop - kBottom};
+    Frame f{kLeft, kTop, width - kLeft - kRight, height - kTop - kBottom};
+    if (c.square && f.width > f.height) {
+        f.left += (f.width - f.height) / 2;
+        f.width = f.height;
+    } else if (c.square) {
+        f.top += (f.height - f.width) / 2;
+        f.height = f.width;
+    }
     const auto px = [&](double v) { return f.left + fraction(c.x, v) * f.width; };
     const auto py = [&](double v) { return f.top + (1 - fraction(c.y, v)) * f.height; };
     auto out = header(width, height, f);
@@ -203,6 +210,22 @@ std::string to_svg(const Chart& c, int width, int height) {
         }
         if (s.y.empty()) continue;
         const auto xs = xs_of(s, c.x, s.y.size());
+        if (s.marker != Marker::none) {
+            for (std::size_t k = 0; k < xs.size(); ++k) {
+                const double a = px(xs[k]), b = py(s.y[k]);
+                if (!std::isfinite(a) || !std::isfinite(b)) continue;
+                switch (s.marker) {
+                case Marker::ring: out += fmt::format("<circle cx=\"{:.2f}\" cy=\"{:.2f}\" r=\"4.5\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.6\"/>\n", a, b, s.color); break;
+                case Marker::dot: out += fmt::format("<circle cx=\"{:.2f}\" cy=\"{:.2f}\" r=\"3.5\" fill=\"{}\" stroke=\"none\"/>\n", a, b, s.color); break;
+                case Marker::cross:
+                    out += fmt::format("<line x1=\"{:.2f}\" y1=\"{:.2f}\" x2=\"{:.2f}\" y2=\"{:.2f}\" stroke=\"{}\" stroke-width=\"1.6\"/>\n", a - 4, b - 4, a + 4, b + 4, s.color);
+                    out += fmt::format("<line x1=\"{:.2f}\" y1=\"{:.2f}\" x2=\"{:.2f}\" y2=\"{:.2f}\" stroke=\"{}\" stroke-width=\"1.6\"/>\n", a - 4, b + 4, a + 4, b - 4, s.color);
+                    break;
+                case Marker::none: break;
+                }
+            }
+            continue;
+        }
         if (s.stems) {
             const double base = py(std::clamp(0.0, std::min(c.y.lo, c.y.hi), std::max(c.y.lo, c.y.hi)));
             for (std::size_t k = 0; k < xs.size(); ++k) {
