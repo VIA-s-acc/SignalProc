@@ -225,10 +225,10 @@ ftxui::Element PipelineScreen::graph_panel(int width, int height) {
         default: return th.fg;
         }
     };
+    const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
     std::map<std::pair<int, int>, std::pair<std::string, CellStyle>> overlay;
     std::string wire_note;
     if (drag_.kind == Drag::Kind::wire) {
-        const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
         std::optional<std::pair<int, int>> end;
         if (valid(drag_.box) && drag_.box.Contain(drag_.last_x, drag_.last_y))
             end = std::pair{drag_.last_x - drag_.box.x_min + ox_, drag_.last_y - drag_.box.y_min + oy_};
@@ -245,6 +245,8 @@ ftxui::Element PipelineScreen::graph_panel(int width, int height) {
         const auto name = [](const PortHit& p) { return p.port.empty() ? p.node : p.node + "." + p.port; };
         wire_note = fmt::format(fmt::runtime(tr("tui.pipeline.wire_drag")), fmt::arg("from", name(drag_.from)), fmt::arg("to", target ? name(*target) : std::string{"…"}));
     }
+    const auto drawn = [&](int x, int y) { return x >= 0 && x < picture_.width && y >= 0 && y < picture_.height && picture_.glyph(x, y) != " "; };
+    const std::string cut_mark = ascii ? "~" : "…";
     Elements rows;
     for (int y = oy_; y < oy_ + view_h_; ++y) {
         Elements segments;
@@ -260,28 +262,28 @@ ftxui::Element PipelineScreen::graph_panel(int width, int height) {
         for (int x = ox_; x < ox_ + view_w_; ++x) {
             const bool inside = x < picture_.width && y < picture_.height;
             const auto over = overlay.find({x, y});
-            const auto s = over != overlay.end() ? over->second.second : inside ? picture_.style(x, y) : CellStyle::plain;
+            const bool cut = over == overlay.end() && ((x == ox_ + view_w_ - 1 && drawn(x + 1, y)) || (x == ox_ && drawn(x - 1, y)));
+            const auto s = cut ? CellStyle::dim : over != overlay.end() ? over->second.second : inside ? picture_.style(x, y) : CellStyle::plain;
             if (s != style) {
                 flush();
                 style = s;
             }
-            run += over != overlay.end() ? over->second.first : inside ? picture_.glyph(x, y) : " ";
+            run += cut ? cut_mark : over != overlay.end() ? over->second.first : inside ? picture_.glyph(x, y) : " ";
         }
         flush();
         rows.push_back(hbox(std::move(segments)));
     }
     int left = 0, right = 0, above = 0, below = 0;
     for (const auto& n : picture_.nodes) {
-        left += n.x + n.w <= ox_;
-        right += n.x >= ox_ + view_w_;
-        above += n.y + n.h <= oy_;
-        below += n.y >= oy_ + view_h_;
+        left += n.x < ox_;
+        right += n.x + n.w > ox_ + view_w_;
+        above += n.y < oy_;
+        below += n.y + n.h > oy_ + view_h_;
     }
     std::string more;
     const auto add = [&](int count, const char* arrow) {
         if (count > 0) more += (more.empty() ? "" : "   ") + std::string{arrow} + " " + fmt::format(fmt::runtime(tr("tui.theory.blocks_more")), fmt::arg("count", count));
     };
-    const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
     add(left, ascii ? "<" : "◂");
     add(right, ascii ? ">" : "▸");
     add(above, ascii ? "^" : "▴");
