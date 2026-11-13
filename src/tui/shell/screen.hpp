@@ -56,6 +56,8 @@ struct TheoryPage {
     int scroll = 0;
 };
 
+class LearnState;
+
 struct UiContext {
     Theme theme;
     TerminalCaps caps;
@@ -86,6 +88,7 @@ struct UiContext {
     std::filesystem::path repo_root;
     std::function<void(TheoryPage)> open_theory;
     std::function<void(std::string)> notice;
+    std::shared_ptr<LearnState> learn;
 };
 
 struct MenuItem {

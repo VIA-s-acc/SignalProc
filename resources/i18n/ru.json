@@ -2737,5 +2737,9 @@
   "cli.learn.variant_now": "Вариант: {variant}, имя: {student}",
   "cli.learn.report_written": "Отчёт записан в {file}",
   "cli.learn.lint_ok": "Курс в порядке: заданий {tasks}",
-  "cli.learn.lint_bad": "Найдено проблем: {issues}"
+  "cli.learn.lint_bad": "Найдено проблем: {issues}",
+  "tui.learn.type_answer": "у этого задания ответ: введите его на вкладке «Задания» (клавиша a)",
+  "tui.learn.start_first": "сначала откройте заготовку: Enter на вкладке «Задания»",
+  "tui.learn.cancelled": "проверка отменена",
+  "tui.learn.job": "Проверка задания"
 }

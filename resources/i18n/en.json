@@ -2737,5 +2737,9 @@
   "cli.learn.variant_now": "Variant: {variant}, name: {student}",
   "cli.learn.report_written": "The report is in {file}",
   "cli.learn.lint_ok": "The course is fine: {tasks} tasks",
-  "cli.learn.lint_bad": "Problems found: {issues}"
+  "cli.learn.lint_bad": "Problems found: {issues}",
+  "tui.learn.type_answer": "this task wants an answer: type it on the Tasks tab (key a)",
+  "tui.learn.start_first": "open the start graph first: Enter on the Tasks tab",
+  "tui.learn.cancelled": "check cancelled",
+  "tui.learn.job": "Task check"
 }
