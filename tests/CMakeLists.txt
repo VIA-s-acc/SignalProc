@@ -41,6 +41,7 @@ add_executable(signals_tests
   core/test_progress_memory.cpp
   core/test_exact_reference.cpp
   core/test_expr.cpp
+  learn/test_variant.cpp
   io/test_wav_read.cpp
   io/test_audio_read.cpp
   io/test_wav_write.cpp
@@ -130,7 +131,7 @@ add_executable(signals_tests
   support/golden.cpp
   support/banks.cpp
 )
-target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_svg signals_tui signals_audio signals_theory signals_pipeline Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
+target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_svg signals_tui signals_audio signals_theory signals_pipeline signals_learn Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
 target_include_directories(signals_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(signals_tests PRIVATE SIGNALS_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden"
                           SIGNALS_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
