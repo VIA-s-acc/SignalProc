@@ -33,6 +33,11 @@ jobs:
         run: cmake --build --preset ${{ matrix.preset }}
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
+      - name: Install script
+        if: matrix.preset == 'release'
+        run: |
+          if command -v shellcheck > /dev/null; then shellcheck install.sh packaging/*.sh; fi
+          sh packaging/test_install.sh build/release/app/signals
 
   windows:
     runs-on: windows-latest
