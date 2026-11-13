@@ -11,6 +11,7 @@
 namespace signals::learn {
 
 std::size_t count_blocks(const pipeline::PipelineDoc& doc, std::string_view block);
+bool path_exists(const pipeline::PipelineDoc& doc, std::string_view from, std::string_view to);
 bool all_paths_through(const pipeline::PipelineDoc& doc, const Through& t);
 std::vector<std::string> locked_changes(const pipeline::PipelineDoc& start, const pipeline::PipelineDoc& work, std::span<const std::string> locked,
                                         std::string_view input_node);

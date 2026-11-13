@@ -151,8 +151,7 @@ core::Result<GoalResult> evaluate(const Goal& g, const pipeline::PipelineDoc& do
     if (g.through) {
         r.passed = all_paths_through(doc, *g.through);
         if (!r.passed) {
-            const Through any{g.through->from, g.through->to, "\x01"};
-            r.detail = all_paths_through(doc, any)
+            r.detail = path_exists(doc, g.through->from, g.through->to)
                            ? say("learn.check.bypass_path", fmt::arg("from", g.through->from), fmt::arg("to", g.through->to), fmt::arg("block", g.through->block))
                            : say("learn.check.no_path", fmt::arg("from", g.through->from), fmt::arg("to", g.through->to));
         }

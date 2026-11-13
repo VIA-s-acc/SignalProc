@@ -38,6 +38,13 @@ TEST_CASE("paths through a block", "[learn][structure]") {
     CHECK_FALSE(all_paths_through(bypassed, {"x", "sum", "downsample"}));
 }
 
+TEST_CASE("path existence ignores block types", "[learn][structure]") {
+    const auto bank = sig_doc(haar_bank());
+    CHECK(path_exists(bank, "x", "sum"));
+    CHECK_FALSE(path_exists(bank, "sum", "x"));
+    CHECK_FALSE(path_exists(bank, "x", "nope"));
+}
+
 TEST_CASE("counting blocks", "[learn][structure]") {
     CHECK(count_blocks(sig_doc(haar_bank()), "downsample") == 2);
     CHECK(count_blocks(sig_doc(haar_bank()), "convolve") == 4);

@@ -77,6 +77,7 @@ TEST_CASE("a cheat that wires x to the output fails the path goal", "[learn][che
     CHECK_FALSE(r.passed);
     REQUIRE(r.goals.size() == 3);
     CHECK_FALSE(r.goals[1].passed);
+    CHECK(r.goals[1].detail.find("downsample") != std::string::npos);
     CHECK(r.goals[2].passed);
     const auto dwt = check_graph(bank, substitute(bank.cheats[0].second, draw_params(bank.params, bank.id, 1)));
     CHECK_FALSE(dwt.passed);

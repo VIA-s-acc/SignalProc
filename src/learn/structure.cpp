@@ -47,6 +47,10 @@ std::size_t count_blocks(const pipeline::PipelineDoc& doc, std::string_view bloc
     return static_cast<std::size_t>(std::ranges::count_if(doc.nodes, [&](const auto& n) { return n.type == block && !n.bypass; }));
 }
 
+bool path_exists(const pipeline::PipelineDoc& doc, std::string_view from, std::string_view to) {
+    return node_of(doc, from) && node_of(doc, to) && reachable(doc, from, to, {});
+}
+
 bool all_paths_through(const pipeline::PipelineDoc& doc, const Through& t) {
     if (!node_of(doc, t.from) || !node_of(doc, t.to) || !reachable(doc, t.from, t.to, {})) return false;
     std::set<std::string, std::less<>> blocked;
