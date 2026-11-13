@@ -1,4 +1,4 @@
-# Vanishing moments of db{{n}}
+# Vanishing moments of Daubechies filters
 
 How many zeros does the lowpass $h_0$ of the wavelet `db{{n}}` have at $z = -1$ (at $\omega = \pi$)? That is also its number of vanishing moments. The answer is a whole number.
 

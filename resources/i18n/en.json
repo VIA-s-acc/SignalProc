@@ -2804,5 +2804,6 @@
   "tui.hint.learn_check": "check the task",
   "tui.hint.learn_hint": "task hint",
   "tui.theory.tasks": "Tasks:",
-  "learn.error.bad_freq": "measure {name}: the frequency does not evaluate: {why}"
+  "learn.error.bad_freq": "measure {name}: the frequency does not evaluate: {why}",
+  "learn.lint.title_placeholder": "a task title must not hold placeholders: lists show it without the variant"
 }

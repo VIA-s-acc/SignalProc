@@ -62,7 +62,7 @@ std::vector<Hint> LearnScreen::hints() const {
     if (typing_) return {{"Enter", tr("tui.learn.hint.submit")}, {"Esc", tr("tui.learn.hint.cancel")}};
     std::vector<Hint> out{{"↑↓", tr("tui.learn.hint.task")}, {"Enter", tr("tui.learn.hint.start")}, {"F2", tr("tui.learn.hint.check")},
                           {"h", tr("tui.learn.hint.hint")},  {"s", tr("tui.learn.hint.solution")}};
-    if (const auto* t = task(); t && t->kind == learn::TaskKind::answer) out.push_back({"a", tr("tui.learn.hint.answer")});
+    out.push_back({"a", tr("tui.learn.hint.answer")});
     out.push_back({"t", tr("tui.learn.hint.theory")});
     out.push_back({"v", tr("tui.learn.hint.variant")});
     out.push_back({"Tab", tr("tui.explain.hint.tab")});

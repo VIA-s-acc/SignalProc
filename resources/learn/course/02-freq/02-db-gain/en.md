@@ -1,4 +1,4 @@
-# Magnitude response of {{w}} at 0.75π
+# Magnitude response of a Daubechies filter at 0.75π
 
 Find the gain of the lowpass `{{w}}.h0` at the frequency $\omega = 0.75\pi$ in decibels (a negative number). Tolerance 0.2 dB.
 

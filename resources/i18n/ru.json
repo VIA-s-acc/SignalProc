@@ -2804,5 +2804,6 @@
   "tui.hint.learn_check": "проверить задание",
   "tui.hint.learn_hint": "подсказка к заданию",
   "tui.theory.tasks": "Задания:",
-  "learn.error.bad_freq": "измерение {name}: частота не вычисляется: {why}"
+  "learn.error.bad_freq": "измерение {name}: частота не вычисляется: {why}",
+  "learn.lint.title_placeholder": "в заголовке задания не должно быть плейсхолдеров: он виден в списках без варианта"
 }
