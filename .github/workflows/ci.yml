@@ -55,3 +55,10 @@ jobs:
         run: cmake --build build --config Release --target signals --parallel 4
       - name: Check
         run: build/app/Release/signals.exe check
+      - name: Install script
+        run: |
+          rel="$(cygpath -u "$RUNNER_TEMP")/rel"
+          sh packaging/package.sh build/app/Release/signals.exe windows-x86_64 v9.9.9 "$rel/v9.9.9"
+          (cd "$rel/v9.9.9" && sha256sum signals-v9.9.9-windows-x86_64.zip > SHA256SUMS)
+          pwsh -NoProfile -File packaging/test_install.ps1 -Release "$(cygpath -w "$rel")"
+          powershell -NoProfile -ExecutionPolicy Bypass -File packaging/test_install.ps1 -Release "$(cygpath -w "$rel")"
