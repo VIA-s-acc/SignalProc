@@ -45,6 +45,7 @@ add_executable(signals_tests
   learn/test_task.cpp
   learn/test_measure.cpp
   learn/test_structure.cpp
+  learn/test_answer.cpp
   io/test_wav_read.cpp
   io/test_audio_read.cpp
   io/test_wav_write.cpp

@@ -2645,5 +2645,20 @@
   "learn.error.bad_measure": "измерение {endpoint}: неизвестный вид {extra}",
   "learn.check.locked_missing": "узел {node} из заготовки удалён или переименован",
   "learn.check.locked_type": "узел {node} должен остаться блоком {type}",
-  "learn.check.locked_params": "параметры узла {node} менять нельзя"
+  "learn.check.locked_params": "параметры узла {node} менять нельзя",
+  "expr.error.empty": "пустое выражение",
+  "expr.error.unexpected": "лишний символ «{token}» в позиции {pos}",
+  "expr.error.unexpected_end": "выражение оборвано в позиции {pos}",
+  "expr.error.unknown_function": "неизвестная функция {token}: есть abs, min, max, sqrt, log10",
+  "expr.error.bad_arguments": "у {token} не то число аргументов",
+  "expr.error.unknown_name": "неизвестное имя {token}",
+  "learn.answer.empty": "ответ пустой",
+  "learn.answer.bad_number": "«{text}» — не число: {why}",
+  "learn.answer.bad_choice": "введите номер варианта от 1 до {count} или его текст",
+  "learn.answer.not_integer": "нужно целое число",
+  "learn.answer.length": "нужно чисел: {need}, введено: {got}",
+  "learn.answer.wrong": "{index}-е число не подходит",
+  "learn.answer.wrong_one": "ответ не подходит",
+  "learn.answer.wrong_choice": "вариант неверный",
+  "learn.answer.right": "ответ верный"
 }

@@ -2645,5 +2645,20 @@
   "learn.error.bad_measure": "measure {endpoint}: unknown kind {extra}",
   "learn.check.locked_missing": "node {node} from the start graph was deleted or renamed",
   "learn.check.locked_type": "node {node} must stay a {type} block",
-  "learn.check.locked_params": "the parameters of node {node} must not change"
+  "learn.check.locked_params": "the parameters of node {node} must not change",
+  "expr.error.empty": "empty expression",
+  "expr.error.unexpected": "unexpected \"{token}\" at position {pos}",
+  "expr.error.unexpected_end": "the expression ends early at position {pos}",
+  "expr.error.unknown_function": "unknown function {token}: abs, min, max, sqrt, log10 are available",
+  "expr.error.bad_arguments": "{token} has the wrong number of arguments",
+  "expr.error.unknown_name": "unknown name {token}",
+  "learn.answer.empty": "the answer is empty",
+  "learn.answer.bad_number": "\"{text}\" is not a number: {why}",
+  "learn.answer.bad_choice": "enter an option number from 1 to {count} or its text",
+  "learn.answer.not_integer": "a whole number is needed",
+  "learn.answer.length": "{need} numbers are needed, {got} given",
+  "learn.answer.wrong": "number {index} is wrong",
+  "learn.answer.wrong_one": "the answer is wrong",
+  "learn.answer.wrong_choice": "wrong option",
+  "learn.answer.right": "the answer is right"
 }
