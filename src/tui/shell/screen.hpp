@@ -39,6 +39,7 @@ struct NavArgs {
     std::string wavelet = {};
     std::optional<std::size_t> n = {};
     std::optional<std::size_t> step = {};
+    std::string task = {};
 };
 
 struct TheoryLink {

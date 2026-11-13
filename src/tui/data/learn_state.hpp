@@ -62,6 +62,7 @@ private:
     bool checking_ = false;
     std::optional<std::string> warning_, message_;
     std::shared_ptr<core::CancelToken> cancel_;
+    bool memory_ = false;
 };
 
 }  // namespace signals::tui

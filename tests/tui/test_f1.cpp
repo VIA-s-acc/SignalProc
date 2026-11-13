@@ -147,7 +147,7 @@ TEST_CASE("every tab answers F1 without a crash", "[tui][f1]") {
         models.signal->open(signals::test::sample("test.wav"), jobs);
         auto screens = make_app_screens(*ui, models);
         Harness shell{make_shell(*ui, screens, [] {}), w, hgt};
-        const std::pair<char, int> tabs[]{{'1', 1}, {'2', 1}, {'3', 1}, {'4', 2}, {'5', 1}, {'6', 1}, {'7', 1}, {'8', 1}, {'9', 3}};
+        const std::pair<char, int> tabs[]{{'1', 1}, {'2', 1}, {'3', 1}, {'4', 2}, {'5', 1}, {'6', 1}, {'7', 1}, {'8', 1}, {'9', 4}};
         for (const auto& [key, subtabs] : tabs)
             for (int s = 0; s < subtabs; ++s) {
                 shell.send(ftxui::Event::Character(key));

@@ -130,6 +130,7 @@ add_executable(signals_tests
   cli/test_cli_pipeline.cpp
   cli/test_cli_learn.cpp
   tui/test_learn_state.cpp
+  tui/test_learn_screen.cpp
   theory/test_latex.cpp
   theory/test_math_layout.cpp
   theory/test_markdown.cpp

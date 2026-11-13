@@ -13,6 +13,7 @@
 #include "tui/screens/diagram_screen.hpp"
 #include "tui/screens/explain_screen.hpp"
 #include "tui/screens/filters_screen.hpp"
+#include "tui/screens/learn_screen.hpp"
 #include "tui/screens/matrix_screen.hpp"
 #include "tui/screens/processing_screen.hpp"
 #include "tui/screens/resample_screen.hpp"
@@ -37,10 +38,14 @@ AppModels make_app_models() {
     m.matrix = std::make_shared<MatrixModel>();
     m.theory = std::make_shared<TheoryNavigator>();
     m.pipeline = std::make_shared<PipelineModel>();
+    m.learn = std::make_shared<LearnState>(learn::builtin_course(), std::filesystem::path{}, m.pipeline);
     return m;
 }
 
 std::vector<std::shared_ptr<TabScreen>> make_app_screens(UiContext& ui, AppModels& models) {
+    ui.learn = models.learn;
+    if (models.pipeline && models.learn)
+        models.pipeline->finish_listener = [learn = models.learn, &ui](const FinishedRun& f) { learn->on_run_finished(f, ui); };
     auto screens = placeholder_screens(ui);
     screens[0] = make_signal_screen(ui, models.signal);
     screens[1] = make_subtabs(tr("tui.tab.spectrum"),
@@ -71,7 +76,8 @@ std::vector<std::shared_ptr<TabScreen>> make_app_screens(UiContext& ui, AppModel
     screens[8] = make_subtabs(tr("tui.tab.theory"),
                               {{tr("tui.sub.explain"), make_explain_screen(ui, user_bank)},
                                {tr("tui.sub.under_the_hood"), make_theory_screen(ui, models.theory, TheoryScreen::Mode::under_the_hood)},
-                               {tr("tui.sub.tutorial"), make_theory_screen(ui, models.theory, TheoryScreen::Mode::tutorial)}});
+                               {tr("tui.sub.tutorial"), make_theory_screen(ui, models.theory, TheoryScreen::Mode::tutorial)},
+                               {tr("tui.sub.tasks"), make_learn_screen(ui)}});
     return screens;
 }
 

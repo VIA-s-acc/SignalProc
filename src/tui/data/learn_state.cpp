@@ -27,6 +27,11 @@ std::optional<std::string> read_file(const std::filesystem::path& p) {
 
 LearnState::LearnState(const learn::Course& course, std::filesystem::path config_dir, std::shared_ptr<PipelineModel> pipeline)
     : course_{course}, dir_{std::move(config_dir)}, pipeline_{std::move(pipeline)} {
+    if (dir_.empty()) {
+        memory_ = true;
+        dir_ = std::filesystem::temp_directory_path() / ("signals-learn-" + std::to_string(reinterpret_cast<std::uintptr_t>(this)));
+        return;
+    }
     auto loaded = learn::load_progress(learn::progress_path(dir_));
     progress_ = std::move(loaded.progress);
     warning_ = std::move(loaded.warning);
@@ -48,6 +53,7 @@ int LearnState::variant() const {
 }
 
 void LearnState::save_locked() {
+    if (memory_) return;
     if (auto r = learn::save_progress(learn::progress_path(dir_), progress_); !r) message_ = r.error().message;
 }
 

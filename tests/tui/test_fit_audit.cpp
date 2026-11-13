@@ -115,7 +115,7 @@ struct World {
 
 void each_state(World& world, const std::function<void(const std::string& where, const std::string& behind)>& look) {
     auto& shell = world.shell;
-    const std::pair<char, int> tabs[]{{'1', 1}, {'2', 3}, {'3', 1}, {'4', 2}, {'5', 1}, {'6', 1}, {'7', 1}, {'8', 1}, {'9', 3}};
+    const std::pair<char, int> tabs[]{{'1', 1}, {'2', 3}, {'3', 1}, {'4', 2}, {'5', 1}, {'6', 1}, {'7', 1}, {'8', 1}, {'9', 4}};
     for (const auto& [key, subtabs] : tabs) {
         shell.send(ftxui::Event::Character(key));
         const auto tab = static_cast<std::size_t>(key - '1');

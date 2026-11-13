@@ -52,6 +52,7 @@ add_library(signals_tui STATIC
   screens/resample_screen.cpp
   screens/tempo_model.cpp
   screens/tempo_screen.cpp
+  screens/learn_screen.cpp
   screens/explain_screen.cpp
   screens/theory_navigator.cpp
   screens/theory_screen.cpp

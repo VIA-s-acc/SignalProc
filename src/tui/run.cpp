@@ -14,6 +14,8 @@
 #include "tui/app_screens.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/monitor/monitor.hpp"
+#include "learn/task.hpp"
+#include "tui/data/learn_state.hpp"
 #include "tui/data/session.hpp"
 #include "tui/data/user_filters.hpp"
 #include "tui/shell/shell.hpp"
@@ -60,6 +62,8 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme, std::
     install_user_wavelets();
     set_user_filters(library.filters);
     auto models = make_app_models();
+    models.learn = std::make_shared<LearnState>(learn::builtin_course(), prefs_path(env).parent_path(), models.pipeline);
+    if (const auto warning = models.learn->view().warning) models.signal->add_log(*warning, LogLine::warn);
     for (const auto& e : library.errors)
         models.signal->add_log(fmt::format(fmt::runtime(tr("tui.user_filters.broken")), fmt::arg("error", e)), LogLine::warn);
     JobRunner jobs{[&app] { app.PostEvent(ftxui::Event::Custom); }};

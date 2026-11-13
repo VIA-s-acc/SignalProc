@@ -318,3 +318,19 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `wheel` | scroll |
 | `click` | link, section, block, ▲/▼ more |
 
+## 9 Theory ▸ Tasks
+
+| Key | Action |
+|---|---|
+| `[ ]` | subtabs |
+| `↑↓` | task |
+| `Enter` | start |
+| `F2` | check |
+| `h` | hint |
+| `s` | solution |
+| `a` | answer |
+| `t` | theory |
+| `v` | variant |
+| `Tab` | panel |
+| `z` | fullscreen |
+
