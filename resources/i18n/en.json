@@ -2660,5 +2660,14 @@
   "learn.answer.wrong": "number {index} is wrong",
   "learn.answer.wrong_one": "the answer is wrong",
   "learn.answer.wrong_choice": "wrong option",
-  "learn.answer.right": "the answer is right"
+  "learn.answer.right": "the answer is right",
+  "learn.check.graph_error": "line {line}: {message}",
+  "learn.check.input_missing": "the source node {node} from the start graph was deleted or replaced: the check feeds its own samples into it",
+  "learn.check.timeout": "the check took longer than {limit} s — the graph is too heavy to check",
+  "learn.check.bypass_path": "there is a path from {from} to {to} that skips {block}",
+  "learn.check.no_path": "there is no path from {from} to {to}",
+  "learn.check.forbidden": "block {block} is not allowed in this task",
+  "learn.check.required": "at least {need} {block} blocks are needed, there are {got}",
+  "learn.check.no_probe": "no probe \"{name}\"",
+  "learn.check.on_hidden": "on hidden input {k}: {detail}"
 }

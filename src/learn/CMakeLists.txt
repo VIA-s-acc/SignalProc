@@ -8,6 +8,7 @@ add_library(signals_learn STATIC
   measure.cpp
   structure.cpp
   answer.cpp
+  checker.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/course.cpp
 )
 target_include_directories(signals_learn PUBLIC ${PROJECT_SOURCE_DIR}/src)

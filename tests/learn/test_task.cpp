@@ -38,7 +38,7 @@ TEST_CASE("a course loads chapters and tasks in directory order with ids from pr
     REQUIRE(c->chapters.size() == 2);
     CHECK(c->chapters[0].id == "1");
     CHECK(c->chapters[1].id == "2");
-    CHECK(c->size() == 3);
+    CHECK(c->size() == 4);
     {
         signals::LanguageScope en{signals::Language::en};
         CHECK(c->title() == "Mini course");

@@ -2660,5 +2660,14 @@
   "learn.answer.wrong": "{index}-е число не подходит",
   "learn.answer.wrong_one": "ответ не подходит",
   "learn.answer.wrong_choice": "вариант неверный",
-  "learn.answer.right": "ответ верный"
+  "learn.answer.right": "ответ верный",
+  "learn.check.graph_error": "строка {line}: {message}",
+  "learn.check.input_missing": "узел-источник {node} из заготовки удалён или заменён: проверка подставляет в него свои отсчёты",
+  "learn.check.timeout": "проверка дольше {limit} с — граф слишком тяжёлый для проверки",
+  "learn.check.bypass_path": "есть путь из {from} в {to} в обход блока {block}",
+  "learn.check.no_path": "нет пути из {from} в {to}",
+  "learn.check.forbidden": "блок {block} в этом задании запрещён",
+  "learn.check.required": "блоков {block} нужно не меньше {need}, а есть {got}",
+  "learn.check.no_probe": "нет щупа «{name}»",
+  "learn.check.on_hidden": "на скрытом входе {k}: {detail}"
 }
