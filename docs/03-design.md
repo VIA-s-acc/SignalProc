@@ -398,7 +398,7 @@ LICENSE (MIT)   README.md   CHANGELOG.md
 
 - Папка `docs/` сейчас лежит рядом с репозиторием, в `~/GITHUB/Signals/docs/`. На M0 она переезжает внутрь.
 - `requierments.txt` переименовывается в `legacy/python/requirements.txt` и перекодируется в UTF-8.
-- Удалённый репозиторий уже есть, поэтому CI (GitHub Actions на macOS и Linux) проверяется с M0. Каждый `push` — только с согласия пользователя.
+- Удалённый репозиторий уже есть, поэтому CI (GitHub Actions на macOS и Linux, а с 0.7.0 и сборка под Windows с `signals check`) проверяется с M0. Каждый `push` — только с согласия пользователя.
 
 ## 13. Этапы
 
