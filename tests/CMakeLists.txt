@@ -49,6 +49,7 @@ add_executable(signals_tests
   learn/test_checker.cpp
   learn/test_progress.cpp
   learn/test_report.cpp
+  learn/test_course.cpp
   io/test_wav_read.cpp
   io/test_audio_read.cpp
   io/test_wav_write.cpp

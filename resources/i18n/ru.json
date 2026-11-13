@@ -2685,5 +2685,15 @@
   "learn.report.goals": "Цели:",
   "learn.report.graph": "Граф:",
   "learn.report.open": "Начаты, но не решены",
-  "learn.report.open_line": "{id} {title} — попыток: {attempts}, подсказок: {hints}"
+  "learn.report.open_line": "{id} {title} — попыток: {attempts}, подсказок: {hints}",
+  "learn.lint.task_error": "вариант {variant}: ошибка задания: {message}",
+  "learn.lint.solution_fails": "вариант {variant}: эталонное решение не засчитано: {why}",
+  "learn.lint.start_passes": "вариант {variant}: заготовка уже засчитывается",
+  "learn.lint.cheat_passes": "вариант {variant}: обход {name} засчитывается",
+  "learn.lint.few_options": "у вопроса с выбором меньше двух вариантов",
+  "learn.lint.verify_false": "вариант {variant}: условие verify ложно на эталонном решении",
+  "learn.lint.no_section": "нет раздела книги или карточки {id}",
+  "learn.lint.text_parts": "в тексте задания нет заголовка, условия, подсказок или разбора",
+  "learn.lint.hint_count": "в ru.md и en.md разное число подсказок",
+  "learn.lint.placeholder": "плейсхолдер {{{{{name}}}}} не разрешается"
 }

@@ -11,6 +11,7 @@ add_library(signals_learn STATIC
   checker.cpp
   progress.cpp
   report.cpp
+  lint.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/course.cpp
 )
 target_include_directories(signals_learn PUBLIC ${PROJECT_SOURCE_DIR}/src)

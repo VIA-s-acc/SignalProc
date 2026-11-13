@@ -2685,5 +2685,15 @@
   "learn.report.goals": "Goals:",
   "learn.report.graph": "Graph:",
   "learn.report.open": "Started but not solved",
-  "learn.report.open_line": "{id} {title} — attempts: {attempts}, hints: {hints}"
+  "learn.report.open_line": "{id} {title} — attempts: {attempts}, hints: {hints}",
+  "learn.lint.task_error": "variant {variant}: task error: {message}",
+  "learn.lint.solution_fails": "variant {variant}: the reference solution fails: {why}",
+  "learn.lint.start_passes": "variant {variant}: the start graph already passes",
+  "learn.lint.cheat_passes": "variant {variant}: the cheat {name} passes",
+  "learn.lint.few_options": "a choice question has fewer than two options",
+  "learn.lint.verify_false": "variant {variant}: verify is false on the reference solution",
+  "learn.lint.no_section": "no book section or card {id}",
+  "learn.lint.text_parts": "the task text lacks a title, statement, hints or solution",
+  "learn.lint.hint_count": "ru.md and en.md have different numbers of hints",
+  "learn.lint.placeholder": "placeholder {{{{{name}}}}} does not resolve"
 }

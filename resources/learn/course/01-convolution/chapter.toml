@@ -1,0 +1,3 @@
+title = "Свёртка и ЛИС-системы"
+title_en = "Convolution and LTI systems"
+theory = ["lti", "toeplitz-convolution"]
