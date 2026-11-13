@@ -16,7 +16,7 @@ std::string probe_name(std::string_view endpoint);
 void add_measure_probes(pipeline::PipelineDoc& doc, std::span<const Measure> measures, bool reference = false);
 
 struct MeasureValue {
-    std::vector<double> values;
+    std::vector<double> values = {};
     double scalar() const;
 };
 

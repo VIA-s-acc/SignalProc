@@ -24,15 +24,15 @@ struct TaskProgress {
 };
 
 struct Progress {
-    std::string student;
+    std::string student = {};
     int variant = 1;
-    std::string active;
-    std::map<std::string, TaskProgress, std::less<>> tasks;
+    std::string active = {};
+    std::map<std::string, TaskProgress, std::less<>> tasks = {};
 };
 
 struct LoadedProgress {
-    Progress progress;
-    std::optional<std::string> warning;
+    Progress progress = {};
+    std::optional<std::string> warning = {};
 };
 
 std::filesystem::path progress_path(const std::filesystem::path& config_dir);

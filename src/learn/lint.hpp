@@ -9,7 +9,7 @@
 namespace signals::learn {
 
 struct LintIssue {
-    std::string task, message;
+    std::string task = {}, message = {};
 };
 
 std::vector<LintIssue> lint_task(const Task& t, std::span<const int> variants);

@@ -25,7 +25,7 @@ std::uint64_t seed_of(std::string_view task_id, int variant, int stream = 0);
 
 struct ParamSpec {
     enum class Kind { integer, ints, real, choice };
-    std::string name;
+    std::string name = {};
     Kind kind = Kind::integer;
     int count = 1;
     double min = 0, max = 9;

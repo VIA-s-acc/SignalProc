@@ -22,9 +22,9 @@ struct GoalResult {
 
 struct CheckResult {
     bool passed = false;
-    std::vector<GoalResult> goals;
+    std::vector<GoalResult> goals = {};
     int inputs = 0;
-    std::optional<std::string> error;
+    std::optional<std::string> error = {};
     double seconds = 0;
 };
 

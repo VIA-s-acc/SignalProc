@@ -15,7 +15,7 @@ core::Result<std::vector<double>> parse_answer(std::string_view text, const Answ
 
 struct AnswerCheck {
     bool passed = false;
-    std::string detail;
+    std::string detail = {};
 };
 
 AnswerCheck compare_answer(std::span<const double> given, std::span<const double> expected, const Answer& a);
