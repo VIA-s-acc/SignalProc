@@ -2905,6 +2905,49 @@
   "title": "Duplicate channels"
  },
  {
+  "about": "Checks an expression over the report fields on inputs a…d, for example a.snr_db >= 30 && b.max_abs < 1e-12; a failure changes the exit code of signals run",
+  "id": "assert",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "report"
+   },
+   {
+    "name": "b",
+    "optional": true,
+    "type": "report"
+   },
+   {
+    "name": "c",
+    "optional": true,
+    "type": "report"
+   },
+   {
+    "name": "d",
+    "optional": true,
+    "type": "report"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "The expression: report fields as a.max_abs, b.snr_db, a.passed; + − * / ^, comparisons, && || !, abs min max sqrt log10, pi",
+    "choices": [],
+    "default": "a.passed",
+    "name": "expr",
+    "values": {}
+   }
+  ],
+  "title": "Assert"
+ },
+ {
   "about": "Report: RMS, peak, crest factor, mean, std, zero crossings, spectral centroid",
   "id": "stats",
   "inputs": [

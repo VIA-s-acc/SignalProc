@@ -6,6 +6,7 @@ add_library(signals_pipeline STATIC
   docs.cpp
   value.cpp
   registry.cpp
+  expr_text.cpp
   blocks_basic.cpp
   blocks_dsp.cpp
   blocks_level.cpp

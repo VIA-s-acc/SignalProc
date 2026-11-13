@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 
 #include "i18n/i18n.hpp"
+#include "pipeline/expr_text.hpp"
 
 namespace signals::learn {
 
@@ -74,19 +75,7 @@ core::Result<double> number(const std::string& token) {
 
 }  // namespace
 
-std::string describe(const core::ExprError& e) {
-    using K = core::ExprError::Kind;
-    const char* key = "expr.error.unexpected";
-    switch (e.kind) {
-    case K::empty: key = "expr.error.empty"; break;
-    case K::unexpected: key = "expr.error.unexpected"; break;
-    case K::unexpected_end: key = "expr.error.unexpected_end"; break;
-    case K::unknown_function: key = "expr.error.unknown_function"; break;
-    case K::bad_arguments: key = "expr.error.bad_arguments"; break;
-    case K::unknown_name: key = "expr.error.unknown_name"; break;
-    }
-    return fmt::format(fmt::runtime(tr(key)), fmt::arg("token", e.token), fmt::arg("pos", e.pos + 1));
-}
+std::string describe(const core::ExprError& e) { return pipeline::describe_expr_error(e); }
 
 core::Result<std::vector<double>> parse_answer(std::string_view text, const Answer& a) {
     auto body = strip_brackets(std::string{text});
