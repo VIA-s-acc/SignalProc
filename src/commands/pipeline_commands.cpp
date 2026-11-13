@@ -338,9 +338,9 @@ public:
         if (!type) {
             std::vector<std::string> names;
             for (const auto& b : pipeline::block_types()) names.push_back(b.id);
-            const auto near = pipeline::nearest_name(block_, names);
-            return report_error(err, {core::Errc::invalid_argument, fmt::format(fmt::runtime(tr(near ? "cli.explain.unknown_near" : "cli.explain.unknown")),
-                                                                                fmt::arg("block", block_), fmt::arg("near", near.value_or("")))});
+            const auto closest = pipeline::nearest_name(block_, names);
+            return report_error(err, {core::Errc::invalid_argument, fmt::format(fmt::runtime(tr(closest ? "cli.explain.unknown_near" : "cli.explain.unknown")),
+                                                                                fmt::arg("block", block_), fmt::arg("near", closest.value_or("")))});
         }
         out << type->id << " — " << tr_opt("pipeline.block." + type->id).value_or(type->id) << '\n';
         if (const auto about = tr_opt("pipeline.about." + type->id)) out << *about << '\n';
