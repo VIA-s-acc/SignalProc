@@ -128,6 +128,7 @@ std::optional<double> report_field(const pipeline::RunResult& run, std::string_v
 std::string probe_name(std::string_view endpoint) { return "__learn:" + std::string{endpoint}; }
 
 void add_measure_probes(pipeline::PipelineDoc& doc, std::span<const Measure> measures, bool reference) {
+    if (!reference) std::erase_if(doc.probes, [](const auto& p) { return p.name.starts_with("__learn:"); });
     const auto add = [&](const std::string& endpoint) {
         if (endpoint.empty()) return;
         const auto name = probe_name(endpoint);
@@ -150,9 +151,9 @@ void add_measure_probes(pipeline::PipelineDoc& doc, std::span<const Measure> mea
 double MeasureValue::scalar() const { return values.empty() ? std::numeric_limits<double>::quiet_NaN() : values.front(); }
 
 core::Result<MeasureValue> compute_measure(const Measure& m, const pipeline::PipelineDoc& doc, const pipeline::RunResult& run,
-                                           const pipeline::RunResult* reference) {
+                                           const pipeline::RunResult* reference, const NodeSet* live) {
     const auto one = [](double v) { return MeasureValue{{v}}; };
-    if (m.kind == "count") return one(static_cast<double>(count_blocks(doc, m.block)));
+    if (m.kind == "count") return one(static_cast<double>(count_blocks(doc, m.block, live)));
     if (m.kind == "param") {
         const auto at = port_of(m.param);
         for (const auto& n : doc.nodes)

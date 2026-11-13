@@ -7,6 +7,8 @@ The signal `x` is the sum of 300 and 2000 Hz tones at $f_s = 8000$ Hz, the secon
 1. The delay of `y` relative to `x` is 0 samples.
 2. The 2000 Hz tone on `y` is weaker than on `x` by at least 40 dB.
 3. The 300 Hz tone on `y` is weaker than on `x` by less than 1 dB.
+4. The low tone reaches the output only through the mix `x`.
+5. The high tone also goes only through the mix `x`.
 
 ## Hints {#hints}
 

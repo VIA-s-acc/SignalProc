@@ -43,8 +43,19 @@ pipeline::Params resolved(const pipeline::NodeDecl& n, std::string_view input_no
 
 }  // namespace
 
-std::size_t count_blocks(const pipeline::PipelineDoc& doc, std::string_view block) {
-    return static_cast<std::size_t>(std::ranges::count_if(doc.nodes, [&](const auto& n) { return n.type == block && !n.bypass; }));
+NodeSet live_nodes(const pipeline::PipelineDoc& doc, std::span<const std::string> outputs) {
+    NodeSet live{outputs.begin(), outputs.end()};
+    for (bool grew = true; grew;) {
+        grew = false;
+        for (const auto& e : doc.edges)
+            if (live.contains(e.to.node) && !live.contains(e.from.node)) grew = live.insert(e.from.node).second;
+    }
+    return live;
+}
+
+std::size_t count_blocks(const pipeline::PipelineDoc& doc, std::string_view block, const NodeSet* live) {
+    return static_cast<std::size_t>(
+        std::ranges::count_if(doc.nodes, [&](const auto& n) { return n.type == block && !n.bypass && (!live || live->contains(n.id)); }));
 }
 
 bool path_exists(const pipeline::PipelineDoc& doc, std::string_view from, std::string_view to) {
@@ -54,8 +65,10 @@ bool path_exists(const pipeline::PipelineDoc& doc, std::string_view from, std::s
 bool all_paths_through(const pipeline::PipelineDoc& doc, const Through& t) {
     if (!node_of(doc, t.from) || !node_of(doc, t.to) || !reachable(doc, t.from, t.to, {})) return false;
     std::set<std::string, std::less<>> blocked;
-    for (const auto& n : doc.nodes)
-        if (n.type == t.block && !n.bypass && n.id != t.from && n.id != t.to) blocked.insert(n.id);
+    if (const auto* named = node_of(doc, t.block); named && named->id != t.from && named->id != t.to) blocked.insert(named->id);
+    else
+        for (const auto& n : doc.nodes)
+            if (n.type == t.block && !n.bypass && n.id != t.from && n.id != t.to) blocked.insert(n.id);
     return !reachable(doc, t.from, t.to, blocked);
 }
 

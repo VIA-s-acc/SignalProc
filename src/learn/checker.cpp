@@ -112,13 +112,22 @@ const pipeline::NodeDecl* find_node(const pipeline::PipelineDoc& doc, std::strin
     return nullptr;
 }
 
+std::vector<std::string> measured_nodes(const Task& t) {
+    std::vector<std::string> out;
+    for (const auto& m : t.measures)
+        for (const auto* endpoint : {&m.a, &m.b})
+            if (!endpoint->empty() && m.kind != "count" && m.kind != "param") out.push_back(endpoint->substr(0, endpoint->find('.')));
+    return out;
+}
+
 core::Result<Measures> measure_all(const Task& t, const pipeline::PipelineDoc& doc, const pipeline::RunResult& run,
                                    const pipeline::RunResult* reference, const ParamValues& params) {
     Measures out;
+    const auto live = live_nodes(doc, measured_nodes(t));
     for (const auto& raw : t.measures) {
         auto m = resolved_measure(raw, params);
         if (!m) return std::unexpected{m.error()};
-        auto v = compute_measure(*m, doc, run, reference);
+        auto v = compute_measure(*m, doc, run, reference, &live);
         if (!v) return std::unexpected{v.error()};
         out[m->name] = std::move(*v);
     }
@@ -134,7 +143,8 @@ core::NameLookup names_of(const Measures& measures, const ParamValues& params) {
     };
 }
 
-core::Result<GoalResult> evaluate(const Goal& g, const pipeline::PipelineDoc& doc, const Measures& measures, const ParamValues& params) {
+core::Result<GoalResult> evaluate(const Goal& g, const pipeline::PipelineDoc& doc, const Measures& measures, const ParamValues& params,
+                                   const NodeSet& live) {
     GoalResult r;
     if (!g.when.empty()) {
         auto e = core::parse_expr(g.when);
@@ -172,7 +182,7 @@ core::Result<GoalResult> evaluate(const Goal& g, const pipeline::PipelineDoc& do
     if (!g.require.empty()) {
         r.passed = true;
         for (const auto& [b, need] : g.require) {
-            const auto got = count_blocks(doc, b);
+            const auto got = count_blocks(doc, b, &live);
             if (static_cast<int>(got) < need) {
                 r.passed = false;
                 r.value = static_cast<double>(got);
@@ -194,9 +204,10 @@ CheckResult failed(const Task& t, std::string message, double seconds) {
 core::Result<CheckResult> check_answer(const Task& t, int variant, const std::string& text) {
     auto expected = expected_answer(t, variant);
     if (!expected) return std::unexpected{expected.error()};
-    auto given = parse_answer(text, *t.answer);
+    const auto answer = variant_answer(t, variant);
+    auto given = parse_answer(text, answer);
     if (!given) return CheckResult{false, {GoalResult{false, std::nullopt, given.error().message}}, 0, given.error().message, 0};
-    const auto cmp = compare_answer(*given, *expected, *t.answer);
+    const auto cmp = compare_answer(*given, *expected, answer);
     return CheckResult{cmp.passed, {GoalResult{cmp.passed, given->size() == 1 ? std::optional<double>{given->front()} : std::nullopt, cmp.detail}}, 1,
                        std::nullopt, 0};
 }
@@ -224,6 +235,34 @@ core::Result<Measure> resolved_measure(const Measure& m, const ParamValues& para
     return out;
 }
 
+Answer variant_answer(const Task& t, int variant) {
+    Answer a = t.answer.value_or(Answer{});
+    if (a.type != AnswerType::choice || a.options.size() < 2) return a;
+    long long right = 0;
+    if (const auto v = core::eval_number(a.expected); v && *v == std::floor(*v) && *v >= 1 && *v <= static_cast<double>(a.options.size()))
+        right = static_cast<long long>(*v);
+    else
+        return a;
+    std::vector<std::size_t> order(a.options.size());
+    for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
+    Rng rng{seed_of(t.id, variant, 7)};
+    for (std::size_t i = order.size() - 1; i > 0; --i) std::swap(order[i], order[static_cast<std::size_t>(rng.range(0, static_cast<long long>(i)))]);
+    std::vector<std::string> shuffled;
+    for (auto k : order) shuffled.push_back(a.options[k]);
+    a.options = std::move(shuffled);
+    const auto at = std::ranges::find(order, static_cast<std::size_t>(right - 1)) - order.begin();
+    a.expected = std::to_string(at + 1);
+    return a;
+}
+
+std::string options_markdown(const Task& t, int variant) {
+    if (!t.answer || t.answer->type != AnswerType::choice) return {};
+    const auto a = variant_answer(t, variant);
+    std::string out = tr("learn.options") + "\n\n";
+    for (std::size_t i = 0; i < a.options.size(); ++i) out += fmt::format("{}. {}\n", i + 1, a.options[i]);
+    return out;
+}
+
 std::string start_graph(const Task& t, int variant) { return substitute(t.start_sig, draw_params(t.params, t.id, variant)); }
 
 std::string solution_graph(const Task& t, int variant) { return substitute(t.solution_sig, draw_params(t.params, t.id, variant)); }
@@ -240,7 +279,8 @@ core::Result<std::vector<double>> expected_answer(const Task& t, int variant) {
         if (!measures) return std::unexpected{measures.error()};
         return measures->at(t.answer->expected).values;
     }
-    return parse_answer(substitute(t.answer->expected, draw_params(t.params, t.id, variant)), *t.answer);
+    const auto answer = variant_answer(t, variant);
+    return parse_answer(substitute(answer.expected, draw_params(t.params, t.id, variant)), answer);
 }
 
 core::Result<CheckResult> check_task(const Task& t, int variant, const Submission& s, const core::CancelToken& cancel, double limit_seconds) {
@@ -262,7 +302,7 @@ core::Result<CheckResult> check_task(const Task& t, int variant, const Submissio
     if (const auto changes = locked_changes(*start, *work, t.locked, t.input ? t.input->node : ""); !changes.empty()) {
         std::string message;
         for (const auto& c : changes) message += (message.empty() ? "" : "; ") + c;
-        return failed(t, message, seconds());
+        return failed(t, message + say("learn.check.locked_hint"), seconds());
     }
     std::string input_values;
     if (t.input) {
@@ -273,6 +313,7 @@ core::Result<CheckResult> check_task(const Task& t, int variant, const Submissio
             if (const auto it = original->params.find("values"); it != original->params.end()) input_values = it->second;
     }
     const bool need_reference = std::ranges::any_of(t.measures, [](const auto& m) { return !m.ref.empty(); });
+    const auto outputs = measured_nodes(t);
     Watchdog watchdog{cancel, limit_seconds};
     const auto timeout = [&] { return failed(t, say("learn.check.timeout", fmt::arg("limit", fmt::format("{:g}", limit_seconds))), seconds()); };
     CheckResult out{true, std::vector<GoalResult>(t.goals.size()), 0, std::nullopt, 0};
@@ -310,8 +351,9 @@ core::Result<CheckResult> check_task(const Task& t, int variant, const Submissio
         }
         auto measures = measure_all(t, w, *result, reference ? &*reference : nullptr, params);
         if (!measures) return failed(t, measures.error().message, seconds());
+        const auto live = live_nodes(w, outputs);
         for (std::size_t i = 0; i < t.goals.size(); ++i) {
-            auto g = evaluate(t.goals[i], w, *measures, params);
+            auto g = evaluate(t.goals[i], w, *measures, params, live);
             if (!g) return std::unexpected{g.error()};
             if (settled[i]) continue;
             if (!g->passed) {
@@ -333,7 +375,7 @@ std::string render_text(std::string_view md, const Task& t, int variant) {
     auto text = substitute(md, values);
     const auto names = placeholders(text);
     if (std::ranges::find(names, "expected") != names.end() && t.answer)
-        if (auto e = expected_answer(t, variant)) values["expected"] = format_answer(*e, *t.answer);
+        if (auto e = expected_answer(t, variant)) values["expected"] = format_answer(*e, variant_answer(t, variant));
     if (std::ranges::any_of(names, [](const auto& n) { return n.starts_with("m."); }))
         if (auto ms = reference_measures(t, variant))
             for (const auto& [name, v] : *ms) {

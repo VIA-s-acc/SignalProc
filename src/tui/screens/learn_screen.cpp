@@ -150,9 +150,13 @@ std::optional<TheoryLink> LearnScreen::theory_link() const {
 
 void LearnScreen::open_with(const NavArgs& args) {
     if (args.task.empty() || !ui_.learn || !ui_.learn->course().find(args.task)) return;
+    const bool same = typing_ && cursor_ == args.task;
     cursor_ = args.task;
     focus_ = text_panel;
-    if (args.step && *args.step == 1) answer();
+    if (args.step && *args.step == 1) {
+        if (same) submit();
+        else answer();
+    }
 }
 
 const LearnScreen::Texts& LearnScreen::texts() {
@@ -171,6 +175,7 @@ const LearnScreen::Texts& LearnScreen::texts() {
     Texts out;
     out.key = key;
     std::string md = learn::render_text(text.statement, *t, variant);
+    if (const auto options = learn::options_markdown(*t, variant); !options.empty()) md += "\n\n" + options;
     if (!t->theory.empty()) {
         md += "\n\n" + tr("tui.learn.theory") + " ";
         for (std::size_t i = 0; i < t->theory.size(); ++i) md += (i ? ", " : "") + std::string{"{#"} + t->theory[i] + "}";

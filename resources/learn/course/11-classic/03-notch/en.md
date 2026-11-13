@@ -6,6 +6,8 @@ The signal `x` is the sum of a 440 Hz tone and a 50 Hz mains hum of amplitude {{
 
 1. The 50 Hz hum on `y` is weaker than on `x` by at least 30 dB.
 2. The 440 Hz tone on `y` is weaker than on `x` by less than 1 dB.
+3. The tone reaches the output only through the mix `x`: the filter comes after it.
+4. The hum also goes only through the mix `x`.
 
 ## Hints {#hints}
 

@@ -65,7 +65,7 @@ TEST_CASE("start writes the work graph once and keeps the student's edits", "[tu
     f.learn->select("1.2");
     CHECK(f.learn->view().progress.active == "1.2");
     f.learn->start(*f.ui);
-    const auto work = learn::work_path(f.dir, "1.2");
+    const auto work = learn::work_path(f.dir, "1.2", 1);
     REQUIRE(std::filesystem::exists(work));
     CHECK(read(work) == learn::start_graph(*mini().find("1.2"), 1));
     REQUIRE(f.opened.size() == 1);
@@ -82,8 +82,8 @@ TEST_CASE("a pipeline run of the work graph triggers a check", "[tui][learn_stat
     Fixture f{"learn-state-auto"};
     f.learn->select("1.2");
     f.learn->start(*f.ui);
-    std::ofstream{learn::work_path(f.dir, "1.2")} << learn::solution_graph(*mini().find("1.2"), 1);
-    REQUIRE(f.pipeline->load(learn::work_path(f.dir, "1.2")).has_value());
+    std::ofstream{learn::work_path(f.dir, "1.2", 1)} << learn::solution_graph(*mini().find("1.2"), 1);
+    REQUIRE(f.pipeline->load(learn::work_path(f.dir, "1.2", 1)).has_value());
     f.pipeline->run(f.jobs);
     const auto v = f.learn->view();
     REQUIRE(v.last.has_value());
@@ -152,4 +152,18 @@ TEST_CASE("a broken progress file gives a warning, not a crash", "[tui][learn_st
     LearnState s{mini(), dir, nullptr};
     CHECK(s.view().warning.has_value());
     CHECK(s.view().progress.variant == 1);
+}
+
+TEST_CASE("a new variant gets its own work graph", "[tui][learn_state]") {
+    Fixture f{"learn-state-variant"};
+    f.learn->select("1.2");
+    f.learn->start(*f.ui);
+    f.learn->set_variant(2);
+    f.learn->start(*f.ui);
+    REQUIRE(f.opened.size() == 2);
+    CHECK(f.opened[0] != f.opened[1]);
+    CHECK(read(f.opened[1]) == learn::start_graph(*mini().find("1.2"), 2));
+    f.learn->check(*f.ui);
+    REQUIRE(f.learn->view().last.has_value());
+    CHECK_FALSE(f.learn->view().last->error.has_value());
 }

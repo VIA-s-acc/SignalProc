@@ -71,7 +71,7 @@ After solving, the worked solution is shown at once. Before solving, the program
 signals learn solution 4.3 --yes
 ```
 
-Exit codes of `check`: 0 — passed, 3 — goals not met yet, 1 — the graph is missing or the task has an error, 2 — a wrong call.
+Exit codes of `check`: 0 — passed, 3 — goals not met yet, 1 — the graph is missing, does not build, changes locked nodes, or the task has an error, 2 — a wrong call.
 
 ### How a task is checked {#learn-check}
 
@@ -87,7 +87,7 @@ One check is limited to 30 seconds; a graph that is too heavy gives an error ins
 
 ### Progress, variants and the report {#learn-progress}
 
-Progress lives in `learn.toml` in the settings folder ({#settings-dir}): the name, the variant number and, for every task, its state, the number of attempts and hints, the solve time and the last answer. A solved graph is copied to `learn/<number>.sig` next to it. If the progress file is damaged, the program keeps it as `learn.toml.bak` and starts over instead of failing.
+Progress lives in `learn.toml` in the settings folder ({#settings-dir}): the name, the variant number and, for every task, its state, the number of attempts and hints, the solve time and the last answer. A solved graph is copied to `learn/<number>.sig` next to it, and the interface keeps the work graph in `learn/work/v<variant>/<number>.sig`: every variant has its own start graph. If the progress file is damaged, the program keeps it as `learn.toml.bak` and starts over instead of failing.
 
 Every student has a **variant** — a number from 1 to 999. The numbers in the tasks depend on it: the signal, the filter, the frequencies. The same task with the same variant gives the same numbers on any machine.
 
@@ -101,7 +101,7 @@ The report for the teacher is Markdown with the chapter list, the solved tasks, 
 signals learn report -o report.md
 ```
 
-The report states the variant, so the teacher can check an answer with the same command: `signals learn check 4.4 --variant 17 --answer 2`. All `signals learn` commands accept `--variant N` and `--progress FILE`: the first sets the variant for one command, the second uses another progress file.
+The report states the variant each task was solved under, so the teacher can check an answer with the same command: `signals learn check 4.4 --variant 17 --answer 2`. All `signals learn` commands accept `--variant N` and `--progress FILE`: the first sets the variant for one command, the second uses another progress file.
 
 ### Your own course {#learn-course}
 
@@ -175,12 +175,12 @@ A measure is computed by the check from the graph outputs. The numeric fields `f
 A goal is exactly one of:
 
 - `when` — an expression over measures and parameters: `err <= 1e-12 && n == 10`. It supports `+ - * / ^`, comparisons, `&& || !`, `abs min max sqrt log10` and `pi`;
-- `through = { from, to, block }` — every path from `from` to `to` goes through a `block` block;
+- `through = { from, to, block }` — every path from `from` to `to` goes through a `block` block; a node may be named instead of a block type: `block = "n"`;
 - `forbid = [...]` — blocks that are not allowed;
-- `require = { block = number }` — blocks that must be there;
+- `require = { block = number }` — blocks that must be there; only nodes whose signal reaches a measured output count, so dead branches do not help;
 - `probe = "name"` — the graph has a probe with this name.
 
-An answer task has no goals but an `[answer]` table: `type` (`number`, `integer`, `vector`, `choice`), `expected` — the name of a measure on the reference solution or an answer with placeholders (`"{{a}} + 1"`), `tol` and `rel` — the tolerance, `options` — the choices, `verify` — a condition on the reference measures that confirms the chosen answer.
+An answer task has no goals but an `[answer]` table: `type` (`number`, `integer`, `vector`, `choice`), `expected` — the name of a measure on the reference solution or an answer with placeholders (`"{{a}} + 1"`), `tol` and `rel` — the tolerance, `options` — the choices (the program shows them in an order shuffled per variant; the answer is a number, the option text or the value after "="), `verify` — a condition on the reference measures that confirms the chosen answer.
 
 ### Task texts {#learn-text}
 

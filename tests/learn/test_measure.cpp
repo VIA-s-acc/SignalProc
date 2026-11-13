@@ -6,6 +6,7 @@
 
 #include "core/metrics.hpp"
 #include "learn/measure.hpp"
+#include "learn/structure.hpp"
 #include "learn_support.hpp"
 
 using namespace signals::learn;
@@ -135,4 +136,19 @@ TEST_CASE("a missing output is an error, not a number", "[learn][measure]") {
     auto d = doc;
     add_measure_probes(d, std::vector<Measure>{Measure{.name = "e", .kind = "max_error", .a = "y", .b = "x"}});
     CHECK_FALSE(compute_measure(m, d, run_doc(d)).has_value());
+}
+
+TEST_CASE("a block count can be limited to live nodes", "[learn][measure]") {
+    auto doc = sig_doc(R"(pipeline "t" v1
+node x = samples(values="1 2 3", rate=8)
+node y = gain(db=0)
+node z = gain(db=0)
+x -> y
+x -> z
+)");
+    const Measure m{.name = "n", .kind = "count", .block = "gain"};
+    const auto run = run_doc(doc);
+    CHECK(compute_measure(m, doc, run)->scalar() == 2);
+    const auto live = live_nodes(doc, std::vector<std::string>{"y"});
+    CHECK(compute_measure(m, doc, run, nullptr, &live)->scalar() == 1);
 }

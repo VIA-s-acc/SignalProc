@@ -118,7 +118,7 @@ TEST_CASE("learn check passes the solution and fails the start with exit 3", "[c
     CHECK(p.tasks.at("1.2").attempts == 2);
     CHECK(std::filesystem::exists(env.dir / "learn" / "1.2.sig"));
     std::ofstream{env.dir / "broken.sig"} << "pipeline \"t\" v1\nnode = 1\n";
-    CHECK(env.run({"check", "1.2", (env.dir / "broken.sig").string()}).code == 3);
+    CHECK(env.run({"check", "1.2", (env.dir / "broken.sig").string()}).code == 1);
     CHECK(env.run({"check", "1.2", (env.dir / "missing.sig").string()}).code == 1);
 }
 
@@ -205,4 +205,23 @@ TEST_CASE("lint on a broken course exits 1 and names the task", "[cli][learn]") 
     std::vector<std::string_view> missing{"signals", "learn", "lint", "--course", "/nonexistent/course"};
     std::ostringstream o2, e2;
     CHECK(signals::cli::run_cli(missing, o2, e2) == 1);
+}
+
+TEST_CASE("choice tasks list their options", "[cli][learn]") {
+    const auto dir = signals::test::temp_path("cli-learn-options");
+    std::filesystem::create_directories(dir);
+    const auto progress = (dir / "p.toml").string();
+    std::vector<std::string_view> args{"signals", "learn", "show", "2.4", "--progress", progress};
+    std::ostringstream out, err;
+    signals::LanguageScope ru{signals::Language::ru};
+    REQUIRE(signals::cli::run_cli(args, out, err) == 0);
+    const auto* t = builtin_course().find("2.4");
+    REQUIRE(t != nullptr);
+    const auto a = variant_answer(*t, 1);
+    CHECK(out.str().find("1. " + a.options[0]) != std::string::npos);
+    CHECK(out.str().find(std::to_string(a.options.size()) + ". " + a.options.back()) != std::string::npos);
+    std::vector<std::string_view> json{"signals", "learn", "show", "2.4", "--json", "--progress", progress};
+    std::ostringstream jout, jerr;
+    REQUIRE(signals::cli::run_cli(json, jout, jerr) == 0);
+    CHECK(nlohmann::json::parse(jout.str())["options"].size() == a.options.size());
 }

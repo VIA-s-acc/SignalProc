@@ -29,3 +29,9 @@ when = "hum <= -30"
 
 [[goal]]
 when = "tone >= -1"
+
+[[goal]]
+through = { from = "tone", to = "y", block = "x" }
+
+[[goal]]
+through = { from = "hum", to = "y", block = "x" }

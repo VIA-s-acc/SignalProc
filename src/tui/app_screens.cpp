@@ -45,7 +45,9 @@ AppModels make_app_models() {
 std::vector<std::shared_ptr<TabScreen>> make_app_screens(UiContext& ui, AppModels& models) {
     ui.learn = models.learn;
     if (models.pipeline && models.learn)
-        models.pipeline->finish_listener = [learn = models.learn, &ui](const FinishedRun& f) { learn->on_run_finished(f, ui); };
+        models.pipeline->finish_listener = [learn = std::weak_ptr<LearnState>{models.learn}, &ui](const FinishedRun& f) {
+            if (auto state = learn.lock()) state->on_run_finished(f, ui);
+        };
     auto screens = placeholder_screens(ui);
     screens[0] = make_signal_screen(ui, models.signal);
     screens[1] = make_subtabs(tr("tui.tab.spectrum"),

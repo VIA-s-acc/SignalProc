@@ -32,3 +32,6 @@ through = { from = "x", to = "y", block = "dwt" }
 
 [[goal]]
 through = { from = "x", to = "y", block = "idwt" }
+
+[[goal]]
+through = { from = "x", to = "y", block = "keep" }

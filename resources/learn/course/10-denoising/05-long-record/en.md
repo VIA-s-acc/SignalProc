@@ -9,6 +9,7 @@ Build a "DWT → threshold → inverse DWT" denoiser and gain at least 5 dB of S
 1. The SNR of `y` relative to `x` is higher than the SNR of `n` by at least 5 dB.
 2. The 220 Hz fundamental on `y` is weaker than on `x` by less than 1 dB.
 3. Every path from `n` to `y` goes through a `threshold` block.
+4. The clean signal `x` reaches the output only through the noisy recording `n`: it cannot be mixed in around it.
 
 ## Hints {#hints}
 

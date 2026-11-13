@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <set>
 #include <string>
 
 #include "i18n/i18n.hpp"
@@ -187,4 +188,53 @@ TEST_CASE("measure fields take variant parameters", "[learn][checker]") {
     CHECK_FALSE(resolved_measure(m, params).has_value());
     Measure plain{.name = "t", .kind = "tone_db", .a = "y", .freq = 440};
     CHECK(resolved_measure(plain, params)->freq == 440);
+}
+
+TEST_CASE("a student probe with the checker's name cannot replace the measured output", "[learn][checker]") {
+    const auto& bank = task("2.2");
+    const auto x = draw_params(bank.params, bank.id, 1).at("x");
+    const auto sig = "pipeline \"bank\" v1\nnode x = samples(values=\"" + x + "\", rate=8)\nnode d = downsample(m=2, anti_alias=no, phase=1)\n"
+                     "node u = upsample(m=2, anti_image=no)\nnode sum = gain(db=0)\nx -> d -> u -> sum\nprobe x as \"__learn:sum\"\n";
+    const auto r = check_graph(bank, sig);
+    CHECK_FALSE(r.passed);
+    REQUIRE_FALSE(r.goals.empty());
+    CHECK_FALSE(r.goals[0].passed);
+}
+
+TEST_CASE("dead branches do not count for required blocks", "[learn][checker]") {
+    const auto& dbl = task("1.2");
+    auto sig = start_graph(dbl, 1);
+    sig += "node z = add()\nx -> z.a\nx -> z.b\n";
+    const auto r = check_graph(dbl, sig);
+    REQUIRE(r.goals.size() == 3);
+    CHECK_FALSE(r.goals[1].passed);
+}
+
+TEST_CASE("choice options are shuffled per variant and the right one stays right", "[learn][checker]") {
+    Task t;
+    t.id = "9.9";
+    t.kind = TaskKind::answer;
+    t.answer = Answer{.type = AnswerType::choice, .expected = "2", .options = {"alpha", "beta", "gamma", "delta"}};
+    std::set<std::vector<std::string>> orders;
+    for (int v = 1; v <= 8; ++v) {
+        const auto a = variant_answer(t, v);
+        REQUIRE(a.options.size() == 4);
+        orders.insert(a.options);
+        const auto right = std::stoul(a.expected);
+        CHECK(a.options[right - 1] == "beta");
+        signals::core::CancelToken cancel;
+        CHECK(check_task(t, v, {.answer = "beta"}, cancel)->passed);
+        CHECK(check_task(t, v, {.answer = a.expected}, cancel)->passed);
+        CHECK_FALSE(check_task(t, v, {.answer = "alpha"}, cancel)->passed);
+    }
+    CHECK(orders.size() > 1);
+}
+
+TEST_CASE("a locked-node error mentions a changed variant", "[learn][checker]") {
+    signals::LanguageScope en{signals::Language::en};
+    const auto* soft = builtin_course().find("10.2");
+    REQUIRE(soft != nullptr);
+    const auto r = check_graph(*soft, start_graph(*soft, 2), 1);
+    REQUIRE(r.error.has_value());
+    CHECK(r.error->find("variant") != std::string::npos);
 }

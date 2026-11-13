@@ -2679,8 +2679,8 @@
   "learn.report.solved": "Решено",
   "learn.report.of": "{n} из {total}",
   "learn.report.total": "Всего решено {n} из {total}, из них с разбором: {revealed}.",
-  "learn.report.solved_at": "Решено {time}. Попыток: {attempts}, подсказок: {hints}.",
-  "learn.report.revealed_at": "Решено после разбора {time}. Попыток: {attempts}, подсказок: {hints}.",
+  "learn.report.solved_at": "Решено {time}, вариант {variant}. Попыток: {attempts}, подсказок: {hints}.",
+  "learn.report.revealed_at": "Решено после разбора {time}, вариант {variant}. Попыток: {attempts}, подсказок: {hints}.",
   "learn.report.answer": "Ответ: `{answer}`",
   "learn.report.goals": "Цели:",
   "learn.report.graph": "Граф:",
@@ -2810,5 +2810,7 @@
   "pipeline.about.assert": "Проверяет выражение над полями отчётов на входах a…d, например a.snr_db >= 30 && b.max_abs < 1e-12; провал меняет код выхода signals run",
   "pipeline.param.assert.expr": "Выражение: поля отчётов как a.max_abs, b.snr_db, a.passed; + − * / ^, сравнения, && || !, abs min max sqrt log10, pi",
   "pipeline.error.assert_expr": "assert: {why}",
-  "pipeline.error.assert_name": "assert: неизвестное имя {name}; похожее — {near}"
+  "pipeline.error.assert_name": "assert: неизвестное имя {name}; похожее — {near}",
+  "learn.options": "Варианты ответа (введите номер или сам ответ):",
+  "learn.check.locked_hint": ". Если вы сменили вариант, возьмите заготовку заново: Enter на вкладке «Задания» или signals learn start"
 }

@@ -10,6 +10,7 @@ The share `kept` in the check is the share of nonzero coefficients at the output
 2. $\mathrm{SNR}(y, x) \ge 30$ dB.
 3. Every path from `x` to `y` goes through `dwt`.
 4. Every path from `x` to `y` goes through `idwt`.
+5. Every path from `x` to `y` goes through node `keep`: the output is built only from the kept coefficients.
 
 ## Hints {#hints}
 
