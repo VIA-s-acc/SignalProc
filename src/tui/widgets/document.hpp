@@ -2,6 +2,8 @@
 
 #include <cstddef>
 #include <optional>
+#include <string_view>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -39,6 +41,8 @@ struct DocumentSpec {
     const theory::LiveValues* values = nullptr;
     std::string section_rule = {};
     int height = 0;
+    std::string find = {};
+    std::optional<std::pair<std::size_t, std::size_t>> find_current = {};
 };
 
 struct DocumentLayout {
@@ -51,5 +55,6 @@ struct DocumentLayout {
 
 ftxui::Element document(const DocumentSpec& spec, const UiContext& ui, DocumentLayout* out);
 std::string cut_columns(const std::string& s, int from, int count);
+std::vector<std::size_t> find_columns(std::string_view line, std::string_view needle);
 
 }  // namespace signals::tui
