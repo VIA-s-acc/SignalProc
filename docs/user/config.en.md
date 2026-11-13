@@ -161,6 +161,8 @@ graphs = ["/home/u/sig/denoise.sig"]
 
 `signals tui` without a file opens the first existing file from `audio`, the first existing pipeline from `graphs` and the tab `tab`. With a file on the command line, that file and the "Signal" tab open, and the pipeline and tab are not restored. The palette command "Open recent…" shows both lists (missing files are hidden), "Forget recent files" clears them. A broken `session.toml` does not stop the start: the program begins with an empty session and rewrites the file.
 
+Without `session.toml` — the first start — `signals tui` without a file opens the start panel: the denoising example, task 0.1 of the learning path or your own audio file. Closing the panel or choosing an item writes `session.toml` at once, so the panel does not come back; the palette command "Start panel" opens it again. A broken file does not bring the start panel up.
+
 ### Files next to pipelines {#settings-outputs}
 
 The `export`, `export_report` and `wav_out` blocks write where their `path` parameter points. A relative path is resolved like this:
@@ -173,6 +175,21 @@ The `export`, `export_report` and `wav_out` blocks write where their `path` para
 
 When a pipeline is saved to another folder, the program rewrites relative paths so that they still lead to the same places. Writing goes through a temporary file `.name.XXXXXXXXXXXXXXXX.partial` next to the target, which is then renamed; if a run is interrupted, such a file may stay behind and can be deleted. `--probe-dir` and `-o` of `signals run`, and `--bands-dir` of `signals dwt`, are relative to the current folder.
 
+### Installing and removing {#settings-install}
+
+The install scripts (`install.sh` on macOS and Linux, `install.ps1` on Windows) write only into your home folder:
+
+| What | Where |
+|---|---|
+| the program | `~/.local/bin/signals`; on Windows `%LOCALAPPDATA%\Programs\signals\signals.exe`, and that folder is added to the user `PATH` |
+| the man page | `~/.local/share/man/man1/signals.1` |
+| bash completion | `~/.local/share/bash-completion/completions/signals` |
+| fish completion | `~/.config/fish/completions/signals.fish` |
+
+When `XDG_DATA_HOME` or `XDG_CONFIG_HOME` is set, the man page and completions go there. `--dir` or `SIGNALS_INSTALL_DIR` picks the program folder, `--version` or `SIGNALS_VERSION` the version. For zsh the script installs nothing and prints the line for `~/.zshrc`: `source <(signals completions zsh)`.
+
+To remove the program, delete these files and, if you like, the settings folder. `brew uninstall signals` removes a Homebrew install. On Windows also remove the program folder from the user `PATH` in Environment Variables.
+
 ### Resetting everything {#settings-reset}
 
-Delete `terminal.toml`: the next start shows the terminal check, the language becomes Russian and the editor falls back to `VISUAL`, `EDITOR` and the system program. Delete `session.toml` to forget the theme, the tab and the recent files. Delete the `filters/` folder or single `.flt` files to remove your filters. The program keeps nothing else.
+Delete `terminal.toml`: the next start shows the terminal check, the language becomes Russian and the editor falls back to `VISUAL`, `EDITOR` and the system program. Delete `session.toml` to forget the theme, the tab and the recent files; the next start shows the start panel again. Delete the `filters/` folder or single `.flt` files to remove your filters. The program keeps nothing else.
