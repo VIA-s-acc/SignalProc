@@ -2,7 +2,7 @@
   "name": "signals-sig",
   "displayName": "Signals .sig and .flt",
   "description": "Signals pipeline files (.sig) and filter files (.flt): highlighting, hovers, completion, checks and snippets",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "via-s-acc",
   "license": "MIT",
   "repository": {
