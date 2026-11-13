@@ -19,6 +19,7 @@
 #include "tui/shell/palette.hpp"
 #include "tui/shell/plot_export.hpp"
 #include "tui/shell/panel.hpp"
+#include "tui/shell/start_panel.hpp"
 #include "tui/term/check_screen.hpp"
 #include "tui/widgets/text_util.hpp"
 
@@ -30,6 +31,8 @@ public:
     ShellComponent(UiContext& ui, std::vector<std::shared_ptr<TabScreen>> screens, std::function<void()> on_quit)
         : ui_{ui}, screens_{std::move(screens)}, on_quit_{std::move(on_quit)}, tab_boxes_(screens_.size()) {
         if (ui_.first_run_check) check_.open();
+        else if (ui_.first_run_start) start_.open();
+        start_pending_ = ui_.first_run_check && ui_.first_run_start;
         ui_.ask_open = [this] { ask_open_file(); };
         ui_.navigate = [this](std::string_view target, const NavArgs& args) { navigate(target, args); };
         ui_.open_palette = [this](std::string filter) { palette_.open(commands(), std::move(filter)); };
@@ -134,6 +137,7 @@ public:
         auto base = vbox(std::move(rows));
         if (palette_.is_open()) return paint(dbox({base, palette_.render(ui_, w) | clear_under | center}));
         if (check_.is_open()) return paint(dbox({base, check_.render(ui_) | clear_under | center}));
+        if (start_.is_open()) return paint(dbox({base, start_.render(ui_) | clear_under | center}));
         if (resources_open_) return paint(dbox({base, resources_panel(ui_, w, h, resources_scroll_) | clear_under | center}));
         if (menu_.is_open()) return paint(dbox({base, menu_.render(ui_, w, h)}));
         if (jump_.is_active()) return paint(dbox({base, jump_.render(ui_)}));
@@ -147,7 +151,15 @@ public:
             notice_.clear();
         }
         if (palette_.is_open()) return palette_.on_event(e);
-        if (check_.is_open()) return check_.on_event(e, ui_);
+        if (check_.is_open()) {
+            const bool used = check_.on_event(e, ui_);
+            if (!check_.is_open() && start_pending_) {
+                start_pending_ = false;
+                start_.open();
+            }
+            return used;
+        }
+        if (start_.is_open()) return start_.on_event(e, ui_);
         if (resources_open_) {
             const auto step = [this](float d) { resources_scroll_ = std::clamp(resources_scroll_ + d, 0.f, 1.f); };
             if (e == ftxui::Event::Escape || e == ftxui::Event::Character('R')) resources_open_ = false;
@@ -458,6 +470,7 @@ private:
         out.push_back({"color.16", tr("tui.cmd.color_16"), [this] { ui_.caps.color = ColorDepth::ansi16; }});
         out.push_back({"color.none", tr("tui.cmd.color_none"), [this] { ui_.caps.color = ColorDepth::none; }});
         out.push_back({"terminal.check", tr("tui.cmd.check"), [this] { check_.open(); }});
+        out.push_back({"start.panel", tr("tui.cmd.start"), [this] { start_.open(); }});
         out.push_back({"plot.export", tr("tui.cmd.export_plot"), [this] { export_plots(); }});
         out.push_back({"settings.help", tr("tui.cmd.settings_help"), [this] {
                            if (ui_.open_theory) ui_.open_theory(TheoryPage{TheoryLink{TheoryLink::Kind::section, "settings", tr("tui.cmd.settings_help")}});
@@ -533,6 +546,8 @@ private:
     float resources_scroll_ = 0;
     Palette palette_;
     TerminalCheck check_;
+    StartPanel start_;
+    bool start_pending_ = false;
     ContextMenu menu_;
     JumpMode jump_;
 };

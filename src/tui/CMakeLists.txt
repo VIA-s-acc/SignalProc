@@ -31,6 +31,7 @@ add_library(signals_tui STATIC
   shell/layout.cpp
   shell/panel.cpp
   shell/shell.cpp
+  shell/start_panel.cpp
   shell/status.cpp
   shell/help.cpp
   shell/placeholder.cpp

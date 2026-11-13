@@ -79,6 +79,7 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme, std::
     ui.history = [&monitor] { return monitor.history(); };
     ui.prefs_file = prefs_path(env);
     ui.first_run_check = !prefs || !prefs->checked;
+    ui.first_run_start = !file && session->fresh();
     ui.warn = [signal = models.signal](std::string line) { signal->add_log(std::move(line), LogLine::warn); };
     ui.open_file = [signal = models.signal, &jobs](const std::filesystem::path& path) { signal->open(path, jobs); };
     models.signal->set_on_loaded([session](const std::filesystem::path& path) { session->remember(RecentKind::audio, path); });
