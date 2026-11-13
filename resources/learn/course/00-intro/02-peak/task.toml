@@ -1,0 +1,19 @@
+kind = "answer"
+open = "pipeline"
+theory = ["conventions", "conv-signals"]
+
+[[param]]
+name = "a"
+kind = "int"
+min = 2
+max = 9
+
+[[measure]]
+name = "peak"
+kind = "max_abs"
+a = "x"
+
+[answer]
+type = "number"
+expected = "peak"
+tol = 1e-6

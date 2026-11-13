@@ -1,0 +1,63 @@
+kind = "graph"
+open = "pipeline"
+theory = ["multirate-noble", "multirate-down-up"]
+locked = ["x", "yb"]
+
+[[param]]
+name = "x"
+kind = "ints"
+count = 12
+min = -9
+max = 9
+
+[[param]]
+name = "h0"
+kind = "int"
+min = 1
+max = 4
+
+[[param]]
+name = "h1"
+kind = "int"
+min = 1
+max = 4
+
+[[param]]
+name = "h2"
+kind = "int"
+min = 1
+max = 4
+
+[input]
+node = "x"
+hidden = 4
+
+[[measure]]
+name = "pre"
+kind = "max_error"
+a = "ha"
+ref = "ha"
+
+[[measure]]
+name = "match"
+kind = "max_error"
+a = "ya"
+b = "yb"
+delay = 0
+
+[[measure]]
+name = "ds"
+kind = "count"
+block = "downsample"
+
+[[goal]]
+when = "pre <= 1e-12"
+
+[[goal]]
+when = "match <= 1e-12"
+
+[[goal]]
+when = "ds >= 2"
+
+[[goal]]
+through = { from = "x", to = "yb", block = "downsample" }

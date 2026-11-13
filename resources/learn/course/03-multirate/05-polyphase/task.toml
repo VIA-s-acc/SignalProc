@@ -1,0 +1,55 @@
+kind = "graph"
+open = "pipeline"
+theory = ["multirate-polyphase", "conv-polyphase"]
+locked = ["x"]
+
+[[param]]
+name = "x"
+kind = "ints"
+count = 12
+min = -9
+max = 9
+
+[[param]]
+name = "h0"
+kind = "int"
+min = 1
+max = 4
+
+[[param]]
+name = "h1"
+kind = "int"
+min = -3
+max = 3
+
+[[param]]
+name = "h2"
+kind = "int"
+min = 1
+max = 4
+
+[[param]]
+name = "h3"
+kind = "int"
+min = -3
+max = 3
+
+[input]
+node = "x"
+hidden = 4
+
+[[measure]]
+name = "err"
+kind = "max_error"
+a = "y"
+ref = "y"
+delay = 0
+
+[[goal]]
+when = "err <= 1e-12"
+
+[[goal]]
+forbid = ["downsample", "dwt", "idwt", "ipolyphase", "resample"]
+
+[[goal]]
+through = { from = "x", to = "y", block = "polyphase" }

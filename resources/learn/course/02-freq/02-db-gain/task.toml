@@ -1,0 +1,20 @@
+kind = "answer"
+open = "filters"
+theory = ["freq-magnitude", "freq-phi-psi-spectra"]
+
+[[param]]
+name = "w"
+kind = "choice"
+choices = ["db2", "db3", "db4", "db5", "db6"]
+
+[[measure]]
+name = "g"
+kind = "gain_db"
+a = "y"
+b = "x"
+freq = 3000
+
+[answer]
+type = "number"
+expected = "g"
+tol = 0.2

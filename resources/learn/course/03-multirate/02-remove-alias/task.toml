@@ -1,0 +1,39 @@
+kind = "graph"
+open = "pipeline"
+theory = ["multirate-anti-alias", "multirate-down-up"]
+locked = ["lo", "hi", "x"]
+
+[[param]]
+name = "a"
+kind = "real"
+min = 0.5
+max = 1.5
+decimals = 1
+
+[[measure]]
+name = "image"
+kind = "tone_db"
+a = "y"
+freq = 1000
+
+[[measure]]
+name = "low"
+kind = "tone_db"
+a = "y"
+freq = 500
+
+[[measure]]
+name = "keep"
+kind = "gain_db"
+a = "y"
+b = "lo"
+freq = 500
+
+[[goal]]
+when = "image - low <= -40"
+
+[[goal]]
+when = "keep >= -1"
+
+[[goal]]
+through = { from = "x", to = "y", block = "downsample" }

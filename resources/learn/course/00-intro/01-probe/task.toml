@@ -1,0 +1,12 @@
+kind = "graph"
+open = "pipeline"
+theory = ["conventions", "conv-signals"]
+
+[[param]]
+name = "f"
+kind = "int"
+min = 200
+max = 900
+
+[[goal]]
+probe = "y"

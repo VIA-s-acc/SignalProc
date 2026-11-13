@@ -156,7 +156,7 @@ Use your course with `--course folder` on any `signals learn` command.
 
 ### Measures and goals {#learn-measures}
 
-A measure is computed by the check from the graph outputs. `a` and `b` are a node or a band port (`dwt.d1`). Instead of `b` you may give `ref`: then the reference is the same node of the reference solution run on the same input.
+A measure is computed by the check from the graph outputs. The numeric fields `freq` and `delay` may be text with variant parameters: `freq = "{{f}}"`, `freq = "2 * {{f}}"`. `a` and `b` are a node or a band port (`dwt.d1`). Instead of `b` you may give `ref`: then the reference is the same node of the reference solution run on the same input.
 
 | Kind | What it computes |
 |---|---|

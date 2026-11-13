@@ -1,0 +1,8 @@
+kind = "answer"
+open = "resample"
+theory = ["multirate-rational"]
+
+[answer]
+type = "vector"
+expected = "160 147"
+tol = 0

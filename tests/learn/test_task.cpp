@@ -141,6 +141,14 @@ TEST_CASE("errors name the file and the line", "[learn][task]") {
     }
 }
 
+TEST_CASE("a measure frequency may be a text with placeholders", "[learn][task]") {
+    auto f = mini();
+    replace(f, "01-basics/02-double/task.toml", "kind = \"count\"\nblock = \"add\"", "kind = \"tone_db\"\na = \"y\"\nfreq = \"{{x}}\"");
+    auto c = load_course(f);
+    REQUIRE(c.has_value());
+    CHECK(c->find("1.2")->measures[1].freq_text == "{{x}}");
+}
+
 TEST_CASE("tasks are found by book section", "[learn][task]") {
     auto c = load_course(mini());
     REQUIRE(c.has_value());

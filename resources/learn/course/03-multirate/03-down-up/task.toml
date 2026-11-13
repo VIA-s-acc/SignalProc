@@ -1,0 +1,20 @@
+kind = "answer"
+open = "resample"
+theory = ["multirate-down-up", "conv-pywt"]
+
+[[param]]
+name = "x"
+kind = "ints"
+count = 8
+min = -9
+max = 9
+
+[[measure]]
+name = "y"
+kind = "samples"
+a = "u"
+
+[answer]
+type = "vector"
+expected = "y"
+tol = 0

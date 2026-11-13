@@ -1,0 +1,27 @@
+kind = "answer"
+open = "pipeline"
+theory = ["toeplitz-circulant", "toeplitz-convolution"]
+
+[[param]]
+name = "x"
+kind = "ints"
+count = 4
+min = -5
+max = 5
+
+[[param]]
+name = "h"
+kind = "ints"
+count = 3
+min = -3
+max = 3
+
+[[measure]]
+name = "y"
+kind = "samples"
+a = "y"
+
+[answer]
+type = "vector"
+expected = "y"
+tol = 0

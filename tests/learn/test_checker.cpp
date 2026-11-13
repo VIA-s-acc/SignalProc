@@ -175,3 +175,16 @@ TEST_CASE("a check over the time limit reports a timeout", "[learn][checker]") {
     CHECK(again->error->find("30") == std::string::npos);
     CHECK(again->error->find("0.01") != std::string::npos);
 }
+
+TEST_CASE("measure fields take variant parameters", "[learn][checker]") {
+    Measure m{.name = "t", .kind = "tone_db", .a = "y", .delay = "{{d}}", .freq_text = "{{f}} * 2"};
+    const ParamValues params{{"f", "250"}, {"d", "3"}};
+    const auto r = resolved_measure(m, params);
+    REQUIRE(r.has_value());
+    CHECK(r->freq == 500);
+    CHECK(r->delay == "3");
+    m.freq_text = "{{nope}}";
+    CHECK_FALSE(resolved_measure(m, params).has_value());
+    Measure plain{.name = "t", .kind = "tone_db", .a = "y", .freq = 440};
+    CHECK(resolved_measure(plain, params)->freq == 440);
+}

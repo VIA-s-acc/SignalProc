@@ -1,0 +1,31 @@
+kind = "graph"
+open = "pipeline"
+theory = ["freq-band-metrics", "cls-window-method", "freq-magnitude"]
+locked = ["g1", "g2", "x"]
+
+[[param]]
+name = "a2"
+kind = "real"
+min = 1
+max = 4
+decimals = 1
+
+[[measure]]
+name = "pass"
+kind = "gain_db"
+a = "y"
+b = "x"
+freq = 500
+
+[[measure]]
+name = "stop"
+kind = "gain_db"
+a = "y"
+b = "x"
+freq = 3000
+
+[[goal]]
+when = "pass >= -1"
+
+[[goal]]
+when = "stop <= -40"

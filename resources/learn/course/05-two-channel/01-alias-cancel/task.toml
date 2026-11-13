@@ -1,0 +1,13 @@
+kind = "answer"
+open = "tutorial"
+theory = ["fb-distortion-alias", "fb-alias-cancellation", "two-channel"]
+
+[answer]
+type = "choice"
+expected = "1"
+options = [
+  "F0(z) = H1(-z), F1(z) = -H0(-z)",
+  "F0(z) = H0(-z), F1(z) = -H1(-z)",
+  "F0(z) = H1(-z), F1(z) = H0(-z)",
+  "F0(z) = H1(z), F1(z) = -H0(z)",
+]

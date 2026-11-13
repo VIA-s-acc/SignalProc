@@ -1,0 +1,8 @@
+kind = "answer"
+open = "filters"
+theory = ["freq-zero-pole", "lti-z-dtft"]
+
+[answer]
+type = "choice"
+expected = "z = -1"
+options = ["z = -1", "z = 1", "z = 0", "z = j", "z = 1/2"]

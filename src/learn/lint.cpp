@@ -85,6 +85,7 @@ std::vector<LintIssue> lint_task(const Task& t, std::span<const int> variants) {
     for (const auto& id : t.theory)
         if (!theory::find_section(id) && !theory::find_card(id)) out.push_back({t.id, say("learn.lint.no_section", fmt::arg("id", id))});
     for (const auto* text : {&t.ru, &t.en}) {
+        if (!placeholders(text->title).empty()) out.push_back({t.id, say("learn.lint.title_placeholder")});
         if (text->title.empty() || text->statement.empty() || text->solution.empty() || text->hints.empty())
             out.push_back({t.id, say("learn.lint.text_parts")});
         for (const auto& ref : theory::unresolved_refs(all_text(*text))) out.push_back({t.id, say("learn.lint.no_section", fmt::arg("id", ref))});

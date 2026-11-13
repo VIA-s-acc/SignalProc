@@ -21,6 +21,7 @@ struct Measure {
     std::string delay = "0";
     std::size_t trim = 0;
     double freq = 0;
+    std::string freq_text = {};
 };
 
 struct Through {

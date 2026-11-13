@@ -1,0 +1,8 @@
+kind = "answer"
+open = "designer"
+theory = ["fb-p0-factorisations", "fb-spectral-factorisation"]
+
+[answer]
+type = "integer"
+expected = "20"
+tol = 0

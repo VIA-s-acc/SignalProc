@@ -36,6 +36,8 @@ TEST_CASE("lint finds a pre-solved start, a passing cheat and a bad section", "[
     auto& toml = files->at("01-basics/01-sum/task.toml");
     toml.replace(toml.find("lti-convolution"), 15, "no-such-section");
     files->at("02-more/01-delayed/ru.md") += "\nСм. {#nowhere}.\n";
+    auto& title = files->at("02-more/02-bank/en.md");
+    title.replace(title.find("# Bank"), 6, "# Bank {{x}}");
     auto course = load_course(*files);
     REQUIRE(course.has_value());
     const auto text = joined(lint_course(*course, std::vector<int>{1}));
@@ -43,4 +45,5 @@ TEST_CASE("lint finds a pre-solved start, a passing cheat and a bad section", "[
     CHECK(text.find("hardcoded.sig") != std::string::npos);
     CHECK(text.find("no-such-section") != std::string::npos);
     CHECK(text.find("nowhere") != std::string::npos);
+    CHECK(text.find("2.2") != std::string::npos);
 }

@@ -1,0 +1,26 @@
+kind = "answer"
+open = "signal"
+theory = ["multirate-down-up", "multirate-anti-alias"]
+
+[[param]]
+name = "f0"
+kind = "int"
+min = 3200
+max = 4000
+
+[[param]]
+name = "m"
+kind = "int"
+min = 2
+max = 3
+
+[[measure]]
+name = "alias"
+kind = "field"
+a = "pk"
+field = "peak1_hz"
+
+[answer]
+type = "number"
+expected = "alias"
+tol = 1
