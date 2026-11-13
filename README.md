@@ -1,319 +1,50 @@
+**English** · [Русский](README.ru.md)
+
 # Signals
 
-Банки фильтров, вейвлеты и матрицы Тёплица на C++ с интерактивным терминальным интерфейсом. В нём видны характеристики фильтров, схема банка, каждая полоса разложения, ход обработки и теория каждого метода.
+Filter banks, wavelets and Toeplitz matrices in C++ with an interactive terminal interface. It shows filter responses, the bank's block diagram, every band of a decomposition, each processing step and the theory behind each method, and 66 auto-checked tasks lead from convolution to denoising.
 
-Проект переписывает старую Python-библиотеку `SignalProc` (2023). Её код сохранён в `legacy/python/` для сравнения.
+![The Signals tabs one by one](docs/images/en/tour.svg)
 
-## Состояние
+The project rewrites an older Python library, `SignalProc` (2023); its code is kept in `legacy/python/` for comparison.
 
-Готовы M0–M6, M7 (кроме пиксельных формул), M8a, M8-ops, M8b, M8.5, M8c и M9. Это ядро банков фильтров, звук и CLI, TUI со всеми девятью вкладками, теория в интерфейсе, конвейеры `.sig` с редактором и полнота v1: SWT, MODWT и MRA, пакеты с лучшим базисом, CWT, лифтинг 5/3 и 9/7 (целочисленный тоже), классические БИХ и КИХ на уровне `scipy.signal`, спектры φ/ψ, «Блок-схема» банка, «Ресемплинг», операции анализа, матрицы «Тёплиц + Ганкель» и Левинсон–Дурбин. Есть адаптивные и статистические фильтры (LMS, Винер, спектральное вычитание, деконволюция), 136 блоков конвейера с пояснением каждого параметра и карточкой теории, растяжение во времени, сдвиг высоты и вид «Спектр ▸ Тон и время». Конвейер многоканальный, любой график выгружается в SVG и CSV, параметр узла перебирается серией прогонов, читаются FLAC и MP3, а тема, вкладка и недавние файлы сохраняются между запусками. Интерфейс и теория — на русском и английском. Есть DTCWT (двухдеревное комплексное DWT Кингсбери) и синхросжатие CWT (M8c). Учебный путь (M9): 66 заданий с автопроверкой в программе и в `signals learn`. Дальше — лёгкая установка и мост в Python.
+## Install
 
-## Скачать
-
-Готовые сборки — на странице [Releases](https://github.com/VIA-s-acc/SignalProc/releases), по выпуску на версию. Версии идут за этапами: M3 — 0.3.0, M4 и M5a — 0.4.0, M5b, M6 и M7 — 0.5.0, M7e и M8 без M8c — 0.6.0, M8.5 и M8c — 0.7.0, M9 — 0.8.0.
-
-| Система | Архив |
-|---|---|
-| macOS 14 и новее, Apple Silicon | `signals-vX.Y.Z-macos-arm64.tar.gz` |
-| Linux x86_64, glibc 2.28 и новее (Ubuntu 20.04, Debian 10, RHEL 8) | `signals-vX.Y.Z-linux-x86_64.tar.gz` |
-| Windows 10 и 11, x86_64 | `signals-vX.Y.Z-windows-x86_64.zip` |
-
-В архиве — `signals` (на Windows `signals.exe`), `README.md` и `LICENSE`; контрольные суммы — в `SHA256SUMS`. Установка не нужна:
+macOS and Linux:
 
 ```bash
-tar -xzf signals-v0.8.0-macos-arm64.tar.gz
-cd signals-v0.8.0-macos-arm64
-./signals check
+curl -fsSL https://raw.githubusercontent.com/VIA-s-acc/SignalProc/main/install.sh | sh
 ```
 
-**macOS.** Сборка не подписана, и Gatekeeper не запустит файл, скачанный браузером. Снимите карантин: `xattr -d com.apple.quarantine signals`.
+Windows, in PowerShell:
 
-**Windows.** Интерфейс лучше запускать в [Windows Terminal](https://aka.ms/terminal): старая консоль хуже показывает точки Брайля и цвет. Выбор из проверки терминала хранится в `%APPDATA%\signals\terminal.toml`.
+```powershell
+irm https://raw.githubusercontent.com/VIA-s-acc/SignalProc/main/install.ps1 | iex
+```
 
-## Команды
-
-Сообщения — на русском или английском: `--lang en` (или `--lang ru`) в любом месте команды, либо переменная окружения `SIGNALS_LANG=en`. Ключ `--json` есть у команд, которые печатают отчёт; `--help` у каждой команды перечисляет её параметры.
-
-| Команда | Что делает |
-|---|---|
-| `signals check` | самопроверка ядра: восстановление, ортогональность, Парсеваль, дополнительность мощности, матрицы |
-| `signals filter info <имя>` | коэффициенты h₀, h₁, f₀, f₁, задержка, нули в −1, гладкость |
-| `signals filter response <имя>` | АЧХ, ФЧХ, групповая задержка и метрики фильтра или эквивалентного фильтра полосы |
-| `signals design --p N` | все разбиения корней полуполосного P(z) и их классификация |
-| `signals info <файл>` | формат и статистика каналов: пик, RMS, DC, пик-фактор, отсчёты у края |
-| `signals gen <вид>` | тестовый сигнал: sine, sweep, impulse, step, noise, harmonics, am, fm, dj |
-| `signals resample <файл>` | сжатие ↓M или растяжение ↑M с фильтром Кайзера |
-| `signals dwt <файл>` | многоуровневое DWT: коэффициенты в JSON, полосы — в WAV с частотой fs/2^j |
-| `signals denoise <файл>` | шумоподавление вейвлет-порогом: правило `--rule` bayes, visu, sure или minimax, порог `--mode` soft, hard или garrote |
-| `signals run <файл.sig>` | запустить конвейер: этапы по узлам со временем, щупы, отчёты; `--set`, `-o`, `--probe-dir`, `--report` (отчёт Markdown с графиками щупов в SVG и CSV), `--values N` (сколько отсчётов щупов печатать), `--watch` (запускать заново при изменении графа и входных файлов), `--json` |
-| `signals sweep <файл.sig>` | серия прогонов: перебрать значения параметра (`--vary dwt.wavelet=haar,db4,sym8`, `--vary g.db=0:12:3`) и собрать показатели (`--measure chk.snr_db`, `--measure g:rms`); `--csv`, `--svg`, `--json` |
-| `signals graph <файл.sig>` | нарисовать граф конвейера текстом (`--ascii` — только ASCII) |
-| `signals blocks` | список блоков конвейера; `--markdown` — справочник с портами и параметрами |
-| `signals explain <блок>` | описание одного блока: порты, параметры с пояснениями и значениями, карточка теории |
-| `signals tui [файл]` | интерактивный интерфейс; `signals` без аргументов в терминале делает то же |
-
-Примеры:
+Homebrew, on macOS and Linux:
 
 ```bash
-signals info resources/samples/test.wav
-signals gen sweep --f0 20 --f1 20000 --log --rate 48000 --duration 2 -o sweep.wav
-signals resample sweep.wav --down 2 -o sweep_24k.wav
-signals dwt resources/samples/test.wav --wavelet db2 --levels 3 --channel 0 -o coeffs.json --bands-dir bands
-signals denoise noisy.wav -o clean.wav --wavelet sym8 --rule bayes --reference reference.wav
-signals filter response db2 --band d --level 2 --points 1024 --json
+brew install VIA-s-acc/signals/signals
 ```
 
-WAV читается во всех распространённых форматах: 8, 16, 24 и 32 бита, float32 и float64, A-law и μ-law, `WAVE_FORMAT_EXTENSIBLE`. FLAC и MP3 открываются там же, где WAV (вкладка «Сигнал», блок `wav`, все команды), формат определяется по содержимому файла. Пишется 24 бита с TPDF-дизерингом. Значения вне диапазона ограничиваются и считаются, а не заворачиваются. Каналы обрабатываются по отдельности.
+The script takes the build of the latest release, checks its checksum and installs into your home folder, without `sudo`: `~/.local/bin/signals` on macOS and Linux, `%LOCALAPPDATA%\Programs\signals` on Windows. It also installs the man page and completions for bash and fish, and prints the line to add to `~/.zshrc` for zsh. Running it again updates the program. To pick a version or a folder: `… | sh -s -- --version v0.8.0 --dir ~/bin`; on Windows, the variables `SIGNALS_VERSION` and `SIGNALS_INSTALL_DIR`.
 
-## Конвейеры
+### By hand
 
-Обработку можно собрать из блоков и сохранить в текстовом файле `.sig`. Пример — [examples/denoise.sig](examples/denoise.sig), шумоподавление `test.wav`:
+Builds are on the [Releases](https://github.com/VIA-s-acc/SignalProc/releases) page.
 
-```text
-pipeline "denoise" v1
-
-node src  = wav(path="../resources/samples/test.wav")
-node dwt  = dwt(wavelet=sym8, levels=0, ext=symmetric)
-node thr  = threshold(rule=bayes, mode=soft, levels=1..64, sigma=mad_d1)
-node idwt = idwt()
-node chk  = check(kind=snr, tol=0)
-node out  = wav_out(path="denoised.wav", bits=24, dither=none)
-
-src -> dwt -> thr -> idwt -> out
-src -> chk.ref
-idwt -> chk.in
-probe dwt.d1 as "d1"
-```
-
-- `node имя = блок(параметр=значение, …)` объявляет узел. Все блоки с портами, параметрами, значениями по умолчанию и диапазонами — в [docs/user/blocks.md](docs/user/blocks.md) (английский — [blocks.en.md](docs/user/blocks.en.md)); тот же список печатает `signals blocks`. Имена совпадают с карточками «Под капотом».
-- `a -> b -> c` соединяет узлы. Порт пишется, когда у блока несколько входов или выходов: `chk.ref`, `chk.in`, `ch.l` у `split`, полосы коэффициентов `dwt.d3`, `dwt.a`. `idwt()` без параметров берёт вейвлет и края у своих коэффициентов.
-- `probe узел.порт as "имя"` — щуп: копия значения на проводе.
-- Относительные пути считаются от каталога самого `.sig`.
-
-```bash
-signals run examples/denoise.sig -o clean.wav
-signals run examples/denoise.sig --set thr.mode=hard --probe-dir probes --json
-signals graph examples/denoise.sig
-```
-
-Готовые примеры — в [examples/](examples/): в «Конвейере» их открывает `O`. Формат файла целиком — в [docs/user/sig-format.md](docs/user/sig-format.md) (он же глава «Учебника»); расширение для VS Code с подсветкой и подсказками лежит в [editors/vscode](editors/vscode).
-
-Перед запуском граф проверяется: циклы, типы портов, не подключённые входы, неизвестные блоки и параметры, два провода в один вход. Ошибка называет строку `.sig` и подсказывает ближайшее имя; ничего не выполняется. Независимые ветви идут параллельно, `Ctrl+C` прерывает запуск, в том числе внутри долгого блока: файл `wav_out` не появляется и временных файлов не остаётся. Код выхода — 0, 1 при ошибке графа или блока, 3, если проверка `check` не прошла, 130 при прерывании.
-
-## Учебный путь
-
-Задания с автопроверкой: 66 заданий в 12 главах, от свёртки до шумоподавления и классических фильтров — собрать банк Хаара из блоков, найти задержку банка db2, сжать сигнал до 10 % коэффициентов, подобрать правило порога. Программа сама прогоняет граф, проверяет цели и подаёт в граф скрытые входы, поэтому подогнать ответ не выйдет. У каждого студента свой вариант чисел, а в конце — отчёт для преподавателя.
-
-```bash
-signals learn                      # главы и задания
-signals learn start 4.3            # заготовка 4.3.sig
-signals learn check 4.3            # проверить граф
-signals learn check 1.1 --answer "2 -3 0 7 1 -4"
-signals learn hint 4.3             # следующая подсказка
-signals learn report -o report.md
-```
-
-В интерфейсе задания на вкладке «Теория ▸ Задания»; текущее задание видно строкой на всех вкладках, `F2` проверяет его, `F3` открывает подсказку. Свой курс пишется в тех же файлах, что и встроенный, и проверяется командой `signals learn lint --course папка`. Подробности — в [docs/user/learn.md](docs/user/learn.md).
-
-## Интерфейс
-
-```bash
-signals tui resources/samples/test.wav
-signals tui --theme light
-```
-
-**Язык.** Интерфейс, учебник, карточки «Под капотом» и сценарий «Объяснения» есть на русском и английском. Переключение — в палитре команд `:` («Язык: English» / «Language: Russian», поиск находит и по слову `language`); выбор сохраняется в `~/.config/signals/terminal.toml` и действует при следующих запусках. При запуске его можно задать и явно: `signals tui --lang en` или `SIGNALS_LANG=en signals`. Числа в английском режиме пишутся с точкой и запятыми в тысячах (`44,100 Hz`), единицы — латиницей.
-
-Нужен терминал не меньше 80×24; раскладка с холста рассчитана на 150×44 и растягивается до 250×70. На 80×24 экран показывает одну панель за раз, `Tab` листает панели. Мышь передаётся в режиме SGR (1006).
-
-**Вкладки.** Цифры `1`–`9` или клик по вкладке. Готовы:
-- «1 Сигнал» и «3 Фильтры»;
-- «2 Спектр» ▸ «Спектрограмма» — STFT, спектр выделения, пики, f₀ и гармоники, измерение Δt×Δf, складывание ↓M; ▸ «Ресемплинг» — ↓M, ↑L и L/M крупным планом: куда сложится спектр и тон, фильтр АА и копии наложения; ▸ «Тон и время» — растяжение без смены высоты, сдвиг высоты и скорость с дорожками основного тона до и после и прослушиванием (вложенные вкладки «Спектра» переключаются `{ }`, потому что `[ ]` — пол спектрограммы);
-- «7 Обработка» — шумоподавление фрагмента с эталоном без шума: Bayes, Visu, SURE, Minimax, soft/hard, λ ×, кривая сжатия, правка полос с T(ω) и наложением, прослушивание A/B/X;
-- «4 Банк» ▸ «Конструктор» и «Блок-схема» (щуп на любом проводе, `P` — полифаза), «5 Разложение» (DWT, SWT, MODWT или комплексное DTCWT — клавиша `t`; виды «Пакеты», «Скалограмма» и «Синхросжатие» — клавиша `v`), «6 Матрица»;
-- «8 Конвейер» — редактор графов `.sig`;
-- «9 Теория» ▸ «Объяснение», «Под капотом», «Учебник».
-
-**«8 Конвейер».** Граф раскладывается сам, слоями слева направо; у каждого узла состояние, главные параметры, время и память последнего запуска, самый долгий узел подсвечен. Порты: `○` вход, `◉` выход, `◆` щуп, пунктирная рамка — обход.
-
-| Клавиша или мышь | Действие |
+| System | Archive |
 |---|---|
-| стрелки, клик | выбрать узел; `e` — провода выбранного узла по очереди |
-| перетащить `◉` на `○` | соединить; несовместимые типы и циклы отклоняются с причиной |
-| `a` | добавить блок (поиск по названию на текущем языке и по id); если выбран провод — блок встаёт в него |
-| `Enter` | параметры узла в инспекторе: `↑↓` — параметр, `←→` — значение из списка, `Enter` — ввести значение |
-| `M` / `p` / `Del` | обход блока / щуп / удалить узел или провод |
-| `Ctrl+Z` / `Ctrl+Y` | отмена и повтор (по снимкам графа) |
-| `r` / `Esc` | запуск / прервать |
-| `A` / `B` / `Space` | слушать вход графа / щуп / остановить |
-| `v` | щуп во времени, спектром или числами: таблица `n`, `ch0`, `ch1`…, листается `↑↓`, `PgUp/PgDn` и колесом |
-| `k` | каналы щупа наложением или стопкой |
-| `n` | имя щупа (как `probe … as "имя"` в `.sig`); пустое имя — имя по умолчанию |
-| `y`, `x` | скопировать отсчёты щупа в буфер обмена (таблица через табуляцию) или сохранить щуп в `.csv` или `.wav` |
-| `w` | сравнить щуп с другим: второй щуп поверх, max \|a−b\|, СКО разности, ОСШ, корреляция и сдвиг b |
-| `+` `−`, `E` | в таблице чисел щупа: больше или меньше знаков, запись со степенью 10 |
-| `D` | копия выбранного узла с теми же параметрами |
-| `S` | серия прогонов по параметру выбранного узла: значения, показатель, график или таблица |
-| `O` | готовые примеры графов |
-| `c` `C` | соединить без мыши: `c` — выход, стрелки, `Enter`; `C` — список входов |
-| `Ctrl+S` / `o` | сохранить / открыть `.sig` |
-| `L`, перетаскивание пустого места | вернуть вид / сдвинуть вид |
-| `F1` | карточка блока выбранного узла в «Под капотом» |
+| macOS 14 or newer, Apple Silicon and Intel | `signals-vX.Y.Z-macos-universal.tar.gz` (up to 0.8.0: `macos-arm64`, Apple Silicon only) |
+| Linux x86_64, glibc 2.28 or newer (Ubuntu 20.04, Debian 10, RHEL 8) | `signals-vX.Y.Z-linux-x86_64.tar.gz` |
+| Windows 10 and 11, x86_64 | `signals-vX.Y.Z-windows-x86_64.zip` |
 
-Панель «Запуск» показывает этапы по узлам и ту же команду для CLI с правками после последнего сохранения (`signals run файл.sig --set узел.параметр=значение`).
+An archive holds `signals` (`signals.exe` on Windows), the READMEs and the licence, and from 0.9.0 also `man/signals.1` and `completions/`. Checksums are in `SHA256SUMS`. The macOS build is not signed: Gatekeeper refuses a file downloaded by a browser until the quarantine flag is removed with `xattr -d com.apple.quarantine signals`. The script and Homebrew take care of that.
 
-Вложенные вкладки переключаются клавишами `[` `]` (у «Спектра» — `{` `}`) или кликом справа в строке вкладок.
+### Build from source
 
-**Везде:**
-
-| Клавиша | Что делает |
-|---|---|
-| `:` или `Ctrl+P` | палитра команд: вкладки, открыть звук, недавние файлы и графы, тема, глифы, цвет, проверка терминала, ресурсы |
-| `m` | контекстное меню с клавиатуры, то же, что правый клик |
-| `?` | все клавиши текущего экрана, с поиском |
-| `R` или клик по строке состояния | панель «Ресурсы»: CPU по ядрам, память процесса, буферы, очередь задач |
-| `F1` | теория того, что в фокусе: карточка блока с живыми числами («Под капотом») или раздел книги («Учебник»); в палитре — «Теория для фокуса» |
-| `z`, `Esc` | панель во весь экран и обратно, на всех экранах |
-| колесо над графиком, перетаскивание | масштаб по оси под мышью и сдвиг увеличенного участка; правый клик → «Сбросить масштаб» |
-| `'` | метки на всём кликабельном; буква метки нажимает его |
-| правый клик (в macOS ещё `Ctrl` + клик) | контекстное меню: курсоры, выделение, эталон, перенос корня |
-| `q` | выход; работающая задача прерывается |
-
-**«Сигнал».** Источник и статистика каналов, ход загрузки по этапам, журнал, осциллограмма L/R, спектр Уэлча, доли энергии полос db2.
-
-| Действие | Что делает |
-|---|---|
-| колесо над осциллограммой | масштаб по времени, точка под мышью остаётся на месте |
-| `Shift` + колесо | масштаб по амплитуде |
-| перетаскивание | сдвиг по времени или выделение; режим переключает `s` и чип «тащить: …» в заголовке |
-| `Ctrl` + перетаскивание | выделение в любом режиме, если терминал передаёт `Ctrl` (Warp и Terminal.app — нет) |
-| клик, `Shift` + клик | курсоры A и B |
-| `←` `→`, `Home` `End` | активный курсор на одну точку, к краям; `b` переключает стрелки между A и B |
-| `Space` | слушать: выделение или от курсора A до конца; по осциллограмме бежит позиция |
-| `o` | открыть WAV, FLAC или MP3 |
-| `Esc` | остановить звук, затем — прервать загрузку |
-
-**«Фильтры».** Библиотека (все 106 вейвлетов, эквивалентные фильтры полос, T(z) и A(z)), сравнение до пяти фильтров, АЧХ, ФЧХ, ГВЗ, импульсная характеристика, нули и полюсы, свойства и автоизмерения.
-
-| Действие | Что делает |
-|---|---|
-| `/`, текст, `Enter` | поиск в библиотеке и добавление в сравнение |
-| клик по имени в библиотеке | добавить; `t` или клик по `h₀ h₁ f₀ f₁` выбирает роль |
-| `Space`, `r`, `Del` | видимость, эталон, убрать фокусный фильтр; `↑` `↓` — фокус |
-| колесо, перетаскивание | масштаб и сдвиг по ω; отклик пересчитывается на видимом участке |
-| `Shift` + колесо | масштаб по оси Y: дБ, фаза, задержка |
-| клик, `Shift` + клик, `←` `→` | курсоры A и B; показания всех видимых трасс и разность |
-| `l`, `d`, `n` | лог ω, дБ или линейно, нормировка 0 дБ в максимуме |
-| перетаскивание ○ или × на z-плоскости | двигать нуль или полюс; сопряжённая пара движется вместе, вещественный корень — по оси; правится копия фильтра «правка · …» |
-| `Ctrl+Z` | отменить правку нулей и полюсов |
-| палитра «Фильтр из коэффициентов b, a…» | БИХ по числителю и знаменателю: нули, полюса, устойчивость, все графики |
-| палитра «Нули, полюса и усиление фильтра…» | ввести корни текстом: `-1`, `0.3±0.4i`, `0.9∠±0.25π` |
-
-**Проверка терминала.** При первом запуске открывается окно с образцами: точки Брайля, полублоки, восьмые доли, градиенты. Клавиши `1`–`4` выбирают глубину цвета, `u` и `a` — Unicode или ASCII, `s` сохраняет выбор в `~/.config/signals/terminal.toml`. Открыть снова — палитра, «Проверка терминала». `NO_COLOR` и `TERM=dumb` учитываются сами.
-
-**«Банк» ▸ «Конструктор».** Корни полуполосного P₀(z) на z-плоскости, разбиение на H₀ и F₀, результат с проверками, АЧХ, каскады φ и φ̃.
-
-| Действие | Что делает |
-|---|---|
-| клик по корню | перенести его группу (с сопряжённым) между H₀ и F₀ |
-| `←` `→` | нули в −1 между H₀ и F₀ |
-| `n` `N`, `p` `P` | следующее разбиение с учётом флажков, степень p |
-| пресеты, флажки | Добеши, макс. фаза, CDF, вырожденный; ЛФЧХ, ортогональный, только вейвлеты |
-| `c`, `x` | итерация каскада, обмен анализа и синтеза |
-| `Enter` | сохранить банк в `~/.config/signals/filters/*.flt`; он появится в «Фильтрах» → «Мои фильтры» |
-
-**«Разложение».** DWT сигнала с вкладки «Сигнал»: подполосы, MRA и плитки t–f, энергия по полосам, шумоподавление, сжатие, правка полос, прослушивание A/B.
-
-| Действие | Что делает |
-|---|---|
-| клик по ☑, `↑` `↓` + `Enter` | включить или выключить полосу в синтезе |
-| `v` | вид: подполосы, MRA, плитки t–f, пакеты, скалограмма, синхросжатие |
-| `t` | DWT, SWT, MODWT или DTCWT; у DTCWT фильтры выбираются клавишей `w` |
-| колесо, перетаскивание, клик | масштаб и сдвиг по времени, курсор |
-| `Space`, `a` `b` `x` `d` | слушать Σ☑; исходный, Σ☑, разность, выбранная полоса — без сдвига позиции |
-| `Enter` в «Шумоподавлении», `u` | применить порог, сжатие и усиление; отменить |
-
-**«Матрица».** Тёплицевы матрицы банка: анализ [L; B] и перемежающийся порядок, многоуровневая W, T(h), C(h), S·A; проверки AᵀA = I, S·A = I, сингулярные числа.
-
-| Действие | Что делает |
-|---|---|
-| `↑` `↓`, `Space` | строка и её скалярное произведение с x; анимация сдвига |
-| `b`, `o`, `t`, `n` `N` | края, порядок строк, AᵀA, размер N |
-| `c` | числа в ячейках, когда помещаются |
-| клик по ячейке | значение элемента |
-
-**«Теория» ▸ «Объяснение».** Двенадцать шагов банка Хаара на x = [4, 6, 10, 12, 8, 6, 5, 5]: схема с подсветкой, числа в узлах, инвариант шага с проверкой, матрица A₁, |H₀| и |H₁|, P₀ и наложение.
-
-| Действие | Что делает |
-|---|---|
-| `←` `→`, клик по шагу | шаг |
-| `Space` | автопоказ |
-| `w`, `p`, `f` | банк (Хаар, db2, 5/3, «мой»), фаза ↓2, точные дроби |
-| `e` `E` | испортить f₁ на 1 % и вернуть |
-| `Enter` | открыть вид шага: «Матрица», «Фильтры», «Разложение» |
-
-**«Теория» ▸ «Под капотом».** Карточка блока: назначение, формулы, алгоритм и стоимость, те же формулы с числами открытого файла, проверки с текущими ошибками (✓ или ✗ с порогом, «— нет данных», если чисел нет), связи с разделами книги и кнопки перехода к экранам, код ключевой функции и путь к исходнику. Исходники встроены в программу: `o` показывает файл прямо в «Теории» с подсветкой, прокрученным к нужной функции; щелчок по имени ведёт к определению, `#include` открывает подключённый файл, `/` ищет текст в файле (без учёта регистра, `n` и `N` — следующее и предыдущее совпадение), а `e` или кнопка открывают файл в редакторе, если рядом есть репозиторий (редактор задаётся командой палитры «Редактор для исходников…»). Карточку открывает `F1`: числа идут за экраном-источником, а когда его нет — остаётся снимок. Карточки лежат в `resources/theory/blocks/*.md`; у каждого блока конвейера есть карточка или раздел книги, а карточка перечисляет свои блоки со ссылкой в «Конвейер». Тест сборки проверяет, что у каждого блока есть теория, все формулы разбираются, ссылки ведут в книгу и код совпадает с исходником.
-
-**«Теория» ▸ «Учебник».** Книга `docs/02-theory.md` по разделам: оглавление, поиск по заголовкам и тексту (регистр, «ё» и символы вроде «P₀» не мешают), ссылки «§» и навигация «← ↑ →» под каждым разделом. Формулы рисуются своим рендерером подмножества LaTeX в Unicode-2D (дроби, корни, пределы сумм, растущие скобки, матрицы) или в ASCII.
-
-| Действие | Что делает |
-|---|---|
-| `/` | поиск; `↑` `↓` по результатам, `Enter` открывает |
-| `Tab` `Shift+Tab`, `Enter` | ссылки и переход по ссылке |
-| `b` `f` | назад и вперёд по истории |
-| `↑` `↓` `PgUp` `PgDn`, колесо; `←` `→` | прокрутка; сдвиг широких формул |
-| `g` | формулы в Unicode-2D или в ASCII |
-| `n`, `o`, `e`, `Esc` | в карточке: свернуть числа; показать исходник внутри программы; открыть его в `$VISUAL`/`$EDITOR`; вернуться (со страницы кода к карточке, с карточки к экрану-источнику) |
-| правый клик по формуле | «Копировать LaTeX» (OSC 52) |
-| `t` | на 80×24 — оглавление вместо текста |
-
-**Экспорт графиков.** Любой график программы сохраняется в SVG для отчёта, а его данные рядом в CSV: правый щелчок по графику, пункт «Экспорт графика в SVG и CSV…», или команда палитры «Экспорт графика…», которая перечисляет графики открытой вкладки. Это АЧХ, ФЧХ, ГВЗ и z-плоскость «Фильтров», форма волны и спектр «Сигнала», спектрограмма, спектр выделения, его пики и гармоники, каждая полоска подполос и MRA, энергия полос и узлов пакетов, скалограмма, синхросжатие и карта коэффициентов «Разложения», корни на z-плоскости «Конструктора», матрица, графики щупов «Конвейера» и остальные. У z-плоскости и столбиков энергии свой CSV: корни с модулем и углом, полосы с границами в герцах. Картинка выходит в светлой палитре, с подписями осей и легендой; короткие сигналы выгружаются точными отсчётами, а не огибающей. Путь к файлу появляется в нижней строке.
-
-## Документы
-
-| Файл | Что в нём |
-|---|---|
-| [docs/user/keys.md](docs/user/keys.md) | клавиши и мышь каждой вкладки и вложенной вкладки — генерируется из кода ([английский](docs/user/keys.en.md)) |
-| [docs/user/blocks.md](docs/user/blocks.md) | справочник блоков конвейера — генерируется из реестра ([английский](docs/user/blocks.en.md)) |
-| [examples/prak1](examples/prak1) | пример учебной работы: ноутбук «Практическое занятие 1» (свёртка, матрица Тёплица, АЧХ) и те же задания в Signals по шагам |
-| [docs/user/config.md](docs/user/config.md) | настройки и файлы программы: папка настроек, ключи `terminal.toml`, формат `.flt`, редактор, переменные окружения ([английский](docs/user/config.en.md)); она же глава «Учебника» |
-| [docs/user/learn.md](docs/user/learn.md) | учебный путь: как проходить задания, варианты, отчёт и формат своего курса ([английский](docs/user/learn.en.md)); она же глава «Учебника» |
-| [docs/user/sig-format.md](docs/user/sig-format.md) | формат файла конвейера `.sig`: строки, порты, значения, проверки, командная строка ([английский](docs/user/sig-format.en.md)) |
-| [docs/03-design.md](docs/03-design.md) | проектный документ: цели, архитектура, функции, интерфейс, этапы |
-| [docs/04-backlog.md](docs/04-backlog.md) | запас доработок после 0.7.0: 10 крупных, 50 средних и 100 небольших пунктов и предложение по версиям |
-| [docs/02-theory.md](docs/02-theory.md) | теория: банки фильтров, вейвлеты, матрицы Тёплица, частотные характеристики |
-| [docs/02-theory.en.md](docs/02-theory.en.md) | та же теория на английском — английский «Учебник» |
-| [docs/01-review-signalproc.md](docs/01-review-signalproc.md) | ревизия старого Python-кода |
-| [docs/research/](docs/research/) | исследования стека, функций и визуализации |
-| [docs/design/](docs/design/) | исходники экранов дизайна TUI |
-
-## Раскладка
-
-```
-src/            библиотеки C++: core (ядро), io (WAV, FLAC, MP3, генераторы), audio (воспроизведение), commands (CLI),
-                pipeline (граф блоков и .sig), theory (теория, формулы, карточки), svg (экспорт графиков), i18n (словарь), tui (интерфейс)
-app/            исполняемый файл signals
-tests/          тесты; эталоны PyWavelets, scipy, scikit-image, dtcwt и ssqueezepy (tests/golden/); WAV-, FLAC- и MP3-фикстуры (tests/fixtures/)
-tools/          генераторы на Python: эталоны (gen_golden.py, gen_dtcwt.py, gen_sst.py), звуковые фикстуры, таблицы
-resources/      словари интерфейса, темы, карточки «Под капотом», пример test.wav
-examples/       готовые графы .sig и практикум prak1
-editors/vscode/ расширение VS Code для .sig
-bench/          бенчмарки
-legacy/python/  старый SignalProc
-docs/           документация
-```
-
-## Сборка
-
-```bash
-cmake --preset dev
-cmake --build --preset dev
-ctest --preset dev
-```
-
-Нужны CMake ≥ 3.28 и компилятор с C++23: Apple Clang 17, GCC 14 или MSVC из Visual Studio 2026.
-
-Сборка `dev` — отладочная, с AddressSanitizer и UBSan. Для работы и замеров берите `release`:
+You need CMake 3.28 or newer and a C++23 compiler: Apple Clang 17, GCC 14 or MSVC from Visual Studio 2026.
 
 ```bash
 cmake --preset release
@@ -321,8 +52,205 @@ cmake --build --preset release
 build/release/app/signals
 ```
 
-В `dev` на macOS при запуске появляется строка `malloc: nano zone abandoned due to inability to reserve vm space`: санитайзер занимает адресное пространство, и системный malloc переходит на обычную зону. Это безвредно; убрать строку можно запуском с `MallocNanoZone=0`. По той же причине в `dev` память процесса в «Ресурсах» растёт до ~250 МБ: санитайзер держит освобождённую память в карантине, чтобы ловить обращения к ней.
+## First steps
 
-## Лицензия
+`signals` in a terminal opens the interface. On the first start a start panel offers:
 
-MIT, см. [LICENSE](LICENSE).
+- **Example: denoising** — the Pipeline tab with a ready graph: a noisy Doppler signal cleaned with wavelets, the probes `noisy` and `clean` show before and after;
+- **Learning path: task 0.1** — the first auto-checked task;
+- **Open your own audio file** — WAV, FLAC or MP3 on the Signal tab.
+
+The palette (`:`) opens the panel again: Start panel. The terminal needs at least 80×24; the layout is designed for 150×44. The interface, the book and the help are in English and Russian: `signals --lang ru`, the variable `SIGNALS_LANG=ru` or the palette command Language: Russian.
+
+Without the interface:
+
+```bash
+signals check                         # self-check of the core
+signals filter info db4               # coefficients, delay, smoothness
+signals learn                         # chapters and tasks of the learning path
+signals run examples/denoise.sig      # run a processing graph
+```
+
+## Screens
+
+Digits `1`–`9` switch tabs, `[` `]` switch sub-tabs, `?` lists every key of the screen, `F1` opens the theory of whatever has focus. The keys of all screens are collected in [docs/user/keys.en.md](docs/user/keys.en.md).
+
+### Signal
+
+![The Signal tab](docs/images/en/signal.svg)
+
+Source and channel statistics, loading stages, an L/R waveform with cursors and selection, a Welch spectrum, energy shares of the db2 bands, playback.
+
+### Spectrum
+
+![Spectrogram](docs/images/en/spectrum.svg)
+
+STFT, the spectrum of a selection, peaks, fundamental and harmonics. Sub-tabs: Resampling — where the spectrum folds under ↓M, ↑L and L/M — and Tone and time — stretching without changing pitch, and pitch shifting.
+
+![Resampling](docs/images/en/resample.svg)
+
+![Tone and time](docs/images/en/tempo.svg)
+
+### Filters
+
+![The Filters tab](docs/images/en/filters.svg)
+
+All 106 PyWavelets wavelets, equivalent band filters, up to five filters compared: magnitude, phase, group delay, impulse response, and zeros and poles you can drag with the mouse.
+
+### Bank
+
+![Designer](docs/images/en/designer.svg)
+
+Designer splits the half-band P₀(z) into H₀ and F₀ by its roots and checks perfect reconstruction; Diagram shows the bank with a probe on any wire. Below, the key `n` steps through the factorizations.
+
+![Stepping through factorizations](docs/images/en/designer-pick.svg)
+
+![Diagram](docs/images/en/diagram.svg)
+
+### Decomposition
+
+![The Decomposition tab](docs/images/en/decomposition.svg)
+
+DWT, SWT, MODWT and DTCWT of the signal: subbands, MRA, time–frequency tiles, packets, scalogram and synchrosqueezing, denoising and band editing with playback.
+
+### Matrix
+
+![The Matrix tab](docs/images/en/matrix.svg)
+
+The bank's Toeplitz matrices, the multilevel W, checks of AᵀA = I and singular values.
+
+### Processing
+
+![The Processing tab](docs/images/en/processing.svg)
+
+Denoising a fragment against a clean reference: Bayes, Visu, SURE and Minimax rules, soft and hard thresholds, the shrinkage curve, A/B/X listening.
+
+### Pipeline
+
+![The Pipeline tab](docs/images/en/pipeline.svg)
+
+An editor of `.sig` graphs built from 136 blocks: the graph lays itself out, every node shows the time and memory of its last run, probes show a signal, a spectrum or numbers.
+
+![Running the example and switching probes](docs/images/en/pipeline-run.svg)
+
+### Theory
+
+![Explain](docs/images/en/explain.svg)
+
+Explain walks the Haar bank step by step with the numbers in every node. Under the hood has a card for every block: formulas, the same formulas with the numbers of the open file, and the code of the key function. Tutorial is the book, with sections, search and formulas.
+
+![Under the hood](docs/images/en/under_the_hood.svg)
+
+![Tutorial](docs/images/en/tutorial.svg)
+
+### Tasks
+
+![The Tasks tab](docs/images/en/learn.svg)
+
+The learning path: 66 tasks in 12 chapters, each checked by the program itself. `F2` checks the current task from any tab, `F3` opens a hint.
+
+![Checking an answer](docs/images/en/learn-check.svg)
+
+## Commands
+
+Messages are in English or Russian: `--lang ru` anywhere in a command, or `SIGNALS_LANG=ru`. Commands that print a report accept `--json`; `--help` on every command lists its options.
+
+| Command | What it does |
+|---|---|
+| `signals check` | self-check of the core: reconstruction, orthogonality, Parseval, power complementarity, matrices |
+| `signals filter info <name>` | coefficients h₀, h₁, f₀, f₁, delay, zeros at −1, smoothness |
+| `signals filter response <name>` | magnitude, phase, group delay and metrics of a filter or a band's equivalent filter |
+| `signals design --p N` | every factorization of the half-band P(z) and its class |
+| `signals info <file>` | format and channel statistics |
+| `signals gen <kind>` | a test signal: sine, sweep, impulse, step, noise, harmonics, am, fm, dj |
+| `signals resample <file>` | ↓M or ↑M with a Kaiser filter |
+| `signals dwt <file>` | multilevel DWT: coefficients as JSON, bands as WAV |
+| `signals denoise <file>` | wavelet threshold denoising |
+| `signals run <file.sig>` | run a pipeline; `--set`, `-o`, `--probe-dir`, `--report`, `--values N`, `--watch`, `--json` |
+| `signals sweep <file.sig>` | a series of runs over a node parameter |
+| `signals graph <file.sig>` | draw the graph as text |
+| `signals blocks`, `signals explain <block>` | the pipeline block reference, one block in detail |
+| `signals learn …` | the learning path: `list`, `show`, `start`, `check`, `hint`, `solution`, `variant`, `report`, `lint` |
+| `signals completions bash\|zsh\|fish` | the completion script for a shell |
+| `signals man` | the man page in roff |
+| `signals tui [file]` | the interface; `signals` with no arguments in a terminal does the same |
+
+## Pipelines
+
+Processing is assembled from blocks and saved as a text `.sig` file. The example is [examples/first_steps.sig](examples/first_steps.sig), the one the start panel opens:
+
+```text
+pipeline "first_steps" v1
+
+node x       = gen(kind=doppler, rate=8000, duration=0.25)
+node noisy   = add_noise(color=white, snr_db=10, seed=1)
+node dwt     = dwt(wavelet=sym8, levels=0, ext=symmetric)
+node thr     = threshold(rule=bayes, mode=soft, levels=1..64, sigma=mad_d1)
+node idwt    = idwt()
+node chk_in  = check(kind=snr, tol=0)
+node chk_out = check(kind=snr, tol=0)
+
+x -> noisy -> dwt -> thr -> idwt
+x -> chk_in.ref
+noisy -> chk_in.in
+x -> chk_out.ref
+idwt -> chk_out.in
+probe noisy as "noisy"
+probe idwt as "clean"
+```
+
+`signals run examples/first_steps.sig` prints the SNR before and after: 10 and 19 dB. The full format is in [docs/user/sig-format.en.md](docs/user/sig-format.en.md), every block with its ports and parameters in [docs/user/blocks.en.md](docs/user/blocks.en.md), more examples in [examples/](examples/). A VS Code extension with highlighting and completion is in [editors/vscode](editors/vscode).
+
+## Learning path
+
+Auto-checked tasks: build a Haar bank from blocks, find the delay of the db2 bank, compress a signal to 10 % of its coefficients, pick a threshold rule. The program runs the graph itself, checks the goals and feeds the graph hidden inputs, so an answer cannot be fitted by hand. Every student gets their own variant of the numbers, and a report for the teacher at the end.
+
+```bash
+signals learn start 4.3            # starter graph 4.3.sig
+signals learn check 4.3            # check the graph
+signals learn check 1.1 --answer "2 -3 0 7 1 -4"
+signals learn report -o report.md
+```
+
+A course of your own uses the same files as the built-in one and is checked with `signals learn lint --course folder`. Details are in [docs/user/learn.en.md](docs/user/learn.en.md).
+
+## Documentation
+
+| File | What is in it |
+|---|---|
+| [docs/02-theory.en.md](docs/02-theory.en.md) | the book: filter banks, wavelets, Toeplitz matrices, frequency responses; the same book is in the program |
+| [docs/user/keys.en.md](docs/user/keys.en.md) | keys and mouse of every tab, generated from the code |
+| [docs/user/blocks.en.md](docs/user/blocks.en.md) | the pipeline block reference, generated from the registry |
+| [docs/user/sig-format.en.md](docs/user/sig-format.en.md) | the `.sig` pipeline file format |
+| [docs/user/learn.en.md](docs/user/learn.en.md) | the learning path: tasks, variants, report, your own course |
+| [docs/user/config.en.md](docs/user/config.en.md) | the settings folder, program files, environment variables |
+| [examples/prak1](examples/prak1) | a sample lab: a notebook and the same tasks done in Signals (in Russian) |
+| [docs/03-design.md](docs/03-design.md) | the design document: goals, architecture, milestones (in Russian) |
+| [docs/04-backlog.md](docs/04-backlog.md) | the backlog and a proposal for versions (in Russian) |
+
+## Status
+
+Milestones M0–M10 are done (M7 without pixel formulas): the filter bank core, audio and the command line, the interface with all nine tabs, theory inside the interface, `.sig` pipelines, adaptive filters, pitch and time, synchrosqueezing and DTCWT, the learning path and the one-command install. The core matches PyWavelets on all 106 wavelets and 9 boundary modes; the classic filters match scipy. Next is a bridge to Python: export to `.npy` and a pywt/scipy script generated from a `.sig` graph. Versions follow milestones: M9 is 0.8.0, M10 and M11 are 0.9.0; the history is in [CHANGELOG.md](CHANGELOG.md).
+
+## Development
+
+```bash
+cmake --preset dev
+cmake --build --preset dev
+ctest --preset dev
+```
+
+The `dev` build is a debug build with AddressSanitizer and UBSan; on macOS it prints a harmless `malloc: nano zone abandoned…` at start (`MallocNanoZone=0` silences it). The screen images in the READMEs are drawn by the program itself:
+
+```bash
+cmake --preset release -DSIGNALS_BUILD_GALLERY=ON
+cmake --build --preset release --target signals-gallery
+build/release/tools/gallery/signals-gallery --out docs/images/en --lang en
+build/release/tools/gallery/signals-gallery --out docs/images/ru --lang ru
+```
+
+The install scripts are tested by `packaging/test_install.sh` and `packaging/test_install.ps1`, the Homebrew formula by `packaging/homebrew/test_render.sh`.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
