@@ -55,6 +55,13 @@ struct RunView {
     bool structure_changed = false;
 };
 
+struct FinishedRun {
+    std::uint64_t number = 0;
+    std::optional<std::filesystem::path> path = {};
+    std::string sig = {};
+    bool ok = false;
+};
+
 class PipelineModel {
 public:
     PipelineModel();
@@ -92,6 +99,7 @@ public:
 
     Selection selection;
     std::function<void(const pipeline::NodeStatus&)> run_listener;
+    std::function<void(const FinishedRun&)> finish_listener;
 
 private:
     core::Result<void> commit(pipeline::PipelineDoc next);

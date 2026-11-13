@@ -317,7 +317,10 @@ void PipelineModel::run(JobRunner& jobs) {
     auto state = run_;
     auto cache = cache_;
     auto listener = run_listener;
-    const auto id = jobs.submit(tr("tui.pipeline.job"), {tr("tui.pipeline.job")}, [state, cache, graph, token, listener, number](JobContext& ctx) {
+    auto finish = finish_listener;
+    FinishedRun finished{number, path_, finish ? pipeline::write_sig(doc_) : std::string{}, false};
+    const auto id = jobs.submit(tr("tui.pipeline.job"), {tr("tui.pipeline.job")}, [state, cache, graph, token, listener, number, finish,
+                                                                                    finished](JobContext& ctx) mutable {
         ctx.begin(0);
         const auto started = std::chrono::steady_clock::now();
         const pipeline::RunEvents events{[&](const pipeline::NodeStatus& s) {
@@ -333,39 +336,42 @@ void PipelineModel::run(JobRunner& jobs) {
             if (listener) listener(s);
         }};
         auto result = pipeline::run_graph(*graph, *cache, events, *token);
-        std::lock_guard lock{state->mutex};
-        auto& v = state->view;
-        if (v.number != number) {
-            ctx.finish();
-            return;
-        }
-        v.running = false;
-        v.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
-        state->job.reset();
-        if (!result) {
-            if (result.error().code == core::Errc::cancelled) v.cancelled = true;
-            else v.error = result.error().message;
-            ctx.finish();
-            return;
-        }
-        for (const auto& s : result->nodes) v.nodes[s.id].status = s;
-        for (auto& [name, value] : result->probes) {
-            auto shared = std::make_shared<const pipeline::Value>(std::move(value));
-            if (name == kInputProbe) v.input = std::move(shared);
-            else v.probes.emplace(name, std::move(shared));
-        }
-        v.reports = std::move(result->reports);
-        if (v.seconds > 0.05) {
-            std::string slowest;
-            double longest = -1;
-            for (const auto& [name, n] : v.nodes)
-                if (n.status.state == pipeline::NodeState::done && n.status.wall_seconds > longest) {
-                    longest = n.status.wall_seconds;
-                    slowest = name;
+        finished.ok = result.has_value();
+        {
+            std::lock_guard lock{state->mutex};
+            auto& v = state->view;
+            if (v.number != number) {
+                ctx.finish();
+                return;
+            }
+            v.running = false;
+            v.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+            state->job.reset();
+            if (!result) {
+                if (result.error().code == core::Errc::cancelled) v.cancelled = true;
+                else v.error = result.error().message;
+            } else {
+                for (const auto& s : result->nodes) v.nodes[s.id].status = s;
+                for (auto& [name, value] : result->probes) {
+                    auto shared = std::make_shared<const pipeline::Value>(std::move(value));
+                    if (name == kInputProbe) v.input = std::move(shared);
+                    else v.probes.emplace(name, std::move(shared));
                 }
-            if (!slowest.empty()) v.nodes[slowest].bottleneck = true;
+                v.reports = std::move(result->reports);
+                if (v.seconds > 0.05) {
+                    std::string slowest;
+                    double longest = -1;
+                    for (const auto& [name, n] : v.nodes)
+                        if (n.status.state == pipeline::NodeState::done && n.status.wall_seconds > longest) {
+                            longest = n.status.wall_seconds;
+                            slowest = name;
+                        }
+                    if (!slowest.empty()) v.nodes[slowest].bottleneck = true;
+                }
+            }
         }
         ctx.finish();
+        if (finish) finish(finished);
     });
     std::lock_guard lock{run_->mutex};
     if (run_->view.running && run_->view.number == number) run_->job = id;
