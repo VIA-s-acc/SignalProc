@@ -1,0 +1,29 @@
+kind = "answer"
+open = "matrix"
+theory = ["fbm-boundary-modes", "fbm-periodization"]
+
+[[param]]
+name = "n"
+kind = "choice"
+choices = ["19", "21", "23", "25", "27", "29", "31"]
+
+[[param]]
+name = "p"
+kind = "choice"
+choices = ["2", "3", "4", "5"]
+
+[[measure]]
+name = "lp"
+kind = "length"
+a = "wp.a"
+
+[[measure]]
+name = "ls"
+kind = "length"
+a = "ws.a"
+
+[answer]
+type = "vector"
+expected = "({{n}}+1)/2 ({{n}}-1)/2+{{p}}"
+tol = 0
+verify = "lp == (n + 1) / 2 && ls == (n - 1) / 2 + p"

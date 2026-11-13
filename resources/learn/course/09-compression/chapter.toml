@@ -1,0 +1,3 @@
+title = "Сжатие"
+title_en = "Compression"
+theory = ["audio-compression"]

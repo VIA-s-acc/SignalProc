@@ -1,0 +1,20 @@
+kind = "answer"
+open = "pipeline"
+theory = ["audio-compression", "transforms"]
+
+[[param]]
+name = "b"
+kind = "int"
+min = 4
+max = 7
+
+[[measure]]
+name = "h"
+kind = "field"
+a = "st"
+field = "c0.d3.entropy"
+
+[answer]
+type = "number"
+expected = "h"
+tol = 0.005

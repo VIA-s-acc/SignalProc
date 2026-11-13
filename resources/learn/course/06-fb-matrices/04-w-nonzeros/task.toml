@@ -1,0 +1,24 @@
+kind = "answer"
+open = "matrix"
+theory = ["fbm-multilevel", "haar-multilevel", "haar-matrix"]
+
+[[param]]
+name = "n"
+kind = "choice"
+choices = ["8", "16"]
+
+[[param]]
+name = "j"
+kind = "choice"
+choices = ["2", "3"]
+
+[[measure]]
+name = "k"
+kind = "kept"
+a = "w"
+
+[answer]
+type = "integer"
+expected = "{{n}}*({{j}}+1)"
+tol = 0
+verify = "abs(k * n * n - n * (j + 1)) < 1e-9"

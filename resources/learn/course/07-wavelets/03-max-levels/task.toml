@@ -1,0 +1,18 @@
+kind = "answer"
+open = "decomposition"
+theory = ["fbm-boundary-modes", "dwt-mallat"]
+
+[[param]]
+name = "n"
+kind = "choice"
+choices = ["32", "48", "64", "100", "128", "200", "256", "500", "1000"]
+
+[[param]]
+name = "p"
+kind = "choice"
+choices = ["2", "3", "4", "5", "6", "7"]
+
+[answer]
+type = "integer"
+expected = "(({{n}}/(2*{{p}}-1))>=2)+(({{n}}/(2*{{p}}-1))>=4)+(({{n}}/(2*{{p}}-1))>=8)+(({{n}}/(2*{{p}}-1))>=16)+(({{n}}/(2*{{p}}-1))>=32)+(({{n}}/(2*{{p}}-1))>=64)+(({{n}}/(2*{{p}}-1))>=128)+(({{n}}/(2*{{p}}-1))>=256)"
+tol = 0

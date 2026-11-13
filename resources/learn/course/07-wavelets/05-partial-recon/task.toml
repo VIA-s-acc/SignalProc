@@ -1,0 +1,32 @@
+kind = "graph"
+theory = ["dwt-mallat", "wav-mra", "audio-subband-zeroing"]
+locked = ["x", "w"]
+
+[[param]]
+name = "wv"
+kind = "choice"
+choices = ["db3", "db4", "sym4", "coif1"]
+
+[[param]]
+name = "x"
+kind = "ints"
+count = 64
+min = -9
+max = 9
+
+[input]
+node = "x"
+hidden = 4
+
+[[measure]]
+name = "err"
+kind = "max_error"
+a = "y"
+ref = "y"
+delay = 0
+
+[[goal]]
+when = "err <= 1e-12"
+
+[[goal]]
+require = { dwt = 1, idwt = 1 }

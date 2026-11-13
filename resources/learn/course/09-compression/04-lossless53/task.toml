@@ -1,0 +1,41 @@
+kind = "graph"
+open = "pipeline"
+theory = ["lift-53", "lifting"]
+locked = ["x"]
+
+[[param]]
+name = "x"
+kind = "ints"
+count = 32
+min = -9
+max = 9
+
+[input]
+node = "x"
+hidden = 4
+
+[[measure]]
+name = "err"
+kind = "max_error"
+a = "y"
+b = "x"
+delay = 0
+
+[[measure]]
+name = "coef"
+kind = "max_error"
+a = "l.a"
+ref = "l.a"
+delay = 0
+
+[[goal]]
+when = "err == 0"
+
+[[goal]]
+when = "coef == 0"
+
+[[goal]]
+through = { from = "x", to = "y", block = "lift53" }
+
+[[goal]]
+through = { from = "x", to = "y", block = "ilift53" }

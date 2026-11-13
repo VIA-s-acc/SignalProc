@@ -1,0 +1,8 @@
+kind = "answer"
+open = "designer"
+theory = ["wav-eigenvector", "wav-cascade", "wav-refinement"]
+
+[answer]
+type = "number"
+expected = "(1+sqrt(3))/2"
+tol = 1e-6

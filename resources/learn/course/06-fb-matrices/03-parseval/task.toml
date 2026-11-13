@@ -1,0 +1,25 @@
+kind = "answer"
+open = "matrix"
+theory = ["fbm-periodization", "met-parseval", "fbm-infinite"]
+
+[[param]]
+name = "wv"
+kind = "choice"
+choices = ["db2", "db3", "db4", "sym4"]
+
+[[param]]
+name = "x"
+kind = "ints"
+count = 16
+min = -5
+max = 5
+
+[[measure]]
+name = "e"
+kind = "energy"
+a = "m"
+
+[answer]
+type = "number"
+expected = "e"
+tol = 1e-6

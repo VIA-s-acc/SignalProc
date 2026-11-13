@@ -1,0 +1,36 @@
+kind = "answer"
+open = "decomposition"
+theory = ["audio-band-energy", "met-parseval", "dwt-mallat"]
+
+[[param]]
+name = "f"
+kind = "choice"
+choices = ["4", "5", "6", "8"]
+
+[[param]]
+name = "snr"
+kind = "int"
+min = 0
+max = 12
+
+[[param]]
+name = "seed"
+kind = "int"
+min = 1
+max = 9
+
+[[param]]
+name = "wv"
+kind = "choice"
+choices = ["db2", "db4", "sym4"]
+
+[[measure]]
+name = "share"
+kind = "field"
+a = "be"
+field = "c0.a3"
+
+[answer]
+type = "number"
+expected = "share"
+tol = 0.001

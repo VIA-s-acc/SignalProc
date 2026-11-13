@@ -1,0 +1,42 @@
+kind = "answer"
+open = "pipeline"
+theory = ["audio-compression", "wavelets"]
+
+[[param]]
+name = "n"
+kind = "choice"
+choices = ["1024", "2048", "4096"]
+
+[[measure]]
+name = "snr_h"
+kind = "snr"
+a = "ih"
+b = "x"
+delay = 0
+
+[[measure]]
+name = "snr_d"
+kind = "snr"
+a = "id"
+b = "x"
+delay = 0
+
+[[measure]]
+name = "snr_s"
+kind = "snr"
+a = "is"
+b = "x"
+delay = 0
+
+[[measure]]
+name = "snr_b"
+kind = "snr"
+a = "ib"
+b = "x"
+delay = 0
+
+[answer]
+type = "choice"
+expected = "haar"
+options = ["haar", "db4", "sym8", "bior4.4"]
+verify = "snr_h >= snr_d && snr_h >= snr_s && snr_h >= snr_b"

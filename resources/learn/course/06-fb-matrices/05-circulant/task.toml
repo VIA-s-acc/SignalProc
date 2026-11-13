@@ -1,0 +1,42 @@
+kind = "answer"
+open = "matrix"
+theory = ["toeplitz-circulant", "fbm-periodization", "lti-frequency-response"]
+
+[[param]]
+name = "a"
+kind = "int"
+min = -4
+max = 4
+
+[[param]]
+name = "b"
+kind = "int"
+min = 1
+max = 4
+
+[[param]]
+name = "c"
+kind = "int"
+min = -4
+max = 4
+
+[[measure]]
+name = "l0"
+kind = "samples"
+a = "p0"
+
+[[measure]]
+name = "l2"
+kind = "samples"
+a = "p2"
+
+[[measure]]
+name = "e1"
+kind = "energy"
+a = "p1"
+
+[answer]
+type = "vector"
+expected = "abs(({{a}})+({{b}})+({{c}})) sqrt((({{a}})-({{c}}))^2+({{b}})^2) abs(({{a}})-({{b}})+({{c}})) sqrt((({{a}})-({{c}}))^2+({{b}})^2)"
+tol = 1e-6
+verify = "abs(abs(l0) - abs(a + b + c)) < 1e-9 && abs(abs(l2) - abs(a - b + c)) < 1e-9 && abs(e1 - 2 * ((a - c)^2 + b^2)) < 1e-9"
