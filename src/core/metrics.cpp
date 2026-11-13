@@ -1,5 +1,6 @@
 #include "core/metrics.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <vector>
@@ -94,6 +95,18 @@ std::vector<double> band_energy_fractions(const BasicCoeffs<double>& coeffs, std
     const double total = neumaier_sum(e);
     for (double& v : e) v = total > 0 ? v / total : 0.0;
     return e;
+}
+
+std::size_t best_shift(std::span<const double> reference, std::span<const double> test, std::size_t max_shift) {
+    const auto n = std::min(reference.size(), test.size());
+    const auto last = test.size() > reference.size() ? std::min(test.size() - reference.size(), max_shift) : 0;
+    double best = std::numeric_limits<double>::infinity();
+    std::size_t shift = 0;
+    for (std::size_t s = 0; n > 0 && s <= last; ++s) {
+        const double e = max_abs_error(reference.first(n), test.subspan(s, n));
+        if (e < best) best = e, shift = s;
+    }
+    return shift;
 }
 
 }  // namespace signals::core

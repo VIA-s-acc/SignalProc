@@ -2634,5 +2634,16 @@
   "learn.error.prefix": "directory {dir} must start with a number: 01-…",
   "learn.error.no_title": "the first line must be a \"# …\" title",
   "learn.error.no_answer": "an answer task needs an [answer] table",
-  "learn.error.goal_kind": "a goal needs exactly one of: when, through, forbid, require, probe"
+  "learn.error.goal_kind": "a goal needs exactly one of: when, through, forbid, require, probe",
+  "learn.error.no_output": "no output {endpoint}: the graph has no such node or port",
+  "learn.error.not_signal": "{endpoint}: a signal is needed here",
+  "learn.error.not_coeffs": "{endpoint}: decomposition coefficients are needed here",
+  "learn.error.no_field": "the report of node {endpoint} has no field {extra}",
+  "learn.error.no_param": "no parameter {endpoint}",
+  "learn.error.no_reference": "no reference run for {endpoint}",
+  "learn.error.bad_delay": "measure {endpoint}: delay \"{extra}\" must be a whole number or auto",
+  "learn.error.bad_measure": "measure {endpoint}: unknown kind {extra}",
+  "learn.check.locked_missing": "node {node} from the start graph was deleted or renamed",
+  "learn.check.locked_type": "node {node} must stay a {type} block",
+  "learn.check.locked_params": "the parameters of node {node} must not change"
 }

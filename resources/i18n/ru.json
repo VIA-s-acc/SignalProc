@@ -2634,5 +2634,16 @@
   "learn.error.prefix": "каталог {dir} должен начинаться с номера: 01-…",
   "learn.error.no_title": "нет заголовка «# …» в первой строке",
   "learn.error.no_answer": "у задания-ответа нет раздела [answer]",
-  "learn.error.goal_kind": "у цели должно быть ровно одно из: when, through, forbid, require, probe"
+  "learn.error.goal_kind": "у цели должно быть ровно одно из: when, through, forbid, require, probe",
+  "learn.error.no_output": "нет выхода {endpoint}: такого узла или порта в графе нет",
+  "learn.error.not_signal": "{endpoint}: здесь нужен сигнал",
+  "learn.error.not_coeffs": "{endpoint}: здесь нужны коэффициенты разложения",
+  "learn.error.no_field": "у отчёта узла {endpoint} нет поля {extra}",
+  "learn.error.no_param": "нет параметра {endpoint}",
+  "learn.error.no_reference": "нет эталонного прогона для {endpoint}",
+  "learn.error.bad_delay": "измерение {endpoint}: задержка «{extra}» — целое число или auto",
+  "learn.error.bad_measure": "измерение {endpoint}: неизвестный вид {extra}",
+  "learn.check.locked_missing": "узел {node} из заготовки удалён или переименован",
+  "learn.check.locked_type": "узел {node} должен остаться блоком {type}",
+  "learn.check.locked_params": "параметры узла {node} менять нельзя"
 }

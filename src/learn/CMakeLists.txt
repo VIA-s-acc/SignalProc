@@ -5,6 +5,8 @@ add_library(signals_learn STATIC
   variant.cpp
   task.cpp
   text.cpp
+  measure.cpp
+  structure.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/course.cpp
 )
 target_include_directories(signals_learn PUBLIC ${PROJECT_SOURCE_DIR}/src)
