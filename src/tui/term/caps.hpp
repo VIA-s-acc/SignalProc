@@ -7,14 +7,14 @@
 #include <string_view>
 
 #include "core/error.hpp"
+#include "io/config_dir.hpp"
 #include "tui/theme/theme.hpp"
 #include "i18n/i18n.hpp"
 
 namespace signals::tui {
 
-using EnvLookup = std::function<std::optional<std::string>(std::string_view)>;
-
-EnvLookup process_env();
+using EnvLookup = io::EnvLookup;
+using io::process_env;
 
 enum class GlyphMode { unicode, ascii };
 

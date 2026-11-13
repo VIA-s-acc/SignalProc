@@ -45,6 +45,7 @@ add_executable(signals_tests
   io/test_wav_write.cpp
   io/test_stats.cpp
   io/test_generators.cpp
+  io/test_config_dir.cpp
   cli/test_cli.cpp
   cli/test_cli_commands.cpp
   cli/test_cli_audio.cpp
