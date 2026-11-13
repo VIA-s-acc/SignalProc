@@ -10,6 +10,7 @@
 #include <ftxui/dom/node.hpp>
 #include <ftxui/screen/screen.hpp>
 
+#include "core/dtcwt.hpp"
 #include "core/design/families.hpp"
 #include "i18n/i18n.hpp"
 #include "tui/shell/plot_export.hpp"
@@ -99,6 +100,7 @@ std::optional<TheoryLink> DecompositionScreen::theory_link() const {
     if (view_ == View::packets && focus_ != denoise) return TheoryLink{TheoryLink::Kind::section, "wavelet-packets"};
     if (view_ == View::scalogram && focus_ != denoise) return TheoryLink{TheoryLink::Kind::section, "cwt"};
     if (view_ == View::sst && focus_ != denoise) return TheoryLink{TheoryLink::Kind::section, "synchrosqueezing"};
+    if (focus_ != denoise && model_->options().transform == Transform::dtcwt) return TheoryLink{TheoryLink::Kind::card, "dtcwt"};
     return TheoryLink{TheoryLink::Kind::card, focus_ == denoise ? "threshold" : "dwt"};
 }
 
@@ -109,6 +111,16 @@ void DecompositionScreen::publish(theory::LiveValues& v) const {
     v.source = tab_label() + " ▸ " + (s ? s->path.filename().string() : std::string{"—"});
     if (!d) return;
     const auto& o = d->options;
+    if (o.transform == Transform::dtcwt) {
+        v.source += " · DTCWT " + o.biort + " + " + o.qshift + " · J = " + std::to_string(o.levels);
+        v.set("block.levels", std::to_string(o.levels));
+        v.set("block.biort", o.biort);
+        v.set("block.qshift", o.qshift);
+        double peak = 0;
+        for (double x : d->x) peak = std::max(peak, std::abs(x));
+        v.set_check({"check.round_trip", o.biort + " + " + o.qshift, d->pr_error, 1e-12 * std::max(1.0, peak)});
+        return;
+    }
     v.source += " · " + o.wavelet + " · J = " + std::to_string(o.levels);
     const auto bank = core::wavelet(o.wavelet);
     if (!bank) return;
@@ -188,6 +200,8 @@ std::string DecompositionScreen::context() const {
     if (!d || !s) return {};
     const auto o = d->options;
     const auto channel = o.channel < 0 ? tr("tui.decomposition.mono") : fmt::format(fmt::runtime(tr("tui.decomposition.channel")), fmt::arg("n", o.channel + 1));
+    if (o.transform == Transform::dtcwt)
+        return fmt::format("{} · {} · DTCWT {} + {} · J = {}", s->path.filename().string(), channel, o.biort, o.qshift, o.levels);
     return fmt::format("{} · {} · {} · J = {} · {}", s->path.filename().string(), channel, o.wavelet, o.levels, core::to_string(o.mode));
 }
 
@@ -353,6 +367,7 @@ ftxui::Element DecompositionScreen::toolbar(bool two_rows, int cols) {
     };
     const bool packets_view = view_ == View::packets;
     const auto o = model_->options();
+    const bool dtcwt = o.transform == Transform::dtcwt;
     auto& jobs = *ui_.jobs;
     Elements parts{notes_.mark("view", text(tr("tui.decomposition.view") + " ") | fg(th.dim, ui_)),
                    chip("view_subbands", tr("tui.decomposition.view.subbands"), view_ == View::subbands, false, [this] { view_ = View::subbands; }),
@@ -361,14 +376,15 @@ ftxui::Element DecompositionScreen::toolbar(bool two_rows, int cols) {
                    chip("chip_packets", tr("tui.decomposition.view.packets"), view_ == View::packets, false, [this] { view_ = View::packets; }),
                    chip("chip_scalogram", tr("tui.decomposition.view.scalogram"), view_ == View::scalogram, false, [this] { view_ = View::scalogram; }),
                    chip("chip_sst", tr("tui.decomposition.view.sst"), view_ == View::sst, false, [this] { view_ = View::sst; })};
-    Elements second{notes_.mark("transform", text((two_rows ? "" : " │ ") + tr("tui.decomposition.transform") + " ") | fg(th.dim, ui_)),
-                    chip("chip_dwt", "DWT", o.transform == Transform::dwt, packets_view, [this, &jobs] { set_transform(Transform::dwt, jobs); }),
-                    chip("chip_swt", "SWT", o.transform == Transform::swt, packets_view, [this, &jobs] { set_transform(Transform::swt, jobs); }),
-                    chip("chip_modwt", "MODWT", o.transform == Transform::modwt, packets_view, [this, &jobs] { set_transform(Transform::modwt, jobs); }),
-                    notes_.mark("wavelet", text(" │ " + tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_)),
-                   clickable("wavelet", text(o.wavelet + " ▾") | fg(th.fg, ui_), [this] {
-                       if (ui_.open_palette) ui_.open_palette(tr("tui.decomposition.cmd.wavelet"));
-                   }),
+    const auto transform_label = [&](bool first) { return notes_.mark("transform", text((first ? "" : " │ ") + tr("tui.decomposition.transform") + " ") | fg(th.dim, ui_)); };
+    const auto settings_label = [&](bool first) {
+        return notes_.mark("wavelet", text((first ? "" : " │ ") + tr(dtcwt ? "tui.decomposition.filters" : "tui.decomposition.wavelet") + " ") | fg(th.dim, ui_));
+    };
+    Elements transform{chip("chip_dwt", "DWT", o.transform == Transform::dwt, packets_view, [this, &jobs] { set_transform(Transform::dwt, jobs); }),
+                       chip("chip_swt", "SWT", o.transform == Transform::swt, packets_view, [this, &jobs] { set_transform(Transform::swt, jobs); }),
+                       chip("chip_modwt", "MODWT", o.transform == Transform::modwt, packets_view, [this, &jobs] { set_transform(Transform::modwt, jobs); }),
+                       chip("chip_dtcwt", "DTCWT", o.transform == Transform::dtcwt, packets_view, [this, &jobs] { set_transform(Transform::dtcwt, jobs); })};
+    Elements settings{clickable("wavelet", text((dtcwt ? o.biort + " + " + o.qshift : o.wavelet) + " ▾") | fg(th.fg, ui_), [this] { open_filters(); }),
                    notes_.mark("levels", text(" │ J ") | fg(th.dim, ui_)),
                    clickable("levels_less", text("◂ ") | fg(th.fg, ui_), [this, &jobs] {
                        auto k = model_->options();
@@ -382,22 +398,30 @@ ftxui::Element DecompositionScreen::toolbar(bool two_rows, int cols) {
                        model_->set_options(k, jobs);
                    }),
                    notes_.mark("edges", text(" │ " + tr("tui.decomposition.edges") + " ") | fg(th.dim, ui_)),
-                   clickable("edges", text(std::string{core::to_string(o.mode)} + " ▾") | fg(th.fg, ui_), [this, &jobs] {
+                   clickable("edges", text(dtcwt ? tr("tui.decomposition.edges_dtcwt") : std::string{core::to_string(o.mode)} + " ▾") | fg(dtcwt ? th.dim : th.fg, ui_), [this, &jobs] {
+                       if (model_->options().transform == Transform::dtcwt) return void(notice_ = tr("tui.decomposition.dtcwt_edges"));
                        auto k = model_->options();
                        auto it = std::find(kModes.begin(), kModes.end(), k.mode);
                        k.mode = it == kModes.end() || it + 1 == kModes.end() ? kModes.front() : *(it + 1);
                        model_->set_options(k, jobs);
                    })};
-    if (two_rows) {
-        auto measured = hbox(second);
-        measured->ComputeRequirement();
-        if (measured->requirement().min_x <= cols) return vbox({hbox(std::move(parts)), hbox(std::move(second))});
-        Elements transform(second.begin(), second.begin() + 4), settings(second.begin() + 5, second.end());
-        settings.insert(settings.begin(), notes_.mark("wavelet", text(tr("tui.decomposition.wavelet") + " ") | fg(th.dim, ui_)));
-        return vbox({hbox(std::move(parts)), hbox(std::move(transform)), hbox(std::move(settings))});
+    const auto row = [](std::vector<Elements> groups) {
+        Elements out;
+        for (auto& g : groups)
+            for (auto& e : g) out.push_back(std::move(e));
+        return hbox(std::move(out));
+    };
+    const auto width = [](const Element& e) {
+        e->ComputeRequirement();
+        return e->requirement().min_x;
+    };
+    if (!two_rows) {
+        auto one = row({parts, {transform_label(false)}, transform, {settings_label(false)}, settings});
+        if (width(one) <= cols) return one;
     }
-    for (auto& e : second) parts.push_back(std::move(e));
-    return hbox(std::move(parts));
+    auto second = row({{transform_label(true)}, transform, {settings_label(false)}, settings});
+    if (width(second) <= cols) return vbox({hbox(std::move(parts)), std::move(second)});
+    return vbox({hbox(std::move(parts)), row({{transform_label(true)}, transform}), row({{settings_label(true)}, settings})});
 }
 
 ftxui::Element DecompositionScreen::time_axis(int width) const {
@@ -992,8 +1016,7 @@ ftxui::Element DecompositionScreen::OnRender() {
     const std::vector<Chip> view_chips{{chip_text, false, notes_.box(std::string{"legend."} + (chip_key + std::string_view{"tui.decomposition.chip."}.size()))}};
     const bool small = breakpoint_ <= Breakpoint::small || maximized_;
     const int main_width = small ? cols : cols - kRightWidth - 1;
-    const bool two_rows = cols < 150;
-    auto bar = toolbar(two_rows, cols);
+    auto bar = toolbar(cols < 150, cols);
     bar->ComputeRequirement();
     const int toolbar_rows = std::max(1, bar->requirement().min_y);
     const int total = std::max(8, rows - 3);
@@ -1191,6 +1214,7 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
         return true;
     }
     if (e == Event::Character('e') || e == Event::Character('E')) {
+        if (model_->options().transform == Transform::dtcwt) return notice_ = tr("tui.decomposition.dtcwt_edges"), true;
         auto k = model_->options();
         auto it = std::find(kModes.begin(), kModes.end(), k.mode);
         if (e == Event::Character('e')) k.mode = it == kModes.end() || it + 1 == kModes.end() ? kModes.front() : *(it + 1);
@@ -1200,13 +1224,14 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
     }
     if (e == Event::Character('t')) {
         const auto now = model_->options().transform;
-        set_transform(now == Transform::dwt ? Transform::swt : now == Transform::swt ? Transform::modwt : Transform::dwt, jobs);
+        set_transform(now == Transform::dwt     ? Transform::swt
+                      : now == Transform::swt   ? Transform::modwt
+                      : now == Transform::modwt ? Transform::dtcwt
+                                                : Transform::dwt,
+                      jobs);
         return true;
     }
-    if (e == Event::Character('w')) {
-        if (ui_.open_palette) ui_.open_palette(tr("tui.decomposition.cmd.wavelet"));
-        return true;
-    }
+    if (e == Event::Character('w')) return open_filters(), true;
     if (e == Event::Return) {
         if (focus_ == denoise) model_->apply(draft_, jobs);
         else model_->toggle(selected_, jobs);
@@ -1282,6 +1307,7 @@ std::optional<std::string> DecompositionScreen::explain_at(int x, int y) const {
         if (!valid(c.box) || !c.box.Contain(x, y)) continue;
         std::string id = c.id;
         if (id == "chip_packets" || id == "chip_scalogram" || id == "chip_sst") id = "view_" + id.substr(5);
+        else if (id == "wavelet" && model_->options().transform == Transform::dtcwt) id = "filters";
         else if (id.starts_with("chip_")) id = "transform_" + id.substr(5);
         else if (id == "edges") id = "edges_" + std::string{core::to_string(model_->options().mode)};
         else if (id == "rule") id = "rule_" + std::string{core::shrink_rule_name(draft_.rule.value_or(core::ShrinkRule::bayes))};
@@ -1300,7 +1326,23 @@ std::vector<Command> DecompositionScreen::commands() {
                            o.wavelet = n;
                            model_->set_options(o, *ui_.jobs);
                        }});
+    for (const auto& b : core::dtcwt::biort_table())
+        for (const auto& q : core::dtcwt::qshift_table())
+            out.push_back({"decomposition.dtcwt." + b.name + "." + q.name, tr("tui.decomposition.cmd.dtcwt") + " " + b.name + " + " + q.name,
+                           [this, b = b.name, q = q.name] {
+                               if (!ui_.jobs) return;
+                               auto o = model_->options();
+                               o.transform = Transform::dtcwt;
+                               o.biort = b;
+                               o.qshift = q;
+                               model_->set_options(o, *ui_.jobs);
+                           }});
     return out;
+}
+
+void DecompositionScreen::open_filters() {
+    if (ui_.open_palette)
+        ui_.open_palette(tr(model_->options().transform == Transform::dtcwt ? "tui.decomposition.cmd.dtcwt" : "tui.decomposition.cmd.wavelet"));
 }
 
 std::optional<std::pair<int, int>> DecompositionScreen::menu_anchor() const {

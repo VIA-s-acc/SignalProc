@@ -1100,3 +1100,138 @@ TEST_CASE("the export palette command lists the strips and the energy chart", "[
     CHECK(frame.find("Подполоса a₆") != std::string::npos);
     CHECK(frame.find("Подполоса d₁") != std::string::npos);
 }
+
+namespace {
+
+std::shared_ptr<const DecompositionData> dtcwt_data(DecompositionFixture& f) {
+    auto o = f.model->options();
+    o.transform = Transform::dtcwt;
+    f.model->set_options(o, f.jobs);
+    f.h.frame();
+    return f.model->data();
+}
+
+}  // namespace
+
+TEST_CASE("t reaches DTCWT after MODWT: complex bands, exact reconstruction and filters in the header", "[tui][decomposition][dtcwt]") {
+    DecompositionFixture f;
+    for (int k = 0; k < 3; ++k) f.h.send(ftxui::Event::Character('t'));
+    CHECK(f.model->options().transform == Transform::dtcwt);
+    f.h.frame();
+    const auto d = f.model->data();
+    REQUIRE(d);
+    REQUIRE(d->options.transform == Transform::dtcwt);
+    const auto J = d->options.levels;
+    REQUIRE(d->bands.size() == J + 1);
+    CHECK(d->bands.front().name == "d1");
+    CHECK(d->bands.front().length == (d->x.size() + 1) / 2);
+    CHECK(d->coeffs.bands.back().size() == 2 * d->bands.front().length);
+    CHECK(d->pr_error < 1e-12);
+    double total = 0;
+    for (const auto& b : d->bands) total += b.energy_pct;
+    CHECK(std::abs(total - 100) < 1e-6);
+    CHECK(f.screen->context().find("near_sym_a + qshift_a") != std::string::npos);
+    CHECK(f.screen->theory_link()->id == "dtcwt");
+    CHECK(f.h.frame().find("[DTCWT]") != std::string::npos);
+    f.h.send(ftxui::Event::Character('t'));
+    CHECK(f.model->options().transform == Transform::dwt);
+    f.click("chip_dtcwt");
+    CHECK(f.model->options().transform == Transform::dtcwt);
+}
+
+TEST_CASE("DTCWT strips show the magnitude of each complex coefficient and the MRA adds back to the signal", "[tui][decomposition][dtcwt]") {
+    DecompositionFixture f;
+    const auto d = dtcwt_data(f);
+    REQUIRE(d);
+    const auto& finest = d->coeffs.bands.back();
+    REQUIRE(d->band_abs.front().size() == finest.size() / 2);
+    for (std::size_t k = 0; k < 50; ++k)
+        CHECK(std::abs(d->band_abs.front()[k] - std::hypot(finest[2 * k], finest[2 * k + 1])) < 1e-5 * (1 + std::abs(d->band_abs.front()[k])));
+    f.h.send(ftxui::Event::Character('v'));
+    for (int k = 0; k < 3; ++k) f.h.frame();
+    const auto r = f.model->recon();
+    REQUIRE(r);
+    REQUIRE(r->components.size() == d->bands.size());
+    double worst = 0, peak = 0;
+    for (std::size_t i = 0; i < d->x.size(); i += 97) {
+        double sum = 0;
+        for (const auto& c : r->components) sum += c[i];
+        worst = std::max(worst, std::abs(sum - d->x[i]));
+        peak = std::max(peak, std::abs(d->x[i]));
+    }
+    CHECK(worst < 1e-5 * peak);
+}
+
+TEST_CASE("DTCWT denoising and compression act on whole complex coefficients", "[tui][decomposition][dtcwt]") {
+    DecompositionFixture f;
+    const auto d = dtcwt_data(f);
+    REQUIRE(d);
+    const auto J = d->options.levels;
+    Processing p;
+    p.rule = signals::core::ShrinkRule::visu;
+    p.mode = signals::core::ThresholdMode::soft;
+    p.first_level = 1;
+    p.last_level = 3;
+    f.model->apply(p, f.jobs);
+    f.h.frame();
+    auto r = f.model->recon();
+    REQUIRE(r);
+    std::size_t shrunk = 0, zeroed = 0;
+    for (std::size_t level = 1; level <= 3; ++level) {
+        const auto& before = d->coeffs.bands[J + 1 - level];
+        const auto& after = r->processed.bands[J + 1 - level];
+        REQUIRE(before.size() == after.size());
+        for (std::size_t k = 0; k + 1 < before.size(); k += 2) {
+            const double m0 = std::hypot(before[k], before[k + 1]), m1 = std::hypot(after[k], after[k + 1]);
+            if (m1 == 0) {
+                ++zeroed;
+                CHECK(after[k] == 0);
+                CHECK(after[k + 1] == 0);
+                continue;
+            }
+            CHECK(m1 <= m0 * (1 + 1e-12));
+            CHECK(std::abs(after[k] * before[k + 1] - after[k + 1] * before[k]) <= 1e-9 * m0 * m0);
+            if (m1 < m0 * (1 - 1e-9)) ++shrunk;
+        }
+    }
+    CHECK(zeroed > 0);
+    CHECK(shrunk > 0);
+    Processing keep;
+    keep.keep_fraction = 0.1;
+    f.model->apply(keep, f.jobs);
+    f.h.frame();
+    r = f.model->recon();
+    REQUIRE(r);
+    std::size_t pairs = 0, kept = 0;
+    for (std::size_t b = 1; b < r->processed.bands.size(); ++b) {
+        const auto& band = r->processed.bands[b];
+        for (std::size_t k = 0; k + 1 < band.size(); k += 2) {
+            ++pairs;
+            const bool re = band[k] != 0, im = band[k + 1] != 0;
+            if (re || im) ++kept;
+            if (re != im) CHECK((d->coeffs.bands[b][k] == 0 || d->coeffs.bands[b][k + 1] == 0));
+        }
+    }
+    CHECK(kept <= pairs / 10 + 1);
+    CHECK(kept >= pairs / 10 - 1);
+}
+
+TEST_CASE("DTCWT filters come from the palette and the edge keys leave the mode alone", "[tui][decomposition][dtcwt]") {
+    DecompositionFixture f;
+    dtcwt_data(f);
+    const auto commands = f.screen->commands();
+    const auto it = std::find_if(commands.begin(), commands.end(), [](const Command& c) { return c.id == "decomposition.dtcwt.near_sym_b.qshift_c"; });
+    REQUIRE(it != commands.end());
+    it->run();
+    f.h.frame();
+    CHECK(f.model->options().biort == "near_sym_b");
+    CHECK(f.model->options().qshift == "qshift_c");
+    const auto d = f.model->data();
+    REQUIRE(d);
+    CHECK(d->options.biort == "near_sym_b");
+    CHECK(d->pr_error < 1e-12);
+    const auto mode = f.model->options().mode;
+    f.h.send(ftxui::Event::Character('e'));
+    CHECK(f.model->options().mode == mode);
+    CHECK(f.h.frame().find("near_sym_b + qshift_c ▾") != std::string::npos);
+}

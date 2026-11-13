@@ -171,7 +171,7 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `+ − 0 < >` | zoom in, zoom out, fit all (plot in focus) |
 | `j/J` | more or fewer levels |
 | `e/E` | edge mode forward or back |
-| `t` | DWT, SWT or MODWT |
+| `t` | DWT, SWT, MODWT or DTCWT |
 | `B/W` | best / DWT basis |
 | `w` | choose wavelet |
 | `Space` | listen Σ☑ |

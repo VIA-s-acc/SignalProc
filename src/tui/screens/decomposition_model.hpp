@@ -25,7 +25,7 @@
 
 namespace signals::tui {
 
-enum class Transform { dwt, swt, modwt };
+enum class Transform { dwt, swt, modwt, dtcwt };
 
 struct DecompositionOptions {
     std::string wavelet = "db2";
@@ -33,6 +33,7 @@ struct DecompositionOptions {
     core::Extension mode = core::Extension::symmetric;
     int channel = -1;
     Transform transform = Transform::dwt;
+    std::string biort = "near_sym_a", qshift = "qshift_a";
 };
 
 core::Result<core::BasicCoeffs<double>> forward_transform(const std::vector<double>& x, const core::FilterBank& bank, const DecompositionOptions& o);

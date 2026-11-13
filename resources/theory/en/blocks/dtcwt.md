@@ -5,7 +5,7 @@ theory = ["dtcwt", "swt-modwt", "audio-subband-zeroing"]
 source = "src/core/dtcwt.cpp"
 function = "forward"
 test = "tests/core/test_dtcwt.cpp"
-views = ["under_the_hood"]
+views = ["under_the_hood", "decomposition"]
 +++
 
 ## Purpose
@@ -49,6 +49,7 @@ Levels: {{block.levels}}; level 1 filters: {{block.biort}}; q-shift filters: {{b
 - A random signal of 1000 samples is reconstructed to $10^{-12}$ with 6 levels and every pair of sets.
 - Shifting the signal by one sample changes the DTCWT level energies by less than 2 %, and those of a db4 DWT many times more.
 - An odd length, stereo and the inverse of the wrong transform are checked on the pipeline blocks.
+- On "Decomposition" DTCWT is the fourth transform (`t`): the strips show the magnitude |dⱼ|, the MRA adds back to the signal, and denoising thresholds and keeping the largest coefficients act on a whole complex coefficient without changing its phase.
 
 ## Links
 
