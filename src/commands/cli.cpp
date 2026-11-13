@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <exception>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -11,6 +12,8 @@
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
+#include "commands/cli_docs.hpp"
+#include "commands/cli_tree.hpp"
 #include "commands/command.hpp"
 #include "commands/suites.hpp"
 #include "core/design/families.hpp"
@@ -155,38 +158,60 @@ std::vector<CheckSuite>& check_suites() {
 
 namespace {
 
+struct CliBindings {
+    std::string lang_option;
+    bool show_version = false;
+    bool check_json = false;
+    std::string filter_name;
+    bool filter_json = false;
+    int design_p = 2;
+    bool design_json = false;
+    std::string tui_file;
+    std::string tui_theme;
+    std::string completions_shell;
+    Commands commands;
+    CLI::App* check = nullptr;
+    CLI::App* filter_info = nullptr;
+    CLI::App* design = nullptr;
+    CLI::App* tui = nullptr;
+    CLI::App* completions = nullptr;
+};
+
+void build_cli(CLI::App& app, CliBindings& b) {
+    app.add_option("--lang", b.lang_option, tr("cli.lang"))->check(CLI::IsMember({"ru", "en"}));
+    app.add_flag("--version", b.show_version, tr("cli.version.description"));
+    b.check = app.add_subcommand("check", tr("cli.check.description"));
+    b.check->add_flag("--json", b.check_json, tr("cli.json.description"));
+    auto* filter = app.add_subcommand("filter", tr("cli.filter.description"));
+    b.filter_info = filter->add_subcommand("info", tr("cli.filter.info.description"));
+    b.filter_info->add_option("name", b.filter_name, tr("cli.filter.name"))->required();
+    b.filter_info->add_flag("--json", b.filter_json, tr("cli.json.description"));
+    filter->require_subcommand(1);
+    b.design = app.add_subcommand("design", tr("cli.design.description"));
+    b.design->add_option("--p", b.design_p, tr("cli.design.p"))->required();
+    b.design->add_flag("--json", b.design_json, tr("cli.json.description"));
+    b.tui = app.add_subcommand("tui", tr("cli.tui.description"));
+    b.tui->add_option("file", b.tui_file, tr("cli.tui.file"));
+    b.tui->add_option("--theme", b.tui_theme, tr("cli.tui.theme"))->check(CLI::IsMember({"dark", "light"}));
+    add_audio_commands(app, b.commands);
+    add_analysis_commands(app, *filter, b.commands);
+    add_pipeline_commands(app, b.commands);
+    add_learn_commands(app, b.commands);
+    b.completions = app.add_subcommand("completions", tr("cli.completions.description"));
+    b.completions->add_option("shell", b.completions_shell, tr("cli.completions.shell"))->required()->check(CLI::IsMember({"bash", "zsh", "fish"}));
+}
+
+ShellKind shell_kind(std::string_view name) {
+    if (name == "zsh") return ShellKind::zsh;
+    if (name == "fish") return ShellKind::fish;
+    return ShellKind::bash;
+}
+
 int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out, std::ostream& err,
                       std::optional<TuiRequest>* tui_request) {
     CLI::App app{tr("cli.description"), "signals"};
-    std::string lang_option;
-    app.add_option("--lang", lang_option, tr("cli.lang"));
-    bool show_version = false;
-    app.add_flag("--version", show_version, tr("cli.version.description"));
-    bool check_json = false;
-    auto* check = app.add_subcommand("check", tr("cli.check.description"));
-    check->add_flag("--json", check_json, tr("cli.json.description"));
-    auto* filter = app.add_subcommand("filter", tr("cli.filter.description"));
-    auto* filter_info = filter->add_subcommand("info", tr("cli.filter.info.description"));
-    std::string filter_name;
-    bool filter_json = false;
-    filter_info->add_option("name", filter_name, tr("cli.filter.name"))->required();
-    filter_info->add_flag("--json", filter_json, tr("cli.json.description"));
-    filter->require_subcommand(1);
-    auto* design = app.add_subcommand("design", tr("cli.design.description"));
-    int design_p = 2;
-    bool design_json = false;
-    design->add_option("--p", design_p, tr("cli.design.p"))->required();
-    design->add_flag("--json", design_json, tr("cli.json.description"));
-    auto* tui = app.add_subcommand("tui", tr("cli.tui.description"));
-    std::string tui_file;
-    std::string tui_theme;
-    tui->add_option("file", tui_file, tr("cli.tui.file"));
-    tui->add_option("--theme", tui_theme, tr("cli.tui.theme"))->check(CLI::IsMember({"dark", "light"}));
-    Commands commands;
-    add_audio_commands(app, commands);
-    add_analysis_commands(app, *filter, commands);
-    add_pipeline_commands(app, commands);
-    add_learn_commands(app, commands);
+    CliBindings b;
+    build_cli(app, b);
 
     std::vector<std::string> rest;
     for (std::size_t i = args.size(); i > 1; --i) rest.emplace_back(args[i - 1]);
@@ -201,25 +226,36 @@ int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out,
         return 2;
     }
 
-    if (show_version) {
+    if (b.show_version) {
         out << fmt::format(fmt::runtime(tr("cli.version")), fmt::arg("version", core::version())) << '\n';
         return 0;
     }
-    if (check->parsed()) return run_check(check_json, out);
-    if (filter_info->parsed()) return run_filter_info(filter_name, filter_json, out, err);
-    if (design->parsed()) return run_design(design_p, design_json, out, err);
-    if (tui->parsed()) {
+    if (b.check->parsed()) return run_check(b.check_json, out);
+    if (b.filter_info->parsed()) return run_filter_info(b.filter_name, b.filter_json, out, err);
+    if (b.design->parsed()) return run_design(b.design_p, b.design_json, out, err);
+    if (b.tui->parsed()) {
         if (!tui_request) return report_error(err, {core::Errc::invalid_argument, tr("tui.unavailable")});
-        *tui_request = TuiRequest{tui_file.empty() ? std::nullopt : std::optional<std::filesystem::path>{tui_file}, tui_theme, std::nullopt};
+        *tui_request = TuiRequest{b.tui_file.empty() ? std::nullopt : std::optional<std::filesystem::path>{b.tui_file}, b.tui_theme, std::nullopt};
         return 0;
     }
-    for (const auto& command : commands)
+    if (b.completions->parsed()) {
+        out << completion_script(cli_entries(app), shell_kind(b.completions_shell));
+        return 0;
+    }
+    for (const auto& command : b.commands)
         if (command->parsed()) return command->run(out, err);
     out << app.help();
     return 0;
 }
 
 }  // namespace
+
+void with_cli_tree(const std::function<void(const CLI::App&)>& visit) {
+    CLI::App app{tr("cli.description"), "signals"};
+    CliBindings b;
+    build_cli(app, b);
+    visit(app);
+}
 
 int run_cli(std::span<const std::string_view> args, std::ostream& out, std::ostream& err,
             std::optional<TuiRequest>* tui) {

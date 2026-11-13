@@ -95,6 +95,8 @@
   "cli.tui.description": "Interactive interface: plots, filters, resources",
   "cli.tui.file": "Audio file (WAV, FLAC, MP3) to open right away",
   "cli.tui.theme": "Theme: dark or light",
+  "cli.completions.description": "Shell completion script for bash, zsh or fish",
+  "cli.completions.shell": "Shell: bash, zsh or fish",
   "tui.unavailable": "the interface only runs from the signals executable",
   "tui.title": "◆ Signals · q — quit",
   "tui.zplane.outside": "off plot: ",

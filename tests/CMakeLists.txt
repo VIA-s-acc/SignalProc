@@ -58,6 +58,7 @@ add_executable(signals_tests
   io/test_config_dir.cpp
   cli/test_cli.cpp
   cli/test_cli_commands.cpp
+  cli/test_cli_docs.cpp
   cli/test_cli_audio.cpp
   cli/test_cli_tui.cpp
   tui/test_harness.cpp

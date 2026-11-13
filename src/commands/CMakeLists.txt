@@ -1,5 +1,6 @@
 add_library(signals_cli STATIC
   cli.cpp
+  cli_docs.cpp
   suites.cpp
   errors.cpp
   audio_commands.cpp

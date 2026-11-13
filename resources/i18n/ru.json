@@ -95,6 +95,8 @@
   "cli.tui.description": "Интерактивный интерфейс: графики, фильтры, ресурсы",
   "cli.tui.file": "Звуковой файл (WAV, FLAC, MP3), который открыть сразу",
   "cli.tui.theme": "Тема: dark или light",
+  "cli.completions.description": "Скрипт дополнения команд для bash, zsh или fish",
+  "cli.completions.shell": "Оболочка: bash, zsh или fish",
   "tui.unavailable": "интерфейс запускается только из исполняемого файла signals",
   "tui.title": "◆ Signals · q — выход",
   "tui.zplane.outside": "вне поля: ",
