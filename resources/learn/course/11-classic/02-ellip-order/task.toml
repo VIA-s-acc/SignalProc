@@ -1,0 +1,42 @@
+kind = "answer"
+open = "filters"
+theory = ["cls-iir-prototypes", "classic"]
+
+[[measure]]
+name = "n"
+kind = "param"
+param = "es.order"
+
+[[measure]]
+name = "edge_n"
+kind = "gain_db"
+a = "ep"
+b = "sp"
+freq = 1000
+
+[[measure]]
+name = "att_n"
+kind = "gain_db"
+a = "es"
+b = "ss"
+freq = 1500
+
+[[measure]]
+name = "edge_m"
+kind = "gain_db"
+a = "fp"
+b = "sp"
+freq = 1000
+
+[[measure]]
+name = "att_m"
+kind = "gain_db"
+a = "fs"
+b = "ss"
+freq = 1500
+
+[answer]
+type = "integer"
+expected = "n"
+tol = 0
+verify = "att_n <= -40 && att_m > -40 && edge_n >= -3.02 && edge_m >= -3.02"

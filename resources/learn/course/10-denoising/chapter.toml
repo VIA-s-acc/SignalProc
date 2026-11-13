@@ -1,0 +1,3 @@
+title = "Шумоподавление"
+title_en = "Denoising"
+theory = ["audio-denoising"]
