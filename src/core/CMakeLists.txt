@@ -2,6 +2,7 @@ add_library(signals_core STATIC
   version.cpp
   dtcwt.cpp
   dtcwt_tables.cpp
+  sst.cpp
   laurent.cpp
   conv.cpp
   extension.cpp

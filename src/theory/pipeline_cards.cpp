@@ -6,7 +6,7 @@ namespace signals::theory {
 
 BlockTheory block_theory(std::string_view block) {
     static const std::map<std::string, std::string, std::less<>> cards{
-        {"wav", "wav_in"}, {"idtcwt", "dtcwt"},         {"gen", "generator"},         {"samples", "generator"},  {"chirp", "generator"},   {"osc", "generator"},
+        {"wav", "wav_in"}, {"idtcwt", "dtcwt"}, {"sst_band", "sst"}, {"sst_ridge", "sst"},         {"gen", "generator"},         {"samples", "generator"},  {"chirp", "generator"},   {"osc", "generator"},
         {"check", "error"},        {"resample", "upsample"},     {"lift53", "lifting"},     {"ilift53", "lifting"},   {"lift97", "lifting"},
         {"ilift97", "lifting"},    {"mra", "dwt"},               {"iir", "iir_design"},     {"fir", "fir_design"},    {"moving_average", "fir_design"},
         {"preemphasis", "fir_design"}, {"deemphasis", "iir_design"}, {"add", "filter_bank"}, {"multiply", "gain"},   {"invert", "gain"},

@@ -23,7 +23,7 @@ namespace signals::tui {
 
 class DecompositionScreen final : public TabScreen {
 public:
-    enum class View { subbands, mra, tiles, packets, scalogram };
+    enum class View { subbands, mra, tiles, packets, scalogram, sst };
 
     DecompositionScreen(UiContext& ui, std::shared_ptr<DecompositionModel> model);
 

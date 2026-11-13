@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -108,7 +109,10 @@ struct PacketData {
     const PacketNodeInfo& info(core::PacketNode n) const { return table[n.level][core::freq_position(n)]; }
 };
 
+enum class MapKind { cwt, sst };
+
 struct ScalogramData {
+    MapKind kind = MapKind::cwt;
     std::size_t rows = 0, cols = 0;
     std::vector<double> db;
     std::vector<std::uint8_t> coi;
@@ -121,6 +125,8 @@ struct ScalogramData {
 
 core::Result<ScalogramData> compute_scalogram(std::span<const double> x, double fs, std::size_t cols, core::ProgressSink* progress = nullptr,
                                               std::size_t budget = 0);
+core::Result<ScalogramData> compute_synchrosqueezed(std::span<const double> x, double fs, std::size_t cols, core::ProgressSink* progress = nullptr,
+                                                    std::size_t budget = 0);
 
 enum class ClipKind { original, enabled, difference, band };
 
@@ -137,7 +143,7 @@ public:
     void undo(JobRunner& jobs);
     void cancel(JobRunner& jobs);
     void recompute(JobRunner& jobs);
-    bool retry_cancelled(bool packets);
+    bool retry_cancelled(bool packets, MapKind kind = MapKind::cwt);
     bool cancelled() const;
     std::vector<bool> enabled() const { return enabled_; }
     Processing processing() const { return processing_; }
@@ -158,9 +164,9 @@ public:
     double basis_cost() const;
     std::optional<double> basis_pr_error() const;
 
-    void request_scalogram(JobRunner& jobs);
-    std::shared_ptr<const ScalogramData> scalogram() const;
-    std::optional<std::string> scalogram_error() const;
+    void request_map(MapKind kind, JobRunner& jobs);
+    std::shared_ptr<const ScalogramData> map(MapKind kind) const;
+    std::optional<std::string> map_error(MapKind kind) const;
 
 private:
     void compute(JobRunner& jobs);
@@ -190,13 +196,19 @@ private:
     std::weak_ptr<const DecompositionData> packets_for_;
     std::optional<std::uint64_t> packets_job_;
     std::uint64_t packets_gen_ = 0, packets_done_ = 0;
-    bool packets_cancelled_ = false, scalogram_cancelled_ = false;
-    std::shared_ptr<const ScalogramData> scalogram_;
-    std::optional<std::string> scalogram_error_;
-    std::weak_ptr<const SignalData> scalogram_for_;
-    int scalogram_channel_ = -1;
-    std::optional<std::uint64_t> scalogram_job_;
-    std::uint64_t scalogram_gen_ = 0, scalogram_done_ = 0;
+    bool packets_cancelled_ = false;
+    struct MapSlot {
+        std::shared_ptr<const ScalogramData> data;
+        std::optional<std::string> error;
+        std::weak_ptr<const SignalData> made_for;
+        int channel = -1;
+        std::optional<std::uint64_t> job;
+        std::uint64_t gen = 0, done = 0;
+        bool cancelled = false;
+    };
+    std::array<MapSlot, 2> maps_;
+    MapSlot& slot(MapKind kind) { return maps_[static_cast<std::size_t>(kind)]; }
+    const MapSlot& slot(MapKind kind) const { return maps_[static_cast<std::size_t>(kind)]; }
 };
 
 }  // namespace signals::tui

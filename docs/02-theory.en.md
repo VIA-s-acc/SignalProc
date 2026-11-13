@@ -839,7 +839,9 @@ The "Mexican hat" is DoG with $m=2$: $\psi=\frac2{\sqrt3\pi^{1/4}}(1-t^2)e^{-t^2
 
 (Daubechies–Lu–Wu 2011.) For an analytic $\psi$, the instantaneous angular frequency is $\omega_x(a,b)=\operatorname{Re}\big(-i\,\partial_bW_x/W_x\big)$ where $|W_x|>\gamma$ (divide by $2\pi$ for Hz); $\partial_bW$ is computed by the same FFT with $\Psi$ multiplied by $i\omega$ (one extra IFFT per scale). Reassignment: $T_x(\omega_l,b)=\sum_{a_k:|\omega_x(a_k,b)-\omega_l|\le\Delta\omega/2}W_x(a_k,b)a_k^{-3/2}\Delta a_k$. Reconstructing a mode within a band: $x(b)\approx\operatorname{Re}\big[C_\psi^{-1}\sum_{l\in\text{band}}T_x(\omega_l,b)\Delta\omega\big]$, $C_\psi=\tfrac12\int_0^\infty\Psi^*(\xi)\frac{d\xi}\xi$. Sharp localization of AM–FM components while invertibility is preserved; the threshold $\gamma$ (a few noise $\sigma$) is critical.
 
-**Check.** On a chirp the ridge follows the true instantaneous frequency; reconstruction error.
+**In the program.** An $L^1$-normalised CWT with the Morlet wavelet in the frequency domain, as in ssqueezepy: then $\Delta a_k/a_k=\ln2/n_v$ with $n_v$ voices per octave, $T_x(f_l,b)=\sum W_x(a_k,b)\ln2/n_v$, and the signal is rebuilt as $x(b)\approx\frac2{C'_\psi}\operatorname{Re}\sum_lT_x(f_l,b)$, $C'_\psi=\int_0^\infty\Psi(\xi)\frac{d\xi}\xi$. The threshold $\gamma=10\varepsilon$ cuts off only numerical zeros. The `sst_band` block assembles a band from the instantaneous frequency of every coefficient, `sst_ridge` returns the frequency and amplitude of the strongest coefficient in the band, and the "Synchrosqueezing" view on "Decomposition" shows $|T_x|^2$ in dB. A long signal is computed in pieces with a margin of $6a_{\max}$, and the scales in batches on several threads.
+
+**Check.** Bin-for-bin agreement with ssqueezepy 0.6.6 to $10^{-10}$ (log and linear bins, $\mu=5$, $6$, $13.4$); on a chirp the ridge follows the true instantaneous frequency with an error below 1 %; a band pulls out one of two tones, and the whole band rebuilds the signal with an error below 2 %.
 
 ### 11.8. Wavelet scattering (Mallat) [research] {#scattering}
 
