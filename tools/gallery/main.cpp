@@ -70,7 +70,7 @@ public:
         for (char c : text) key(ftxui::Event::Character(c));
     }
     AppModels& models() { return models_; }
-    const SvgStyle style() const { return {.fg = ui_.theme.fg, .bg = ui_.theme.bg}; }
+    SvgStyle style() const { return {.fg = ui_.theme.fg, .bg = ui_.theme.bg, .cell_w = 9, .cell_h = 18, .font_size = 15, .padding = 16, .radius = 8}; }
 
 private:
     void settle() {
@@ -141,8 +141,13 @@ std::vector<Scene> scenes() {
 
 int run(const fs::path& out_dir, std::optional<std::string> only) {
     ResourceMonitor monitor{[] {}, 100ms};
-    std::this_thread::sleep_for(300ms);
-    const auto resources = [&monitor] { return monitor.latest(); };
+    {
+        App warm{[] { return ResourceSnapshot{}; }};
+        (void)warm.frame();
+    }
+    std::this_thread::sleep_for(400ms);
+    const auto idle = monitor.latest();
+    const auto resources = [idle] { return idle; };
     fs::create_directories(out_dir);
     std::uintmax_t total = 0;
     int failures = 0;
