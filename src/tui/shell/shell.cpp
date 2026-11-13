@@ -26,6 +26,16 @@
 namespace signals::tui {
 namespace {
 
+struct Route {
+    std::string_view target;
+    int tab;
+    int sub;
+};
+
+constexpr Route kRoutes[]{{"signal", 0, -1},     {"spectrum", 1, 0}, {"resample", 1, 1},       {"tempo", 1, 2},       {"filters", 2, -1},
+                         {"designer", 3, 0},    {"diagram", 3, 1},  {"decomposition", 4, -1}, {"processing", 6, -1},   {"pipeline", 7, -1},
+                         {"matrix", 5, -1},     {"explain", 8, 0},  {"under_the_hood", 8, 1}, {"tutorial", 8, 2}, {"learn", 8, 3}};
+
 class ShellComponent final : public ftxui::ComponentBase {
 public:
     ShellComponent(UiContext& ui, std::vector<std::shared_ptr<TabScreen>> screens, std::function<void()> on_quit)
@@ -331,20 +341,12 @@ private:
     }
 
     void navigate(std::string_view target, const NavArgs& args) {
-        struct Route {
-            std::string_view target;
-            int tab;
-            int sub;
-        };
-        static constexpr Route routes[]{{"signal", 0, -1},     {"spectrum", 1, 0}, {"resample", 1, 1},       {"tempo", 1, 2},       {"filters", 2, -1},
-                                        {"designer", 3, 0},    {"diagram", 3, 1},  {"decomposition", 4, -1}, {"processing", 6, -1},   {"pipeline", 7, -1},
-                                        {"matrix", 5, -1},     {"explain", 8, 0},  {"under_the_hood", 8, 1}, {"tutorial", 8, 2}, {"learn", 8, 3}};
         int tab = -1, sub = -1;
         if (target.starts_with("tab:")) {
             const auto n = std::atoi(std::string{target.substr(4)}.c_str());
             tab = n - 1;
         } else {
-            for (const auto& r : routes)
+            for (const auto& r : kRoutes)
                 if (r.target == target) tab = r.tab, sub = r.sub;
         }
         if (tab < 0 || tab >= static_cast<int>(screens_.size())) return;
@@ -560,6 +562,12 @@ ftxui::Component make_shell(UiContext& ui, std::vector<std::shared_ptr<TabScreen
 
 ftxui::Element TabScreen::context_element(const UiContext& ui, int width) {
     return ftxui::text(ellipsize(context(), width, ui.caps.glyphs == GlyphMode::ascii)) | fg(ui.theme.dim, ui);
+}
+
+std::vector<std::string_view> route_names() {
+    std::vector<std::string_view> out;
+    for (const auto& r : kRoutes) out.push_back(r.target);
+    return out;
 }
 
 int active_tab(const ftxui::Component& shell) {

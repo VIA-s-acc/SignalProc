@@ -175,3 +175,18 @@ TEST_CASE("start panel fits 80x24 in ascii without colour", "[tui][start]") {
         CHECK(shows(frame, signals::tr(key)));
     }
 }
+
+TEST_CASE("route names list every navigation target", "[tui][shell][routes]") {
+    const std::vector<std::pair<std::string_view, int>> want{{"signal", 0},      {"spectrum", 1},      {"resample", 1}, {"tempo", 1},    {"filters", 2},
+                                                             {"designer", 3},    {"diagram", 3},       {"decomposition", 4}, {"processing", 6}, {"pipeline", 7},
+                                                             {"matrix", 5},      {"explain", 8},       {"under_the_hood", 8}, {"tutorial", 8}, {"learn", 8}};
+    const auto names = route_names();
+    REQUIRE(names.size() == want.size());
+    StartFixture f{false};
+    f.frame();
+    for (std::size_t i = 0; i < want.size(); ++i) {
+        CHECK(names[i] == want[i].first);
+        f.ui->navigate(names[i], {});
+        CHECK(f.tab() == want[i].second);
+    }
+}
