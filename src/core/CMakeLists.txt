@@ -7,6 +7,7 @@ add_library(signals_core STATIC
   conv.cpp
   extension.cpp
   metrics.cpp
+  expr.cpp
   memory.cpp
   thread_name.cpp
   spectral.cpp
