@@ -170,6 +170,7 @@ struct CliBindings {
     std::string tui_theme;
     std::string completions_shell;
     Commands commands;
+    CLI::App* man = nullptr;
     CLI::App* check = nullptr;
     CLI::App* filter_info = nullptr;
     CLI::App* design = nullptr;
@@ -199,6 +200,7 @@ void build_cli(CLI::App& app, CliBindings& b) {
     add_learn_commands(app, b.commands);
     b.completions = app.add_subcommand("completions", tr("cli.completions.description"));
     b.completions->add_option("shell", b.completions_shell, tr("cli.completions.shell"))->required()->check(CLI::IsMember({"bash", "zsh", "fish"}));
+    b.man = app.add_subcommand("man", tr("cli.man.command"));
 }
 
 ShellKind shell_kind(std::string_view name) {
@@ -240,6 +242,10 @@ int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out,
     }
     if (b.completions->parsed()) {
         out << completion_script(cli_entries(app), shell_kind(b.completions_shell));
+        return 0;
+    }
+    if (b.man->parsed()) {
+        out << man_page(cli_entries(app), core::version());
         return 0;
     }
     for (const auto& command : b.commands)

@@ -25,5 +25,6 @@ enum class ShellKind { bash, zsh, fish };
 
 std::vector<CliEntry> cli_entries();
 std::string completion_script(std::span<const CliEntry> entries, ShellKind shell);
+std::string man_page(std::span<const CliEntry> entries, std::string_view version);
 
 }  // namespace signals::cli

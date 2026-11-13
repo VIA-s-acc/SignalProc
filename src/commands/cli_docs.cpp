@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <string>
 #include <utility>
 
@@ -9,6 +10,7 @@
 #include <fmt/format.h>
 
 #include "commands/cli_tree.hpp"
+#include "i18n/i18n.hpp"
 
 namespace signals::cli {
 namespace {
@@ -260,6 +262,87 @@ complete -c signals -f
                        cases, lines);
 }
 
+std::string roff(const std::string& text) {
+    std::string out;
+    bool line_start = true;
+    for (char c : text) {
+        if (line_start && (c == '.' || c == '\'')) out += "\\&";
+        line_start = c == '\n';
+        if (c == '\\') out += "\\e";
+        else if (c == '-') out += "\\-";
+        else out += c;
+    }
+    return out;
+}
+
+std::string roff_value(const CliOption& o) {
+    if (o.value.empty()) return {};
+    if (o.choices.empty()) return " \\fI" + roff(o.value) + "\\fR";
+    std::string out = " ";
+    for (std::size_t i = 0; i < o.choices.size(); ++i) out += (i ? "|" : "") + std::string{"\\fI"} + roff(o.choices[i]) + "\\fR";
+    return out;
+}
+
+void roff_options(std::string& out, const std::vector<CliOption>& options) {
+    for (const auto& o : options) {
+        std::string names;
+        for (const auto& n : o.names) names += (names.empty() ? "" : ", ") + std::string{"\\fB"} + roff(n) + "\\fR";
+        out += ".TP\n" + names + roff_value(o) + "\n" + roff(o.description) + "\n";
+    }
+}
+
+void roff_items(std::string& out, std::initializer_list<std::pair<std::string_view, std::string>> items, std::string_view font) {
+    for (const auto& [name, text] : items) out += fmt::format(".TP\n.{} {}\n{}\n", font, roff(std::string{name}), roff(text));
+}
+
+std::string man_text(std::span<const CliEntry> entries, std::string_view version) {
+    const std::chrono::year_month_day today{std::chrono::floor<std::chrono::days>(std::chrono::system_clock::now())};
+    const auto date = fmt::format("{:04}-{:02}-{:02}", static_cast<int>(today.year()), static_cast<unsigned>(today.month()), static_cast<unsigned>(today.day()));
+    std::string out = fmt::format(".TH SIGNALS 1 {} \"signals {}\" \"Signals\"\n", date, roff(std::string{version}));
+    const CliEntry* root = nullptr;
+    for (const auto& e : entries)
+        if (e.path.empty()) root = &e;
+    out += ".SH NAME\nsignals \\- " + roff(tr("cli.man.name")) + "\n";
+    out += fmt::format(".SH SYNOPSIS\n.B signals\n[\\fB\\-\\-lang\\fR \\fIru\\fR|\\fIen\\fR] \\fI{}\\fR [\\fI{}\\fR]\n", roff(tr("cli.man.word.command")),
+                       roff(tr("cli.man.word.options")));
+    out += ".SH DESCRIPTION\n" + roff(tr("cli.man.description")) + "\n";
+    out += ".SH OPTIONS\n";
+    if (root) roff_options(out, root->options);
+    out += ".SH COMMANDS\n";
+    for (const auto& e : entries) {
+        if (e.path.empty()) continue;
+        std::string title = "signals";
+        for (const auto& w : e.path) title += " " + w;
+        out += ".SS \"" + roff(title) + "\"\n" + roff(e.description) + "\n";
+        if (!e.positionals.empty()) {
+            std::string usage = ".PP\n\\fB" + roff(title) + "\\fR";
+            for (const auto& p : e.positionals) usage += " \\fI" + roff(p.names.front()) + "\\fR";
+            out += usage + "\n";
+        }
+        roff_options(out, e.options);
+    }
+    out += ".SH ENVIRONMENT\n";
+    roff_items(out,
+               {{"SIGNALS_LANG", tr("cli.man.env.signals_lang")},
+                {"XDG_CONFIG_HOME, APPDATA, HOME", tr("cli.man.env.config")},
+                {"VISUAL, EDITOR", tr("cli.man.env.editor")},
+                {"NO_COLOR", tr("cli.man.env.no_color")},
+                {"TERM, COLORTERM, TERM_PROGRAM, WT_SESSION", tr("cli.man.env.term")},
+                {"LC_ALL, LC_CTYPE, LANG", tr("cli.man.env.locale")}},
+               "B");
+    out += ".SH FILES\n";
+    roff_items(out,
+               {{"~/.config/signals/terminal.toml", tr("cli.man.files.terminal")},
+                {"~/.config/signals/session.toml", tr("cli.man.files.session")},
+                {"~/.config/signals/learn.toml", tr("cli.man.files.learn")},
+                {"~/.config/signals/filters/", tr("cli.man.files.filters")}},
+               "I");
+    out += ".SH \"EXIT STATUS\"\n";
+    roff_items(out, {{"0", tr("cli.man.exit.0")}, {"1", tr("cli.man.exit.1")}, {"2", tr("cli.man.exit.2")}, {"3", tr("cli.man.exit.3")}, {"130", tr("cli.man.exit.130")}}, "B");
+    out += ".SH \"SEE ALSO\"\nhttps://github.com/VIA\\-s\\-acc/SignalProc\n";
+    return out;
+}
+
 }  // namespace
 
 std::vector<CliEntry> cli_entries(const CLI::App& root) {
@@ -282,5 +365,7 @@ std::string completion_script(std::span<const CliEntry> entries, ShellKind shell
     }
     return {};
 }
+
+std::string man_page(std::span<const CliEntry> entries, std::string_view version) { return man_text(entries, version); }
 
 }  // namespace signals::cli
