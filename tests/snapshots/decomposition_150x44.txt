@@ -1,4 +1,4 @@
- ◆ Signals 0.6.0 │ 1 Разлож.                                                                    test.wav · моно (L+R)/2 · db2 · J = 6 · symmetric   ?
+ ◆ Signals 0.7.0 │ 1 Разлож.                                                                    test.wav · моно (L+R)/2 · db2 · J = 6 · symmetric   ?
 Вид [Подполосы] MRA  Плитки t–f  Пакеты  Скалограмма  Синхросжатие
 преобразование [DWT] SWT  MODWT  DTCWT  │ вейвлет db2 ▾ │ J ◂ 6 ▸ │ края symmetric ▾
 

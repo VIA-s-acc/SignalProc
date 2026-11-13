@@ -19,7 +19,7 @@ and filter files (`.flt`), the banks and single filters of «My filters» kept i
 Copy this folder into the VS Code extensions folder and restart VS Code:
 
 ```bash
-cp -R editors/vscode ~/.vscode/extensions/via-s-acc.signals-sig-0.2.0
+cp -R editors/vscode ~/.vscode/extensions/via-s-acc.signals-sig-0.3.0
 ```
 
 or package it with `npx @vscode/vsce package` and install the `.vsix` with «Extensions: Install from VSIX…».
