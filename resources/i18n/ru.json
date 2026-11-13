@@ -2788,5 +2788,19 @@
   "tui.learn.report_written": "отчёт записан в {file}",
   "tui.explain.learn.answer": "Ответ на задание: числа через пробел, выражения вроде sqrt(2)/2; a — ввести, Enter — проверить",
   "tui.explain.learn.row": "Задание: ✓ решено, ◐ решено с разбором, ● текущее; Enter — начать",
-  "tui.explain.learn.panel": "Панель вкладки «Задания»: Tab — следующая, z — на весь экран"
+  "tui.explain.learn.panel": "Панель вкладки «Задания»: Tab — следующая, z — на весь экран",
+  "tui.learn.strip.checking": "проверка…",
+  "tui.learn.strip.passed": "засчитано ✓",
+  "tui.learn.strip.goals": "цели {ok}/{total}",
+  "tui.learn.strip.wrong": "ответ пока неверный",
+  "tui.learn.strip.solved": "решено",
+  "tui.learn.strip.unchecked": "не проверено",
+  "tui.learn.strip.no_answer": "ответа нет",
+  "tui.learn.strip.keys": "F2 {check} · F3 подсказка",
+  "tui.learn.strip.hint": "подсказка {n}: {text}",
+  "tui.cmd.learn_open": "Задания: открыть вкладку",
+  "tui.cmd.learn_check": "Задания: проверить текущее (F2)",
+  "tui.cmd.learn_hint": "Задания: подсказка к текущему (F3)",
+  "tui.hint.learn_check": "проверить задание",
+  "tui.hint.learn_hint": "подсказка к заданию"
 }

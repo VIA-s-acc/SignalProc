@@ -2788,5 +2788,19 @@
   "tui.learn.report_written": "the report is in {file}",
   "tui.explain.learn.answer": "The answer: numbers separated by spaces, expressions like sqrt(2)/2; a to type, Enter to check",
   "tui.explain.learn.row": "A task: ✓ solved, ◐ solved with the solution, ● current; Enter to start",
-  "tui.explain.learn.panel": "A panel of the Tasks tab: Tab for the next one, z for full screen"
+  "tui.explain.learn.panel": "A panel of the Tasks tab: Tab for the next one, z for full screen",
+  "tui.learn.strip.checking": "checking…",
+  "tui.learn.strip.passed": "passed ✓",
+  "tui.learn.strip.goals": "goals {ok}/{total}",
+  "tui.learn.strip.wrong": "the answer is wrong so far",
+  "tui.learn.strip.solved": "solved",
+  "tui.learn.strip.unchecked": "not checked",
+  "tui.learn.strip.no_answer": "no answer",
+  "tui.learn.strip.keys": "F2 {check} · F3 hint",
+  "tui.learn.strip.hint": "hint {n}: {text}",
+  "tui.cmd.learn_open": "Tasks: open the tab",
+  "tui.cmd.learn_check": "Tasks: check the current one (F2)",
+  "tui.cmd.learn_hint": "Tasks: hint for the current one (F3)",
+  "tui.hint.learn_check": "check the task",
+  "tui.hint.learn_hint": "task hint"
 }

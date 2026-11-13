@@ -18,6 +18,8 @@ std::vector<Hint> global_help() {
     return {{"1–9", tr("tui.hint.tabs")},
             {":  Ctrl+P", tr("tui.hint.palette")},
             {"F1", tr("tui.hint.theory")},
+            {"F2", tr("tui.hint.learn_check")},
+            {"F3", tr("tui.hint.learn_hint")},
             {"m", tr("tui.hint.menu_key")},
             {"'", tr("tui.hint.jump")},
             {"R", tr("tui.hint.resources")},

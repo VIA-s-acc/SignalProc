@@ -9,6 +9,8 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `1–9` | tabs |
 | `:  Ctrl+P` | commands |
 | `F1` | theory for what is in focus |
+| `F2` | check the task |
+| `F3` | task hint |
 | `m` | menu from the keyboard (same as right click) |
 | `'` | jump marks |
 | `R` | resources |
