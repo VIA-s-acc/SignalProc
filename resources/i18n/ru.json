@@ -2805,5 +2805,10 @@
   "tui.hint.learn_hint": "подсказка к заданию",
   "tui.theory.tasks": "Задания:",
   "learn.error.bad_freq": "измерение {name}: частота не вычисляется: {why}",
-  "learn.lint.title_placeholder": "в заголовке задания не должно быть плейсхолдеров: он виден в списках без варианта"
+  "learn.lint.title_placeholder": "в заголовке задания не должно быть плейсхолдеров: он виден в списках без варианта",
+  "pipeline.block.assert": "Утверждение",
+  "pipeline.about.assert": "Проверяет выражение над полями отчётов на входах a…d, например a.snr_db >= 30 && b.max_abs < 1e-12; провал меняет код выхода signals run",
+  "pipeline.param.assert.expr": "Выражение: поля отчётов как a.max_abs, b.snr_db, a.passed; + − * / ^, сравнения, && || !, abs min max sqrt log10, pi",
+  "pipeline.error.assert_expr": "assert: {why}",
+  "pipeline.error.assert_name": "assert: неизвестное имя {name}; похожее — {near}"
 }

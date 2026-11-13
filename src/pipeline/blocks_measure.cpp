@@ -1,7 +1,11 @@
 #include <cmath>
+#include <map>
 
 #include "core/spectral.hpp"
+#include "core/expr.hpp"
 #include "pipeline/blocks_common.hpp"
+#include "pipeline/expr_text.hpp"
+#include "pipeline/sig.hpp"
 
 namespace signals::pipeline {
 namespace {
@@ -63,6 +67,42 @@ void channel_stats(Report& r, const Samples& x, double rate, const std::string& 
 }  // namespace
 
 void register_measure_blocks(std::vector<BlockType>& out) {
+    out.push_back({"assert",
+                   {{"a", PortType::report}, {"b", PortType::report, true}, {"c", PortType::report, true}, {"d", PortType::report, true}},
+                   kReportOut,
+                   {{"expr", Kind::text, "a.passed"}},
+                   [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                       const auto& text = param_text(p, "expr");
+                       auto e = core::parse_expr(text);
+                       if (!e) return fail(tr("pipeline.error.assert_expr"), fmt::arg("why", describe_expr_error(e.error())));
+                       std::map<std::string, double, std::less<>> names;
+                       static constexpr std::string_view kPorts[] = {"a", "b", "c", "d"};
+                       for (std::size_t k = 0; k < in.size() && k < 4; ++k)
+                           if (const auto* r = std::get_if<Report>(&in[k])) {
+                               const auto port = std::string{kPorts[k]};
+                               names[port + ".passed"] = r->passed ? 1.0 : 0.0;
+                               for (const auto& [field, value] : r->fields)
+                                   if (const auto* d = std::get_if<double>(&value)) names[port + "." + field] = *d;
+                           }
+                       auto v = core::eval(*e, [&](std::string_view name) -> std::optional<double> {
+                           const auto it = names.find(name);
+                           if (it != names.end()) return it->second;
+                           return std::nullopt;
+                       });
+                       if (!v) {
+                           if (v.error().kind == core::ExprError::Kind::unknown_name) {
+                               std::vector<std::string> known;
+                               for (const auto& [name, value] : names) known.push_back(name);
+                               const auto near = nearest_name(v.error().token, known);
+                               return fail(tr("pipeline.error.assert_name"), fmt::arg("name", v.error().token), fmt::arg("near", near.value_or("—")));
+                           }
+                           return fail(tr("pipeline.error.assert_expr"), fmt::arg("why", describe_expr_error(v.error())));
+                       }
+                       Report r;
+                       r.fields = {{"value", *v}};
+                       r.passed = *v != 0;
+                       return std::vector<Value>{std::move(r)};
+                   }});
     out.push_back(checked({"stats", kIn, kReportOut, {}, [](const RunContext&, std::span<const Value> in, const Params&) -> Out {
                                const auto& a = audio(in);
                                Report r;

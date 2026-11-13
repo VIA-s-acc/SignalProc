@@ -1,3 +1,4 @@
+#include "core/expr.hpp"
 #include <algorithm>
 #include <charconv>
 #include <cmath>
@@ -110,11 +111,24 @@ core::Result<Params> resolve_params(const BlockType& t, const Params& given) {
         long long integer = 0;
         switch (p.kind) {
         case ParamSpec::Kind::integer:
-            if (!parse_int(value, integer)) return std::unexpected{bad("pipeline.error.bad_integer", p, value)};
+            if (!parse_int(value, integer)) {
+                const auto v = core::eval_number(value);
+                if (!v || !std::isfinite(*v) || *v != std::floor(*v)) return std::unexpected{bad("pipeline.error.bad_integer", p, value)};
+                integer = static_cast<long long>(*v);
+                if (!in_bounds(p, static_cast<double>(integer))) return std::unexpected{bad("pipeline.error.out_of_bounds", p, value)};
+                out.emplace(p.name, std::to_string(integer));
+                continue;
+            }
             if (!in_bounds(p, static_cast<double>(integer))) return std::unexpected{bad("pipeline.error.out_of_bounds", p, value)};
             break;
         case ParamSpec::Kind::real:
-            if (!parse_real(value, real)) return std::unexpected{bad("pipeline.error.bad_number", p, value)};
+            if (!parse_real(value, real)) {
+                const auto v = core::eval_number(value);
+                if (!v || !std::isfinite(*v)) return std::unexpected{bad("pipeline.error.bad_number", p, value)};
+                if (!in_bounds(p, *v)) return std::unexpected{bad("pipeline.error.out_of_bounds", p, value)};
+                out.emplace(p.name, fmt::format("{:.17g}", *v));
+                continue;
+            }
             if (!in_bounds(p, real)) return std::unexpected{bad("pipeline.error.out_of_bounds", p, value)};
             break;
         case ParamSpec::Kind::choice:

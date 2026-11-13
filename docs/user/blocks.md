@@ -78,6 +78,7 @@
 | `swap` | Обмен L↔R | Меняет местами каналы 0 и 1 — левый и правый | `in`: signal | `out`: signal | — |
 | `pan` | Панорама | Панорама: сводит в моно и ставит его в стерео в точку position | `in`: signal | `out`: signal | `position` = 0 (-1…1); `law` = constant_power (constant_power, linear) |
 | `duplicate` | Размножение каналов | Размножает каналы по кругу до нужного числа | `in`: signal | `out`: signal | `channels` = 2 (1…64) |
+| `assert` | Утверждение | Проверяет выражение над полями отчётов на входах a…d, например a.snr_db >= 30 && b.max_abs < 1e-12; провал меняет код выхода signals run | `a`: report; `b`: report (необязательный); `c`: report (необязательный); `d`: report (необязательный) | `report`: report | `expr` = a.passed |
 | `stats` | Статистика сигнала | Отчёт: RMS, пик, пик-фактор, среднее, СКО, переходы через ноль, центроид | `in`: signal | `report`: report | — |
 | `loudness` | Громкость (RMS по 400 мс) | Отчёт: наибольший и средний RMS-уровень по скользящим окнам, дБ полной шкалы | `in`: signal | `report`: report | `window` = 0.4s; `hop` = 0.1s |
 | `lms` | Адаптивный фильтр LMS/NLMS | Адаптивный КИХ-фильтр LMS/NLMS: оценивает d по x, выдаёт ошибку e и оценку y | `x`: signal; `d`: signal | `e`: signal; `y`: signal | `taps` = 32 (1…4096); `mu` = 0.1 (1e-06…2); `rule` = nlms (nlms, lms) |
@@ -564,6 +565,10 @@
 ### `duplicate` — Размножение каналов
 
 - `channels` — Число каналов на выходе; входные каналы повторяются по кругу
+
+### `assert` — Утверждение
+
+- `expr` — Выражение: поля отчётов как a.max_abs, b.snr_db, a.passed; + − * / ^, сравнения, && || !, abs min max sqrt log10, pi
 
 ### `loudness` — Громкость (RMS по 400 мс)
 

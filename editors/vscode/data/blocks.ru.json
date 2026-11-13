@@ -2905,6 +2905,49 @@
   "title": "Размножение каналов"
  },
  {
+  "about": "Проверяет выражение над полями отчётов на входах a…d, например a.snr_db >= 30 && b.max_abs < 1e-12; провал меняет код выхода signals run",
+  "id": "assert",
+  "inputs": [
+   {
+    "name": "a",
+    "optional": false,
+    "type": "report"
+   },
+   {
+    "name": "b",
+    "optional": true,
+    "type": "report"
+   },
+   {
+    "name": "c",
+    "optional": true,
+    "type": "report"
+   },
+   {
+    "name": "d",
+    "optional": true,
+    "type": "report"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "report",
+    "optional": false,
+    "type": "report"
+   }
+  ],
+  "params": [
+   {
+    "about": "Выражение: поля отчётов как a.max_abs, b.snr_db, a.passed; + − * / ^, сравнения, && || !, abs min max sqrt log10, pi",
+    "choices": [],
+    "default": "a.passed",
+    "name": "expr",
+    "values": {}
+   }
+  ],
+  "title": "Утверждение"
+ },
+ {
   "about": "Отчёт: RMS, пик, пик-фактор, среднее, СКО, переходы через ноль, центроид",
   "id": "stats",
   "inputs": [

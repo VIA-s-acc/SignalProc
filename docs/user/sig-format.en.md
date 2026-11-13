@@ -57,6 +57,7 @@ A `coeffs` output has bands: `dwt.a` — the approximation of the last level, `d
 ### Parameter values {#sig-values}
 
 - **Numbers:** `440`, `0.25`, `-3`, `1e-12` — with a point, not a comma.
+- **Expressions instead of numbers:** a numeric parameter may be an expression in quotes: `db="20*log10(2)"`, `m="2^3"`, `cutoff="44100/4"` (there are no names such as `fs`). It supports `+ - * / ^`, parentheses, `abs min max sqrt log10` and `pi`. The file keeps the text of the expression and the run uses its value; an integer parameter needs a whole value.
 - **Durations and samples:** some parameters take a number of samples or seconds with an `s` suffix — `cut.begin`/`end`, `delay.samples`, `pad.before`/`after`, `fade.fade_in`/`fade_out`, `sample_hold.hold`, `impulse_train.period`/`offset` and others (the inspector shows where): `begin=4410`, `begin=0.1s`. Other integer parameters, such as `shift.samples`, take samples only.
 - **Levels:** one number or a range `1..4`.
 - **Choices:** a word from the parameter's list: `ext=symmetric`, `anti_alias=no`, `kind=pr`.
@@ -68,6 +69,17 @@ A `coeffs` output has bands: `dwt.a` — the approximation of the last level, `d
 Values are checked at once: a number out of range, an unknown choice or an unreadable number gives an error naming the node and the parameter.
 
 ### Graph checks {#sig-checks}
+
+Besides `check`, the `assert` block sets conditions on the results of a run. Its inputs `a`, `b`, `c`, `d` take the reports of other blocks, and the parameter `expr` is an expression over their fields:
+
+```
+node c = check(kind=snr, tol=0)
+node g = assert(expr="a.snr_db >= 30 && a.passed")
+c -> g.a
+```
+
+Field names are those of the block's report: `a.max_abs`, `a.snr_db`, `b.lag_samples`; `a.passed` is 1 if the check passed. A false expression marks the node as failed and, like `check`, gives exit code 3 from `signals run`. A typo in a field name is a node error that suggests the closest name.
+
 
 Before a run the whole graph is checked, and every error names its line:
 
@@ -89,7 +101,7 @@ Before a run the whole graph is checked, and every error names its line:
   - `--report report.md` — a Markdown report: the graph, the node table, plots of the probes in time and spectrum (SVG and CSV in the `report_files` folder), the report fields;
   - `--json` — the run report as JSON.
   
-  Exit code `0` — everything passed, `3` — some `check` failed, `1` — an error in the file or during the run, `130` — the run was interrupted with Ctrl+C.
+  Exit code `0` — everything passed, `3` — some `check` or `assert` failed, `1` — an error in the file or during the run, `130` — the run was interrupted with Ctrl+C.
 - `signals sweep graph.sig --vary node.param=values --measure measure` — a parameter sweep: the graph runs once for every value of the parameter, and each run prints a row of measures.
   - Values: `0:1:0.1` (from, to, step), `1:100@5` (5 evenly spaced points), `1:100@5log` (5 points on a log scale), `haar,db4,sym8` (a list, which also works for choices). More than 1000 values are rejected.
   - Measure: a report field `node.field` (for example `chk.snr_db`) or a measure of a node's output `node:rms`, `node:peak`, `node:energy`, `node:mean`, `node:length`. `--measure` may repeat.

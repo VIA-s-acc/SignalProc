@@ -2805,5 +2805,10 @@
   "tui.hint.learn_hint": "task hint",
   "tui.theory.tasks": "Tasks:",
   "learn.error.bad_freq": "measure {name}: the frequency does not evaluate: {why}",
-  "learn.lint.title_placeholder": "a task title must not hold placeholders: lists show it without the variant"
+  "learn.lint.title_placeholder": "a task title must not hold placeholders: lists show it without the variant",
+  "pipeline.block.assert": "Assert",
+  "pipeline.about.assert": "Checks an expression over the report fields on inputs a…d, for example a.snr_db >= 30 && b.max_abs < 1e-12; a failure changes the exit code of signals run",
+  "pipeline.param.assert.expr": "The expression: report fields as a.max_abs, b.snr_db, a.passed; + − * / ^, comparisons, && || !, abs min max sqrt log10, pi",
+  "pipeline.error.assert_expr": "assert: {why}",
+  "pipeline.error.assert_name": "assert: unknown name {name}; the closest is {near}"
 }
