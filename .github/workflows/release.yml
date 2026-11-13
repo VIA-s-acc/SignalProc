@@ -55,7 +55,7 @@ jobs:
       matrix:
         include:
           - os: macos-15
-            platform: macos-arm64
+            platform: macos-universal
             cxx: clang++
           - os: ubuntu-24.04
             platform: linux-x86_64
@@ -75,6 +75,8 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
       SUFFIX: ${{ needs.version.outputs.suffix }}
       PACKAGE: signals-${{ needs.version.outputs.tag }}-${{ matrix.platform }}
+      TAG: ${{ needs.version.outputs.tag }}
+      PLATFORM: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
       - name: Configure
@@ -84,7 +86,7 @@ jobs:
           args=(-DCMAKE_BUILD_TYPE=Release -DSIGNALS_BUILD_TESTS=OFF "-DSIGNALS_VERSION_SUFFIX=$SUFFIX")
           case "$RUNNER_OS" in
             Linux) args+=("-DCMAKE_EXE_LINKER_FLAGS=-static-libstdc++ -static-libgcc") ;;
-            macOS) args+=(-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0) ;;
+            macOS) args+=(-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64") ;;
             Windows)
               export CXXFLAGS=-MP
               args+=(-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded)
@@ -127,6 +129,19 @@ jobs:
             macOS)
               otool -L "$BIN"
               vtool -show-build "$BIN"
+              archs=$(lipo -archs "$BIN")
+              echo "architectures: $archs"
+              for a in arm64 x86_64; do
+                if [[ " $archs " != *" $a "* ]]; then
+                  echo "::error::the $a slice is missing"
+                  exit 1
+                fi
+              done
+              if arch -x86_64 /usr/bin/true 2>/dev/null; then
+                arch -x86_64 "$BIN" check
+              else
+                echo "::warning::Rosetta is not available, the x86_64 slice was not run"
+              fi
               ;;
             Windows)
               objdump -p "$BIN" | grep 'DLL Name'
@@ -138,16 +153,8 @@ jobs:
           esac
       - name: Package
         run: |
-          mkdir -p "stage/$PACKAGE" dist
-          cp "$BIN" README.md LICENSE "stage/$PACKAGE/"
-          cd stage
-          if [[ "$RUNNER_OS" == Windows ]]; then
-            7z a -tzip "../dist/$PACKAGE.zip" "$PACKAGE" > /dev/null
-          else
-            strip "$PACKAGE/signals"
-            tar -czf "../dist/$PACKAGE.tar.gz" "$PACKAGE"
-          fi
-          ls -l ../dist
+          sh packaging/package.sh "$BIN" "$PLATFORM" "$TAG" dist
+          ls -l dist
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PACKAGE }}
