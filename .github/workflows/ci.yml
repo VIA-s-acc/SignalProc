@@ -38,6 +38,9 @@ jobs:
         run: |
           if command -v shellcheck > /dev/null; then shellcheck install.sh packaging/*.sh; fi
           sh packaging/test_install.sh build/release/app/signals
+      - name: Homebrew formula
+        if: matrix.preset == 'release' && runner.os == 'macOS'
+        run: sh packaging/homebrew/test_render.sh
 
   windows:
     runs-on: windows-latest
