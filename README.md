@@ -264,6 +264,7 @@ signals tui --theme light
 | [docs/user/config.md](docs/user/config.md) | настройки и файлы программы: папка настроек, ключи `terminal.toml`, формат `.flt`, редактор, переменные окружения ([английский](docs/user/config.en.md)); она же глава «Учебника» |
 | [docs/user/sig-format.md](docs/user/sig-format.md) | формат файла конвейера `.sig`: строки, порты, значения, проверки, командная строка ([английский](docs/user/sig-format.en.md)) |
 | [docs/03-design.md](docs/03-design.md) | проектный документ: цели, архитектура, функции, интерфейс, этапы |
+| [docs/04-backlog.md](docs/04-backlog.md) | запас доработок после 0.7.0: 10 крупных, 50 средних и 100 небольших пунктов и предложение по версиям |
 | [docs/02-theory.md](docs/02-theory.md) | теория: банки фильтров, вейвлеты, матрицы Тёплица, частотные характеристики |
 | [docs/02-theory.en.md](docs/02-theory.en.md) | та же теория на английском — английский «Учебник» |
 | [docs/01-review-signalproc.md](docs/01-review-signalproc.md) | ревизия старого Python-кода |
