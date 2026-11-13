@@ -2669,5 +2669,21 @@
   "learn.check.forbidden": "block {block} is not allowed in this task",
   "learn.check.required": "at least {need} {block} blocks are needed, there are {got}",
   "learn.check.no_probe": "no probe \"{name}\"",
-  "learn.check.on_hidden": "on hidden input {k}: {detail}"
+  "learn.check.on_hidden": "on hidden input {k}: {detail}",
+  "learn.progress.broken": "the progress file {file} cannot be read ({why}): it was kept as {bak} and progress starts over",
+  "learn.report.title": "Learning path: report",
+  "learn.report.student": "Student: {name}",
+  "learn.report.variant": "Variant: {variant}",
+  "learn.report.version": "Signals {version}, {date}",
+  "learn.report.chapter": "Chapter",
+  "learn.report.solved": "Solved",
+  "learn.report.of": "{n} of {total}",
+  "learn.report.total": "Solved {n} of {total} in all, {revealed} of them after reading the solution.",
+  "learn.report.solved_at": "Solved {time}. Attempts: {attempts}, hints: {hints}.",
+  "learn.report.revealed_at": "Solved after reading the solution {time}. Attempts: {attempts}, hints: {hints}.",
+  "learn.report.answer": "Answer: `{answer}`",
+  "learn.report.goals": "Goals:",
+  "learn.report.graph": "Graph:",
+  "learn.report.open": "Started but not solved",
+  "learn.report.open_line": "{id} {title} — attempts: {attempts}, hints: {hints}"
 }

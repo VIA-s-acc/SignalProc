@@ -2669,5 +2669,21 @@
   "learn.check.forbidden": "блок {block} в этом задании запрещён",
   "learn.check.required": "блоков {block} нужно не меньше {need}, а есть {got}",
   "learn.check.no_probe": "нет щупа «{name}»",
-  "learn.check.on_hidden": "на скрытом входе {k}: {detail}"
+  "learn.check.on_hidden": "на скрытом входе {k}: {detail}",
+  "learn.progress.broken": "файл прогресса {file} не читается ({why}): он сохранён как {bak}, прогресс начат заново",
+  "learn.report.title": "Учебный путь: отчёт",
+  "learn.report.student": "Студент: {name}",
+  "learn.report.variant": "Вариант: {variant}",
+  "learn.report.version": "Signals {version}, {date}",
+  "learn.report.chapter": "Глава",
+  "learn.report.solved": "Решено",
+  "learn.report.of": "{n} из {total}",
+  "learn.report.total": "Всего решено {n} из {total}, из них с разбором: {revealed}.",
+  "learn.report.solved_at": "Решено {time}. Попыток: {attempts}, подсказок: {hints}.",
+  "learn.report.revealed_at": "Решено после разбора {time}. Попыток: {attempts}, подсказок: {hints}.",
+  "learn.report.answer": "Ответ: `{answer}`",
+  "learn.report.goals": "Цели:",
+  "learn.report.graph": "Граф:",
+  "learn.report.open": "Начаты, но не решены",
+  "learn.report.open_line": "{id} {title} — попыток: {attempts}, подсказок: {hints}"
 }
