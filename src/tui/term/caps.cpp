@@ -49,13 +49,6 @@ constexpr std::array<GlyphPair, 18> kGlyphs{{
 
 }  // namespace
 
-EnvLookup process_env() {
-    return [](std::string_view key) -> std::optional<std::string> {
-        const char* v = std::getenv(std::string{key}.c_str());
-        return v ? std::optional<std::string>{v} : std::nullopt;
-    };
-}
-
 TerminalCaps detect_caps(const EnvLookup& env) {
     TerminalCaps caps;
     caps.emulator = non_empty(env, "TERM_PROGRAM").value_or("");
@@ -76,11 +69,7 @@ TerminalCaps detect_caps(const EnvLookup& env) {
 }
 
 std::filesystem::path prefs_path(const EnvLookup& env) {
-    if (auto xdg = non_empty(env, "XDG_CONFIG_HOME")) return std::filesystem::path{*xdg} / "signals" / "terminal.toml";
-#ifdef _WIN32
-    if (auto appdata = non_empty(env, "APPDATA")) return std::filesystem::path{*appdata} / "signals" / "terminal.toml";
-#endif
-    return std::filesystem::path{non_empty(env, "HOME").value_or(".")} / ".config" / "signals" / "terminal.toml";
+    return io::config_dir(env).value_or(std::filesystem::path{"."} / ".config" / "signals") / "terminal.toml";
 }
 
 core::Result<TerminalPrefs> load_prefs(const std::filesystem::path& path) {

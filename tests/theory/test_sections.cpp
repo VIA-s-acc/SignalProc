@@ -12,7 +12,7 @@ using namespace signals::theory;
 
 TEST_CASE("the theory book splits into 149 sections", "[theory][sections]") {
     const auto& s = sections();
-    CHECK(s.size() == 150);
+    CHECK(s.size() == 158);
     const auto* dwt = find_section("dwt-mallat");
     REQUIRE(dwt);
     CHECK(dwt->number == "11.1");
@@ -120,3 +120,21 @@ TEST_CASE("the settings and files reference is a chapter in both languages", "[t
     }
 }
 
+
+TEST_CASE("the learning path reference is a chapter in both languages", "[theory][sections][learn]") {
+    for (const auto lang : {signals::Language::ru, signals::Language::en}) {
+        const signals::LanguageScope scope{lang};
+        const auto* learn = find_section("learn");
+        REQUIRE(learn);
+        CHECK(learn->level == 2);
+        for (const char* id : {"learn-use", "learn-check", "learn-progress", "learn-course", "learn-measures", "learn-text", "learn-lint"}) {
+            INFO(id);
+            const auto* s = find_section(id);
+            REQUIRE(s);
+            REQUIRE(s->parent);
+            CHECK(sections()[*s->parent].id == "learn");
+        }
+        CHECK(find_section("learn-measures")->body.find("max_error") != std::string::npos);
+        CHECK(find_section("learn-use")->body.find("signals learn check") != std::string::npos);
+    }
+}

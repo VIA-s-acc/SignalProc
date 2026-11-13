@@ -6,6 +6,8 @@ signals_embed_text(${PROJECT_SOURCE_DIR}/docs/user/sig-format.md ${CMAKE_CURRENT
 signals_embed_text(${PROJECT_SOURCE_DIR}/docs/user/sig-format.en.md ${CMAKE_CURRENT_BINARY_DIR}/sig_format_en.cpp kSignalsSigFormatEn)
 signals_embed_text(${PROJECT_SOURCE_DIR}/docs/user/config.md ${CMAKE_CURRENT_BINARY_DIR}/settings_doc.cpp kSignalsSettings)
 signals_embed_text(${PROJECT_SOURCE_DIR}/docs/user/config.en.md ${CMAKE_CURRENT_BINARY_DIR}/settings_doc_en.cpp kSignalsSettingsEn)
+signals_embed_text(${PROJECT_SOURCE_DIR}/docs/user/learn.md ${CMAKE_CURRENT_BINARY_DIR}/learn_doc.cpp kSignalsLearn)
+signals_embed_text(${PROJECT_SOURCE_DIR}/docs/user/learn.en.md ${CMAKE_CURRENT_BINARY_DIR}/learn_doc_en.cpp kSignalsLearnEn)
 signals_embed_dir(${PROJECT_SOURCE_DIR}/resources/theory/en/blocks "*.md" ${CMAKE_CURRENT_BINARY_DIR}/theory_cards_en.cpp kSignalsTheoryCardsEn)
 
 file(GLOB card_files CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/resources/theory/blocks/*.md)
@@ -39,6 +41,8 @@ add_library(signals_theory STATIC
   ${CMAKE_CURRENT_BINARY_DIR}/sig_format_en.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/settings_doc.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/settings_doc_en.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/learn_doc.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/learn_doc_en.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theory_cards_en.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/card_sources.cpp
 )

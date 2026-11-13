@@ -1,0 +1,44 @@
+# Learning path: report
+
+- Student: Анна Иванова
+- Variant: 17
+- Signals 0.8.0, 2026-11-13
+
+| Chapter | Solved |
+|---|---|
+| 1. Basics | 2 of 2 |
+| 2. More | 0 of 2 |
+
+Solved 2 of 4 in all, 1 of them after reading the solution.
+
+## 1.1 Sum
+
+Solved 2026-11-13 18:20. Attempts: 2, hints: 1.
+
+Answer: `9`
+
+## 1.2 Doubling
+
+Solved after reading the solution 2026-11-13 18:40. Attempts: 4, hints: 1.
+
+Goals:
+
+- ✓ `y` equals $2x$ to $10^{-12}$. — err = 0
+- ✓ The graph has an adder.
+- ✓ No gain block is used.
+
+Graph:
+
+```sig
+pipeline "double" v1
+
+node x = samples(values="1 2", rate=8)
+node y = add()
+
+x -> y.a
+x -> y.b
+```
+
+## Started but not solved
+
+- 2.2 Bank — attempts: 1, hints: 0

@@ -40,11 +40,22 @@ add_executable(signals_tests
   core/test_spectral.cpp
   core/test_progress_memory.cpp
   core/test_exact_reference.cpp
+  core/test_expr.cpp
+  learn/test_variant.cpp
+  learn/test_task.cpp
+  learn/test_measure.cpp
+  learn/test_structure.cpp
+  learn/test_answer.cpp
+  learn/test_checker.cpp
+  learn/test_progress.cpp
+  learn/test_report.cpp
+  learn/test_course.cpp
   io/test_wav_read.cpp
   io/test_audio_read.cpp
   io/test_wav_write.cpp
   io/test_stats.cpp
   io/test_generators.cpp
+  io/test_config_dir.cpp
   cli/test_cli.cpp
   cli/test_cli_commands.cpp
   cli/test_cli_audio.cpp
@@ -117,6 +128,7 @@ add_executable(signals_tests
   tui/test_pipeline_model.cpp
   tui/test_pipeline_screen.cpp
   cli/test_cli_pipeline.cpp
+  cli/test_cli_learn.cpp
   theory/test_latex.cpp
   theory/test_math_layout.cpp
   theory/test_markdown.cpp
@@ -128,7 +140,7 @@ add_executable(signals_tests
   support/golden.cpp
   support/banks.cpp
 )
-target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_svg signals_tui signals_audio signals_theory signals_pipeline Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
+target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_svg signals_tui signals_audio signals_theory signals_pipeline signals_learn Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
 target_include_directories(signals_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(signals_tests PRIVATE SIGNALS_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden"
                           SIGNALS_SOURCE_DIR="${PROJECT_SOURCE_DIR}"

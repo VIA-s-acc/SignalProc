@@ -1,0 +1,33 @@
+kind = "graph"
+theory = ["haar-walkthrough", "haar-filters", "fb-distortion-alias"]
+locked = ["x"]
+
+[[param]]
+name = "x"
+kind = "ints"
+count = 8
+min = -9
+max = 9
+
+[input]
+node = "x"
+hidden = 4
+
+[[measure]]
+name = "err"
+kind = "max_error"
+a = "sum"
+b = "x"
+delay = "auto"
+
+[[goal]]
+when = "err <= 1e-12"
+
+[[goal]]
+through = { from = "x", to = "sum", block = "downsample" }
+
+[[goal]]
+through = { from = "x", to = "sum", block = "upsample" }
+
+[[goal]]
+forbid = ["dwt", "idwt", "swt", "iswt", "lift53", "ilift53", "lift97", "ilift97", "wpt", "iwpt", "dtcwt", "idtcwt", "mra", "denoise", "polyphase", "ipolyphase"]

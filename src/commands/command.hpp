@@ -24,6 +24,7 @@ using Commands = std::vector<std::unique_ptr<Command>>;
 void add_audio_commands(CLI::App& app, Commands& commands);
 void add_analysis_commands(CLI::App& app, CLI::App& filter, Commands& commands);
 void add_pipeline_commands(CLI::App& app, Commands& commands);
+void add_learn_commands(CLI::App& app, Commands& commands);
 
 int report_error(std::ostream& err, const core::Error& error);
 

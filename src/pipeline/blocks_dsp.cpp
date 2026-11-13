@@ -655,17 +655,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        std::size_t shift = 0;
                        const auto& delay = param_text(p, "delay");
                        if (delay == "auto") {
-                           if (!ref.channels.empty() && !test.channels.empty()) {
-                               const auto& a = ref.channels[0];
-                               const auto& b = test.channels[0];
-                               double best = std::numeric_limits<double>::infinity();
-                               const auto n = std::min(a.size(), b.size());
-                               const auto last = b.size() > a.size() ? std::min<std::size_t>(b.size() - a.size(), 4096) : 0;
-                               for (std::size_t s = 0; n > 0 && s <= last; ++s) {
-                                   const double e = core::max_abs_error(std::span<const double>{a.data(), n}, std::span<const double>{b.data() + s, n});
-                                   if (e < best) best = e, shift = s;
-                               }
-                           }
+                           if (!ref.channels.empty() && !test.channels.empty()) shift = core::best_shift(ref.channels[0], test.channels[0], 4096);
                        } else {
                            std::size_t parsed = 0;
                            const auto [end, ec] = std::from_chars(delay.data(), delay.data() + delay.size(), parsed);

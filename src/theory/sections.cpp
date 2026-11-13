@@ -13,6 +13,8 @@ extern const char kSignalsSigFormat[];
 extern const char kSignalsSigFormatEn[];
 extern const char kSignalsSettings[];
 extern const char kSignalsSettingsEn[];
+extern const char kSignalsLearn[];
+extern const char kSignalsLearnEn[];
 
 namespace signals::theory {
 namespace {
@@ -106,10 +108,10 @@ std::vector<Section> parse_book(std::string_view text) {
 
 const std::vector<Section>& sections() {
     if (language() == Language::en) {
-        static const std::vector<Section> en = parse_book(std::string{kSignalsTheoryBookEn} + "\n" + kSignalsSigFormatEn + "\n" + kSignalsSettingsEn);
+        static const std::vector<Section> en = parse_book(std::string{kSignalsTheoryBookEn} + "\n" + kSignalsSigFormatEn + "\n" + kSignalsSettingsEn + "\n" + kSignalsLearnEn);
         return en;
     }
-    static const std::vector<Section> ru = parse_book(std::string{kSignalsTheoryBook} + "\n" + kSignalsSigFormat + "\n" + kSignalsSettings);
+    static const std::vector<Section> ru = parse_book(std::string{kSignalsTheoryBook} + "\n" + kSignalsSigFormat + "\n" + kSignalsSettings + "\n" + kSignalsLearn);
     return ru;
 }
 

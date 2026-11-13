@@ -14,13 +14,15 @@ The folder is chosen at start by the first rule that applies:
 
 On macOS this is also `~/.config/signals/`, not `~/Library/Application Support`. The program creates the folder and the files the first time it saves something. If even `HOME` is unset, settings go to `./.config/signals/` in the current folder and filters to `./signals-filters/`.
 
-The folder holds three things:
+The folder holds five things:
 
 | Path | What it is |
 |---|---|
 | `terminal.toml` | colour, glyphs, language, editor and the terminal-check mark |
 | `session.toml` | the session: theme, last tab, recent audio files and pipelines |
 | `filters/*.flt` | "My filters": your own banks and single filters |
+| `learn.toml` | learning path progress: the name, the variant, the solved tasks ({#learn-progress}) |
+| `learn/` | the solved task graphs and the work graphs in `learn/work/` |
 
 ### terminal.toml {#settings-terminal}
 
