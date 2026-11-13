@@ -5,6 +5,8 @@
 #include <ftxui/component/event.hpp>
 
 #include "audio/manual_sink.hpp"
+#include "learn/answer.hpp"
+#include "learn/checker.hpp"
 #include "learn/progress.hpp"
 #include "support/paths.hpp"
 #include "tui/app_screens.hpp"
@@ -98,4 +100,32 @@ TEST_CASE("task strip snapshots", "[tui][learn_strip][snapshot]") {
         app.shell.send(ftxui::Event::Character('3'));
         signals::test::check_snapshot("strip_filters_" + std::to_string(w) + "x" + std::to_string(h), app.shell.frame());
     }
+}
+
+TEST_CASE("the app models are freed when the app goes away", "[tui][learn_strip]") {
+    std::weak_ptr<LearnState> learn;
+    std::weak_ptr<PipelineModel> pipeline;
+    {
+        App app{80, 24};
+        learn = app.models.learn;
+        pipeline = app.models.pipeline;
+        app.ui->learn.reset();
+    }
+    CHECK(learn.expired());
+    CHECK(pipeline.expired());
+}
+
+TEST_CASE("F2 while typing an answer submits it", "[tui][learn_strip]") {
+    App app{150, 44};
+    app.models.learn->select("1.1");
+    app.shell.send(ftxui::Event::F2);
+    REQUIRE(app.screens[8]->active_child()->capturing_text());
+    const auto* t = app.models.learn->course().find("1.1");
+    const auto expected = signals::learn::expected_answer(*t, 1);
+    REQUIRE(expected.has_value());
+    for (char c : signals::learn::format_answer(*expected, signals::learn::variant_answer(*t, 1))) app.shell.send(ftxui::Event::Character(c));
+    app.shell.send(ftxui::Event::F2);
+    const auto v = app.models.learn->view();
+    REQUIRE(v.last.has_value());
+    CHECK(v.last->passed);
 }

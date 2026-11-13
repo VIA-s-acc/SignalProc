@@ -21,6 +21,7 @@ struct TaskProgress {
     std::string solved_at = {};
     std::string answer = {};
     std::vector<std::string> results = {};
+    int variant = 0;
 };
 
 struct Progress {
@@ -36,11 +37,11 @@ struct LoadedProgress {
 };
 
 std::filesystem::path progress_path(const std::filesystem::path& config_dir);
-std::filesystem::path work_path(const std::filesystem::path& config_dir, std::string_view id);
+std::filesystem::path work_path(const std::filesystem::path& config_dir, std::string_view id, int variant);
 std::filesystem::path solution_path(const std::filesystem::path& config_dir, std::string_view id);
 LoadedProgress load_progress(const std::filesystem::path& file);
 core::Result<void> save_progress(const std::filesystem::path& file, const Progress& p);
-void record_check(Progress& p, std::string_view id, const CheckResult& r, std::string_view answer, std::string_view now);
+void record_check(Progress& p, std::string_view id, const CheckResult& r, std::string_view answer, std::string_view now, int variant = 0);
 void reveal(Progress& p, std::string_view id);
 std::string now_text();
 

@@ -72,7 +72,7 @@ void LearnState::start(UiContext& ui) {
         if (ui.navigate) ui.navigate(t->open, {});
         return;
     }
-    const auto work = learn::work_path(dir_, t->id);
+    const auto work = learn::work_path(dir_, t->id, variant());
     std::error_code ec;
     if (!std::filesystem::exists(work, ec)) {
         std::filesystem::create_directories(work.parent_path(), ec);
@@ -93,7 +93,7 @@ void LearnState::check(UiContext& ui) {
         message_ = tr("tui.learn.type_answer");
         return;
     }
-    const auto work = learn::work_path(dir_, t->id);
+    const auto work = learn::work_path(dir_, t->id, variant());
     learn::Submission s;
     s.base_dir = work.parent_path();
     if (pipeline_ && pipeline_->path() && *pipeline_->path() == work) s.sig = pipeline::write_sig(pipeline_->doc());
@@ -116,7 +116,7 @@ void LearnState::submit_answer(UiContext& ui, std::string text) {
 
 void LearnState::on_run_finished(const FinishedRun& run, UiContext& ui) {
     const auto* t = active_task();
-    if (!t || t->kind != learn::TaskKind::graph || !run.ok || !run.path || *run.path != learn::work_path(dir_, t->id)) return;
+    if (!t || t->kind != learn::TaskKind::graph || !run.ok || !run.path || *run.path != learn::work_path(dir_, t->id, variant())) return;
     learn::Submission s;
     s.sig = run.sig;
     s.base_dir = run.path->parent_path();
@@ -143,7 +143,7 @@ void LearnState::run_check(UiContext& ui, const learn::Task& t, learn::Submissio
             return;
         }
         if (progress_.active == t.id && progress_.variant == variant) last_ = *r;
-        learn::record_check(progress_, t.id, *r, answer, learn::now_text());
+        learn::record_check(progress_, t.id, *r, answer, learn::now_text(), variant);
         if (r->passed && s.sig) {
             const auto keep = learn::solution_path(dir_, t.id);
             std::error_code ec;

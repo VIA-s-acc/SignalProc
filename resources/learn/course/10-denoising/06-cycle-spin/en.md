@@ -8,6 +8,7 @@ The Haar wavelet is not shift invariant: the result depends on where the grid st
 
 1. The SNR of `y` relative to `x` is higher than the SNR of `y1` by at least 0.5 dB.
 2. Every path from `n` to `y` goes through a `denoise` block.
+3. The clean signal `x` reaches the output only through the noisy recording `n`: it cannot be mixed in around it.
 
 ## Hints {#hints}
 

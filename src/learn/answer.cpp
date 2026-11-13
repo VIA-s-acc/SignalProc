@@ -20,7 +20,14 @@ std::string trim(std::string_view s) {
 
 std::string lower(std::string s) {
     std::ranges::transform(s, s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    for (std::size_t at; (at = s.find("\u2212")) != std::string::npos;) s.replace(at, 3, "-");
+    s.erase(std::remove(s.begin(), s.end(), ' '), s.end());
     return s;
+}
+
+std::string option_value(const std::string& option) {
+    const auto eq = option.rfind('=');
+    return eq == std::string::npos ? option : option.substr(eq + 1);
 }
 
 std::unexpected<core::Error> fail(std::string message) { return core::make_error(core::Errc::invalid_argument, std::move(message)); }
@@ -82,7 +89,13 @@ core::Result<std::vector<double>> parse_answer(std::string_view text, const Answ
     if (body.empty()) return fail(tr("learn.answer.empty"));
     if (a.type == AnswerType::choice) {
         for (std::size_t i = 0; i < a.options.size(); ++i)
-            if (lower(trim(a.options[i])) == lower(body)) return std::vector<double>{static_cast<double>(i + 1)};
+            if (lower(a.options[i]) == lower(body)) return std::vector<double>{static_cast<double>(i + 1)};
+        for (std::size_t i = 0; i < a.options.size(); ++i)
+            if (lower(option_value(a.options[i])) == lower(body)) return std::vector<double>{static_cast<double>(i + 1)};
+        const auto given = core::eval_number(lower(body));
+        for (std::size_t i = 0; given && i < a.options.size(); ++i)
+            if (const auto value = core::eval_number(lower(option_value(a.options[i]))); value && *value == *given)
+                return std::vector<double>{static_cast<double>(i + 1)};
         auto v = core::eval_number(body);
         if (v && *v == std::floor(*v) && *v >= 1 && *v <= static_cast<double>(a.options.size())) return std::vector<double>{*v};
         return fail(fmt::format(fmt::runtime(tr("learn.answer.bad_choice")), fmt::arg("count", a.options.size())));

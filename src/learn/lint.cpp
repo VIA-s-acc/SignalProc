@@ -56,7 +56,7 @@ void lint_answer(const Task& t, int variant, std::vector<LintIssue>& out) {
         return;
     }
     core::CancelToken cancel;
-    auto r = check_task(t, variant, {.answer = format_answer(*expected, *t.answer)}, cancel);
+    auto r = check_task(t, variant, {.answer = format_answer(*expected, variant_answer(t, variant))}, cancel);
     if (!r || !r->passed)
         out.push_back({t.id, say("learn.lint.solution_fails", fmt::arg("variant", variant), fmt::arg("why", r ? goals_summary(*r) : r.error().message))});
     if (t.answer->type == AnswerType::choice && t.answer->options.size() < 2) out.push_back({t.id, say("learn.lint.few_options")});

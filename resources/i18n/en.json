@@ -2679,8 +2679,8 @@
   "learn.report.solved": "Solved",
   "learn.report.of": "{n} of {total}",
   "learn.report.total": "Solved {n} of {total} in all, {revealed} of them after reading the solution.",
-  "learn.report.solved_at": "Solved {time}. Attempts: {attempts}, hints: {hints}.",
-  "learn.report.revealed_at": "Solved after reading the solution {time}. Attempts: {attempts}, hints: {hints}.",
+  "learn.report.solved_at": "Solved {time}, variant {variant}. Attempts: {attempts}, hints: {hints}.",
+  "learn.report.revealed_at": "Solved after reading the solution {time}, variant {variant}. Attempts: {attempts}, hints: {hints}.",
   "learn.report.answer": "Answer: `{answer}`",
   "learn.report.goals": "Goals:",
   "learn.report.graph": "Graph:",
@@ -2810,5 +2810,7 @@
   "pipeline.about.assert": "Checks an expression over the report fields on inputs a…d, for example a.snr_db >= 30 && b.max_abs < 1e-12; a failure changes the exit code of signals run",
   "pipeline.param.assert.expr": "The expression: report fields as a.max_abs, b.snr_db, a.passed; + − * / ^, comparisons, && || !, abs min max sqrt log10, pi",
   "pipeline.error.assert_expr": "assert: {why}",
-  "pipeline.error.assert_name": "assert: unknown name {name}; the closest is {near}"
+  "pipeline.error.assert_name": "assert: unknown name {name}; the closest is {near}",
+  "learn.options": "Options (type the number or the answer itself):",
+  "learn.check.locked_hint": ". If you changed the variant, take the start graph again: Enter on the Tasks tab or signals learn start"
 }

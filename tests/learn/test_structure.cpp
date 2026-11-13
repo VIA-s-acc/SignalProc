@@ -45,6 +45,23 @@ TEST_CASE("path existence ignores block types", "[learn][structure]") {
     CHECK_FALSE(path_exists(bank, "x", "nope"));
 }
 
+TEST_CASE("a path condition may name a node instead of a block type", "[learn][structure]") {
+    const auto bank = sig_doc(haar_bank());
+    CHECK_FALSE(all_paths_through(bank, {"x", "sum", "a"}));
+    CHECK(all_paths_through(bank, {"x", "ua", "a"}));
+    CHECK(all_paths_through(bank, {"h0", "f0", "ua"}));
+}
+
+TEST_CASE("live blocks are the ones that reach a measured output", "[learn][structure]") {
+    auto text = haar_bank();
+    text += "node dead = downsample(m=2, anti_alias=no, phase=1)\nx -> dead\n";
+    const auto doc = sig_doc(text);
+    CHECK(count_blocks(doc, "downsample") == 3);
+    const auto live = live_nodes(doc, std::vector<std::string>{"sum"});
+    CHECK(count_blocks(doc, "downsample", &live) == 2);
+    CHECK_FALSE(live.contains("pr"));
+}
+
 TEST_CASE("counting blocks", "[learn][structure]") {
     CHECK(count_blocks(sig_doc(haar_bank()), "downsample") == 2);
     CHECK(count_blocks(sig_doc(haar_bank()), "convolve") == 4);

@@ -23,7 +23,7 @@ std::filesystem::path fresh(const std::string& name) {
 TEST_CASE("progress paths live in the config dir", "[learn][progress]") {
     const std::filesystem::path dir{"/c/signals"};
     CHECK(progress_path(dir) == dir / "learn.toml");
-    CHECK(work_path(dir, "4.3") == dir / "learn" / "work" / "4.3.sig");
+    CHECK(work_path(dir, "4.3", 17) == dir / "learn" / "work" / "v17" / "4.3.sig");
     CHECK(solution_path(dir, "4.3") == dir / "learn" / "4.3.sig");
 }
 
@@ -102,4 +102,15 @@ TEST_CASE("revealed stays revealed after a later solve", "[learn][progress]") {
     record_check(q, "2.1", CheckResult{true, {}, 1, std::nullopt, 0}, "1", "t");
     reveal(q, "2.1");
     CHECK(q.tasks.at("2.1").state == TaskState::solved);
+}
+
+TEST_CASE("a solved task remembers its variant", "[learn][progress]") {
+    Progress p;
+    p.variant = 17;
+    CheckResult pass{true, {GoalResult{true, 0.0, "err = 0"}}, 4, std::nullopt, 0.1};
+    record_check(p, "4.3", pass, "", "t", 5);
+    CHECK(p.tasks.at("4.3").variant == 5);
+    const auto file = progress_path(fresh("learn-variant-kept"));
+    REQUIRE(save_progress(file, p).has_value());
+    CHECK(load_progress(file).progress.tasks.at("4.3").variant == 5);
 }

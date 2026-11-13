@@ -7,6 +7,7 @@ The graph holds a clean signal `x` (Donoho–Johnstone Doppler) and a node `n` t
 1. The SNR of `y` relative to `x` is higher than the SNR of `n` by at least 6 dB.
 2. Every path from `n` to `y` goes through a `threshold` block.
 3. The `denoise` block is not used.
+4. The clean signal `x` reaches the output only through the noisy recording `n`: it cannot be mixed in around it.
 
 ## Hints {#hints}
 

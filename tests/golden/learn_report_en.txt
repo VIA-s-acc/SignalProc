@@ -13,13 +13,13 @@ Solved 2 of 4 in all, 1 of them after reading the solution.
 
 ## 1.1 Sum
 
-Solved 2026-11-13 18:20. Attempts: 2, hints: 1.
+Solved 2026-11-13 18:20, variant 17. Attempts: 2, hints: 1.
 
 Answer: `9`
 
 ## 1.2 Doubling
 
-Solved after reading the solution 2026-11-13 18:40. Attempts: 4, hints: 1.
+Solved after reading the solution 2026-11-13 18:40, variant 17. Attempts: 4, hints: 1.
 
 Goals:
 

@@ -38,3 +38,9 @@ when = "stop <= -40"
 
 [[goal]]
 when = "pass >= -1"
+
+[[goal]]
+through = { from = "low", to = "y", block = "x" }
+
+[[goal]]
+through = { from = "high", to = "y", block = "x" }

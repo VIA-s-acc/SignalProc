@@ -77,3 +77,12 @@ TEST_CASE("a wrong answer does not reveal the expected value", "[learn][answer]"
     CHECK(r.detail.find("3") != std::string::npos);
     CHECK(format_answer(std::vector<double>{1, 0.5, 1.0 / 3}, vec) == "1 0.5 0.3333333333");
 }
+
+TEST_CASE("a choice answer may be the value of an option", "[learn][answer]") {
+    const Answer c{.type = AnswerType::choice, .expected = "1", .options = {"z = -1", "z = 1", "z = 0", "z = 1/2"}};
+    CHECK(parsed("-1", c) == std::vector<double>{1});
+    CHECK(parsed("1", c) == std::vector<double>{2});
+    CHECK(parsed("1/2", c) == std::vector<double>{4});
+    CHECK(parsed("\u22121", c) == std::vector<double>{1});
+    CHECK(parsed("3", c) == std::vector<double>{3});
+}

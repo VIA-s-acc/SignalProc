@@ -34,3 +34,6 @@ when = "multi - single >= 0.5"
 
 [[goal]]
 through = { from = "n", to = "y", block = "denoise" }
+
+[[goal]]
+through = { from = "x", to = "y", block = "n" }

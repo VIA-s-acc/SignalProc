@@ -45,6 +45,7 @@ Progress parse_progress(const toml::table& t) {
             tp.hints = static_cast<int>((*row)["hints"].value_or(0LL));
             tp.solved_at = (*row)["solved_at"].value_or(std::string{});
             tp.answer = (*row)["answer"].value_or(std::string{});
+            tp.variant = static_cast<int>((*row)["variant"].value_or(0LL));
             if (const auto* results = (*row)["results"].as_array())
                 for (const auto& r : *results) tp.results.push_back(r.value_or(std::string{}));
             p.tasks[std::string{id.str()}] = std::move(tp);
@@ -58,8 +59,8 @@ Progress parse_progress(const toml::table& t) {
 
 std::filesystem::path progress_path(const std::filesystem::path& config_dir) { return config_dir / "learn.toml"; }
 
-std::filesystem::path work_path(const std::filesystem::path& config_dir, std::string_view id) {
-    return config_dir / "learn" / "work" / (std::string{id} + ".sig");
+std::filesystem::path work_path(const std::filesystem::path& config_dir, std::string_view id, int variant) {
+    return config_dir / "learn" / "work" / ("v" + std::to_string(variant)) / (std::string{id} + ".sig");
 }
 
 std::filesystem::path solution_path(const std::filesystem::path& config_dir, std::string_view id) {
@@ -98,6 +99,7 @@ core::Result<void> save_progress(const std::filesystem::path& file, const Progre
         row.insert("hints", static_cast<long long>(t.hints));
         if (!t.solved_at.empty()) row.insert("solved_at", t.solved_at);
         if (!t.answer.empty()) row.insert("answer", t.answer);
+        if (t.variant > 0) row.insert("variant", static_cast<long long>(t.variant));
         if (!t.results.empty()) {
             toml::array results;
             for (const auto& r : t.results) results.push_back(r);
@@ -113,12 +115,15 @@ core::Result<void> save_progress(const std::filesystem::path& file, const Progre
     return io::write_file_atomic(file, out.str());
 }
 
-void record_check(Progress& p, std::string_view id, const CheckResult& r, std::string_view answer, std::string_view now) {
+void record_check(Progress& p, std::string_view id, const CheckResult& r, std::string_view answer, std::string_view now, int variant) {
     auto& t = p.tasks[std::string{id}];
     ++t.attempts;
     if (!answer.empty()) t.answer = std::string{answer};
     if (!r.passed) return;
-    if (t.solved_at.empty()) t.solved_at = std::string{now};
+    if (t.solved_at.empty()) {
+        t.solved_at = std::string{now};
+        t.variant = variant > 0 ? variant : p.variant;
+    }
     if (t.state == TaskState::open) t.state = TaskState::solved;
     t.results.clear();
     for (const auto& g : r.goals) t.results.push_back(g.detail);

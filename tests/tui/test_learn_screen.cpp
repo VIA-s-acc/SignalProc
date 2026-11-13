@@ -97,7 +97,7 @@ TEST_CASE("selecting a task and starting it opens the pipeline with the work gra
     h.send(ftxui::Event::Return);
     CHECK(f.ui->learn->view().progress.active == "1.2");
     REQUIRE(f.opened.size() == 1);
-    CHECK(f.opened[0] == learn::work_path(f.dir, "1.2"));
+    CHECK(f.opened[0] == learn::work_path(f.dir, "1.2", 1));
     h.send(ftxui::Event::ArrowUp);
     h.send(ftxui::Event::Return);
     CHECK(f.ui->learn->view().progress.active == "1.1");
@@ -174,4 +174,16 @@ TEST_CASE("tab moves focus and z maximizes the focused panel", "[tui][learn_scre
     CHECK(text != list);
     h.send(ftxui::Event::TabReverse);
     CHECK(h.frame() == list);
+}
+
+TEST_CASE("a choice task shows its options on the tasks tab", "[tui][learn_screen]") {
+    auto ui = test::make_ui(150, 44);
+    JobRunner jobs{[] {}, std::chrono::milliseconds{0}, true};
+    ui->jobs = &jobs;
+    ui->learn = std::make_shared<LearnState>(learn::builtin_course(), std::filesystem::path{}, nullptr);
+    auto s = make_learn_screen(*ui);
+    s->open_with(NavArgs{.task = "2.4"});
+    Harness h{s, 150, 41};
+    const auto a = learn::variant_answer(*learn::builtin_course().find("2.4"), 1);
+    CHECK(h.frame().find(a.options[0]) != std::string::npos);
 }

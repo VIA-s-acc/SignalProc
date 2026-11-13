@@ -209,12 +209,14 @@ private:
         if (json_) {
             nlohmann::json j{{"id", t.id}, {"title", text.title}, {"kind", t.kind == TaskKind::graph ? "graph" : "answer"},
                              {"statement", render_text(text.statement, t, variant_used_)}, {"goals", nlohmann::json::array()}, {"hints", nlohmann::json::array()}};
+            if (t.answer && t.answer->type == AnswerType::choice) j["options"] = variant_answer(t, variant_used_).options;
             for (const auto& g : text.goals) j["goals"].push_back(render_text(g, t, variant_used_));
             for (std::size_t i = 0; i < opened; ++i) j["hints"].push_back(render_text(text.hints[i], t, variant_used_));
             out << j.dump(2) << '\n';
             return 0;
         }
         out << t.id << " " << text.title << "\n\n" << render_text(text.statement, t, variant_used_) << "\n";
+        if (const auto options = options_markdown(t, variant_used_); !options.empty()) out << "\n" << options;
         if (!text.goals.empty()) {
             out << "\n" << say("cli.learn.goals") << "\n";
             for (std::size_t i = 0; i < text.goals.size(); ++i) out << fmt::format("  {}. {}\n", i + 1, render_text(text.goals[i], t, variant_used_));
@@ -234,7 +236,9 @@ private:
         progress_.active = t.id;
         if (!save(err)) return 1;
         if (t.kind == TaskKind::answer || t.start_sig.empty()) {
-            out << render_text(t.text().statement, t, variant_used_) << "\n\n" << say("cli.learn.next_answer", fmt::arg("id", t.id)) << "\n";
+            out << render_text(t.text().statement, t, variant_used_) << "\n\n";
+            if (const auto options = options_markdown(t, variant_used_); !options.empty()) out << options << "\n";
+            out << say("cli.learn.next_answer", fmt::arg("id", t.id)) << "\n";
             if (t.start_sig.empty()) return 0;
         }
         const std::filesystem::path file = output_.empty() ? std::filesystem::path{t.id + ".sig"} : std::filesystem::path{output_};
@@ -276,7 +280,7 @@ private:
             err << r.error().message << '\n';
             return 1;
         }
-        record_check(progress_, t.id, *r, answer_, now_text());
+        record_check(progress_, t.id, *r, answer_, now_text(), variant_used_);
         progress_.active = t.id;
         if (r->passed && t.kind == TaskKind::graph) {
             const auto keep = solution_path(config_dir(), t.id);
@@ -296,7 +300,7 @@ private:
                 j["goals"].push_back(std::move(g));
             }
             out << j.dump(2) << '\n';
-            return r->passed ? 0 : 3;
+            return r->passed ? 0 : r->error ? 1 : 3;
         }
         out << say(r->passed ? "cli.learn.passed" : "cli.learn.failed", fmt::arg("id", t.id), fmt::arg("title", t.text().title)) << "\n";
         if (r->error) out << "  " << *r->error << "\n";
@@ -309,7 +313,7 @@ private:
             out << "\n";
         }
         if (t.kind == TaskKind::graph && !r->error) out << say("cli.learn.inputs", fmt::arg("n", r->inputs), fmt::arg("seconds", fmt::format("{:.2f}", r->seconds))) << "\n";
-        return r->passed ? 0 : 3;
+        return r->passed ? 0 : r->error ? 1 : 3;
     }
 
     int hint(const Task& t, std::ostream& out, std::ostream& err) {

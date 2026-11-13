@@ -37,3 +37,6 @@ through = { from = "n", to = "y", block = "threshold" }
 
 [[goal]]
 forbid = ["denoise"]
+
+[[goal]]
+through = { from = "x", to = "y", block = "n" }

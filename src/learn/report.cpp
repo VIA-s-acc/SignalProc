@@ -56,14 +56,15 @@ std::string progress_report(const Course& c, const Progress& p, std::string_view
                 continue;
             }
             out += fmt::format("\n## {} {}\n\n", t.id, text.title);
+            const int variant = tp->variant > 0 ? tp->variant : p.variant;
             out += say(tp->state == TaskState::revealed ? "learn.report.revealed_at" : "learn.report.solved_at", fmt::arg("time", tp->solved_at),
-                       fmt::arg("attempts", tp->attempts), fmt::arg("hints", tp->hints)) +
+                       fmt::arg("variant", variant), fmt::arg("attempts", tp->attempts), fmt::arg("hints", tp->hints)) +
                    "\n";
             if (!tp->answer.empty()) out += "\n" + say("learn.report.answer", fmt::arg("answer", tp->answer)) + "\n";
             if (!text.goals.empty()) {
                 out += "\n" + say("learn.report.goals") + "\n\n";
                 for (std::size_t i = 0; i < text.goals.size(); ++i) {
-                    out += "- ✓ " + render_text(text.goals[i], t, p.variant);
+                    out += "- ✓ " + render_text(text.goals[i], t, variant);
                     if (i < tp->results.size() && !tp->results[i].empty()) out += " — " + tp->results[i];
                     out += "\n";
                 }
