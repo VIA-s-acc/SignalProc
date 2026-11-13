@@ -45,7 +45,7 @@ One statement per line. The order of lines does not matter: a wire may come befo
 Every block has inputs and outputs of a given type (listed in the block reference and in the inspector):
 
 - `signal` — a signal: one or more channels and a sample rate;
-- `coeffs` — wavelet coefficients (from `dwt`, `swt`, `wpt`, lifting);
+- `coeffs` — wavelet coefficients (from `dwt`, `swt`, `wpt`, `dtcwt`, lifting);
 - `filter` — a filter bank;
 - `scalar` — a single number;
 - `report` — a report: fields and whether the check passed.
