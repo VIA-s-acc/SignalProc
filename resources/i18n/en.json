@@ -2625,5 +2625,14 @@
   "pipeline.error.select_channel": "select_channel: there is no channel {index}, the input has {n}",
   "pipeline.error.needs_stereo": "{block}: at least two channels are needed, the input has {n}",
   "pipeline.error.channel_delay": "channel_delay: delays = {value}: whole sample counts are expected, e.g. 0 12",
-  "pipeline.error.zero_samples": "{block}: {param} must be at least one sample"
+  "pipeline.error.zero_samples": "{block}: {param} must be at least one sample",
+  "learn.error.at": "{file}:{line}: {message}",
+  "learn.error.file": "{file}: {message}",
+  "learn.error.bad_value": "invalid value {key} = \"{value}\"",
+  "learn.error.missing": "file {file} is missing",
+  "learn.error.goal_count": "the text lists {text} goals, task.toml has {toml}",
+  "learn.error.prefix": "directory {dir} must start with a number: 01-…",
+  "learn.error.no_title": "the first line must be a \"# …\" title",
+  "learn.error.no_answer": "an answer task needs an [answer] table",
+  "learn.error.goal_kind": "a goal needs exactly one of: when, through, forbid, require, probe"
 }

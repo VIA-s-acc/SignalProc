@@ -42,6 +42,7 @@ add_executable(signals_tests
   core/test_exact_reference.cpp
   core/test_expr.cpp
   learn/test_variant.cpp
+  learn/test_task.cpp
   io/test_wav_read.cpp
   io/test_audio_read.cpp
   io/test_wav_write.cpp

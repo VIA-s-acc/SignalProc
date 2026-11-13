@@ -2625,5 +2625,14 @@
   "pipeline.error.select_channel": "select_channel: канала {index} нет, у входа каналов: {n}",
   "pipeline.error.needs_stereo": "{block}: нужно хотя бы два канала, у входа {n}",
   "pipeline.error.channel_delay": "channel_delay: delays = {value}: нужны целые числа отсчётов, например 0 12",
-  "pipeline.error.zero_samples": "{block}: {param} должен быть не меньше одного отсчёта"
+  "pipeline.error.zero_samples": "{block}: {param} должен быть не меньше одного отсчёта",
+  "learn.error.at": "{file}:{line}: {message}",
+  "learn.error.file": "{file}: {message}",
+  "learn.error.bad_value": "недопустимое значение {key} = «{value}»",
+  "learn.error.missing": "нет файла {file}",
+  "learn.error.goal_count": "в тексте целей {text}, а в task.toml — {toml}",
+  "learn.error.prefix": "каталог {dir} должен начинаться с номера: 01-…",
+  "learn.error.no_title": "нет заголовка «# …» в первой строке",
+  "learn.error.no_answer": "у задания-ответа нет раздела [answer]",
+  "learn.error.goal_kind": "у цели должно быть ровно одно из: when, through, forbid, require, probe"
 }

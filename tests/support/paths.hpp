@@ -13,6 +13,10 @@ inline std::filesystem::path audio_fixture(const std::string& name) {
     return std::filesystem::path{SIGNALS_SOURCE_DIR} / "tests" / "fixtures" / "audio" / name;
 }
 
+inline std::filesystem::path learn_fixture(const std::string& name) {
+    return std::filesystem::path{SIGNALS_SOURCE_DIR} / "tests" / "fixtures" / "learn" / name;
+}
+
 inline std::filesystem::path sample(const std::string& name) {
     return std::filesystem::path{SIGNALS_SOURCE_DIR} / "resources" / "samples" / name;
 }
