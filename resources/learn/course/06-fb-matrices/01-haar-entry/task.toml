@@ -1,0 +1,25 @@
+kind = "answer"
+open = "matrix"
+theory = ["fbm-infinite", "fbm-periodization", "haar-matrix"]
+
+[[param]]
+name = "r"
+kind = "int"
+min = 0
+max = 7
+
+[[param]]
+name = "c"
+kind = "int"
+min = 0
+max = 7
+
+[[measure]]
+name = "t"
+kind = "samples"
+a = "t"
+
+[answer]
+type = "number"
+expected = "t"
+tol = 1e-6

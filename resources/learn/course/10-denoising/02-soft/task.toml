@@ -1,0 +1,39 @@
+kind = "graph"
+open = "pipeline"
+theory = ["audio-denoising", "met-snr"]
+locked = ["x", "n"]
+
+[[param]]
+name = "snr"
+kind = "int"
+min = 8
+max = 12
+
+[[param]]
+name = "seed"
+kind = "int"
+min = 1
+max = 50
+
+[[measure]]
+name = "in"
+kind = "snr"
+a = "n"
+b = "x"
+delay = 0
+
+[[measure]]
+name = "out"
+kind = "snr"
+a = "y"
+b = "x"
+delay = 0
+
+[[goal]]
+when = "out - in >= 6"
+
+[[goal]]
+through = { from = "n", to = "y", block = "threshold" }
+
+[[goal]]
+forbid = ["denoise"]

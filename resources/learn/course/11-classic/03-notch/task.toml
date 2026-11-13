@@ -1,0 +1,31 @@
+kind = "graph"
+open = "pipeline"
+theory = ["cls-allpass-notch", "cls-iir-prototypes"]
+locked = ["tone", "hum", "x"]
+
+[[param]]
+name = "a"
+kind = "real"
+min = 0.5
+max = 2
+decimals = 1
+
+[[measure]]
+name = "hum"
+kind = "gain_db"
+a = "y"
+b = "x"
+freq = 50
+
+[[measure]]
+name = "tone"
+kind = "gain_db"
+a = "y"
+b = "x"
+freq = 440
+
+[[goal]]
+when = "hum <= -30"
+
+[[goal]]
+when = "tone >= -1"

@@ -1,0 +1,34 @@
+kind = "graph"
+open = "pipeline"
+theory = ["audio-compression", "transforms"]
+locked = ["x"]
+
+[[param]]
+name = "p"
+kind = "int"
+min = 10
+max = 14
+
+[[measure]]
+name = "kept"
+kind = "kept"
+a = "keep"
+
+[[measure]]
+name = "snr"
+kind = "snr"
+a = "y"
+b = "x"
+delay = 0
+
+[[goal]]
+when = "kept <= p / 100"
+
+[[goal]]
+when = "snr >= 30"
+
+[[goal]]
+through = { from = "x", to = "y", block = "dwt" }
+
+[[goal]]
+through = { from = "x", to = "y", block = "idwt" }

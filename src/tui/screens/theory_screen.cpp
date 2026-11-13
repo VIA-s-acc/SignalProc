@@ -546,12 +546,6 @@ const std::vector<theory::Block>& TheoryScreen::blocks_for(std::size_t index) {
     const auto& all = theory::sections();
     const auto& s = all[index];
     std::string md{theory::own_body(s)};
-    const auto& course = ui_.learn ? ui_.learn->course() : learn::builtin_course();
-    if (const auto tasks = learn::tasks_for_section(course, s.id); !tasks.empty()) {
-        md += "\n\n" + tr("tui.theory.tasks") + " ";
-        for (std::size_t i = 0; i < tasks.size(); ++i) md += (i ? ", " : "") + std::string{"["} + tasks[i]->id + " " + tasks[i]->text().title + "](task:" + tasks[i]->id + ")";
-        md += "\n";
-    }
     const auto kids = theory::children_of(index);
     if (!kids.empty()) {
         md += "\n\n";
@@ -562,6 +556,12 @@ const std::vector<theory::Block>& TheoryScreen::blocks_for(std::size_t index) {
     if (s.parent) nav += std::string{nav.empty() ? "" : " · "} + "↑ {#" + all[*s.parent].id + "}";
     if (index + 1 < all.size()) nav += std::string{nav.empty() ? "" : " · "} + "{#" + all[index + 1].id + "} →";
     if (!nav.empty()) md += "\n\n---\n\n" + nav + "\n";
+    const auto& course = ui_.learn ? ui_.learn->course() : learn::builtin_course();
+    if (const auto tasks = learn::tasks_for_section(course, s.id); !tasks.empty()) {
+        md += "\n\n" + tr("tui.theory.tasks") + " ";
+        for (std::size_t i = 0; i < tasks.size(); ++i) md += (i ? ", " : "") + std::string{"["} + tasks[i]->id + " " + tasks[i]->text().title + "](task:" + tasks[i]->id + ")";
+        md += "\n";
+    }
     return cache_.emplace(index, theory::parse_markdown(md)).first->second;
 }
 

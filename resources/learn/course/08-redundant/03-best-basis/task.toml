@@ -1,0 +1,8 @@
+kind = "answer"
+open = "pipeline"
+theory = ["wavelet-packets", "transforms"]
+
+[answer]
+type = "integer"
+expected = "6"
+tol = 0

@@ -1,0 +1,35 @@
+kind = "answer"
+open = "pipeline"
+theory = ["audio-denoising", "met-snr"]
+
+[[param]]
+name = "snr"
+kind = "int"
+min = 6
+max = 14
+
+[[param]]
+name = "seed"
+kind = "int"
+min = 1
+max = 50
+
+[[measure]]
+name = "sh"
+kind = "snr"
+a = "yh"
+b = "x"
+delay = 0
+
+[[measure]]
+name = "ss"
+kind = "snr"
+a = "ys"
+b = "x"
+delay = 0
+
+[answer]
+type = "choice"
+expected = "hard"
+options = ["hard", "soft"]
+verify = "sh - ss >= 1"

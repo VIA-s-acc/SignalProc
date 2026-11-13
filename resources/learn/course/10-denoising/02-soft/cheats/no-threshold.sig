@@ -1,0 +1,9 @@
+pipeline "soft_threshold" v1
+
+node x = gen(kind=doppler, rate=2048, duration=1)
+node n = add_noise(color=white, snr_db={{snr}}, seed={{seed}})
+node d = dwt(wavelet=sym8, levels=5)
+node y = idwt()
+
+x -> n -> d -> y
+probe y as "y"

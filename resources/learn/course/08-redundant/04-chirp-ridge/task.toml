@@ -1,0 +1,32 @@
+kind = "answer"
+open = "pipeline"
+theory = ["cwt", "synchrosqueezing"]
+
+[[param]]
+name = "f0"
+kind = "int"
+min = 60
+max = 120
+
+[[param]]
+name = "f1"
+kind = "int"
+min = 300
+max = 450
+
+[[param]]
+name = "k"
+kind = "int"
+min = 250
+max = 750
+
+[[measure]]
+name = "f"
+kind = "samples"
+a = "pick"
+
+[answer]
+type = "number"
+expected = "f"
+tol = 0.02
+rel = true

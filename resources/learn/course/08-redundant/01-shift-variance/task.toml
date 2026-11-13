@@ -1,0 +1,30 @@
+kind = "answer"
+open = "pipeline"
+theory = ["transforms", "swt-modwt"]
+
+[[param]]
+name = "x"
+kind = "ints"
+count = 16
+min = -9
+max = 9
+
+[[measure]]
+name = "e1"
+kind = "samples"
+a = "l1"
+
+[[measure]]
+name = "e2"
+kind = "samples"
+a = "l2"
+
+[[measure]]
+name = "pct"
+kind = "samples"
+a = "pct"
+
+[answer]
+type = "number"
+expected = "pct"
+tol = 0.1

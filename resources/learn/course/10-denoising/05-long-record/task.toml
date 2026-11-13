@@ -1,0 +1,47 @@
+kind = "graph"
+open = "pipeline"
+theory = ["audio-denoising", "met-snr"]
+locked = ["x", "w", "n"]
+
+[[param]]
+name = "a"
+kind = "real"
+min = 0.25
+max = 0.35
+decimals = 2
+
+[[param]]
+name = "seed"
+kind = "int"
+min = 1
+max = 50
+
+[[measure]]
+name = "in"
+kind = "snr"
+a = "n"
+b = "x"
+delay = 0
+
+[[measure]]
+name = "out"
+kind = "snr"
+a = "y"
+b = "x"
+delay = 0
+
+[[measure]]
+name = "f0"
+kind = "gain_db"
+a = "y"
+b = "x"
+freq = 220
+
+[[goal]]
+when = "out - in >= 5"
+
+[[goal]]
+when = "f0 >= -1"
+
+[[goal]]
+through = { from = "n", to = "y", block = "threshold" }

@@ -1,0 +1,38 @@
+kind = "answer"
+open = "pipeline"
+theory = ["audio-denoising", "met-snr"]
+
+[[param]]
+name = "sig"
+kind = "choice"
+choices = ["bumps", "blocks"]
+
+[[param]]
+name = "snr"
+kind = "int"
+min = 6
+max = 14
+
+[[param]]
+name = "seed"
+kind = "int"
+min = 1
+max = 50
+
+[[measure]]
+name = "mad"
+kind = "field"
+a = "st"
+field = "rms"
+
+[[measure]]
+name = "true"
+kind = "field"
+a = "se"
+field = "rms"
+
+[answer]
+type = "number"
+expected = "mad"
+tol = 0.05
+rel = true
