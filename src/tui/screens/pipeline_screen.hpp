@@ -38,6 +38,7 @@ public:
     void publish(theory::LiveValues& v) const override;
     std::vector<Command> commands() override;
     std::string context() const override;
+    void open_with(const NavArgs& args) override;
 
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event e) override;

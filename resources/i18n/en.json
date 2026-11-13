@@ -1892,6 +1892,7 @@
   "tui.pipeline.hint.connect_keys": "connect: c — output, arrows, Enter; C — list of inputs",
   "pipeline.block.samples": "Samples",
   "pipeline.block.add": "Adder ⊕",
+  "tui.pipeline.example.first_steps": "First steps: denoising a Doppler signal",
   "tui.pipeline.example.haar_bank": "Haar bank: analysis and synthesis, as in «Explain»",
   "tui.pipeline.example.haar_two_levels": "Haar bank on two levels",
   "tui.pipeline.example.dwt_levels": "db4 DWT on 3 levels with a probe on every band",

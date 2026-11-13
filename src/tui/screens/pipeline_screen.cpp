@@ -106,6 +106,16 @@ void PipelineScreen::open_example(std::string_view name, std::string_view text) 
     if (ui_.ask_text) ui_.ask_text(tr("tui.pipeline.ask_wav"), initial, [set_path](std::string path) { set_path(path); });
 }
 
+void PipelineScreen::open_with(const NavArgs& args) {
+    if (args.example.empty()) return;
+    for (const auto& ex : pipeline::examples()) {
+        if (ex.name != args.example) continue;
+        open_example(ex.name, ex.text);
+        if (ui_.jobs) model_->run(*ui_.jobs);
+        return;
+    }
+}
+
 void PipelineScreen::open_examples() {
     std::vector<Command> items;
     for (const auto& ex : pipeline::examples()) {

@@ -1892,6 +1892,7 @@
   "tui.pipeline.hint.connect_keys": "соединить: c — выход, стрелки, Enter; C — список входов",
   "pipeline.block.samples": "Отсчёты",
   "pipeline.block.add": "Сумматор ⊕",
+  "tui.pipeline.example.first_steps": "Первые шаги: шумоподавление сигнала Доплера",
   "tui.pipeline.example.haar_bank": "Банк Хаара: анализ и синтез, как на «Объяснении»",
   "tui.pipeline.example.haar_two_levels": "Банк Хаара в два уровня",
   "tui.pipeline.example.dwt_levels": "DWT db4 на 3 уровня со щупами на полосах",

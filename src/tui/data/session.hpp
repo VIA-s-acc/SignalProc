@@ -34,12 +34,15 @@ public:
     void forget_recent();
     void set_theme(std::string name);
     void set_tab(int tab);
+    bool fresh() const { return fresh_; }
+    void save_now() const;
 
 private:
     void save() const;
     std::filesystem::path file_;
     mutable std::mutex mutex_;
     Session session_;
+    bool fresh_ = true;
 };
 
 }  // namespace signals::tui

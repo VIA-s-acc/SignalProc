@@ -40,6 +40,7 @@ struct NavArgs {
     std::optional<std::size_t> n = {};
     std::optional<std::size_t> step = {};
     std::string task = {};
+    std::string example = {};
 };
 
 struct TheoryLink {

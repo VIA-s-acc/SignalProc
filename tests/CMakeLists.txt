@@ -112,6 +112,7 @@ add_executable(signals_tests
   pipeline/test_blocks_basic.cpp
   pipeline/test_blocks_dsp.cpp
   pipeline/test_blocks_more.cpp
+  pipeline/test_first_steps.cpp
   pipeline/test_multichannel.cpp
   pipeline/test_sweep.cpp
   pipeline/test_blocks_assert.cpp
