@@ -798,6 +798,6 @@ TEST_CASE("a book section lists its tasks and a click opens one", "[tui][theory]
     f.h.click(at->first + 2, at->second);
     REQUIRE_FALSE(went.empty());
     CHECK(went.back() == std::pair<std::string, std::string>{"learn", "4.3"});
-    f.nav->open({{TheoryLink::Kind::section, "dwt-mallat", ""}});
+    f.nav->open({{TheoryLink::Kind::section, "num-exact-reference", ""}});
     CHECK(f.h.frame().find("Задания:") == std::string::npos);
 }
