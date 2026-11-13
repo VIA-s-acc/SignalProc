@@ -24,6 +24,7 @@ add_library(signals_tui STATIC
   data/pyramid.cpp
   data/user_filters.cpp
   data/session.cpp
+  data/learn_state.cpp
   jobs/jobs.cpp
   monitor/sampler_common.cpp
   monitor/monitor.cpp
@@ -51,6 +52,7 @@ add_library(signals_tui STATIC
   screens/resample_screen.cpp
   screens/tempo_model.cpp
   screens/tempo_screen.cpp
+  screens/learn_screen.cpp
   screens/explain_screen.cpp
   screens/theory_navigator.cpp
   screens/theory_screen.cpp
@@ -78,7 +80,7 @@ add_library(signals_tui STATIC
 target_include_directories(signals_tui PUBLIC ${PROJECT_SOURCE_DIR}/src)
 find_package(Threads REQUIRED)
 target_link_libraries(signals_tui
-  PUBLIC signals_core signals_io signals_svg signals_audio signals_i18n signals_theory signals_pipeline ftxui::component ftxui::dom ftxui::screen Threads::Threads
+  PUBLIC signals_core signals_io signals_svg signals_audio signals_i18n signals_theory signals_pipeline signals_learn ftxui::component ftxui::dom ftxui::screen Threads::Threads
   PRIVATE tomlplusplus::tomlplusplus fmt::fmt)
 target_compile_definitions(signals_tui PRIVATE SIGNALS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 signals_configure_target(signals_tui)

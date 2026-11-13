@@ -2,6 +2,8 @@
 #include "tui/shell/shell.hpp"
 
 #include "tui/screens/theory_navigator.hpp"
+#include "learn/checker.hpp"
+#include "tui/data/learn_state.hpp"
 
 #include <cstdlib>
 
@@ -124,8 +126,12 @@ public:
                 hints.push_back(text(" " + hint.label + "  ") | fg(ui_.theme.dim, ui_));
             }
         auto resources = ui_.resources ? ui_.resources() : ResourceSnapshot{};
-        auto base = vbox({hbox(std::move(tabs)), screen.Render() | flex, hbox(std::move(hints)),
-                          status_line(ui_, resources, w) | reflect(status_box_)});
+        strip_box_ = Box{1, 0, 1, 0};
+        Elements rows{hbox(std::move(tabs)), screen.Render() | flex};
+        if (auto strip = learn_strip(w)) rows.push_back(std::move(*strip) | reflect(strip_box_));
+        rows.push_back(hbox(std::move(hints)));
+        rows.push_back(status_line(ui_, resources, w) | reflect(status_box_));
+        auto base = vbox(std::move(rows));
         if (palette_.is_open()) return paint(dbox({base, palette_.render(ui_, w) | clear_under | center}));
         if (check_.is_open()) return paint(dbox({base, check_.render(ui_) | clear_under | center}));
         if (resources_open_) return paint(dbox({base, resources_panel(ui_, w, h, resources_scroll_) | clear_under | center}));
@@ -166,6 +172,18 @@ public:
             open_theory_for_focus();
             return true;
         }
+        if (e == ftxui::Event::F2 && ui_.learn) {
+            learn_check();
+            return true;
+        }
+        if (e == ftxui::Event::F3 && ui_.learn) {
+            learn_hint();
+            return true;
+        }
+        if (e == ftxui::Event::Escape && ui_.learn && ui_.learn->view().checking) {
+            ui_.learn->cancel();
+            return true;
+        }
         auto& screen = *screens_[static_cast<std::size_t>(active_)];
         if (screen.capturing_text()) return screen.OnEvent(e);
         if (e.is_mouse()) {
@@ -182,6 +200,10 @@ public:
                 help_open_ = true;
                 help_filter_.clear();
                 help_scroll_ = 0;
+                return true;
+            }
+            if (m.button == ftxui::Mouse::Left && m.motion == ftxui::Mouse::Pressed && strip_box_.Contain(m.x, m.y) && ui_.learn) {
+                if (const auto* t = ui_.learn->active_task()) navigate("learn", NavArgs{.task = t->id});
                 return true;
             }
             if (m.button == ftxui::Mouse::Left && m.motion == ftxui::Mouse::Pressed && status_box_.Contain(m.x, m.y)) {
@@ -304,7 +326,7 @@ private:
         };
         static constexpr Route routes[]{{"signal", 0, -1},     {"spectrum", 1, 0}, {"resample", 1, 1},       {"tempo", 1, 2},       {"filters", 2, -1},
                                         {"designer", 3, 0},    {"diagram", 3, 1},  {"decomposition", 4, -1}, {"processing", 6, -1},   {"pipeline", 7, -1},
-                                        {"matrix", 5, -1},     {"explain", 8, 0},  {"under_the_hood", 8, 1}, {"tutorial", 8, 2}};
+                                        {"matrix", 5, -1},     {"explain", 8, 0},  {"under_the_hood", 8, 1}, {"tutorial", 8, 2}, {"learn", 8, 3}};
         int tab = -1, sub = -1;
         if (target.starts_with("tab:")) {
             const auto n = std::atoi(std::string{target.substr(4)}.c_str());
@@ -345,12 +367,78 @@ private:
         ui_.open_theory(make_theory_page(target, "tab:" + std::to_string(active_ + 1)));
     }
 
+    std::optional<ftxui::Element> learn_strip(int w) const {
+        using namespace ftxui;
+        if (!ui_.learn) return std::nullopt;
+        const auto* t = ui_.learn->active_task();
+        if (!t) return std::nullopt;
+        const auto v = ui_.learn->view();
+        const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
+        const bool graph = t->kind == learn::TaskKind::graph;
+        std::string state;
+        auto tone = ui_.theme.dim;
+        if (v.checking) state = tr("tui.learn.strip.checking");
+        else if (v.message) state = *v.message, tone = ui_.theme.warn;
+        else if (v.last && v.last->error) state = v.last->error->substr(0, v.last->error->find('\n')), tone = ui_.theme.err;
+        else if (v.last && v.last->passed) state = tr("tui.learn.strip.passed"), tone = ui_.theme.ok;
+        else if (v.last && graph) {
+            std::size_t ok = 0;
+            for (const auto& g : v.last->goals) ok += g.passed;
+            state = fmt::format(fmt::runtime(tr("tui.learn.strip.goals")), fmt::arg("ok", ok), fmt::arg("total", v.last->goals.size()));
+            tone = ui_.theme.warn;
+        } else if (v.last) state = tr("tui.learn.strip.wrong"), tone = ui_.theme.warn;
+        else if (const auto it = v.progress.tasks.find(t->id); it != v.progress.tasks.end() && it->second.state != learn::TaskState::open)
+            state = tr("tui.learn.strip.solved"), tone = ui_.theme.ok;
+        else state = tr(graph ? "tui.learn.strip.unchecked" : "tui.learn.strip.no_answer");
+        const std::string lead = ascii ? "* " : "◆ ";
+        const std::string dot = ascii ? " - " : " · ";
+        const std::string keys = fmt::format(fmt::runtime(tr("tui.learn.strip.keys")), fmt::arg("check", tr(graph ? "tui.learn.hint.check" : "tui.learn.hint.answer")));
+        const std::vector<std::pair<std::string, std::string>> variants{{lead + t->id + " " + t->text().title, keys},
+                                                                         {lead + t->id + " " + t->text().title, "F2 F3"},
+                                                                         {lead + t->id, "F2"}};
+        for (const auto& [head, tail] : variants)
+            if (display_width(head + dot + state + dot + tail) <= w)
+                return hbox({text(head) | bold | fg(ui_.theme.accent, ui_), text(dot) | fg(ui_.theme.dim, ui_), text(state) | fg(tone, ui_),
+                             text(dot) | fg(ui_.theme.dim, ui_), text(tail) | fg(ui_.theme.dim, ui_), filler()});
+        return hbox({text(ellipsize(lead + t->id + dot + state, w, ascii)) | fg(ui_.theme.accent, ui_), filler()});
+    }
+
+    void learn_check() {
+        const auto* t = ui_.learn->active_task();
+        if (!t) {
+            navigate("learn", {});
+            return;
+        }
+        if (t->kind == learn::TaskKind::answer) navigate("learn", NavArgs{.step = 1, .task = t->id});
+        else ui_.learn->check(ui_);
+    }
+
+    void learn_hint() {
+        const auto* t = ui_.learn->active_task();
+        if (!t) {
+            navigate("learn", {});
+            return;
+        }
+        if (!ui_.learn->next_hint()) {
+            notice_ = tr("tui.learn.no_more_hints");
+            return;
+        }
+        const auto opened = static_cast<std::size_t>(ui_.learn->view().progress.tasks.at(t->id).hints);
+        notice_ = fmt::format(fmt::runtime(tr("tui.learn.strip.hint")), fmt::arg("n", opened),
+                              fmt::arg("text", learn::render_text(t->text().hints[opened - 1], *t, ui_.learn->variant())));
+    }
+
     std::vector<Command> commands() {
         std::vector<Command> out = screens_.empty() ? std::vector<Command>{} : screens_[static_cast<std::size_t>(active_)]->commands();
         for (std::size_t i = 0; i < screens_.size(); ++i)
             out.push_back({"tab." + std::to_string(i + 1), tr("tui.cmd.tab") + std::to_string(i + 1) + " " + screens_[i]->tab_label(),
                            [this, i] { active_ = static_cast<int>(i); }});
         out.push_back({"file.open", tr("tui.cmd.open"), [this] { ask_open_file(); }});
+        if (ui_.learn) {
+            out.push_back({"learn.open", tr("tui.cmd.learn_open"), [this] { navigate("learn", {}); }});
+            out.push_back({"learn.check.any", tr("tui.cmd.learn_check"), [this] { learn_check(); }});
+            out.push_back({"learn.hint.any", tr("tui.cmd.learn_hint"), [this] { learn_hint(); }});
+        }
         if (ui_.session) {
             out.push_back({"file.recent", tr("tui.cmd.recent"), [this] { choose_recent(); }});
             out.push_back({"file.forget_recent", tr("tui.cmd.forget_recent"), [this] {
@@ -435,7 +523,7 @@ private:
     std::vector<std::shared_ptr<TabScreen>> screens_;
     std::function<void()> on_quit_;
     std::vector<ftxui::Box> tab_boxes_;
-    ftxui::Box status_box_, help_box_{1, 0, 1, 0};
+    ftxui::Box status_box_, help_box_{1, 0, 1, 0}, strip_box_{1, 0, 1, 0};
     int active_ = 0;
     bool help_open_ = false;
     bool resources_open_ = false;

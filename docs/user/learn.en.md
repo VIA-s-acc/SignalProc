@@ -2,7 +2,32 @@
 
 The learning path is a set of tasks the program checks by itself. Some tasks ask for a graph: a Haar bank, a convolution, a denoiser. Others ask for a number: a bank delay, an alias frequency, a count of factorizations. The tasks go from convolution to denoising and link to the sections of this book. The order is a recommendation; every task is open.
 
-### Taking the path {#learn-use}
+### Tasks in the interface {#learn-tui}
+
+Tasks live on the "Theory ▸ Tasks" tab (`9`, then `]` until "Tasks").
+
+- **On the left** — chapters and tasks. ✓ marks a solved task, ◐ one solved after reading the solution, ● the current task. The counter of solved tasks and the variant number are on top.
+- **In the middle** — the statement with formulas and links to book sections.
+- **Below** — the goals with ✓ and ✗ marks and the measured numbers, and next to them the hints and the solution.
+
+Keys:
+
+| Key | What it does |
+|---|---|
+| `Enter` | "Start": the task becomes current. A graph task opens its start graph in the Pipeline tab as a normal file; `Ctrl+S` saves the work and it stays between runs |
+| `F2` | check the current task from any tab |
+| `F3` | open the next hint from any tab |
+| `a` | type the answer of an answer task; `Enter` checks it |
+| `h`, `s` | a hint and the solution; before solving, the solution needs a confirmation |
+| `t` | the book section of the task |
+| `v` | the variant number |
+| `Tab`, `z` | panels and a panel on the whole screen |
+
+While a task is current, its line is shown above the hint row on every tab: the number, the title, "goals 2/4" or "passed ✓", and the `F2` and `F3` keys. A click on it opens the task. After every run of the work graph in the Pipeline tab the goals are rechecked by themselves. `Esc` cancels a long check.
+
+Book sections that have tasks end with a "Tasks:" line linking to them.
+
+### Taking the path from the command line {#learn-use}
 
 The chapters and tasks with the solved ones marked:
 

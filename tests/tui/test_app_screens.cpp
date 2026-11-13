@@ -33,7 +33,7 @@ TEST_CASE("every tab renders at both sizes without nan", "[tui][shell][app]") {
         models.signal->open(signals::test::sample("test.wav"), jobs);
         Harness shell{make_shell(*ui, make_app_screens(*ui, models), [] {}), w, h};
         const std::tuple<char, int, char> tabs[]{{'1', 1, ']'}, {'2', 2, '}'}, {'3', 1, ']'}, {'4', 2, ']'}, {'5', 1, ']'},
-                                                 {'6', 1, ']'}, {'7', 1, ']'}, {'8', 1, ']'}, {'9', 3, ']'}};
+                                                 {'6', 1, ']'}, {'7', 1, ']'}, {'8', 1, ']'}, {'9', 4, ']'}};
         for (const auto& [key, subtabs, next] : tabs) {
             shell.send(ftxui::Event::Character(key));
             for (int s = 0; s < subtabs; ++s) {
@@ -163,7 +163,7 @@ TEST_CASE("every tab renders in English without Russian text", "[tui][shell][app
             if (c == 0xD0 || c == 0xD1) return true;
         return false;
     };
-    const std::pair<char, int> tabs[]{{'1', 1}, {'2', 1}, {'3', 1}, {'4', 2}, {'5', 1}, {'6', 1}, {'7', 1}, {'8', 1}, {'9', 3}};
+    const std::pair<char, int> tabs[]{{'1', 1}, {'2', 1}, {'3', 1}, {'4', 2}, {'5', 1}, {'6', 1}, {'7', 1}, {'8', 1}, {'9', 4}};
     for (const auto& [key, subtabs] : tabs) {
         shell.send(ftxui::Event::Character(key));
         for (int s = 0; s < subtabs; ++s) {
@@ -209,9 +209,9 @@ TEST_CASE("every control on every screen explains itself on hover in both langua
     // Sub-tab switches are jump targets too; their label already names the screen they open.
     std::vector<std::string> allowed;
     for (const char* key : {"tui.sub.spectrogram", "tui.sub.resample", "tui.sub.tempo", "tui.sub.designer", "tui.sub.diagram", "tui.sub.explain", "tui.sub.under_the_hood",
-                            "tui.sub.tutorial"})
+                            "tui.sub.tutorial", "tui.sub.tasks"})
         allowed.push_back(signals::tr(key));
-    const std::pair<std::size_t, std::size_t> tabs[]{{0, 1}, {1, 3}, {2, 1}, {3, 2}, {4, 1}, {5, 1}, {6, 1}, {8, 3}};
+    const std::pair<std::size_t, std::size_t> tabs[]{{0, 1}, {1, 3}, {2, 1}, {3, 2}, {4, 1}, {5, 1}, {6, 1}, {8, 4}};
     std::size_t checked = 0;
     for (const auto& [tab, subtabs] : tabs) {
         auto& screen = *screens[tab];

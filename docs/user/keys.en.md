@@ -9,6 +9,8 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `1–9` | tabs |
 | `:  Ctrl+P` | commands |
 | `F1` | theory for what is in focus |
+| `F2` | check the task |
+| `F3` | task hint |
 | `m` | menu from the keyboard (same as right click) |
 | `'` | jump marks |
 | `R` | resources |
@@ -317,4 +319,20 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `g` | Unicode/ASCII |
 | `wheel` | scroll |
 | `click` | link, section, block, ▲/▼ more |
+
+## 9 Theory ▸ Tasks
+
+| Key | Action |
+|---|---|
+| `[ ]` | subtabs |
+| `↑↓` | task |
+| `Enter` | start |
+| `F2` | check |
+| `h` | hint |
+| `s` | solution |
+| `a` | answer |
+| `t` | theory |
+| `v` | variant |
+| `Tab` | panel |
+| `z` | fullscreen |
 

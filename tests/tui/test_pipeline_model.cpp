@@ -391,3 +391,20 @@ TEST_CASE("a node is duplicated with its parameters and comments but without wir
     REQUIRE(m.undo());
     CHECK(m.doc().nodes.size() == 3);
 }
+
+TEST_CASE("the finish listener sees every run once with the text and path it ran", "[tui][pipeline_model]") {
+    auto m = denoise_model("model-finish");
+    std::vector<FinishedRun> seen;
+    m.finish_listener = [&](const FinishedRun& f) { seen.push_back(f); };
+    auto jobs = inline_jobs();
+    m.run(jobs);
+    REQUIRE(seen.size() == 1);
+    CHECK(seen[0].number == 1);
+    CHECK(seen[0].ok);
+    REQUIRE(m.path().has_value());
+    CHECK(seen[0].path == m.path());
+    CHECK(seen[0].sig == pipeline::write_sig(m.doc()));
+    m.run(jobs);
+    REQUIRE(seen.size() == 2);
+    CHECK(seen[1].number == 2);
+}

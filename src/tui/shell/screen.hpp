@@ -39,6 +39,7 @@ struct NavArgs {
     std::string wavelet = {};
     std::optional<std::size_t> n = {};
     std::optional<std::size_t> step = {};
+    std::string task = {};
 };
 
 struct TheoryLink {
@@ -55,6 +56,8 @@ struct TheoryPage {
     std::string origin = {};
     int scroll = 0;
 };
+
+class LearnState;
 
 struct UiContext {
     Theme theme;
@@ -86,6 +89,7 @@ struct UiContext {
     std::filesystem::path repo_root;
     std::function<void(TheoryPage)> open_theory;
     std::function<void(std::string)> notice;
+    std::shared_ptr<LearnState> learn;
 };
 
 struct MenuItem {

@@ -12,7 +12,7 @@ using namespace signals::theory;
 
 TEST_CASE("the theory book splits into 149 sections", "[theory][sections]") {
     const auto& s = sections();
-    CHECK(s.size() == 158);
+    CHECK(s.size() == 159);
     const auto* dwt = find_section("dwt-mallat");
     REQUIRE(dwt);
     CHECK(dwt->number == "11.1");
@@ -127,7 +127,7 @@ TEST_CASE("the learning path reference is a chapter in both languages", "[theory
         const auto* learn = find_section("learn");
         REQUIRE(learn);
         CHECK(learn->level == 2);
-        for (const char* id : {"learn-use", "learn-check", "learn-progress", "learn-course", "learn-measures", "learn-text", "learn-lint"}) {
+        for (const char* id : {"learn-tui", "learn-use", "learn-check", "learn-progress", "learn-course", "learn-measures", "learn-text", "learn-lint"}) {
             INFO(id);
             const auto* s = find_section(id);
             REQUIRE(s);

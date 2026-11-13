@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tui/data/learn_state.hpp"
+
 #include <memory>
 #include <vector>
 
@@ -26,6 +28,7 @@ struct AppModels {
     std::shared_ptr<MatrixModel> matrix;
     std::shared_ptr<TheoryNavigator> theory;
     std::shared_ptr<PipelineModel> pipeline;
+    std::shared_ptr<LearnState> learn;
 };
 
 AppModels make_app_models();
