@@ -1,0 +1,31 @@
+kind = "answer"
+open = "pipeline"
+theory = ["lti-convolution", "lti"]
+
+[[param]]
+name = "a"
+kind = "int"
+min = -3
+max = 3
+
+[[param]]
+name = "k"
+kind = "int"
+min = 2
+max = 5
+
+[[param]]
+name = "d"
+kind = "int"
+min = 1
+max = 3
+
+[[measure]]
+name = "h"
+kind = "samples"
+a = "y"
+
+[answer]
+type = "vector"
+expected = "h"
+tol = 0

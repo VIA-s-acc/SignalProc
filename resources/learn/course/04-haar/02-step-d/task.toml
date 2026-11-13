@@ -1,0 +1,20 @@
+kind = "answer"
+open = "pipeline"
+theory = ["haar-walkthrough", "haar-filters", "conv-pywt"]
+
+[[param]]
+name = "x"
+kind = "ints"
+count = 8
+min = -7
+max = 7
+
+[[measure]]
+name = "d"
+kind = "samples"
+a = "d"
+
+[answer]
+type = "vector"
+expected = "d"
+tol = 1e-9

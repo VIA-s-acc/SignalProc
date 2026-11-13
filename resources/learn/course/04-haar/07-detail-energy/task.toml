@@ -1,0 +1,30 @@
+kind = "answer"
+open = "pipeline"
+theory = ["haar-walkthrough", "met-parseval"]
+
+[[param]]
+name = "x"
+kind = "ints"
+count = 8
+min = -9
+max = 9
+
+[[measure]]
+name = "pct"
+kind = "samples"
+a = "pct"
+
+[[measure]]
+name = "ea"
+kind = "energy"
+a = "a"
+
+[[measure]]
+name = "ed"
+kind = "energy"
+a = "d"
+
+[answer]
+type = "number"
+expected = "pct"
+tol = 0.1

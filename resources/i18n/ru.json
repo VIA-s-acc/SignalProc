@@ -2803,5 +2803,6 @@
   "tui.cmd.learn_hint": "Задания: подсказка к текущему (F3)",
   "tui.hint.learn_check": "проверить задание",
   "tui.hint.learn_hint": "подсказка к заданию",
-  "tui.theory.tasks": "Задания:"
+  "tui.theory.tasks": "Задания:",
+  "learn.error.bad_freq": "измерение {name}: частота не вычисляется: {why}"
 }

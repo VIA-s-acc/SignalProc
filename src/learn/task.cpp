@@ -113,7 +113,8 @@ core::Result<Measure> parse_measure(const toml::table& t, const std::string& pat
     m.param = t["param"].value_or(std::string{});
     if (t["delay"]) m.delay = text_of(t["delay"]);
     m.trim = static_cast<std::size_t>(t["trim"].value_or(0LL));
-    m.freq = t["freq"].value_or(0.0);
+    if (const auto f = t["freq"]; f.is_string()) m.freq_text = f.value_or(std::string{});
+    else m.freq = f.value_or(0.0);
     if (m.name.empty()) return fail_at(path, line_of(t), bad_value("name", ""));
     if (std::ranges::find(kMeasureKinds, m.kind) == std::end(kMeasureKinds)) {
         const auto* node = t.get("kind");

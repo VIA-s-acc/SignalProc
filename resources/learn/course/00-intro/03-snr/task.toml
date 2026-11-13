@@ -1,0 +1,35 @@
+kind = "answer"
+open = "pipeline"
+theory = ["conventions", "conv-signals"]
+
+[[param]]
+name = "s"
+kind = "real"
+min = 0.5
+max = 1.0
+decimals = 2
+
+[[param]]
+name = "a"
+kind = "real"
+min = 0.02
+max = 0.2
+decimals = 3
+
+[[param]]
+name = "seed"
+kind = "int"
+min = 1
+max = 50
+
+[[measure]]
+name = "snr"
+kind = "field"
+a = "chk"
+field = "snr_db"
+
+[answer]
+type = "number"
+expected = "snr"
+tol = 0.01
+rel = true

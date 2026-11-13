@@ -1,0 +1,39 @@
+kind = "graph"
+open = "pipeline"
+theory = ["lti-frequency-response", "toeplitz-convolution"]
+locked = ["t", "x"]
+
+[[param]]
+name = "a"
+kind = "int"
+min = 1
+max = 4
+
+[[param]]
+name = "c"
+kind = "int"
+min = 1
+max = 5
+
+[[measure]]
+name = "tone"
+kind = "gain_db"
+a = "y"
+b = "x"
+freq = 1500
+
+[[measure]]
+name = "dc"
+kind = "gain_db"
+a = "y"
+b = "x"
+freq = 0
+
+[[goal]]
+when = "tone <= -20"
+
+[[goal]]
+when = "dc >= -1"
+
+[[goal]]
+forbid = ["iir", "fir", "convolve", "resample", "downsample", "wiener", "denoise", "dwt", "swt", "lms"]

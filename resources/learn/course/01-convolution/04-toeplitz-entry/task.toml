@@ -1,0 +1,32 @@
+kind = "answer"
+open = "matrix"
+theory = ["toeplitz-convolution", "lti-convolution"]
+
+[[param]]
+name = "h"
+kind = "ints"
+count = 3
+min = -4
+max = 4
+
+[[param]]
+name = "i"
+kind = "int"
+min = 0
+max = 5
+
+[[param]]
+name = "j"
+kind = "int"
+min = 0
+max = 3
+
+[[measure]]
+name = "t"
+kind = "samples"
+a = "t"
+
+[answer]
+type = "number"
+expected = "t"
+tol = 0

@@ -113,12 +113,14 @@ const pipeline::NodeDecl* find_node(const pipeline::PipelineDoc& doc, std::strin
 }
 
 core::Result<Measures> measure_all(const Task& t, const pipeline::PipelineDoc& doc, const pipeline::RunResult& run,
-                                   const pipeline::RunResult* reference) {
+                                   const pipeline::RunResult* reference, const ParamValues& params) {
     Measures out;
-    for (const auto& m : t.measures) {
-        auto v = compute_measure(m, doc, run, reference);
+    for (const auto& raw : t.measures) {
+        auto m = resolved_measure(raw, params);
+        if (!m) return std::unexpected{m.error()};
+        auto v = compute_measure(*m, doc, run, reference);
         if (!v) return std::unexpected{v.error()};
-        out[m.name] = std::move(*v);
+        out[m->name] = std::move(*v);
     }
     return out;
 }
@@ -206,10 +208,21 @@ core::Result<Measures> solution_measures(const Task& t, int variant, const core:
     add_measure_probes(*doc, t.measures, true);
     auto result = run(*doc, ".", cancel);
     if (!result) return std::unexpected{result.error()};
-    return measure_all(t, *doc, *result, &*result);
+    return measure_all(t, *doc, *result, &*result, draw_params(t.params, t.id, variant));
 }
 
 }  // namespace
+
+core::Result<Measure> resolved_measure(const Measure& m, const ParamValues& params) {
+    Measure out = m;
+    out.delay = substitute(m.delay, params);
+    if (!m.freq_text.empty()) {
+        auto v = core::eval_number(substitute(m.freq_text, params));
+        if (!v) return task_error(say("learn.error.bad_freq", fmt::arg("name", m.name), fmt::arg("why", describe(v.error()))));
+        out.freq = *v;
+    }
+    return out;
+}
 
 std::string start_graph(const Task& t, int variant) { return substitute(t.start_sig, draw_params(t.params, t.id, variant)); }
 
@@ -295,7 +308,7 @@ core::Result<CheckResult> check_task(const Task& t, int variant, const Submissio
             }
             reference = std::move(*r);
         }
-        auto measures = measure_all(t, w, *result, reference ? &*reference : nullptr);
+        auto measures = measure_all(t, w, *result, reference ? &*reference : nullptr, params);
         if (!measures) return failed(t, measures.error().message, seconds());
         for (std::size_t i = 0; i < t.goals.size(); ++i) {
             auto g = evaluate(t.goals[i], w, *measures, params);

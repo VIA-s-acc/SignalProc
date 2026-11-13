@@ -1,0 +1,15 @@
+kind = "answer"
+open = "filters"
+theory = ["freq-magnitude", "lti-frequency-response", "freq-band-metrics"]
+
+[[measure]]
+name = "g"
+kind = "gain_db"
+a = "y"
+b = "x"
+freq = 2000
+
+[answer]
+type = "number"
+expected = "0.5"
+tol = 0.01

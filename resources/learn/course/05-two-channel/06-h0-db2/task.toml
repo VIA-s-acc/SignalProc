@@ -1,0 +1,13 @@
+kind = "answer"
+open = "designer"
+theory = ["fb-cqf", "conv-normalisation"]
+
+[[measure]]
+name = "h"
+kind = "samples"
+a = "taps"
+
+[answer]
+type = "vector"
+expected = "h"
+tol = 1e-9

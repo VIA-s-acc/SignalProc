@@ -1,0 +1,20 @@
+kind = "answer"
+open = "matrix"
+theory = ["lti-convolution", "toeplitz-convolution"]
+
+[[param]]
+name = "N"
+kind = "int"
+min = 5
+max = 40
+
+[[param]]
+name = "L"
+kind = "int"
+min = 2
+max = 12
+
+[answer]
+type = "integer"
+expected = "{{N}} + {{L}} - 1"
+tol = 0

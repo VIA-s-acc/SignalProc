@@ -1,0 +1,13 @@
+kind = "answer"
+open = "filters"
+theory = ["wav-vanishing-moments", "freq-zero-pole"]
+
+[[param]]
+name = "n"
+kind = "choice"
+choices = ["2", "3", "4", "5", "6"]
+
+[answer]
+type = "integer"
+expected = "{{n}}"
+tol = 0

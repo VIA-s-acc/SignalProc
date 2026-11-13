@@ -1,0 +1,13 @@
+kind = "answer"
+open = "tutorial"
+theory = ["fb-alias-cancellation", "fb-distortion-alias", "conv-pywt"]
+
+[[param]]
+name = "deg"
+kind = "choice"
+choices = ["6", "10", "14"]
+
+[answer]
+type = "integer"
+expected = "{{deg}} / 2"
+tol = 0

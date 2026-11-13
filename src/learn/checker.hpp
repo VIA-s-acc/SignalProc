@@ -40,6 +40,7 @@ core::Result<CheckResult> check_task(const Task& t, int variant, const Submissio
                                      double limit_seconds = kCheckLimitSeconds);
 core::Result<std::vector<double>> expected_answer(const Task& t, int variant);
 core::Result<std::map<std::string, MeasureValue, std::less<>>> reference_measures(const Task& t, int variant);
+core::Result<Measure> resolved_measure(const Measure& m, const ParamValues& params);
 std::string start_graph(const Task& t, int variant);
 std::string solution_graph(const Task& t, int variant);
 std::string render_text(std::string_view md, const Task& t, int variant);

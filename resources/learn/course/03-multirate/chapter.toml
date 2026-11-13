@@ -1,0 +1,3 @@
+title = "Прореживание и растяжение"
+title_en = "Decimation and expansion"
+theory = ["multirate"]

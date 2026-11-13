@@ -2803,5 +2803,6 @@
   "tui.cmd.learn_hint": "Tasks: hint for the current one (F3)",
   "tui.hint.learn_check": "check the task",
   "tui.hint.learn_hint": "task hint",
-  "tui.theory.tasks": "Tasks:"
+  "tui.theory.tasks": "Tasks:",
+  "learn.error.bad_freq": "measure {name}: the frequency does not evaluate: {why}"
 }
