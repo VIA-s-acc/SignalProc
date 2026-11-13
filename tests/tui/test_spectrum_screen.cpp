@@ -278,3 +278,29 @@ TEST_CASE("hovering spectrum toolbar chips explains window, axis and folding", "
     CHECK(at("fold_4") == signals::tr("tui.explain.spectrum.fold"));
     CHECK(over(frame, signals::tr("tui.spectrum.fold")) == signals::tr("tui.explain.spectrum.fold"));
 }
+
+TEST_CASE("the harmonics and the peaks of a selection export as stem charts with a csv row each", "[tui][spectrum][export]") {
+    SpectrumFixture f;
+    f.model->set_selection(2.10, 4.85, f.jobs);
+    f.h.frame();
+    const auto sel = f.model->selection();
+    REQUIRE(sel);
+    auto charts = f.screen->chart_exports();
+    REQUIRE(charts.size() == 1);
+    CHECK(charts.front().id == "harmonics");
+    REQUIRE(charts.front().chart.series.size() == 1);
+    CHECK(charts.front().chart.series.front().stems);
+    CHECK(charts.front().chart.series.front().x.size() == sel->harmonics.size());
+    CHECK(charts.front().csv.starts_with("k,f_hz,db\n"));
+    CHECK(static_cast<std::size_t>(std::count(charts.front().csv.begin(), charts.front().csv.end(), '\n')) == sel->harmonics.size() + 1);
+    const auto list = f.screen->area("list_panel");
+    const auto items = f.screen->context_menu(list.x_min + 2, list.y_min + 1);
+    CHECK(std::any_of(items.begin(), items.end(), [](const MenuItem& m) { return m.label == signals::tr("tui.menu.export_plot"); }));
+    f.h.send(ftxui::Event::Character('h'));
+    f.h.frame();
+    charts = f.screen->chart_exports();
+    REQUIRE(charts.size() == 1);
+    CHECK(charts.front().id == "peaks");
+    CHECK(charts.front().chart.series.front().x.size() == sel->peaks.size());
+    CHECK(charts.front().csv.starts_with("f_hz,db,note\n"));
+}

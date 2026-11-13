@@ -421,10 +421,46 @@ ftxui::Element SpectrumScreen::measure_body(const SpectrogramData* s) {
                  row(tr("tui.spectrum.mean_level"), s ? level_text(box_level_db(*s, m.t0, m.t1, m.f0, m.f1)) : std::string{"—"})});
 }
 
+std::optional<ChartExport> SpectrumScreen::list_chart(const SelectionSpectrum& sel) const {
+    ChartExport out{harmonics_ ? "harmonics" : "peaks", tr(harmonics_ ? "tui.export.harmonics" : "tui.export.peaks"), {}, {ui_.theme.trace[0]},
+                    harmonics_ ? "k,f_hz,db\n" : "f_hz,db,note\n"};
+    out.chart.title = out.title;
+    svg::Series s{tr("tui.export.level_db")};
+    s.stems = true;
+    if (harmonics_) {
+        for (const auto& h : sel.harmonics) {
+            s.x.push_back(h.f);
+            s.y.push_back(h.db);
+            out.csv += fmt::format("{},{},{}\n", h.k, h.f, h.db);
+        }
+    } else {
+        for (const auto& p : sel.peaks) {
+            if (p.index >= sel.f.size() || p.index >= sel.db.size()) continue;
+            s.x.push_back(sel.f[p.index]);
+            s.y.push_back(sel.db[p.index]);
+            out.csv += fmt::format("{},{},{}\n", sel.f[p.index], sel.db[p.index], core::note_of(sel.f[p.index]).name);
+        }
+    }
+    if (s.x.empty()) return std::nullopt;
+    const auto [x_lo, x_hi] = std::minmax_element(s.x.begin(), s.x.end());
+    const auto [y_lo, y_hi] = std::minmax_element(s.y.begin(), s.y.end());
+    const bool log = log_ && *x_lo > 0;
+    out.chart.x = {log ? *x_lo / 1.5 : 0.0, log ? *x_hi * 1.5 : *x_hi * 1.05, log ? svg::Scale::log10 : svg::Scale::linear, tr("tui.export.freq_hz")};
+    out.chart.y = {*y_lo - 6, *y_hi + 6, svg::Scale::linear, tr("tui.export.level_db")};
+    out.chart.series.push_back(std::move(s));
+    return out;
+}
+
+std::vector<ChartExport> SpectrumScreen::chart_exports() {
+    if (shown_list_) return {*shown_list_};
+    return {};
+}
+
 ftxui::Element SpectrumScreen::list_body(const SelectionSpectrum* sel, int rows) {
     using namespace ftxui;
     const auto& th = ui_.theme;
     if (!sel) return text(tr("tui.spectrum.computing")) | fg(th.dim, ui_);
+    shown_list_ = list_chart(*sel);
     auto bar_of = [&](double db) { return bar(std::clamp((db + 30) / 30, 0.0, 1.0), 7, ui_.caps.glyphs); };
     Elements out;
     if (harmonics_) {
@@ -498,6 +534,7 @@ std::vector<MenuItem> SpectrumScreen::context_menu(int x, int y) {
     if (valid(plot_box_) && plot_box_.Contain(x, y) && total > 0 && (begin_ > 0 || end_ < total)) items.push_back({tr("tui.menu.reset_zoom"), "0", [this] { zoom(1e-12, begin_); }});
     if (valid(plot_box_) && plot_box_.Contain(x, y))
         if (auto map = spectrogram_export()) items.push_back(export_item(ui_, std::move(*map)));
+    if (const auto& b = panel_boxes_[list_panel]; shown_list_ && valid(b) && b.Contain(x, y)) items.push_back(export_item(ui_, *shown_list_));
     return items;
 }
 
@@ -515,6 +552,7 @@ ftxui::Element SpectrumScreen::OnRender() {
     clickables_.clear();
     notes_.clear();
     zoom_.begin_frame();
+    shown_list_.reset();
     if (!ui_.jobs) return text("");
     model_->sync(*ui_.jobs);
     const auto s = model_->spectrogram();

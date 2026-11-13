@@ -9,6 +9,7 @@ namespace signals::svg {
 
 enum class Scale { linear, log10, pi };
 enum class Dash { solid, dashed, dotted };
+enum class Marker { none, dot, ring, cross };
 
 struct Axis {
     double lo = 0, hi = 1;
@@ -23,6 +24,7 @@ struct Series {
     std::vector<double> lo = {}, hi = {};
     Dash dash = Dash::solid;
     bool stems = false;
+    Marker marker = Marker::none;
 };
 
 struct Chart {
@@ -30,6 +32,7 @@ struct Chart {
     Axis x, y;
     std::vector<Series> series;
     std::vector<double> x_marks = {}, y_marks = {};
+    bool square = false;
 };
 
 struct Heatmap {

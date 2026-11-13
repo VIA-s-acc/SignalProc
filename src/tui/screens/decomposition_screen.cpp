@@ -223,14 +223,49 @@ std::vector<HeatmapExport> DecompositionScreen::heatmap_exports() {
     return {};
 }
 
+std::vector<ChartExport> DecompositionScreen::chart_exports() {
+    if (shown_chart_) return {*shown_chart_};
+    return {};
+}
+
 std::vector<MenuItem> DecompositionScreen::context_menu(int x, int y) {
     const auto d = model_->data();
     const auto plot = plot_area();
     std::vector<MenuItem> items;
     if (d && valid(plot) && plot.Contain(x, y) && (begin_ > 0 || end_ < d->duration())) items.push_back({tr("tui.menu.reset_zoom"), "0", [this] { zoom(1e-12, begin_); }});
     if (shown_map_ && valid(plot) && plot.Contain(x, y)) items.push_back(export_item(ui_, *shown_map_));
+    for (std::size_t i = 0; i < plot_boxes_.size() && i < shown_plots_.size(); ++i)
+        if (valid(plot_boxes_[i]) && plot_boxes_[i].Contain(x, y)) items.push_back(export_item(ui_, shown_plots_[i]));
+    if (const auto& b = panel_boxes_[energy]; shown_chart_ && valid(b) && b.Contain(x, y)) items.push_back(export_item(ui_, *shown_chart_));
     return items;
 }
+
+namespace {
+
+ChartExport energy_chart(std::string id, std::string title, std::string first_column, Rgb color, bool log_axis) {
+    ChartExport out{std::move(id), title, {}, {color}, std::move(first_column) + ",lo_hz,hi_hz,energy_pct\n"};
+    out.chart.title = std::move(title);
+    svg::Series s{tr("tui.export.energy_pct")};
+    s.stems = true;
+    out.chart.series.push_back(std::move(s));
+    out.chart.x = {0, 1, log_axis ? svg::Scale::log10 : svg::Scale::linear, tr("tui.export.freq_hz")};
+    out.chart.y = {0, 1, svg::Scale::linear, tr("tui.export.energy_pct")};
+    return out;
+}
+
+void add_energy(ChartExport& chart, const std::string& name, double lo_hz, double hi_hz, double pct) {
+    auto& s = chart.chart.series.front();
+    const bool log = chart.chart.x.scale == svg::Scale::log10;
+    s.x.push_back(log ? (lo_hz > 0 ? std::sqrt(lo_hz * hi_hz) : hi_hz / 2) : (lo_hz + hi_hz) / 2);
+    s.y.push_back(pct);
+    chart.csv += name + "," + fmt::format("{}", lo_hz) + "," + fmt::format("{}", hi_hz) + "," + fmt::format("{}", pct) + "\n";
+    const auto [lo, hi] = std::minmax_element(s.x.begin(), s.x.end());
+    chart.chart.x.lo = log ? *lo / 1.5 : 0.0;
+    chart.chart.x.hi = log ? *hi * 1.5 : std::max(chart.chart.x.hi, hi_hz);
+    chart.chart.y.hi = std::max(chart.chart.y.hi, 1.1 * pct);
+}
+
+}  // namespace
 
 void DecompositionScreen::zoom(double factor, double anchor) {
     const auto d = model_->data();
@@ -384,8 +419,11 @@ ftxui::Element DecompositionScreen::time_axis(int width) const {
     return ftxui::text(out) | fg(ui_.theme.dim, ui_);
 }
 
-ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const Reconstruction* r, int width, int max_rows) {
+ftxui::Element DecompositionScreen::view_body(std::shared_ptr<const DecompositionData> data, std::shared_ptr<const Reconstruction> recon, int width,
+                                              int max_rows) {
     using namespace ftxui;
+    const auto& d = *data;
+    const Reconstruction* r = recon.get();
     const auto& th = ui_.theme;
     const auto J = d.options.levels;
     const int plot_width = std::max(10, width - kLabelWidth - 4);
@@ -419,8 +457,13 @@ ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const 
             for (std::size_t c = c0; c < c1; ++c) spec.values.push_back(d.tiles.db[row * d.tiles.cols + c]);
         spec.floor = -48;
         spec.ceil = 0;
-        shown_map_ = HeatmapExport{"bands", tr("tui.export.coefficients_map"), spec, Axis{begin_, end_}, Axis{static_cast<double>(first + spec.rows), static_cast<double>(first)}, tr("tui.export.time_s"),
-                                   tr("tui.export.band")};
+        HeatmapSpec all = spec;
+        all.rows = d.tiles.rows;
+        all.values.clear();
+        for (std::size_t row = 0; row < d.tiles.rows; ++row)
+            for (std::size_t c = c0; c < c1; ++c) all.values.push_back(d.tiles.db[row * d.tiles.cols + c]);
+        shown_map_ = HeatmapExport{"bands", tr("tui.export.coefficients_map"), std::move(all), Axis{begin_, end_}, Axis{static_cast<double>(d.tiles.rows), 0.0},
+                                   tr("tui.export.time_s"), tr("tui.export.band")};
         Elements labels;
         for (std::size_t i = first; i < first + spec.rows; ++i) {
             labels.push_back(text(band_label(i) + " " + hz_text(d.bands[i].lo_hz) + "–" + hz_text(d.bands[i].hi_hz) + " " + tr("unit.hz")) |
@@ -435,9 +478,8 @@ ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const 
         if (mra && r && r->components.empty()) {
             rows.push_back(text(r->mra_skipped.value_or(tr("tui.decomposition.mra_wait"))) | fg(th.warn, ui_));
         } else {
-            for (std::size_t i = first; i < first + shown; ++i) {
+            const auto band_spec = [&](std::size_t i, std::string* amplitude) {
                 const bool on = r && i < r->enabled.size() ? r->enabled[i] : true;
-                const auto name = band_label(i);
                 PlotSpec spec;
                 spec.labels = false;
                 spec.x_labels = false;
@@ -446,12 +488,11 @@ ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const 
                 spec.cursor_a = cursor_;
                 const MinMaxPyramid* pyr = nullptr;
                 double m = 0;
-                std::string amplitude;
                 if (mra && r && i < r->component_pyramids.size()) {
                     pyr = &r->component_pyramids[i];
                     const auto all = pyr->query(0, pyr->size(), 1);
                     m = all.empty() ? 0 : std::max(std::abs(all[0].lo), std::abs(all[0].hi));
-                    amplitude = "±" + format_number(m, 2);
+                    if (amplitude) *amplitude = "±" + format_number(m, 2);
                 } else if (!mra) {
                     pyr = &d.band_pyramids[i];
                     const auto all = pyr->query(0, pyr->size(), 1);
@@ -468,6 +509,13 @@ ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const 
                                                           return out;
                                                       }});
                 }
+                return spec;
+            };
+            for (std::size_t i = first; i < first + shown; ++i) {
+                const bool on = r && i < r->enabled.size() ? r->enabled[i] : true;
+                const auto name = band_label(i);
+                std::string amplitude;
+                auto spec = band_spec(i, &amplitude);
                 const auto checkbox = clickable("check_" + std::to_string(i), text((on ? on_box : off_box) + " ") | fg(on ? th.fg : th.dim, ui_),
                                                 [this, i] { model_->toggle(i, *ui_.jobs); });
                 const auto top = hbox({checkbox, text(name) | bold | fg(i == selected_ ? th.accent : colour(i), ui_),
@@ -477,6 +525,16 @@ ftxui::Element DecompositionScreen::view_body(const DecompositionData& d, const 
                 rows.push_back(hbox({vbox({top, bottom}) | size(WIDTH, EQUAL, kLabelWidth) | reflect(label_boxes_[i]),
                                      plot(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, 2) |
                                          size(WIDTH, EQUAL, plot_width) | reflect(plot_boxes_[i])}));
+            }
+            for (std::size_t i = 0; i < bands; ++i) {
+                auto spec = band_spec(i, nullptr);
+                spec.playhead.reset();
+                spec.labels = spec.x_labels = true;
+                for (auto& e : spec.envelopes) e.provider = [data, recon, f = std::move(e.provider)](int cols) { return f(cols); };
+                const auto range = hz_text(d.bands[i].lo_hz) + "–" + hz_text(d.bands[i].hi_hz) + " " + tr("unit.hz");
+                shown_plots_.push_back({std::string{mra ? "mra_" : "band_"} + std::to_string(i),
+                                        fmt::format(fmt::runtime(tr(mra ? "tui.export.mra_band" : "tui.export.subband")), fmt::arg("band", band_label(i)), fmt::arg("range", range)),
+                                        std::move(spec), {band_label(i)}, tr("tui.export.time_s"), ""});
             }
         }
     }
@@ -571,6 +629,9 @@ ftxui::Element DecompositionScreen::packets_energy(const PacketData& p, int max_
     const int bar_width = std::clamp(width - name_width - kRange - kPct, 3, 18);
     Elements rows;
     if (first > 0) rows.push_back(more_row(true, first));
+    auto chart = energy_chart("packet_energy", tr("tui.export.packet_energy"), "node", th.trace[0], false);
+    for (const auto& n : basis) add_energy(chart, node_name(n), p.info(n).lo_hz, p.info(n).hi_hz, p.info(n).energy_pct);
+    shown_chart_ = std::move(chart);
     for (std::size_t i = first; i < first + shown; ++i) {
         const auto& info = p.info(basis[i]);
         const bool selected = basis[i].level == pk_level_ && core::freq_position(basis[i]) == pk_pos_;
@@ -673,6 +734,10 @@ ftxui::Element DecompositionScreen::energy_panel(const DecompositionData& d, int
     const auto [first, shown] =
         list_window(energy_first_, d.bands.size(), std::max(2, max_rows - 1), 1, follow_ ? std::optional{selected_} : std::nullopt);
     if (first > 0) rows.push_back(more_row(true, first));
+    auto chart = energy_chart("energy", tr("tui.export.energy"), "band", th.trace[0], true);
+    for (std::size_t i = 0; i < d.bands.size(); ++i)
+        if (d.bands[i].hi_hz > 0) add_energy(chart, band_label(i), d.bands[i].lo_hz, d.bands[i].hi_hz, d.bands[i].energy_pct);
+    shown_chart_ = std::move(chart);
     for (std::size_t i = first; i < first + shown; ++i) {
         const auto& b = d.bands[i];
         Elements cells{text(pad_right(band_label(i), kName)) | bold | fg(i == selected_ ? th.accent : th.trace[0], ui_)};
@@ -868,6 +933,8 @@ ftxui::Element DecompositionScreen::summary_panel(const DecompositionData& d, co
 ftxui::Element DecompositionScreen::OnRender() {
     using namespace ftxui;
     shown_map_.reset();
+    shown_plots_.clear();
+    shown_chart_.reset();
     panel_boxes_.fill(kNoBox);
     clickables_.clear();
     notes_.clear();
@@ -945,7 +1012,7 @@ ftxui::Element DecompositionScreen::OnRender() {
             used = 3;
         }
     } else if (view_ != View::packets) {
-        body = view_body(*d, r.get(), main_width, body_rows);
+        body = view_body(d, r, main_width, body_rows);
     } else {
         plot_boxes_.clear();
         label_boxes_.clear();

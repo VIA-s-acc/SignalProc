@@ -325,9 +325,11 @@ private:
         auto& screen = *screens_[static_cast<std::size_t>(active_)];
         auto plots = screen.plot_exports();
         auto maps = screen.heatmap_exports();
+        auto charts = screen.chart_exports();
         std::vector<Command> items;
         for (auto& p : plots) items.push_back({"plot." + p.id, p.title, [this, p] { export_plot(ui_, p); }});
         for (auto& m : maps) items.push_back({"map." + m.id, m.title, [this, m] { export_heatmap(ui_, m); }});
+        for (auto& c : charts) items.push_back({"chart." + c.id, c.title, [this, c] { export_chart(ui_, c); }});
         if (items.empty()) {
             notice_ = tr("tui.export.none");
             return;

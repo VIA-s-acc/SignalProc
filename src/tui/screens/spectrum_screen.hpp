@@ -52,6 +52,7 @@ public:
     std::vector<MenuItem> context_menu(int x, int y) override;
     std::vector<HeatmapExport> heatmap_exports() override;
     std::vector<PlotExport> plot_exports() override { return zoom_.exports(); }
+    std::vector<ChartExport> chart_exports() override;
     std::vector<JumpTarget> jump_targets() const override;
     std::optional<std::string> explain_at(int x, int y) const override;
 
@@ -71,6 +72,7 @@ private:
     ftxui::Element cursor_panel_body(const SpectrogramData* s, const SelectionSpectrum* sel);
     ftxui::Element window_body(const SpectrogramData* s);
     ftxui::Element measure_body(const SpectrogramData* s);
+    std::optional<ChartExport> list_chart(const SelectionSpectrum& sel) const;
     ftxui::Element list_body(const SelectionSpectrum* sel, int rows);
     ftxui::Element time_axis(int width, std::optional<std::pair<double, double>> selection) const;
     void sync_view(const std::shared_ptr<const SpectrogramData>& s);
@@ -102,6 +104,7 @@ private:
     std::optional<std::pair<double, double>> cursor_;
     std::optional<Measure> measure_;
     bool harmonics_ = true, log_ = true, grey_ = false;
+    std::optional<ChartExport> shown_list_;
     std::size_t fold_ = 0;
     double floor_db_ = -90;
     struct Drag {

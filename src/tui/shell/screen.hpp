@@ -115,6 +115,7 @@ public:
     virtual std::vector<MenuItem> context_menu(int /*x*/, int /*y*/) { return {}; }
     virtual std::vector<PlotExport> plot_exports() { return {}; }
     virtual std::vector<HeatmapExport> heatmap_exports() { return {}; }
+    virtual std::vector<ChartExport> chart_exports() { return {}; }
     virtual std::vector<JumpTarget> jump_targets() const { return {}; }
     virtual std::optional<std::string> explain_at(int /*x*/, int /*y*/) const { return std::nullopt; }
     virtual void open_with(const NavArgs&) {}

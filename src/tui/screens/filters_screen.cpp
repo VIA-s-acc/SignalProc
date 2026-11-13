@@ -733,6 +733,11 @@ std::vector<std::string> FiltersScreen::trace_names(const std::vector<Trace>& ts
     return out;
 }
 
+std::vector<ChartExport> FiltersScreen::chart_exports() {
+    if (shown_zplane_) return {*shown_zplane_};
+    return {};
+}
+
 std::vector<PlotExport> FiltersScreen::plot_exports() {
     std::vector<PlotExport> out;
     for (const auto& p : shown_plots_)
@@ -796,6 +801,7 @@ ftxui::Element FiltersScreen::zeros_panel(int rows) {
     const int plane = layout_.maximized() ? std::clamp(2 * lines, 8, 2 * lines) : std::clamp(2 * lines, 8, 16);
     ZPlaneSpec spec{zp.zeros, zp.poles_at_origin, zp.poles};
     zview_.apply(spec);
+    shown_zplane_ = zplane_export("zplane", fmt::format(fmt::runtime(tr("tui.export.zplane")), fmt::arg("name", e->ref.label())), spec, th);
     return frame_panel(zeros,
                        hbox({zplane(std::move(spec), th, ui_.caps.color, ui_.caps.glyphs) | size(WIDTH, EQUAL, plane) | reflect(zplane_box_), text(" "),
                              scrolled(std::move(list), roots_scroll_, lines, std::nullopt, ui_) | reflect(roots_box_)}),
@@ -979,6 +985,7 @@ ftxui::Element FiltersScreen::build(Panel p, int rows, int width) {
 ftxui::Element FiltersScreen::OnRender() {
     using namespace ftxui;
     shown_plots_ = {};
+    shown_zplane_.reset();
     panel_boxes_.fill(kNoBox);
     title_boxes_.fill(kNoBox);
     plot_boxes_.fill(kNoBox);
@@ -1309,7 +1316,12 @@ std::optional<Axis> FiltersScreen::plot_view(std::string_view id) const {
 
 std::vector<MenuItem> FiltersScreen::context_menu(int x, int y) {
     if (auto items = impulse_zoom_.menu(x, y, ui_); !items.empty()) return items;
-    if (zplane_box_.Contain(x, y) && zview_.zoomed()) return {{tr("tui.menu.reset_zoom"), "", [this] { zview_.reset(); }}};
+    if (zplane_box_.Contain(x, y)) {
+        std::vector<MenuItem> items;
+        if (zview_.zoomed()) items.push_back({tr("tui.menu.reset_zoom"), "", [this] { zview_.reset(); }});
+        if (shown_zplane_) items.push_back(export_item(ui_, *shown_zplane_));
+        if (!items.empty()) return items;
+    }
     if (const int p = plot_under(x, y); p >= 0) {
         const double w = omega_at(p == 1 ? "phase" : p == 2 ? "delay" : "magnitude", x);
         auto items = std::vector<MenuItem>{{tr("tui.menu.cursor_a"), tr("tui.signal.key.click"), [this, w] { cursor_a_ = w; }},

@@ -23,6 +23,8 @@
 #include "i18n/i18n.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/decomposition_screen.hpp"
+#include "tui/shell/plot_export.hpp"
+#include "tui/widgets/text_util.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/ui_fixture.hpp"
 #include "tui/widgets/screen_util.hpp"
@@ -998,7 +1000,8 @@ TEST_CASE("the right-click menu resets the decomposition time zoom", "[tui][deco
     f.h.frame();
     REQUIRE(f.screen->time_view() != full);
     const auto menu = f.screen->context_menu(x, y);
-    REQUIRE(menu.size() == 1);
+    REQUIRE(menu.size() == 2);
+    CHECK(menu.back().label == signals::tr("tui.menu.export_plot"));
     menu.front().action();
     CHECK(f.screen->time_view() == full);
 }
@@ -1025,4 +1028,75 @@ TEST_CASE("hovering decomposition controls explains the transform, view, edges a
     CHECK(at("levels_more") == signals::tr("tui.explain.decomposition.levels"));
     CHECK(at("check_0") == signals::tr("tui.explain.decomposition.check"));
     CHECK(over(frame, signals::tr("tui.decomposition.transform")) == signals::tr("tui.explain.decomposition.transform"));
+}
+
+TEST_CASE("every subband and MRA strip is exported with its own data", "[tui][decomposition][export]") {
+    DecompositionFixture f;
+    auto plots = f.screen->plot_exports();
+    const auto d = f.model->data();
+    REQUIRE(d);
+    REQUIRE_FALSE(plots.empty());
+    CHECK(plots.front().id == "band_0");
+    CHECK(plots.size() == d->bands.size());
+    const auto chart = to_chart(plots.front(), f.ui->theme);
+    REQUIRE(chart.series.size() == 1);
+    CHECK_FALSE(chart.series.front().lo.empty());
+    const auto box = f.screen->area("view_plot");
+    const auto items = f.screen->context_menu(box.x_min + 2, box.y_min);
+    CHECK(std::any_of(items.begin(), items.end(), [](const MenuItem& m) { return m.label == signals::tr("tui.menu.export_plot"); }));
+    f.h.send(ftxui::Event::Character('v'));
+    f.h.frame();
+    f.h.frame();
+    plots = f.screen->plot_exports();
+    REQUIRE_FALSE(plots.empty());
+    CHECK(plots.front().id.starts_with("mra_"));
+    const auto kept = plots.front();
+    f.signal->open(signals::test::sample("test.wav"), f.jobs);
+    for (int k = 0; k < 3; ++k) f.h.frame();
+    REQUIRE(f.model->data() != d);
+    const auto later = to_chart(kept, f.ui->theme);
+    REQUIRE(later.series.size() == 1);
+    CHECK((later.series.front().lo.size() + later.series.front().y.size()) > 0);
+}
+
+TEST_CASE("the band energy and the packet energy export as stem charts with a named csv", "[tui][decomposition][export]") {
+    DecompositionFixture f;
+    auto charts = f.screen->chart_exports();
+    const auto d = f.model->data();
+    REQUIRE(d);
+    REQUIRE(charts.size() == 1);
+    CHECK(charts.front().id == "energy");
+    const auto& energy = charts.front().chart;
+    REQUIRE(energy.series.size() == 1);
+    CHECK(energy.series.front().stems);
+    CHECK(energy.series.front().y.size() == d->bands.size());
+    CHECK(energy.x.scale == signals::svg::Scale::log10);
+    CHECK(charts.front().csv.starts_with("band,lo_hz,hi_hz,energy_pct\n"));
+    CHECK(static_cast<std::size_t>(std::count(charts.front().csv.begin(), charts.front().csv.end(), '\n')) == d->bands.size() + 1);
+    const auto panel = f.screen->area("energy_panel");
+    const auto items = f.screen->context_menu(panel.x_min + 2, panel.y_min + 1);
+    CHECK(std::any_of(items.begin(), items.end(), [](const MenuItem& m) { return m.label == signals::tr("tui.menu.export_plot"); }));
+    f.click("chip_packets");
+    f.h.frame();
+    REQUIRE(f.model->packets());
+    charts = f.screen->chart_exports();
+    REQUIRE(charts.size() == 1);
+    CHECK(charts.front().id == "packet_energy");
+    CHECK(charts.front().chart.series.front().y.size() == f.model->basis().size());
+    CHECK(charts.front().csv.starts_with("node,lo_hz,hi_hz,energy_pct\n"));
+}
+
+TEST_CASE("the export palette command lists the strips and the energy chart", "[tui][decomposition][export]") {
+    DecompositionFixture f;
+    std::vector<std::shared_ptr<TabScreen>> screens{f.screen};
+    Harness shell{make_shell(*f.ui, screens, [] {}), 150, 44};
+    shell.frame();
+    shell.send(ftxui::Event::Character(':'));
+    for (const auto& c : split_codepoints(signals::tr("tui.cmd.export_plot"))) shell.send(ftxui::Event::Character(c));
+    shell.send(ftxui::Event::Return);
+    const auto frame = shell.frame();
+    CHECK(frame.find(signals::tr("tui.export.choose")) != std::string::npos);
+    CHECK(frame.find(signals::tr("tui.export.energy")) != std::string::npos);
+    CHECK(frame.find("Подполоса a₆") != std::string::npos);
+    CHECK(frame.find("Подполоса d₁") != std::string::npos);
 }

@@ -12,6 +12,7 @@
 
 #include "i18n/i18n.hpp"
 #include "tui/screens/publish_util.hpp"
+#include "tui/shell/plot_export.hpp"
 #include "tui/data/user_filters.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/widgets/plot.hpp"
@@ -140,6 +141,8 @@ ftxui::Element DesignerScreen::roots_panel(const DesignerData* d, const Designer
         }
         spec.extent = std::max(1.5, 1.1 * far);
         zview_.apply(spec);
+        shown_roots_ = zplane_export("roots", tr("tui.export.roots"), spec, th,
+                                     {{"●", tr("tui.designer.in_h0")}, {"○", tr("tui.designer.in_f0")}, {"◉", "z = −1"}});
     }
     const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
     auto legend = vbox({text(std::string{ascii ? "* " : "● "} + tr("tui.designer.in_h0")) | fg(th.trace[0], ui_),
@@ -334,6 +337,7 @@ ftxui::Element DesignerScreen::OnRender() {
     clickables_.clear();
     notes_.clear();
     roots_box_ = kNoBox;
+    shown_roots_.reset();
     zoom_.begin_frame();
     if (ui_.jobs) model_->sync(*ui_.jobs);
     const auto d = model_->data();
@@ -538,9 +542,14 @@ std::vector<Command> DesignerScreen::commands() {
     return out;
 }
 
+std::vector<ChartExport> DesignerScreen::chart_exports() {
+    if (shown_roots_) return {*shown_roots_};
+    return {};
+}
+
 std::vector<MenuItem> DesignerScreen::context_menu(int x, int y) {
     if (auto items = zoom_.menu(x, y, ui_); !items.empty()) return items;
-    if (roots_box_.Contain(x, y) && zview_.zoomed()) {
+    if (roots_box_.Contain(x, y)) {
         std::vector<MenuItem> items;
         if (hits_)
             for (const auto& h : *hits_)
@@ -550,7 +559,8 @@ std::vector<MenuItem> DesignerScreen::context_menu(int x, int y) {
                     items.push_back({tr(in_h0 ? "tui.designer.menu.to_f0" : "tui.designer.menu.to_h0"), tr("tui.signal.key.click"),
                                      [this, g] { model_->toggle_group(g, *ui_.jobs); }});
                 }
-        items.push_back({tr("tui.menu.reset_zoom"), "", [this] { zview_.reset(); }});
+        if (zview_.zoomed()) items.push_back({tr("tui.menu.reset_zoom"), "", [this] { zview_.reset(); }});
+        if (shown_roots_) items.push_back(export_item(ui_, *shown_roots_));
         return items;
     }
     if (!hits_ || !ui_.jobs) return {};

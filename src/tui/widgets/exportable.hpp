@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include "svg/svg.hpp"
 #include "tui/widgets/heatmap.hpp"
 #include "tui/widgets/plot.hpp"
 
@@ -19,6 +20,14 @@ struct PlotExport {
     PlotSpec spec;
     std::vector<std::string> names = {};
     std::string x_label = {}, y_label = {};
+};
+
+struct ChartExport {
+    std::string id, title;
+    svg::Chart chart;
+    std::vector<Rgb> colors = {};
+    std::string csv = {};
+    int width = 960, height = 420;
 };
 
 struct HeatmapExport {

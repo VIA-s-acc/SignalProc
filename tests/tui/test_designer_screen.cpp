@@ -289,8 +289,10 @@ TEST_CASE("the designer z-plane zooms around the pointer, pans by drag and reset
     const auto panned = f.screen->plot_axis("roots");
     CHECK(panned.lo < zoomed.lo);
     const auto menu = f.screen->context_menu((r.x_min + r.x_max) / 2, middle_y);
-    REQUIRE_FALSE(menu.empty());
-    menu.back().action();
+    const auto reset = std::find_if(menu.begin(), menu.end(), [](const MenuItem& m) { return m.label == signals::tr("tui.menu.reset_zoom"); });
+    REQUIRE(reset != menu.end());
+    CHECK(menu.back().label == signals::tr("tui.menu.export_plot"));
+    reset->action();
     f.h.frame();
     CHECK(f.screen->plot_axis("roots").lo == wide.lo);
 }
@@ -307,4 +309,27 @@ TEST_CASE("hovering designer presets and constraints explains them", "[tui][desi
     CHECK(at("linear_phase") == signals::tr("tui.explain.designer.linear.phase"));
     CHECK(at("zeros_more") == signals::tr("tui.explain.designer.zeros"));
     CHECK(at("group_0") == signals::tr("tui.explain.designer.group"));
+}
+
+TEST_CASE("the roots of P(z) export as named marker groups and the plane menu offers it", "[tui][designer][export]") {
+    DesignerFixture f;
+    const auto charts = f.screen->chart_exports();
+    REQUIRE(charts.size() == 1);
+    const auto& c = charts.front();
+    CHECK(c.id == "roots");
+    CHECK(c.chart.square);
+    std::vector<std::string> names;
+    std::size_t markers = 0;
+    for (const auto& s : c.chart.series) {
+        names.push_back(s.name);
+        if (s.marker != signals::svg::Marker::none) markers += s.x.size();
+    }
+    CHECK(std::find(names.begin(), names.end(), signals::tr("tui.designer.in_h0")) != names.end());
+    CHECK(std::find(names.begin(), names.end(), signals::tr("tui.designer.in_f0")) != names.end());
+    CHECK(std::find(names.begin(), names.end(), "z = −1") != names.end());
+    CHECK(static_cast<std::size_t>(std::count(c.csv.begin(), c.csv.end(), '\n')) == markers + 1);
+    const auto plane = f.screen->area("roots");
+    REQUIRE(plane.x_max > plane.x_min);
+    const auto items = f.screen->context_menu(plane.x_min + 1, plane.y_min + 1);
+    CHECK(std::any_of(items.begin(), items.end(), [](const MenuItem& m) { return m.label == signals::tr("tui.menu.export_plot"); }));
 }

@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <cstdio>
 #include <numbers>
 #include <sstream>
 #include <string>
@@ -114,4 +115,33 @@ TEST_CASE("a heatmap draws a rect per cell and shrinks a large one", "[svg]") {
     big.values.assign(big.rows * big.cols, 1.0);
     big.color = [](double) { return std::string{"#123456"}; };
     CHECK(count(to_svg(big), "<rect class=\"cell\"") <= 300u * 600u);
+}
+
+TEST_CASE("markers draw rings, crosses and dots with no line, and a square chart keeps its plot area square", "[svg]") {
+    Chart c;
+    c.title = "z";
+    c.x = {-1.5, 1.5, Scale::linear, "Re z"};
+    c.y = {-1.5, 1.5, Scale::linear, "Im z"};
+    c.square = true;
+    Series ring{"zeros", "#0072B2", {0.5, -0.5}, {0.2, -0.2}};
+    ring.marker = Marker::ring;
+    Series cross{"poles", "#D55E00", {0.9}, {0.0}};
+    cross.marker = Marker::cross;
+    Series dot{"origin", "#222222", {0.0}, {0.0}};
+    dot.marker = Marker::dot;
+    c.series = {ring, cross, dot};
+    const auto svg = to_svg(c, 640, 480);
+    CHECK(count(svg, "<circle") == 3);
+    CHECK(count(svg, "fill=\"none\" stroke=\"#0072B2\"") == 2);
+    CHECK(count(svg, "stroke=\"#D55E00\"") == 2);
+    CHECK(svg.find("<polyline") == std::string::npos);
+    const auto clip = svg.find("<clipPath id=\"area\"><rect");
+    REQUIRE(clip != std::string::npos);
+    double x = 0, y = 0, w = 0, h = 0;
+    REQUIRE(std::sscanf(svg.c_str() + svg.find("x=", clip), "x=\"%lf\" y=\"%lf\" width=\"%lf\" height=\"%lf\"", &x, &y, &w, &h) == 4);
+    CHECK(std::abs(w - h) < 0.01);
+    CHECK(x + w <= 640);
+    const auto csv = to_csv(c);
+    CHECK(csv.starts_with("series,x,y\n"));
+    CHECK(csv.find("poles,0.9,0") != std::string::npos);
 }

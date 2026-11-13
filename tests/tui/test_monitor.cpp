@@ -121,11 +121,21 @@ TEST_CASE("cpu load of a busy thread is about one core", "[tui][monitor]") {
 }
 
 TEST_CASE("thread count follows started threads", "[tui][monitor]") {
-    const auto before = sample_process()->threads;
+    auto before = sample_process()->threads;
+    for (int k = 0; k < 100; ++k) {
+        std::this_thread::sleep_for(2ms);
+        const auto now = sample_process()->threads;
+        if (now == before) break;
+        before = now;
+    }
     std::atomic<bool> stop{false};
     std::thread a{[&] { while (!stop) std::this_thread::sleep_for(1ms); }};
     std::thread b{[&] { while (!stop) std::this_thread::sleep_for(1ms); }};
-    const auto during = sample_process()->threads;
+    auto during = sample_process()->threads;
+    for (int k = 0; k < 200 && during != before + 2; ++k) {
+        std::this_thread::sleep_for(1ms);
+        during = sample_process()->threads;
+    }
     stop = true;
     a.join();
     b.join();
