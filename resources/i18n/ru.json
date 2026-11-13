@@ -2802,5 +2802,6 @@
   "tui.cmd.learn_check": "Задания: проверить текущее (F2)",
   "tui.cmd.learn_hint": "Задания: подсказка к текущему (F3)",
   "tui.hint.learn_check": "проверить задание",
-  "tui.hint.learn_hint": "подсказка к заданию"
+  "tui.hint.learn_hint": "подсказка к заданию",
+  "tui.theory.tasks": "Задания:"
 }

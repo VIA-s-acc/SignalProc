@@ -2802,5 +2802,6 @@
   "tui.cmd.learn_check": "Tasks: check the current one (F2)",
   "tui.cmd.learn_hint": "Tasks: hint for the current one (F3)",
   "tui.hint.learn_check": "check the task",
-  "tui.hint.learn_hint": "task hint"
+  "tui.hint.learn_hint": "task hint",
+  "tui.theory.tasks": "Tasks:"
 }

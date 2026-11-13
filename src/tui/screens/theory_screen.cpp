@@ -1,5 +1,8 @@
 #include "tui/screens/theory_screen.hpp"
 
+#include "learn/task.hpp"
+#include "tui/data/learn_state.hpp"
+
 #include <algorithm>
 #include <filesystem>
 #include <optional>
@@ -168,6 +171,8 @@ void TheoryScreen::follow(const std::string& target) {
         if (mode_ == Mode::under_the_hood && ui_.navigate) ui_.navigate("tutorial", {});
     } else if (target.starts_with("card:")) {
         nav_->open({{TheoryLink::Kind::card, target.substr(5)}, std::make_shared<theory::LiveValues>(), {}, {}, 0});
+    } else if (target.starts_with("task:")) {
+        if (ui_.navigate) ui_.navigate("learn", NavArgs{.task = target.substr(5)});
     } else if (target.starts_with("view:")) {
         if (ui_.navigate) ui_.navigate(target.substr(5), view_args(card_page()));
     } else if (target.starts_with("source:")) {
@@ -541,6 +546,12 @@ const std::vector<theory::Block>& TheoryScreen::blocks_for(std::size_t index) {
     const auto& all = theory::sections();
     const auto& s = all[index];
     std::string md{theory::own_body(s)};
+    const auto& course = ui_.learn ? ui_.learn->course() : learn::builtin_course();
+    if (const auto tasks = learn::tasks_for_section(course, s.id); !tasks.empty()) {
+        md += "\n\n" + tr("tui.theory.tasks") + " ";
+        for (std::size_t i = 0; i < tasks.size(); ++i) md += (i ? ", " : "") + std::string{"["} + tasks[i]->id + " " + tasks[i]->text().title + "](task:" + tasks[i]->id + ")";
+        md += "\n";
+    }
     const auto kids = theory::children_of(index);
     if (!kids.empty()) {
         md += "\n\n";

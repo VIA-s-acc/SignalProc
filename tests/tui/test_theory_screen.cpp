@@ -786,3 +786,18 @@ TEST_CASE("slash on the source page finds text in the file, n and N step through
     CHECK(f.screen->find_hits() == 0);
     CHECK(f.screen->capturing_text());
 }
+
+TEST_CASE("a book section lists its tasks and a click opens one", "[tui][theory][learn]") {
+    TheoryFixture f{TheoryScreen::Mode::tutorial};
+    std::vector<std::pair<std::string, std::string>> went;
+    f.ui->navigate = [&](std::string_view target, const NavArgs& args) { went.emplace_back(target, args.task); };
+    f.nav->open({{TheoryLink::Kind::section, "haar-walkthrough", ""}});
+    const auto frame = f.h.frame();
+    const auto at = signals::test::locate(frame, "4.3 Собери банк Хаара");
+    REQUIRE(at.has_value());
+    f.h.click(at->first + 2, at->second);
+    REQUIRE_FALSE(went.empty());
+    CHECK(went.back() == std::pair<std::string, std::string>{"learn", "4.3"});
+    f.nav->open({{TheoryLink::Kind::section, "dwt-mallat", ""}});
+    CHECK(f.h.frame().find("Задания:") == std::string::npos);
+}
