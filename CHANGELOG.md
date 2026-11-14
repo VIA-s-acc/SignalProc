@@ -18,7 +18,7 @@
 
 ### Changed
 
-- Сборка на clang и GCC идёт с `-ffp-contract=off`: числа программы теперь одинаковы на всех платформах и совпадают с numpy до последнего разряда в простых выражениях (раньше clang на arm64 сливал `a·b + c` в одну инструкцию).
+- Сборка на clang и GCC идёт с `-ffp-contract=off`: clang на arm64 больше не сливает `a·b + c` в одну инструкцию, и числа программы совпадают с numpy до последнего разряда в простых выражениях. Исключение — случайный шум: `std::normal_distribution` в libc++, libstdc++ и MSVC устроена по-разному, поэтому шум с тем же `seed` на macOS, Linux и Windows разный.
 
 - Сборка для macOS стала универсальной, для Apple Silicon и Intel: архив `signals-vX.Y.Z-macos-universal.tar.gz` вместо `macos-arm64`. В архивах — ещё `README.ru.md`, `man/signals.1` и `completions/`.
 - В справке ключа `--lang` перечислены значения `ru` и `en`.

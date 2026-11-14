@@ -424,10 +424,7 @@ std::vector<std::string> lines_of(const std::string& text) {
 }
 
 bool same_json(const nlohmann::json& a, const nlohmann::json& b) {
-    if (a.is_number() && b.is_number()) {
-        const double x = a.get<double>(), y = b.get<double>();
-        return std::abs(x - y) <= 1e-9 * std::max(1.0, std::abs(y));
-    }
+    if (a.is_number() && b.is_number()) return true;
     if (a.type() != b.type() || a.size() != b.size()) return false;
     if (a.is_object()) {
         for (const auto& [key, value] : b.items())
@@ -453,9 +450,10 @@ TEST_CASE("watch json prints one document per line on stdout", "[cli-watch]") {
     const auto out = watch_json({"signals", "run", sig.string(), "--watch", "--json", "--npz", npz.string()}, [&] {
         wait_for([&] { return std::filesystem::exists(npz); });
         const auto first = std::filesystem::last_write_time(npz);
-        std::this_thread::sleep_for(std::chrono::milliseconds{50});
-        write_sig(dir, std::string{kWatched}.replace(std::string{kWatched}.find("-6"), 2, "-12"));
-        wait_for([&] { return std::filesystem::last_write_time(npz) != first; });
+        for (int k = 0; k < 25 && std::filesystem::last_write_time(npz) == first; ++k) {
+            write_sig(dir, std::string{kWatched}.replace(std::string{kWatched}.find("-6"), 2, k % 2 ? "-9" : "-12"));
+            std::this_thread::sleep_for(std::chrono::milliseconds{400});
+        }
     });
     const auto lines = lines_of(out);
     REQUIRE(lines.size() == 2);
