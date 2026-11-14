@@ -166,7 +166,9 @@ core::Result<WavFile> read_array_audio(const std::filesystem::path& path, const 
         if (!rate) return at(path, {Errc::invalid_argument, "the file has no 'rate' key; set the rate"});
         const auto entries = read_npz(path, kAudioLimits, {picked->first});
         if (!entries) return std::unexpected{entries.error()};
-        auto f = as_file(entries->front().second, *rate, Container::npz);
+        const auto* array = np_find(*entries, picked->first);
+        if (!array) return at(path, {Errc::invalid_argument, "array '" + picked->first + "' disappeared while reading; the file changed"});
+        auto f = as_file(*array, *rate, Container::npz);
         if (!f) return at(path, f.error());
         return f;
     }
