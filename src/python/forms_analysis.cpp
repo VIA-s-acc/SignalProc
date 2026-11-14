@@ -120,12 +120,37 @@ core::Result<std::string> assert_block(const NodeIo& io, Emitter& em) {
     return fmt::format("with np.errstate(all=\"ignore\"):\n    {0}_value = {1}\n{0} = {{\"value\": {0}_value}}\n{0}_ok = {0}_value != 0", io.out[0], text);
 }
 
+core::Result<std::string> lms(const NodeIo& io, Emitter& em) {
+    em.function("lms");
+    return fmt::format("{}, {} = lms({}, {}, {}, {}, {})", io.out[0], io.out[1], io.in[0], io.in[1], param_int(io.node.params, "taps"), em.number(param_real(io.node.params, "mu")),
+                       param_text(io.node.params, "rule") == "lms" ? "False" : "True");
+}
+
+core::Result<std::string> wiener(const NodeIo& io, Emitter& em) {
+    em.function("wiener");
+    return fmt::format("{} = wiener({}, {}, {})", io.out[0], io.in[0], param_int(io.node.params, "size"), em.number(param_real(io.node.params, "noise")));
+}
+
+core::Result<std::string> spectral_subtract(const NodeIo& io, Emitter& em) {
+    em.function("spectral_subtract");
+    const auto lead = std::llround(param_real(io.node.params, "noise_s") * input_rate(io));
+    const auto noise = io.in.size() > 1 && !io.in[1].empty() ? io.in[1] : std::string{"None"};
+    return fmt::format("{} = spectral_subtract({}, {}, {}, {}, {}, {})", io.out[0], io.in[0], noise, lead, param_int(io.node.params, "n"),
+                       em.number(param_real(io.node.params, "alpha")), em.number(param_real(io.node.params, "beta")));
+}
+
+core::Result<std::string> deconvolve(const NodeIo& io, Emitter& em) {
+    em.function("deconvolve");
+    return fmt::format("{} = deconvolve({}, {}, {})", io.out[0], io.in[0], io.in[1], em.number(param_real(io.node.params, "snr_db")));
+}
+
 }  // namespace
 
 void register_analysis_forms(std::vector<PyForm>& out) {
     for (auto [id, fn] : std::initializer_list<std::pair<const char*, core::Result<std::string> (*)(const NodeIo&, Emitter&)>>{
-             {"stats", stats}, {"loudness", loudness}, {"assert", assert_block}})
+             {"stats", stats}, {"loudness", loudness}, {"assert", assert_block}, {"wiener", wiener}, {"spectral_subtract", spectral_subtract}, {"deconvolve", deconvolve}})
         out.push_back({id, 1e-12, fn});
+    out.push_back({"lms", 1e-10, lms});
 }
 
 }  // namespace signals::python

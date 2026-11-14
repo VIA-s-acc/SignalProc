@@ -1,5 +1,6 @@
 #include "python/block_graphs.hpp"
 
+#include <algorithm>
 #include <map>
 
 #include <catch2/catch_test_macros.hpp>
@@ -120,6 +121,12 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
             const auto name = std::string{"wav-"} + f;
             out.push_back({name, graph_text(t, name, {{"path", quoted(signals::test::fixture(f))}})});
         }
+    if (std::ranges::any_of(t.inputs, [](const auto& port) { return port.optional; })) {
+        auto bare = t;
+        std::erase_if(bare.inputs, [](const auto& port) { return port.optional; });
+        auto text = graph_text(bare, t.id + "-bare", paths);
+        out.push_back({t.id + "-bare", std::move(text)});
+    }
     if (t.id == "assert")
         out.push_back({"assert-ops", graph_text(t, "assert-ops", {{"expr", "\"a.rms_ch0 / 0 > 1 && (0 - 8) ^ 0.5 != 1 && 10 ^ 400 > a.passed && sqrt(0 - 1) != 0 && log10(0) < 0 && pi > 3 && "
                                                                           "(-a.rms_ch0 + +b.peak_ch1 * 2 / 3 - a.mean_ch0 ^ 2 >= 0.01 && !(c.std_ch0 == 0) || "
