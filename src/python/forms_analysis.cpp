@@ -144,11 +144,34 @@ core::Result<std::string> deconvolve(const NodeIo& io, Emitter& em) {
     return fmt::format("{} = deconvolve({}, {}, {})", io.out[0], io.in[0], io.in[1], em.number(param_real(io.node.params, "snr_db")));
 }
 
+core::Result<std::string> lpc(const NodeIo& io, Emitter& em) {
+    em.function("lpc");
+    return fmt::format("{0}, {1} = lpc({2}, {3})\n{1}_ok = True", io.out[0], io.out[1], io.in[0], param_int(io.node.params, "order"));
+}
+
+core::Result<std::string> lpc_synth(const NodeIo& io, Emitter& em) {
+    em.function("lpc_synth");
+    return fmt::format("{} = lpc_synth({}, {})", io.out[0], io.in[0], io.in[1]);
+}
+
+core::Result<std::string> spectrum_peaks(const NodeIo& io, Emitter& em) {
+    em.function("spectrum_peaks");
+    return fmt::format("{0} = spectrum_peaks({1}, {2}, {3}, {4}, {5})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_int(io.node.params, "count"),
+                       param_int(io.node.params, "segment"), em.number(param_real(io.node.params, "prominence_db")));
+}
+
+core::Result<std::string> band_power(const NodeIo& io, Emitter& em) {
+    em.function("band_power");
+    return fmt::format("{0} = band_power({1}, {2}, {3}, {4})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_text(io.node.params, "bands") == "third" ? "True" : "False",
+                       param_int(io.node.params, "segment"));
+}
+
 }  // namespace
 
 void register_analysis_forms(std::vector<PyForm>& out) {
     for (auto [id, fn] : std::initializer_list<std::pair<const char*, core::Result<std::string> (*)(const NodeIo&, Emitter&)>>{
-             {"stats", stats}, {"loudness", loudness}, {"assert", assert_block}, {"wiener", wiener}, {"spectral_subtract", spectral_subtract}, {"deconvolve", deconvolve}})
+             {"stats", stats}, {"loudness", loudness}, {"assert", assert_block}, {"wiener", wiener}, {"spectral_subtract", spectral_subtract}, {"deconvolve", deconvolve}, {"lpc", lpc}, {"lpc_synth", lpc_synth},
+             {"spectrum_peaks", spectrum_peaks}, {"band_power", band_power}})
         out.push_back({id, 1e-12, fn});
     out.push_back({"lms", 1e-10, lms});
 }
