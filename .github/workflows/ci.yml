@@ -24,6 +24,9 @@ jobs:
       CXX: ${{ matrix.cxx }}
     steps:
       - uses: actions/checkout@v4
+      - name: Shells and man tools for the CLI docs tests
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q zsh fish mandoc
       - name: Configure
         run: cmake --preset ${{ matrix.preset }} -DSIGNALS_WERROR=ON
       - name: Build
