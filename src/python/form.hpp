@@ -88,5 +88,6 @@ std::string python_preview(const pipeline::BlockType& t, const pipeline::Params&
 void register_basic_forms(std::vector<PyForm>& out);
 void register_filter_forms(std::vector<PyForm>& out);
 void register_wavelet_forms(std::vector<PyForm>& out);
+void register_effect_forms(std::vector<PyForm>& out);
 
 }  // namespace signals::python
