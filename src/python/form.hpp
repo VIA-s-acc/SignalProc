@@ -35,6 +35,8 @@ std::span<const FunctionFile> python_functions();
 const FunctionFile* find_python_function(std::string_view name);
 std::vector<std::string> function_needs(std::string_view text);
 std::vector<std::string> function_imports(std::string_view text);
+std::vector<std::string> import_bindings(std::string_view line);
+std::span<const std::string_view> temporary_suffixes();
 const std::set<std::string, std::less<>>& by_filter_bank();
 
 std::string py_name(std::string_view id, const std::set<std::string, std::less<>>& taken);

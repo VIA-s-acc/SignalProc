@@ -2,6 +2,9 @@
 #include <fstream>
 #include <iterator>
 #include <map>
+#include <regex>
+#include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -226,4 +229,65 @@ TEST_CASE("a bypassed node passes its input through in the script", "[py-script]
     CHECK(s->text.find("\ng = x") != std::string::npos);
     CHECK(s->text.find("10 ** (") == std::string::npos);
     CHECK(s->text.find("\nq = r\nq_ok = r_ok") != std::string::npos);
+}
+
+namespace {
+
+std::set<std::string> import_bindings(const std::string& line) {
+    std::set<std::string> out;
+    std::istringstream words{line.substr(line.starts_with("from ") ? line.find(" import ") + 8 : 7)};
+    for (std::string part; std::getline(words, part, ',');) {
+        while (part.starts_with(' ')) part.erase(0, 1);
+        const auto as = part.find(" as ");
+        auto name = as == std::string::npos ? part : part.substr(as + 4);
+        if (!line.starts_with("from ")) name = name.substr(0, name.find('.'));
+        while (name.ends_with(' ')) name.pop_back();
+        out.insert(name);
+    }
+    return out;
+}
+
+}  // namespace
+
+TEST_CASE("python import bindings never shadow a function", "[py-script]") {
+    std::set<std::string> defined;
+    for (const auto& f : python::python_functions()) {
+        std::istringstream lines{std::string{f.text}};
+        for (std::string line; std::getline(lines, line);)
+            if (line.starts_with("def ")) defined.insert(line.substr(4, line.find('(') - 4));
+    }
+    for (const auto& f : python::python_functions())
+        for (const auto& line : python::function_imports(f.text))
+            for (const auto& name : import_bindings(line)) {
+                INFO(f.name << ": " << line);
+                CHECK_FALSE(defined.contains(name));
+            }
+}
+
+TEST_CASE("node names avoid imports, helpers and form temporaries", "[py-script]") {
+    const auto s = script_for("pipeline \"n\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode s = stats()\nnode s_ok = gain(db=-1)\n"
+                              "node io = gain(db=-2)\nnode display = gain(db=-3)\nnode _stats_spectrum = gain(db=-4)\nnode x_v = gain(db=-5)\n"
+                              "x -> s\nx -> s_ok\nx -> io\nx -> display\nx -> _stats_spectrum\nx -> x_v\n"
+                              "probe s_ok as \"a\"\nprobe io as \"b\"\nprobe display as \"c\"\nprobe _stats_spectrum as \"d\"\nprobe x_v as \"e\"\n",
+                              "names");
+    REQUIRE(s);
+    for (const char* var : {"\ns_ok_ = ", "\nio_ = ", "\ndisplay_ = ", "\n_stats_spectrum_ = ", "\nx_v_ = "}) {
+        INFO(var);
+        CHECK(s->text.find(var) != std::string::npos);
+    }
+}
+
+TEST_CASE("every temporary suffix a form writes is reserved", "[py-script]") {
+    const std::regex pattern{R"(\{[0-9a-z]*\}_([A-Za-z0-9]+)|" ?\+ ?"_([A-Za-z0-9]+)|out\[[0-9]\] \+ "_([A-Za-z0-9]+))"};
+    const auto suffixes = python::temporary_suffixes();
+    for (const auto& file : std::filesystem::directory_iterator{std::filesystem::path{SIGNALS_SOURCE_DIR} / "src" / "python"}) {
+        if (file.path().extension() != ".cpp") continue;
+        std::ifstream in{file.path()};
+        const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+        for (auto it = std::sregex_iterator{text.begin(), text.end(), pattern}; it != std::sregex_iterator{}; ++it) {
+            const auto suffix = (*it)[1].matched ? (*it)[1].str() : (*it)[2].matched ? (*it)[2].str() : (*it)[3].str();
+            INFO(file.path().filename().string() << ": _" << suffix);
+            CHECK(std::ranges::find(suffixes, suffix) != suffixes.end());
+        }
+    }
 }

@@ -141,6 +141,13 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
             const std::string kind{source, std::string_view{source}.find('(')};
             out.push_back({t.id + "-from-" + kind, graph_text(t, t.id + "-from-" + kind, paths, source)});
         }
+    if (t.id == "correlation") {
+        auto text = graph_text(t, "correlation-names", paths);
+        text += "node s = stats()\nx -> s\nnode s_ok = gain(db=-1)\nx -> s_ok\nnode io = gain(db=-2)\nx -> io\nnode display = gain(db=-3)\nx -> display\n"
+                "node sp_stats = gain(db=-4)\nx -> sp_stats\nnode stats = gain(db=-5)\nx -> stats\nnode x_v = gain(db=-6)\nx -> x_v\n"
+                "probe s_ok as \"a\"\nprobe io as \"b\"\nprobe display as \"c\"\nprobe sp_stats as \"d\"\nprobe stats as \"e\"\nprobe x_v as \"f\"\n";
+        out.push_back({"correlation-names", std::move(text)});
+    }
     if (t.id == "gain" || t.id == "assert" || t.id == "threshold") {
         auto text = graph_text(t, t.id + "-bypass", paths);
         const auto at = text.find("node b = ");

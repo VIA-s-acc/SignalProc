@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <vector>
@@ -85,6 +86,55 @@ std::vector<std::string> function_imports(std::string_view text) {
     return out;
 }
 
+std::vector<std::string> import_bindings(std::string_view line) {
+    std::vector<std::string> out;
+    const bool from = line.starts_with("from ");
+    const auto at = from ? line.find(" import ") : std::string_view::npos;
+    auto rest = from ? (at == std::string_view::npos ? std::string_view{} : line.substr(at + 8)) : line.substr(line.starts_with("import ") ? 7 : line.size());
+    while (!rest.empty()) {
+        const auto comma = rest.find(',');
+        auto part = rest.substr(0, comma);
+        rest = comma == std::string_view::npos ? std::string_view{} : rest.substr(comma + 1);
+        while (part.starts_with(' ')) part.remove_prefix(1);
+        while (part.ends_with(' ')) part.remove_suffix(1);
+        if (const auto as = part.find(" as "); as != std::string_view::npos) part = part.substr(as + 4);
+        else if (!from) part = part.substr(0, part.find('.'));
+        if (!part.empty()) out.emplace_back(part);
+    }
+    return out;
+}
+
+std::span<const std::string_view> temporary_suffixes() {
+    static constexpr std::string_view kSuffixes[] = {"a",    "angle", "block", "delays", "f",    "fs",   "gains", "h",    "integral", "mid", "mono", "n",
+                                                     "ok",   "only",  "path",  "paths",  "rms",  "scale", "side", "size", "sos",      "t",   "v",    "value"};
+    return kSuffixes;
+}
+
+namespace {
+
+const std::set<std::string, std::less<>>& script_names() {
+    static const std::set<std::string, std::less<>> names = [] {
+        std::set<std::string, std::less<>> out{"signal", "pywt", "scipy", "Audio", "display"};
+        for (const auto& f : python_functions()) {
+            for (const auto& line : function_imports(f.text))
+                for (auto& name : import_bindings(line)) out.insert(std::move(name));
+            for (std::size_t at = 0; at < f.text.size();) {
+                const auto end = std::min(f.text.find('\n', at), f.text.size());
+                const auto line = f.text.substr(at, end - at);
+                std::size_t k = line.starts_with("def ") ? 4 : 0;
+                const auto first = k;
+                while (k < line.size() && (std::isalnum(static_cast<unsigned char>(line[k])) || line[k] == '_')) ++k;
+                if (k > first && (first == 4 ? line.substr(k).starts_with("(") : line.substr(k).starts_with(" = "))) out.emplace(line.substr(first, k - first));
+                at = end + 1;
+            }
+        }
+        return out;
+    }();
+    return names;
+}
+
+}  // namespace
+
 const std::set<std::string, std::less<>>& by_filter_bank() {
     static const std::set<std::string, std::less<>> names{"sym2", "sym3", "sym4", "sym5", "sym6", "sym7", "sym8", "sym9", "sym10", "sym12", "sym13", "sym17"};
     return names;
@@ -92,7 +142,7 @@ const std::set<std::string, std::less<>>& by_filter_bank() {
 
 std::string py_name(std::string_view id, const std::set<std::string, std::less<>>& taken) {
     std::string name{id};
-    while (kReserved.contains(name) || taken.contains(name) || find_python_function(name)) name += '_';
+    while (kReserved.contains(name) || taken.contains(name) || find_python_function(name) || script_names().contains(name)) name += '_';
     return name;
 }
 
@@ -130,8 +180,13 @@ std::string py_comment(std::string_view text) {
 }
 
 std::string Emitter::name_for(std::string_view id) {
+    const auto clashes = [&](const std::string& v) {
+        return std::ranges::any_of(temporary_suffixes(), [&](std::string_view s) { return taken_.contains(v + "_" + std::string{s}); });
+    };
     auto name = py_name(id, taken_);
+    while (clashes(name)) name = py_name(name + "_", taken_);
     taken_.insert(name);
+    for (const auto s : temporary_suffixes()) taken_.insert(name + "_" + std::string{s});
     return name;
 }
 
