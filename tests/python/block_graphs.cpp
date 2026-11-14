@@ -120,6 +120,10 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
             const auto name = std::string{"wav-"} + f;
             out.push_back({name, graph_text(t, name, {{"path", quoted(signals::test::fixture(f))}})});
         }
+    if (t.id == "assert")
+        out.push_back({"assert-ops", graph_text(t, "assert-ops", {{"expr", "\"a.rms_ch0 / 0 > 1 && (0 - 8) ^ 0.5 != 1 && 10 ^ 400 > a.passed && sqrt(0 - 1) != 0 && log10(0) < 0 && pi > 3 && "
+                                                                          "(-a.rms_ch0 + +b.peak_ch1 * 2 / 3 - a.mean_ch0 ^ 2 >= 0.01 && !(c.std_ch0 == 0) || "
+                                                                          "abs(d.mean_ch1) != sqrt(log10(100)) && min(a.rms_ch0, 1, 2) <= max(b.rms_ch1, 0))\""}})});
     return out;
 }
 

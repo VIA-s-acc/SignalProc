@@ -28,59 +28,96 @@ core::Result<std::string> stats(const NodeIo& io, Emitter& em) {
 core::Result<std::string> loudness(const NodeIo& io, Emitter& em) {
     const auto fs = input_rate(io);
     const auto window = pipeline::param_samples(io.node.params, "window", fs), hop = pipeline::param_samples(io.node.params, "hop", fs);
-    if (!window || !hop) return std::unexpected{unsupported(io, "window")};
+    if (!window || !hop || *window == 0 || *hop == 0) return std::unexpected{unsupported(io, "window")};
     em.function("loudness");
     return fmt::format("{0} = loudness({1}, {2}, {3})\n{0}_ok = True", io.out[0], io.in[0], *window, *hop);
 }
 
-std::string translate(const core::Expr& e, std::size_t at, const NodeIo& io, Emitter& em) {
-    using Op = core::Expr::Op;
-    const auto& n = e.nodes[at];
-    const auto arg = [&](std::size_t k) { return "(" + translate(e, n.args[k], io, em) + ")"; };
-    switch (n.op) {
-    case Op::number: return em.number(n.value);
-    case Op::name: {
-        const auto dot = n.name.find('.');
-        const auto port = n.name.substr(0, dot);
-        const auto field = dot == std::string::npos ? std::string{} : n.name.substr(dot + 1);
+struct PyExpr {
+    std::string text;
+    int prec = 100;
+};
+
+std::string wrap(const PyExpr& e, int at_least) { return e.prec >= at_least ? e.text : "(" + e.text + ")"; }
+
+class AssertTranslator {
+public:
+    AssertTranslator(const core::Expr& e, const NodeIo& io, const Emitter& em) : e_{e}, io_{io}, em_{em} {}
+
+    PyExpr value(std::size_t at) const {
+        using Op = core::Expr::Op;
+        const auto& n = e_.nodes[at];
+        const auto v = [&](std::size_t k, int prec) { return wrap(value(n.args[k]), prec); };
+        switch (n.op) {
+        case Op::number: {
+            auto text = em_.number(n.value);
+            if (text.find_first_not_of("-0123456789") == std::string::npos) text += ".0";
+            return {text};
+        }
+        case Op::name: {
+            const auto [var, field] = name(n.name);
+            if (field == "passed") return {"float(" + var + "_ok)"};
+            return {var + "[" + py_str(field) + "]"};
+        }
+        case Op::neg: return {"-" + v(0, 80), 80};
+        case Op::plus: return value(n.args[0]);
+        case Op::add: return {v(0, 60) + " + " + v(1, 61), 60};
+        case Op::sub: return {v(0, 60) + " - " + v(1, 61), 60};
+        case Op::mul: return {v(0, 70) + " * " + v(1, 71), 70};
+        case Op::div: return {"np.divide(" + v(0, 0) + ", " + v(1, 0) + ")"};
+        case Op::pow: return {"np.power(" + v(0, 0) + ", " + v(1, 0) + ")"};
+        case Op::call: {
+            std::string args;
+            for (std::size_t k = 0; k < n.args.size(); ++k) args += (k ? ", " : "") + v(k, 0);
+            if (n.name == "sqrt" || n.name == "log10") return {"np." + n.name + "(" + args + ")"};
+            return {n.name + "(" + args + ")"};
+        }
+        default: return {"float(" + condition(at).text + ")"};
+        }
+    }
+
+    PyExpr condition(std::size_t at) const {
+        using Op = core::Expr::Op;
+        const auto& n = e_.nodes[at];
+        const auto v = [&](std::size_t k) { return wrap(value(n.args[k]), 60); };
+        const auto c = [&](std::size_t k, int prec) { return wrap(condition(n.args[k]), prec); };
+        const auto compare = [&](const char* op) { return PyExpr{v(0) + " " + op + " " + v(1), 40}; };
+        switch (n.op) {
+        case Op::lt: return compare("<");
+        case Op::le: return compare("<=");
+        case Op::gt: return compare(">");
+        case Op::ge: return compare(">=");
+        case Op::eq: return compare("==");
+        case Op::ne: return compare("!=");
+        case Op::not_: return {"not " + c(0, 30), 30};
+        case Op::and_: return {c(0, 20) + " and " + c(1, 20), 20};
+        case Op::or_: return {c(0, 10) + " or " + c(1, 10), 10};
+        case Op::name:
+            if (name(n.name).second == "passed") return {name(n.name).first + "_ok"};
+            [[fallthrough]];
+        default: return {wrap(value(at), 60) + " != 0", 40};
+        }
+    }
+
+private:
+    std::pair<std::string, std::string> name(const std::string& full) const {
+        const auto dot = full.find('.');
+        const auto port = full.substr(0, dot);
         const std::size_t k = port == "a" ? 0 : port == "b" ? 1 : port == "c" ? 2 : 3;
-        const auto var = k < io.in.size() ? io.in[k] : std::string{"None"};
-        if (field == "passed") return "float(" + var + "_ok)";
-        return var + "[" + py_str(field) + "]";
+        return {k < io_.in.size() ? io_.in[k] : std::string{"None"}, dot == std::string::npos ? std::string{} : full.substr(dot + 1)};
     }
-    case Op::neg: return "-" + arg(0);
-    case Op::plus: return arg(0);
-    case Op::not_: return "float(" + arg(0) + " == 0)";
-    case Op::add: return arg(0) + " + " + arg(1);
-    case Op::sub: return arg(0) + " - " + arg(1);
-    case Op::mul: return arg(0) + " * " + arg(1);
-    case Op::div: return arg(0) + " / " + arg(1);
-    case Op::pow: return arg(0) + " ** " + arg(1);
-    case Op::lt: return "float(" + arg(0) + " < " + arg(1) + ")";
-    case Op::le: return "float(" + arg(0) + " <= " + arg(1) + ")";
-    case Op::gt: return "float(" + arg(0) + " > " + arg(1) + ")";
-    case Op::ge: return "float(" + arg(0) + " >= " + arg(1) + ")";
-    case Op::eq: return "float(" + arg(0) + " == " + arg(1) + ")";
-    case Op::ne: return "float(" + arg(0) + " != " + arg(1) + ")";
-    case Op::and_: return "float(" + arg(0) + " != 0 and " + arg(1) + " != 0)";
-    case Op::or_: return "float(" + arg(0) + " != 0 or " + arg(1) + " != 0)";
-    case Op::call: {
-        std::string args;
-        for (std::size_t k = 0; k < n.args.size(); ++k) args += (k ? ", " : "") + translate(e, n.args[k], io, em);
-        if (n.name == "abs") return "abs(" + args + ")";
-        if (n.name == "sqrt") return "math.sqrt(" + args + ")";
-        if (n.name == "log10") return "math.log10(" + args + ")";
-        return (n.name == "min" ? "min(" : "max(") + args + ")";
-    }
-    }
-    return "0.0";
-}
+
+    const core::Expr& e_;
+    const NodeIo& io_;
+    const Emitter& em_;
+};
 
 core::Result<std::string> assert_block(const NodeIo& io, Emitter& em) {
     const auto e = core::parse_expr(param_text(io.node.params, "expr"));
     if (!e) return std::unexpected{unsupported(io, "expr")};
-    em.import_line("import math");
-    return fmt::format("{0}_value = float({1})\n{0} = {{\"value\": {0}_value}}\n{0}_ok = {0}_value != 0", io.out[0], translate(*e, e->root, io, em));
+    const auto v = AssertTranslator{*e, io, em}.value(e->root);
+    const auto text = v.prec == 100 && v.text.starts_with("float(") ? v.text : "float(" + v.text + ")";
+    return fmt::format("with np.errstate(all=\"ignore\"):\n    {0}_value = {1}\n{0} = {{\"value\": {0}_value}}\n{0}_ok = {0}_value != 0", io.out[0], text);
 }
 
 }  // namespace
