@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/random.hpp"
 #include "core/detail/pocketfft.hpp"
 #include "core/metrics.hpp"
 #include "io/generators.hpp"
@@ -102,9 +103,8 @@ TEST_CASE("degenerate sweeps are constant", "[generators]") {
 
 TEST_CASE("noise is the normal draws shaped and scaled", "[generators]") {
     const auto draws = normal_draws(1000, 7);
-    std::mt19937_64 rng{7};
-    std::normal_distribution<double> normal{0.0, 1.0};
-    for (const double d : draws) CHECK(d == normal(rng));
+    signals::core::NormalDraws normal{7};
+    for (const double d : draws) CHECK(d == normal.next());
     for (const auto color : {NoiseColor::white, NoiseColor::pink, NoiseColor::brown}) {
         const auto x = noise(color, 0.3, 1000, 7);
         CHECK(x == noise_from_draws(color, 0.3, normal_draws(1000, 7)));

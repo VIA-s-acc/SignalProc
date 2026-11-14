@@ -5,6 +5,7 @@ add_executable(signals_tests
   core/test_dtcwt.cpp
   core/test_sst.cpp
   core/test_adaptive.cpp
+  core/test_random.cpp
   core/test_tempo.cpp
   core/test_restoration.cpp
   core/test_laurent.cpp

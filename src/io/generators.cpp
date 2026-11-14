@@ -4,10 +4,10 @@
 #include <cmath>
 #include <complex>
 #include <numbers>
-#include <random>
 
 #include "core/detail/pocketfft.hpp"
 #include "core/metrics.hpp"
+#include "core/random.hpp"
 
 namespace signals::io {
 namespace {
@@ -106,13 +106,12 @@ std::vector<double> step(std::size_t n, std::size_t at) {
 }
 
 std::vector<double> normal_draws(std::size_t n, std::uint64_t seed, const core::ProgressSink* progress) {
-    std::mt19937_64 rng{seed};
-    std::normal_distribution<double> normal{0.0, 1.0};
+    core::NormalDraws normal{seed};
     std::vector<double> x;
     x.reserve(n);
     for (std::size_t k = 0; k < n; ++k) {
         if (core::stop_requested(progress, k)) return x;
-        x.push_back(normal(rng));
+        x.push_back(normal.next());
     }
     return x;
 }

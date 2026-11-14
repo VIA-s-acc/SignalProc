@@ -18,7 +18,8 @@
 
 ### Changed
 
-- Сборка на clang и GCC идёт с `-ffp-contract=off`: clang на arm64 больше не сливает `a·b + c` в одну инструкцию, и числа программы совпадают с numpy до последнего разряда в простых выражениях. Исключение — случайный шум: `std::normal_distribution` в libc++, libstdc++ и MSVC устроена по-разному, поэтому шум с тем же `seed` на macOS, Linux и Windows разный.
+- Сборка на clang и GCC идёт с `-ffp-contract=off`: clang на arm64 больше не сливает `a·b + c` в одну инструкцию, и числа программы совпадают с numpy до последнего разряда в простых выражениях.
+- Шум (`gen` с `white`, `pink` и `brown`, `add_noise`) и сглаживание TPDF (`quantize`, `wav_out`) с одним `seed` одинаковы бит в бит на macOS, Linux и Windows. Раньше их давали `std::normal_distribution` и `std::uniform_real_distribution`, а эти распределения в libc++, libstdc++ и MSVC устроены по-разному. Теперь это полярный метод Марсальи поверх `mt19937_64` со своим логарифмом из одних сложений, умножений и делений. На macOS числа изменились только в последнем разряде (пример `first_steps` по-прежнему даёт 10 → 19 дБ), на Linux и Windows шум с тем же `seed` стал другим — таким же, как на macOS.
 
 - Сборка для macOS стала универсальной, для Apple Silicon и Intel: архив `signals-vX.Y.Z-macos-universal.tar.gz` вместо `macos-arm64`. В архивах — ещё `README.ru.md`, `man/signals.1` и `completions/`.
 - В справке ключа `--lang` перечислены значения `ru` и `en`.
