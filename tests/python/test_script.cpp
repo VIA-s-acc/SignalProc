@@ -104,12 +104,16 @@ TEST_CASE("signals python reports a graph error like signals run", "[py-script]"
 }
 
 TEST_CASE("signals python names an unsupported node", "[py-script]") {
-    const auto sig = write_sig("unsupported-py.sig", "pipeline \"u\" v1\nnode x = gen(kind=sine, rate=8000, duration=0.01)\nnode back = reverse()\nx -> back\nprobe back as \"b\"\n");
+    const pipeline::BlockType* missing = nullptr;
+    for (const auto& t : pipeline::block_types())
+        if (!python::find_py_form(t.id) && t.inputs.size() == 1 && t.inputs[0].type == pipeline::PortType::signal && !t.outputs.empty()) missing = &t;
+    if (!missing) SKIP("every block has a python form; unsupported() itself is covered in [py-forms]");
+    const auto sig = write_sig("unsupported-py.sig", "pipeline \"u\" v1\nnode x = gen(kind=sine, rate=8000, duration=0.25)\nnode odd = " + missing->id +
+                                                         "()\nx -> odd\nprobe odd." + missing->outputs[0].name + " as \"b\"\n");
     auto [code, out, err] = signals::test::run_cli({"signals", "python", sig.string()});
-    if (python::find_py_form("reverse")) SKIP("reverse has a form now");
     CHECK(code == 1);
-    CHECK(err.find("back") != std::string::npos);
-    CHECK(err.find("reverse") != std::string::npos);
+    CHECK(err.find("odd") != std::string::npos);
+    CHECK(err.find(missing->id) != std::string::npos);
 }
 
 TEST_CASE("signals python writes the script and its data", "[py-script]") {

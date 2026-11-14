@@ -18,7 +18,7 @@ def write_wav(path, x, fs, bits, dither):
         clipped = int(np.count_nonzero((q < -scale) | (q > scale - 1)))
         q = np.clip(q, -scale, scale - 1).astype("<i8")
         tag = 1
-        data = q.astype("<i4").view(np.uint8).reshape(-1, 4)[:, :width].tobytes()
+        data = np.ascontiguousarray(q.astype("<i4")).view(np.uint8).reshape(-1, 4)[:, :width].tobytes()
     rate = int(fs)
     fmt = struct.pack("<HHIIHH", tag, channels, rate, rate * channels * width, channels * width, 8 * width)
     body = b"WAVE" + b"fmt " + struct.pack("<I", len(fmt)) + fmt + b"data" + struct.pack("<I", len(data)) + data

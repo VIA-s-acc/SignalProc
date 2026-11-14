@@ -192,12 +192,18 @@ std::string Emitter::numbers(std::string key, std::span<const double> v) {
 
 std::string Emitter::file(const std::filesystem::path& absolute) const {
     if (preview_ || out_dir_.empty()) return "Path(" + py_str(std::string{reinterpret_cast<const char*>(absolute.filename().u8string().c_str())}) + ")";
-    const auto rel = absolute.lexically_relative(out_dir_);
+    std::error_code ec;
+    const auto target = std::filesystem::weakly_canonical(absolute, ec);
+    const auto base = std::filesystem::weakly_canonical(out_dir_, ec);
+    auto rel = target.lexically_relative(base);
+    std::size_t up = 0;
+    for (const auto& part : rel) up += part == "..";
+    if (up > 2) rel.clear();
     const auto text = [](const std::filesystem::path& p) {
         const auto u = p.generic_u8string();
         return std::string{u.begin(), u.end()};
     };
-    if (rel.empty()) return "Path(" + py_str(text(absolute)) + ")";
+    if (rel.empty()) return "Path(" + py_str(text(target.empty() ? absolute : target)) + ")";
     return "HERE / " + py_str(text(rel));
 }
 

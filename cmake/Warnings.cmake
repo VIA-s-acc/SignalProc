@@ -1,6 +1,6 @@
 function(signals_configure_target target)
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Wshadow -ffp-contract=off)
     if(SIGNALS_WERROR)
       target_compile_options(${target} PRIVATE -Werror)
     endif()
