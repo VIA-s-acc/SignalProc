@@ -2897,6 +2897,7 @@
   "python.nothing_to_check": "the graph has no probes, reports or outputs — there is nothing to check",
   "python.written": "wrote {script} and {data} · check: python {script}",
   "python.notebook_later": "the .ipynb notebook comes in the next part of the milestone; write a .py for now",
+  "python.listen": "listen:",
   "cli.python.description": "A numpy, scipy and pywt script for a .sig graph that checks every number against the program",
   "cli.python.output": "where to write the .py script; an .npz with the data goes next to it"
 }

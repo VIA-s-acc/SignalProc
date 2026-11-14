@@ -27,7 +27,7 @@ const std::set<std::string, std::less<>> kReserved{
     "getattr", "globals", "hasattr", "hash", "help", "hex", "id", "input", "int", "isinstance", "issubclass", "iter", "len", "list", "locals", "map",
     "max", "memoryview", "min", "next", "object", "oct", "open", "ord", "pow", "print", "property", "quit", "range", "repr", "reversed", "round",
     "set", "setattr", "slice", "sorted", "staticmethod", "str", "sum", "super", "tuple", "vars", "zip", "np", "pywt", "signal", "scipy", "Path",
-    "sys", "math", "wavfile", "D", "HERE", "verify", "verify_text", "verify_name", "report", "plt", "Audio"};
+    "sys", "math", "wavfile", "D", "HERE", "verify", "verify_text", "verify_name", "verify_db", "report", "plt", "Audio"};
 
 }  // namespace
 

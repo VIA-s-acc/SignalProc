@@ -6,7 +6,9 @@
 
 #include "core/design/families.hpp"
 #include "core/extension.hpp"
+#include "core/process/shrink.hpp"
 #include "core/swt.hpp"
+#include "i18n/i18n.hpp"
 #include "pipeline/blocks_common.hpp"
 #include "python/form.hpp"
 
@@ -307,6 +309,83 @@ core::Result<std::string> band_energy(const NodeIo& io, Emitter& em) {
     return fmt::format("{0} = band_energy({1}, [{2}], [{3}])\n{0}_ok = True", io.out[0], io.in[0], labels, weights);
 }
 
+core::Result<std::string> envelope(const NodeIo& io, Emitter& em) {
+    em.import_line("from scipy import signal");
+    return fmt::format("{} = np.abs(signal.hilbert({}, axis=1))", io.out[0], io.in[0]);
+}
+
+core::Result<std::string> inst_freq(const NodeIo& io, Emitter& em) {
+    em.function("inst_freq");
+    return fmt::format("{} = inst_freq({}, {})", io.out[0], io.in[0], io.in_fs[0]);
+}
+
+core::Result<std::string> cepstrum(const NodeIo& io, Emitter& em) {
+    em.function("real_cepstrum");
+    return fmt::format("{} = real_cepstrum({})", io.out[0], io.in[0]);
+}
+
+core::Result<std::string> dct(const NodeIo& io, Emitter& em, int type) {
+    em.import_line("import scipy.fft");
+    return fmt::format("{} = scipy.fft.dct({}, type={}, norm=\"ortho\", axis=1)", io.out[0], io.in[0], type);
+}
+
+core::Result<std::string> xcorr(const NodeIo& io, Emitter& em) {
+    em.function("xcorr");
+    return fmt::format("{} = xcorr({}, {}, {}, {})", io.out[0], io.in[0], io.in[1], py_str(param_text(io.node.params, "mode")),
+                       param_text(io.node.params, "normalize") == "yes" ? "True" : "False");
+}
+
+core::Result<std::string> denoise(const NodeIo& io, Emitter& em) {
+    const auto& p = io.node.params;
+    const auto& name = param_text(p, "wavelet");
+    auto levels = static_cast<std::size_t>(param_int(p, "levels"));
+    if (levels == 0) {
+        const auto bank = core::wavelet(name);
+        std::size_t n = 0;
+        if (io.in_values[0])
+            if (const auto* a = std::get_if<core::AudioBuffer>(io.in_values[0])) n = a->frames();
+        levels = bank ? core::default_levels(n, bank->length()) : 1;
+    }
+    em.function("denoise");
+    em.import_line("import pywt");
+    return fmt::format("{} = denoise({}, {}, {}, {}, {}, {})", io.out[0], io.in[0], em.wavelet(name), levels, py_str(param_text(p, "rule")), py_str(param_text(p, "mode")),
+                       param_int(p, "shifts"));
+}
+
+core::Result<std::string> thd(const NodeIo& io, Emitter& em) {
+    em.function("thd");
+    return fmt::format("{0} = thd({1}, {2}, {3})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_int(io.node.params, "harmonics"));
+}
+
+core::Result<std::string> onsets(const NodeIo& io, Emitter& em) {
+    em.function("onsets");
+    return fmt::format("{0} = onsets({1}, {2}, {3}, {4})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_int(io.node.params, "n"), param_int(io.node.params, "hop"));
+}
+
+std::filesystem::path out_file(const NodeIo& io) {
+    auto path = pipeline::utf8_path(param_text(io.node.params, "path"));
+    return path.is_relative() ? io.base_dir / path : path;
+}
+
+core::Result<std::string> export_signal(const NodeIo& io, Emitter& em) {
+    em.function("export_signal");
+    return fmt::format("{0} = export_signal({1}, {2}, {3}, {4})\n{0}_ok = True", io.out[0], em.file(out_file(io)), io.in[0], io.in_fs[0], py_str(param_text(io.node.params, "format")));
+}
+
+core::Result<std::string> export_report(const NodeIo& io, Emitter& em) {
+    em.function("export_report_file");
+    return fmt::format("{0} = export_report_file({1}, {2}, {2}_ok, {3})\n{0}_ok = True", io.out[0], em.file(out_file(io)), io.in[0], py_str(param_text(io.node.params, "format")));
+}
+
+core::Result<std::string> check(const NodeIo& io, Emitter& em) {
+    em.function("check_signals");
+    const auto& p = io.node.params;
+    return fmt::format("{0}, {0}_ok = check_signals({1}, {2}, {3}, {4}, {5})", io.out[0], io.in[0], io.in[1], py_str(param_text(p, "kind")), em.number(param_real(p, "tol")),
+                       py_str(param_text(p, "delay")));
+}
+
+core::Result<std::string> listen(const NodeIo& io, Emitter&) { return fmt::format("print({}, {})", py_str(tr("python.listen")), py_str(io.node.id)); }
+
 }  // namespace
 
 void register_filter_forms(std::vector<PyForm>& out) {
@@ -325,8 +404,13 @@ void register_filter_forms(std::vector<PyForm>& out) {
     out.push_back({"hilbert", 1e-12, hilbert});
     out.push_back({"remez", 1e-8, remez});
     out.push_back({"firls", 1e-10, firls});
+    out.push_back({"cepstrum", 1e-9, cepstrum});
+    out.push_back({"dct", 1e-12, [](const NodeIo& io, Emitter& em) { return dct(io, em, 2); }});
+    out.push_back({"idct", 1e-12, [](const NodeIo& io, Emitter& em) { return dct(io, em, 3); }});
     for (auto [id, fn] : std::initializer_list<std::pair<const char*, core::Result<std::string> (*)(const NodeIo&, Emitter&)>>{
-             {"downsample", downsample}, {"upsample", upsample}, {"resample", resample}, {"convolve", convolve}, {"dwt", dwt}, {"idwt", idwt}, {"swt", swt}, {"iswt", iswt}, {"threshold", threshold}, {"band_edit", band_edit}, {"band_energy", band_energy}})
+             {"downsample", downsample}, {"upsample", upsample}, {"resample", resample}, {"convolve", convolve}, {"dwt", dwt}, {"idwt", idwt}, {"swt", swt}, {"iswt", iswt}, {"threshold", threshold}, {"band_edit", band_edit}, {"band_energy", band_energy},
+             {"envelope", envelope}, {"inst_freq", inst_freq}, {"xcorr", xcorr}, {"denoise", denoise}, {"thd", thd}, {"onsets", onsets}, {"export", export_signal},
+             {"export_report", export_report}, {"check", check}, {"listen", listen}})
         out.push_back({id, 1e-12, fn});
 }
 

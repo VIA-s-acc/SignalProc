@@ -28,6 +28,10 @@ def verify(what, got, ref, tol, origin):
     _verify_rows.append((what, err, tol, origin, bool(err <= tol * scale)))
 
 
+def verify_db(what, got, ref, tol, origin):
+    verify(what, np.clip(got, -200.0, 200.0), np.clip(ref, -200.0, 200.0), tol, origin)
+
+
 def verify_text(what, got, ref):
     ok = str(got) == str(ref)
     _verify_rows.append((what, 0.0 if ok else None, 0.0, "", ok))

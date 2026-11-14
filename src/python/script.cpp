@@ -26,7 +26,7 @@ struct Chain {
     std::string origin;
 };
 
-enum class RowKind { number, text, file_name };
+enum class RowKind { number, decibel, text, file_name };
 
 struct Row {
     std::string what, expr, ref;
@@ -197,7 +197,8 @@ private:
             for (const auto& [field, value] : r->fields) {
                 const auto item = expr + "[" + py_str(field) + "]";
                 const bool text = std::holds_alternative<std::string>(value);
-                rows_.push_back({what + " · " + field, item, prefix + "." + field, !text ? RowKind::number : field == "path" ? RowKind::file_name : RowKind::text, chain});
+                const auto kind = text ? (field == "path" ? RowKind::file_name : RowKind::text) : field.ends_with("_db") ? RowKind::decibel : RowKind::number;
+                rows_.push_back({what + " · " + field, item, prefix + "." + field, kind, chain});
             }
             rows_.push_back({what + " · passed", "float(" + expr + "_ok)", prefix + ".passed", RowKind::number, chain});
         }
@@ -239,9 +240,10 @@ private:
         switch (r.kind) {
         case RowKind::text: return "verify_text(" + py_str(r.what) + ", " + r.expr + ", " + ref + ")";
         case RowKind::file_name: return "verify_name(" + py_str(r.what) + ", " + r.expr + ", " + ref + ")";
-        case RowKind::number: break;
+        case RowKind::number:
+        case RowKind::decibel: break;
         }
-        return "verify(" + py_str(r.what) + ", " + r.expr + ", " + ref + ", " + fmt::format("{:.0e}", r.chain.tol) + ", " + py_str(r.chain.origin) + ")";
+        return std::string{r.kind == RowKind::decibel ? "verify_db(" : "verify("} + py_str(r.what) + ", " + r.expr + ", " + ref + ", " + fmt::format("{:.0e}", r.chain.tol) + ", " + py_str(r.chain.origin) + ")";
     }
 
     std::string text() const {

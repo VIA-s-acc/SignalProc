@@ -2897,6 +2897,7 @@
   "python.nothing_to_check": "в графе нет щупов, отчётов и выходов — нечего сверять",
   "python.written": "записано {script} и {data} · сверка: python {script}",
   "python.notebook_later": "тетрадь .ipynb появится в следующей части этапа; пока пишите .py",
+  "python.listen": "послушать:",
   "cli.python.description": "Скрипт на numpy, scipy и pywt по графу .sig, сверяющий каждое число с программой",
   "cli.python.output": "куда записать скрипт .py; рядом ложится .npz с данными"
 }
