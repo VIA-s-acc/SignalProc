@@ -605,7 +605,7 @@ public:
         for (const auto& s : sets_)
             if (auto ok = pipeline::apply_set(*doc, s); !ok) return report_error(err, ok.error()), 1;
         auto target = output_.empty() ? std::filesystem::path{file}.replace_extension(".py") : pipeline::utf8_path(output_);
-        if (auto ok = python::check_script_name(target); !ok) return report_error(err, ok.error()), 2;
+        if (auto ok = python::check_script_name(target); !ok) return report_error(err, ok.error()), err << tr("python.module_name_cli") << '\n', 2;
         auto graph = pipeline::build_graph(*doc, std::filesystem::absolute(file).parent_path());
         if (!graph) return sig_error(err, file, graph.error());
         std::ifstream in{file, std::ios::binary};

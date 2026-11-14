@@ -5,6 +5,7 @@
 #include <functional>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -80,6 +81,8 @@ private:
     void toggle_compare();
     void refresh_compare(const RunView& run);
     void save_probe();
+    void export_python();
+    void take_python_result();
     void duplicate_selected();
     void ask_sweep_values(const std::string& node, const pipeline::ParamSpec& spec, const std::string& current);
     void choose_sweep_measure(pipeline::SweepAxis axis);
@@ -118,6 +121,11 @@ private:
         ftxui::Box box{};
     } drag_;
     std::string notice_;
+    struct PythonResult {
+        std::mutex mutex;
+        std::optional<std::string> message;
+    };
+    std::shared_ptr<PythonResult> python_result_ = std::make_shared<PythonResult>();
     std::vector<std::pair<std::string, ftxui::Box>> add_rows_;
     Scroll text_scroll_, run_scroll_, add_scroll_, inspector_scroll_, probe_text_scroll_;
     std::vector<ftxui::Box> probe_chip_boxes_;
