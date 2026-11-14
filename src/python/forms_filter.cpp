@@ -1,3 +1,4 @@
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -5,6 +6,7 @@
 
 #include "core/design/families.hpp"
 #include "core/extension.hpp"
+#include "core/swt.hpp"
 #include "pipeline/blocks_common.hpp"
 #include "python/form.hpp"
 
@@ -232,6 +234,79 @@ core::Result<std::string> iswt(const NodeIo& io, Emitter& em) {
                        length_of(io));
 }
 
+core::Result<std::string> threshold(const NodeIo& io, Emitter& em) {
+    const auto& p = io.node.params;
+    const auto* c = coeffs_value(io.in_values[0]);
+    const bool norm = c && c->transform == "swt" && c->norm;
+    const auto [first, last] = pipeline::param_range(p, "levels");
+    std::string sigma = "None";
+    if (param_text(p, "sigma") != "mad_d1") sigma = em.number(param_real(p, "sigma") * (norm ? std::sqrt(0.5) : 1.0));
+    const auto n = c && !c->lengths.empty() ? c->lengths.front() : 0;
+    em.function("shrink_coeffs");
+    em.import_line("import pywt");
+    return fmt::format("{} = shrink_coeffs({}, {}, {}, {}, {}, {}, {}, {})", io.out[0], io.in[0], py_str(param_text(p, "rule")), py_str(param_text(p, "mode")), first, last,
+                       sigma, n, norm ? "True" : "False");
+}
+
+core::Result<std::string> band_edit(const NodeIo& io, Emitter& em) {
+    const auto* c = coeffs_value(io.in_values[0]);
+    if (!c) return fmt::format("{} = {}", io.out[0], io.in[0]);
+    const auto& p = io.node.params;
+    std::vector<std::string> enabled;
+    {
+        std::string item;
+        for (const char ch : param_text(p, "enabled") + ",") {
+            if (ch == ',') {
+                while (!item.empty() && item.front() == ' ') item.erase(item.begin());
+                while (!item.empty() && item.back() == ' ') item.pop_back();
+                if (!item.empty()) enabled.push_back(item);
+                item.clear();
+            } else {
+                item += ch;
+            }
+        }
+    }
+    std::vector<bool> keep(c->levels() + 1, enabled.empty() || enabled.front() == "all");
+    for (const auto& name : enabled)
+        if (name != "all")
+            if (const auto i = pipeline::band_index(*c, name)) keep[*i] = true;
+    std::vector<double> gains(c->levels() + 1, 1.0);
+    std::string text = param_text(p, "gains_db") + ",";
+    std::string item;
+    for (const char ch : text) {
+        if (ch != ',') {
+            item += ch;
+            continue;
+        }
+        const auto eq = item.find('=');
+        if (eq != std::string::npos) {
+            auto name = item.substr(0, eq);
+            while (!name.empty() && name.front() == ' ') name.erase(name.begin());
+            while (!name.empty() && name.back() == ' ') name.pop_back();
+            if (const auto i = pipeline::band_index(*c, name)) {
+                const pipeline::Params one{{"g", item.substr(eq + 1)}};
+                gains[*i] = std::pow(10.0, param_real(one, "g") / 20);
+            }
+        }
+        item.clear();
+    }
+    std::string list;
+    for (std::size_t b = 0; b < gains.size(); ++b) list += (b ? ", " : "") + (keep[b] ? em.number(gains[b]) : std::string{"None"});
+    return fmt::format("{0}_gains = [{1}]\n{0} = [np.zeros_like(band) if g is None else band * g for band, g in zip({2}, {0}_gains)]", io.out[0], list, io.in[0]);
+}
+
+core::Result<std::string> band_energy(const NodeIo& io, Emitter& em) {
+    const auto* c = coeffs_value(io.in_values[0]);
+    std::string labels, weights;
+    if (c) {
+        for (std::size_t b = 0; b <= c->levels(); ++b) labels += (b ? ", " : "") + py_str(pipeline::band_label(*c, b));
+        if (c->transform == "swt")
+            for (const double w : core::swt_energy_weights(c->levels(), c->norm)) weights += (weights.empty() ? "" : ", ") + em.number(w);
+    }
+    em.function("band_energy");
+    return fmt::format("{0} = band_energy({1}, [{2}], [{3}])\n{0}_ok = True", io.out[0], io.in[0], labels, weights);
+}
+
 }  // namespace
 
 void register_filter_forms(std::vector<PyForm>& out) {
@@ -251,7 +326,7 @@ void register_filter_forms(std::vector<PyForm>& out) {
     out.push_back({"remez", 1e-8, remez});
     out.push_back({"firls", 1e-10, firls});
     for (auto [id, fn] : std::initializer_list<std::pair<const char*, core::Result<std::string> (*)(const NodeIo&, Emitter&)>>{
-             {"downsample", downsample}, {"upsample", upsample}, {"resample", resample}, {"convolve", convolve}, {"dwt", dwt}, {"idwt", idwt}, {"swt", swt}, {"iswt", iswt}})
+             {"downsample", downsample}, {"upsample", upsample}, {"resample", resample}, {"convolve", convolve}, {"dwt", dwt}, {"idwt", idwt}, {"swt", swt}, {"iswt", iswt}, {"threshold", threshold}, {"band_edit", band_edit}, {"band_energy", band_energy}})
         out.push_back({id, 1e-12, fn});
 }
 
