@@ -169,7 +169,7 @@ private:
             const NodeIo io{n, in, vars_[i], fs, in_values, outs, graph_.base_dir};
             if (!form) return std::unexpected{unsupported(io, "")};
             em_.set_node(n.id);
-            auto code = form->emit(io, em_);
+            auto code = n.bypass ? core::Result<std::string>{bypass_code(n, in)} : form->emit(io, em_);
             if (!code) return std::unexpected{code.error()};
             if (n.type->id == "dwt" || n.type->id == "swt") pywt_sign_ = true;
             Block block{comment_for(n) + "\n" + *code, n.id, n.type->id, {}};
@@ -185,6 +185,17 @@ private:
         }
         em_.set_node("");
         return {};
+    }
+
+    std::string bypass_code(const pipeline::GraphNode& n, const std::vector<std::string>& in) const {
+        const auto from = in.empty() || in.front().empty() ? std::string{"None"} : in.front();
+        std::string code;
+        for (std::size_t p = 0; p < n.type->outputs.size(); ++p) {
+            const auto& out = vars_[&n - graph_.nodes.data()][p];
+            code += (code.empty() ? "" : "\n") + out + " = " + from;
+            if (n.type->outputs[p].type == pipeline::PortType::report) code += "\n" + out + "_ok = " + (from == "None" ? std::string{"False"} : from + "_ok");
+        }
+        return code;
     }
 
     core::Result<void> add_value(const std::string& what, const std::string& expr, const Value& v, const std::string& prefix, const Chain& chain) {

@@ -141,6 +141,13 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
             const std::string kind{source, std::string_view{source}.find('(')};
             out.push_back({t.id + "-from-" + kind, graph_text(t, t.id + "-from-" + kind, paths, source)});
         }
+    if (t.id == "gain" || t.id == "assert" || t.id == "threshold") {
+        auto text = graph_text(t, t.id + "-bypass", paths);
+        const auto at = text.find("node b = ");
+        const auto end = text.find('\n', at);
+        text.insert(end, " bypass");
+        out.push_back({t.id + "-bypass", std::move(text)});
+    }
     if (t.id == "sst_band" || t.id == "sst_ridge") {
         std::string text = "pipeline \"" + t.id + "-long\" v1\nnode x = gen(kind=harmonics, freq=220, rate=8000, duration=5)\nnode b = " + t.id + "()\nx -> b\n";
         for (const auto& port : t.outputs) text += "probe b." + port.name + " as \"" + port.name + "\"\n";

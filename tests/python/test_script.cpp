@@ -217,3 +217,13 @@ TEST_CASE("signals python writes only a .py script or an .ipynb notebook", "[py-
     auto [same, sout, serr] = signals::test::run_cli({"signals", "python", sig.string(), "-o", sig.string()});
     CHECK(same == 2);
 }
+
+TEST_CASE("a bypassed node passes its input through in the script", "[py-script]") {
+    const auto s = script_for("pipeline \"b\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode g = gain(db=-6) bypass\nnode r = stats()\nnode q = assert() bypass\n"
+                              "x -> g\ng -> r\nr -> q\nprobe g as \"y\"\n",
+                              "bypass");
+    REQUIRE(s);
+    CHECK(s->text.find("\ng = x") != std::string::npos);
+    CHECK(s->text.find("10 ** (") == std::string::npos);
+    CHECK(s->text.find("\nq = r\nq_ok = r_ok") != std::string::npos);
+}
