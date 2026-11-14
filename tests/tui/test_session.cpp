@@ -96,3 +96,18 @@ TEST_CASE("the store saves every change and lists only files that still exist", 
     CHECK(SessionStore{file}.get().graphs.empty());
     CHECK(SessionStore{file}.get().theme == "light");
 }
+
+TEST_CASE("a session store is fresh only when its file was absent", "[tui][session][start]") {
+    const auto dir = fresh_dir("session-fresh");
+    const auto file = dir / "session.toml";
+    {
+        SessionStore store{file};
+        CHECK(store.fresh());
+        store.save_now();
+    }
+    CHECK(fs::exists(file));
+    CHECK_FALSE(SessionStore{file}.fresh());
+    std::ofstream{dir / "broken.toml"} << "this is [ not toml";
+    CHECK_FALSE(SessionStore{dir / "broken.toml"}.fresh());
+    CHECK(SessionStore{fs::path{}}.fresh());
+}

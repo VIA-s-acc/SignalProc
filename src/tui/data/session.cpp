@@ -76,7 +76,15 @@ void remember(std::vector<std::filesystem::path>& list, const std::filesystem::p
     if (list.size() > kRecentFiles) list.resize(kRecentFiles);
 }
 
-SessionStore::SessionStore(std::filesystem::path file) : file_{std::move(file)}, session_{load_session(file_)} {}
+SessionStore::SessionStore(std::filesystem::path file) : file_{std::move(file)}, session_{load_session(file_)} {
+    std::error_code ec;
+    fresh_ = file_.empty() || !std::filesystem::exists(file_, ec);
+}
+
+void SessionStore::save_now() const {
+    std::lock_guard lock{mutex_};
+    save();
+}
 
 Session SessionStore::get() const {
     std::lock_guard lock{mutex_};

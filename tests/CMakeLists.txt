@@ -95,6 +95,7 @@ add_executable(signals_tests
   tui/test_designer_model.cpp
   tui/test_user_filters.cpp
   tui/test_session.cpp
+  tui/test_start_panel.cpp
   tui/test_designer_screen.cpp
   tui/test_decomposition_model.cpp
   tui/test_decomposition_screen.cpp
@@ -112,6 +113,7 @@ add_executable(signals_tests
   pipeline/test_blocks_basic.cpp
   pipeline/test_blocks_dsp.cpp
   pipeline/test_blocks_more.cpp
+  pipeline/test_first_steps.cpp
   pipeline/test_multichannel.cpp
   pipeline/test_sweep.cpp
   pipeline/test_blocks_assert.cpp

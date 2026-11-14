@@ -1509,3 +1509,22 @@ TEST_CASE("comparing probes also gives the correlation and how far b is shifted"
         line.replace(line.find(key), key.size(), value);
     CHECK(f.h.frame().find(line) != std::string::npos);
 }
+
+TEST_CASE("an example named in the navigation opens and runs", "[tui][pipeline_screen][start]") {
+    PipelineFixture f{150, 44, false};
+    f.screen->open_with(NavArgs{.example = "first_steps"});
+    for (int k = 0; k < 2000 && f.model->run_view().running; ++k) std::this_thread::sleep_for(5ms);
+    CHECK(f.model->doc().name == "first_steps");
+    const auto view = f.model->run_view();
+    CHECK_FALSE(view.running);
+    const auto frame = f.h.frame();
+    CHECK(frame.find("noisy") != std::string::npos);
+    CHECK(frame.find("clean") != std::string::npos);
+}
+
+TEST_CASE("an unknown example name leaves the pipeline as it was", "[tui][pipeline_screen][start]") {
+    PipelineFixture f{150, 44};
+    const auto before = f.screen->context();
+    f.screen->open_with(NavArgs{.example = "no_such_example"});
+    CHECK(f.screen->context() == before);
+}
