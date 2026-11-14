@@ -1402,6 +1402,8 @@
   "cli.explain.inputs": "Inputs:",
   "cli.explain.outputs": "Outputs:",
   "cli.explain.params": "Parameters:",
+  "cli.explain.python": "In Python:",
+  "cli.explain.json": "the description as JSON, like an element of signals blocks --json, with the theory card and the Python form",
   "cli.explain.card": "Theory: card «{title}» — F1 on the node in «Pipeline» or «Theory» ▸ «Under the hood»",
   "cli.explain.section": "Theory: tutorial section {title} — F1 on the node in «Pipeline»",
   "cli.explain.unknown": "there is no block {block}; see signals blocks",

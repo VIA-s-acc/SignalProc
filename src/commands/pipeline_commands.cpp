@@ -23,6 +23,7 @@
 #include "io/npy.hpp"
 #include "io/npy_audio.hpp"
 #include "pipeline/npz_values.hpp"
+#include "python/form.hpp"
 #include "python/script.hpp"
 #include "pipeline/sweep.hpp"
 #include "svg/svg.hpp"
@@ -358,10 +359,13 @@ private:
     bool json_ = false, watch_ = false;
 };
 
+std::string python_of(const pipeline::BlockType& t) { return python::python_preview(t, {}); }
+
 class ExplainCommand final : public Command {
 public:
     explicit ExplainCommand(CLI::App& app) : sub_{app.add_subcommand("explain", tr("cli.explain.description"))} {
         sub_->add_option("block", block_, tr("cli.explain.block"))->required();
+        sub_->add_flag("--json", json_, tr("cli.explain.json"));
     }
     bool parsed() const override { return sub_->parsed(); }
 
@@ -373,6 +377,21 @@ public:
             const auto closest = pipeline::nearest_name(block_, names);
             return report_error(err, {core::Errc::invalid_argument, fmt::format(fmt::runtime(tr(closest ? "cli.explain.unknown_near" : "cli.explain.unknown")),
                                                                                 fmt::arg("block", block_), fmt::arg("near", closest.value_or("")))});
+        }
+        const auto target = theory::block_theory(type->id);
+        std::string where;
+        if (target.section) {
+            if (const auto* s = theory::find_section(target.id)) where = s->number + " " + s->title;
+        } else if (const auto* card = theory::find_card(target.id)) {
+            where = card->title;
+        }
+        if (json_) {
+            auto all = nlohmann::json::parse(pipeline::blocks_json(python_of));
+            auto it = std::find_if(all.begin(), all.end(), [&](const auto& b) { return b.at("id") == type->id; });
+            auto j = *it;
+            j["theory"] = where.empty() ? nlohmann::json{} : nlohmann::json{{"kind", target.section ? "section" : "card"}, {"id", target.id}, {"title", where}};
+            out << j.dump(1) << '\n';
+            return 0;
         }
         out << type->id << " — " << tr_opt("pipeline.block." + type->id).value_or(type->id) << '\n';
         if (const auto about = tr_opt("pipeline.about." + type->id)) out << *about << '\n';
@@ -398,12 +417,13 @@ public:
             for (const auto& c : p.choices)
                 if (const auto note = tr_opt("pipeline.param." + type->id + "." + p.name + "." + c)) out << "      " << c << " — " << *note << '\n';
         }
-        const auto target = theory::block_theory(type->id);
-        std::string where;
-        if (target.section) {
-            if (const auto* s = theory::find_section(target.id)) where = s->number + " " + s->title;
-        } else if (const auto* card = theory::find_card(target.id)) {
-            where = card->title;
+        if (const auto code = python_of(*type); !code.empty()) {
+            out << '\n' << tr("cli.explain.python") << '\n';
+            for (std::size_t at = 0; at < code.size();) {
+                const auto end = std::min(code.find('\n', at), code.size());
+                out << "    " << code.substr(at, end - at) << '\n';
+                at = end + 1;
+            }
         }
         if (!where.empty()) out << '\n' << fmt::format(fmt::runtime(tr(target.section ? "cli.explain.section" : "cli.explain.card")), fmt::arg("title", where)) << '\n';
         return 0;
@@ -412,6 +432,7 @@ public:
 private:
     CLI::App* sub_;
     std::string block_;
+    bool json_ = false;
 };
 
 class SweepCommand final : public Command {
@@ -578,7 +599,7 @@ public:
     bool parsed() const override { return sub_->parsed(); }
 
     int run(std::ostream& out, std::ostream&) override {
-        out << (json_ ? pipeline::blocks_json() : markdown_ ? pipeline::blocks_markdown() : pipeline::blocks_text());
+        out << (json_ ? pipeline::blocks_json(python_of) : markdown_ ? pipeline::blocks_markdown() : pipeline::blocks_text());
         return 0;
     }
 

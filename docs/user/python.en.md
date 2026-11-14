@@ -69,6 +69,8 @@ The `.npz` holds only what Python cannot repeat:
 - parameter lists longer than 64 numbers and the symlet filters (see below);
 - the values to check against.
 
+In the Pipeline tab `P` or the palette item "Pipeline: export to Python…" does the same: a `.py` path gives a script, an `.ipynb` path a notebook. The graph open in the editor is exported, unsaved edits included. The inspector shows an "In Python" line for the selected node, and `signals explain <block>` shows the Python form of the block with the default parameters.
+
 ### A Jupyter notebook
 
 ```bash

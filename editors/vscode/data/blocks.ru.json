@@ -35,6 +35,7 @@
     "values": {}
    }
   ],
+  "python": "y, y_fs = read_wav(Path(\"\"))",
   "title": "Аудиофайл"
  },
  {
@@ -66,6 +67,7 @@
     "values": {}
    }
   ],
+  "python": "y = np.array([], dtype=np.float64)",
   "title": "Отсчёты"
  },
  {
@@ -105,6 +107,7 @@
     }
    }
   ],
+  "python": "y = add_signals(a, b, 1.0)",
   "title": "Сумматор ⊕"
  },
  {
@@ -206,6 +209,7 @@
     "values": {}
    }
   ],
+  "python": "y = np.tile(1 * np.sin(2 * np.pi * 440 * np.arange(44100) / 44100), (1, 1))",
   "title": "Генератор"
  },
  {
@@ -234,6 +238,7 @@
     "values": {}
    }
   ],
+  "python": "y = x * 10 ** (0 / 20)",
   "title": "Усиление"
  },
  {
@@ -275,6 +280,7 @@
     "values": {}
    }
   ],
+  "python": "y = normalize(x, \"peak\", -1)",
   "title": "Нормировка"
  },
  {
@@ -295,6 +301,7 @@
    }
   ],
   "params": [],
+  "python": "y = remove_dc(x)",
   "title": "Без DC"
  },
  {
@@ -325,6 +332,7 @@
     "values": {}
    }
   ],
+  "python": "y = np.clip(x, -1, 1)",
   "title": "Ограничение"
  },
  {
@@ -375,6 +383,7 @@
     "values": {}
    }
   ],
+  "python": "y_scale = 2.0 ** 15",
   "title": "Квантование"
  },
  {
@@ -418,6 +427,7 @@
     "values": {}
    }
   ],
+  "python": "y_v = np.clip(np.nan_to_num(x, nan=0.0), -1.0, 1.0)",
   "title": "μ-закон"
  },
  {
@@ -464,6 +474,7 @@
     "values": {}
    }
   ],
+  "python": "y_l = x[0:1]",
   "title": "Каналы"
  },
  {
@@ -484,6 +495,7 @@
    }
   ],
   "params": [],
+  "python": "y = mixdown(x)",
   "title": "В моно"
  },
  {
@@ -518,6 +530,7 @@
     }
    }
   ],
+  "python": "y = np.stack([(x[0] + x[1]) * (np.sqrt(2.0) / 2), (x[0] - x[1]) * (np.sqrt(2.0) / 2)])",
   "title": "M/S"
  },
  {
@@ -546,6 +559,7 @@
     "values": {}
    }
   ],
+  "python": "y = np.concatenate([np.zeros((x.shape[0], 0)), x], axis=1)",
   "title": "Задержка"
  },
  {
@@ -566,6 +580,7 @@
    }
   ],
   "params": [],
+  "python": "y = x[:, ::-1]",
   "title": "Разворот"
  },
  {
@@ -601,6 +616,7 @@
     "values": {}
    }
   ],
+  "python": "y = x[:, 0:]",
   "title": "Вырезка"
  },
  {
@@ -662,6 +678,7 @@
     "values": {}
    }
   ],
+  "python": "y = multirate(x[:, 0:], 1, 2, 80, True)",
   "title": "Прореживание ↓M"
  },
  {
@@ -714,6 +731,7 @@
     }
    }
   ],
+  "python": "y = multirate(x, 2, 1, 80, True)",
   "title": "Растяжение ↑M"
  },
  {
@@ -762,6 +780,7 @@
     "values": {}
    }
   ],
+  "python": "y = multirate(x, 1, 1, 80, True)",
   "title": "Ресемплинг L/M"
  },
  {
@@ -805,6 +824,7 @@
     }
    }
   ],
+  "python": "y_h = [-0.12940952255126037, 0.2241438680420134, 0.8365163037378079, 0.48296291314453416]",
   "title": "Свёртка"
  },
  {
@@ -869,6 +889,7 @@
     }
    }
   ],
+  "python": "y = pywt.wavedec(x, \"db2\", mode=\"symmetric\", level=3, axis=-1)",
   "title": "DWT"
  },
  {
@@ -926,6 +947,7 @@
     }
    }
   ],
+  "python": "y = pywt.waverec(x, \"auto\", mode=\"symmetric\", axis=-1)[:, :0]",
   "title": "IDWT"
  },
  {
@@ -976,6 +998,7 @@
     }
    }
   ],
+  "python": "y_block = 2 ** 3",
   "title": "SWT"
  },
  {
@@ -1019,6 +1042,7 @@
     }
    }
   ],
+  "python": "y = lift(x, 4, \"lift53\")",
   "title": "Лифтинг 5/3"
  },
  {
@@ -1039,6 +1063,7 @@
    }
   ],
   "params": [],
+  "python": "y = unlift(x, \"lift53\")",
   "title": "Обратный лифтинг 5/3"
  },
  {
@@ -1067,6 +1092,7 @@
     "values": {}
    }
   ],
+  "python": "y = pywt.iswt(x, \"db2\", norm=False, axis=-1)[:, :0]",
   "title": "ISWT"
  },
  {
@@ -1134,6 +1160,7 @@
     "values": {}
    }
   ],
+  "python": "y = shrink_coeffs(x, \"bayes\", \"soft\", 1, 64, None, 0, False)",
   "title": "Порог"
  },
  {
@@ -1169,6 +1196,7 @@
     "values": {}
    }
   ],
+  "python": "y = x",
   "title": "Правка полос"
  },
  {
@@ -1189,6 +1217,7 @@
    }
   ],
   "params": [],
+  "python": "y = band_energy(x, [], [])",
   "title": "Энергия полос"
  },
  {
@@ -1209,6 +1238,7 @@
    }
   ],
   "params": [],
+  "python": "y = np.abs(signal.hilbert(x, axis=1))",
   "title": "Огибающая"
  },
  {
@@ -1229,6 +1259,7 @@
    }
   ],
   "params": [],
+  "python": "y = inst_freq(x, fs)",
   "title": "Мгновенная частота"
  },
  {
@@ -1249,6 +1280,7 @@
    }
   ],
   "params": [],
+  "python": "y = real_cepstrum(x)",
   "title": "Кепстр"
  },
  {
@@ -1269,6 +1301,7 @@
    }
   ],
   "params": [],
+  "python": "y = scipy.fft.dct(x, type=2, norm=\"ortho\", axis=1)",
   "title": "DCT-II"
  },
  {
@@ -1289,6 +1322,7 @@
    }
   ],
   "params": [],
+  "python": "y = scipy.fft.dct(x, type=3, norm=\"ortho\", axis=1)",
   "title": "Обратное DCT"
  },
  {
@@ -1343,6 +1377,7 @@
     }
    }
   ],
+  "python": "y = xcorr(a, b, \"full\", False)",
   "title": "Корреляция"
  },
  {
@@ -1419,6 +1454,7 @@
     "values": {}
    }
   ],
+  "python": "y = denoise(x, \"sym8\", 1, \"bayes\", \"soft\", 1)",
   "title": "Шумоподавление"
  },
  {
@@ -1449,6 +1485,7 @@
     "values": {}
    }
   ],
+  "python": "y = thd(x, fs, 5)",
   "title": "THD"
  },
  {
@@ -1488,6 +1525,7 @@
     "values": {}
    }
   ],
+  "python": "y = onsets(x, fs, 1024, 256)",
   "title": "Онсеты"
  },
  {
@@ -1531,6 +1569,7 @@
     }
    }
   ],
+  "python": "y = export_signal(Path(\"out.csv\"), x, fs, \"csv\")",
   "title": "Выгрузка CSV / JSON / NPY"
  },
  {
@@ -1574,6 +1613,7 @@
     }
    }
   ],
+  "python": "y = export_report_file(Path(\"report.json\"), x, x_ok, \"json\")",
   "title": "Выгрузка отчёта"
  },
  {
@@ -1629,6 +1669,7 @@
     "values": {}
    }
   ],
+  "python": "y, y_ok = check_signals(ref, x, \"pr\", 1e-12, \"0\")",
   "title": "Проверка"
  },
  {
@@ -1694,6 +1735,7 @@
     "values": {}
    }
   ],
+  "python": "y_path = Path(\"out.wav\")",
   "title": "Запись"
  },
  {
@@ -1708,6 +1750,7 @@
   ],
   "outputs": [],
   "params": [],
+  "python": "print(\"послушать:\", \"y\")",
   "title": "Прослушивание"
  },
  {
@@ -1743,6 +1786,7 @@
     "values": {}
    }
   ],
+  "python": "y = np.pad(x, ((0, 0), (0, 0)))",
   "title": "Дополнение нулями"
  },
  {
@@ -1768,6 +1812,7 @@
    }
   ],
   "params": [],
+  "python": "y = pairwise(a, b, lambda a, b: np.concatenate([a, b]))",
   "title": "Склейка"
  },
  {
@@ -1803,6 +1848,7 @@
     "values": {}
    }
   ],
+  "python": "y = pairwise(a, b, lambda a, b: padded(1 * a[: min(a.size, b.size)] * b[: min(a.size, b.size)], max(a.size, b.size)))",
   "title": "Умножитель ⊗"
  },
  {
@@ -1861,6 +1907,7 @@
     "values": {}
    }
   ],
+  "python": "y = x * window_of(\"hann\", x.shape[1], 8.6, 0.5)",
   "title": "Оконная функция"
  },
  {
@@ -1909,6 +1956,7 @@
     }
    }
   ],
+  "python": "y = fade(x, 441, 441, False)",
   "title": "Плавное нарастание и затухание"
  },
  {
@@ -1929,6 +1977,7 @@
    }
   ],
   "params": [],
+  "python": "y = -x",
   "title": "Смена полярности"
  },
  {
@@ -1949,6 +1998,7 @@
    }
   ],
   "params": [],
+  "python": "y = np.abs(x)",
   "title": "Модуль |x|"
  },
  {
@@ -1969,6 +2019,7 @@
    }
   ],
   "params": [],
+  "python": "y = x * x",
   "title": "Квадрат x²"
  },
  {
@@ -1989,6 +2040,7 @@
    }
   ],
   "params": [],
+  "python": "y = np.diff(x, axis=1, prepend=0.0)",
   "title": "Первая разность"
  },
  {
@@ -2009,6 +2061,7 @@
    }
   ],
   "params": [],
+  "python": "y = np.cumsum(x, axis=1)",
   "title": "Накопленная сумма"
  },
  {
@@ -2039,6 +2092,7 @@
     "values": {}
    }
   ],
+  "python": "y = np.tanh(1 * x)",
   "title": "Мягкое ограничение tanh"
  },
  {
@@ -2069,6 +2123,7 @@
     "values": {}
    }
   ],
+  "python": "y = x + 0",
   "title": "Постоянное смещение"
  },
  {
@@ -2099,6 +2154,7 @@
     "values": {}
    }
   ],
+  "python": "y = trim_silence(x, -60)",
   "title": "Обрезка тишины"
  },
  {
@@ -2153,6 +2209,7 @@
     "values": {}
    }
   ],
+  "python": "y_rms = np.sqrt(np.sum(x * x) / x.size / 10 ** (20 / 10))",
   "title": "Добавить шум"
  },
  {
@@ -2226,6 +2283,7 @@
     "values": {}
    }
   ],
+  "python": "y = (sweep(100, 8000, False, 44100, 44100) * 1)[np.newaxis, :]",
   "title": "Чирп"
  },
  {
@@ -2312,6 +2370,7 @@
     "values": {}
    }
   ],
+  "python": "y = (osc(\"square\", 440, 0.5, 1, 44100, 44100) * 1)[np.newaxis, :]",
   "title": "Меандр, пила, треугольник"
  },
  {
@@ -2416,6 +2475,7 @@
     }
    }
   ],
+  "python": "y_sos = signal.iirfilter(4, [1000 / (fs / 2)], rp=1, rs=40, btype=\"lowpass\", ftype=\"butter\", output=\"sos\")",
   "title": "БИХ-фильтр"
  },
  {
@@ -2507,6 +2567,7 @@
     }
    }
   ],
+  "python": "y_h = signal.firwin(101, [1000 / (fs / 2)], window=\"hamming\", pass_zero=True)",
   "title": "КИХ-фильтр (метод окна)"
  },
  {
@@ -2537,6 +2598,7 @@
     "values": {}
    }
   ],
+  "python": "y = median_filter(x, 5)",
   "title": "Медианный фильтр"
  },
  {
@@ -2580,6 +2642,7 @@
     }
    }
   ],
+  "python": "y = fir_apply(x, np.full(5, 1.0 / 5), False)",
   "title": "Скользящее среднее"
  },
  {
@@ -2610,6 +2673,7 @@
     "values": {}
    }
   ],
+  "python": "y = np.concatenate([x[:, :1], x[:, 1:] - 0.97 * x[:, :-1]], axis=1)",
   "title": "Предыскажение"
  },
  {
@@ -2640,6 +2704,7 @@
     "values": {}
    }
   ],
+  "python": "y = signal.lfilter([1.0], [1.0, -0.97], x, axis=1)",
   "title": "Снятие предыскажения"
  },
  {
@@ -2670,6 +2735,7 @@
     "values": {}
    }
   ],
+  "python": "y = lift(x, 4, \"lift97\", [-1.5861343420594243, -0.05298011857337664, 0.8829110755285036, 0.44350685204498297, 1.1496043988602964])",
   "title": "Лифтинг 9/7"
  },
  {
@@ -2736,6 +2802,7 @@
     }
    }
   ],
+  "python": "y = dtcwt(x, 4, \"near_sym_a\", \"qshift_a\", D)",
   "title": "DTCWT"
  },
  {
@@ -2756,6 +2823,7 @@
    }
   ],
   "params": [],
+  "python": "y = idtcwt(x, \"near_sym_a\", \"qshift_a\", D, 0)",
   "title": "Обратное DTCWT"
  },
  {
@@ -2776,6 +2844,7 @@
    }
   ],
   "params": [],
+  "python": "y = unlift(x, \"lift97\", [-1.5861343420594243, -0.05298011857337664, 0.8829110755285036, 0.44350685204498297, 1.1496043988602964])",
   "title": "Обратный лифтинг 9/7"
  },
  {
@@ -2804,6 +2873,7 @@
     "values": {}
    }
   ],
+  "python": "y = x",
   "title": "Компонента КМА"
  },
  {
@@ -2829,6 +2899,7 @@
    }
   ],
   "params": [],
+  "python": "y = merge_signals(l, r)",
   "title": "Сборка стерео"
  },
  {
@@ -2849,6 +2920,7 @@
    }
   ],
   "params": [],
+  "python": "y = x[np.r_[1, 0, 2:x.shape[0]]]",
   "title": "Обмен L↔R"
  },
  {
@@ -2892,6 +2964,7 @@
     }
    }
   ],
+  "python": "y_mono = mixdown(x)[0]",
   "title": "Панорама"
  },
  {
@@ -2922,6 +2995,7 @@
     "values": {}
    }
   ],
+  "python": "y = x[np.arange(2) % x.shape[0]]",
   "title": "Размножение каналов"
  },
  {
@@ -2965,6 +3039,7 @@
     "values": {}
    }
   ],
+  "python": "with np.errstate(all=\"ignore\"):",
   "title": "Утверждение"
  },
  {
@@ -2985,6 +3060,7 @@
    }
   ],
   "params": [],
+  "python": "y = stats(x, fs)",
   "title": "Статистика сигнала"
  },
  {
@@ -3020,6 +3096,7 @@
     "values": {}
    }
   ],
+  "python": "y = loudness(x, 17640, 4410)",
   "title": "Громкость (RMS по 400 мс)"
  },
  {
@@ -3082,6 +3159,7 @@
     }
    }
   ],
+  "python": "y_e, y_y = lms(x, d, 32, 0.1, True)",
   "title": "Адаптивный фильтр LMS/NLMS"
  },
  {
@@ -3121,6 +3199,7 @@
     "values": {}
    }
   ],
+  "python": "y = wiener(x, 5, 0)",
   "title": "Винеровский фильтр"
  },
  {
@@ -3183,6 +3262,7 @@
     "values": {}
    }
   ],
+  "python": "y = spectral_subtract(x, noise, 11025, 512, 2, 0.01)",
   "title": "Спектральное вычитание"
  },
  {
@@ -3218,6 +3298,7 @@
     "values": {}
    }
   ],
+  "python": "y = deconvolve(y, h, 30)",
   "title": "Деконволюция"
  },
  {
@@ -3272,6 +3353,7 @@
     }
    }
   ],
+  "python": "y = x * (1 - 0.5 * (1 - lfo(\"sine\", 2 * np.pi * 5 * np.arange(x.shape[1]) / fs)) / 2)",
   "title": "Тремоло"
  },
  {
@@ -3353,6 +3435,7 @@
     "values": {}
    }
   ],
+  "python": "y = modulated_delay(x, fs, 0.8, 3, 12, 0.0, 0.5)",
   "title": "Модулированная задержка"
  },
  {
@@ -3428,6 +3511,7 @@
     "values": {}
    }
   ],
+  "python": "y = phaser(x, fs, 4, 0.5, 200, 2000, 0.5, 0.5)",
   "title": "Фэйзер"
  },
  {
@@ -3485,6 +3569,7 @@
     "values": {}
    }
   ],
+  "python": "y = reverb(x, fs, 0.5, 0.5, 0.33, 0.7)",
   "title": "Реверберация"
  },
  {
@@ -3528,6 +3613,7 @@
     }
    }
   ],
+  "python": "y_v = np.fmod(2 * x + 1, 4.0)",
   "title": "Складывание волны"
  },
  {
@@ -3567,6 +3653,7 @@
     "values": {}
    }
   ],
+  "python": "y = (1 + 0.5 * x) * np.cos(2 * np.pi * 1000 * np.arange(x.shape[1]) / fs)",
   "title": "Амплитудная модуляция"
  },
  {
@@ -3606,6 +3693,7 @@
     "values": {}
    }
   ],
+  "python": "y_integral = np.concatenate([np.zeros((x.shape[0], 1)), np.cumsum(x, axis=1)[:, :-1]], axis=1)",
   "title": "Частотная модуляция"
  },
  {
@@ -3675,6 +3763,7 @@
     "values": {}
    }
   ],
+  "python": "y_a = -(np.pi * 1000 * 0.5) * (np.pi * 1000 * 0.5) / (4.0 * np.log(10.0 ** (-6 / 20.0)))",
   "title": "Гауссов импульс"
  },
  {
@@ -3731,6 +3820,7 @@
     "values": {}
    }
   ],
+  "python": "y = np.zeros((1, 44100))",
   "title": "Серия импульсов"
  },
  {
@@ -3770,6 +3860,7 @@
     "values": {}
    }
   ],
+  "python": "y = 1 * x + 0",
   "title": "Масштаб и сдвиг"
  },
  {
@@ -3823,6 +3914,7 @@
     "values": {}
    }
   ],
+  "python": "y = np.log(x)",
   "title": "Функция"
  },
  {
@@ -3868,6 +3960,7 @@
     }
    }
   ],
+  "python": "y = pairwise(a, b, lambda u, v: (lambda a, b: a / b)(padded(u, max(u.size, v.size)), padded(v, max(u.size, v.size))))",
   "title": "Операция над двумя"
  },
  {
@@ -3898,6 +3991,7 @@
     "values": {}
    }
   ],
+  "python": "y = np.tile(x, (1, 2))",
   "title": "Повтор"
  },
  {
@@ -3928,6 +4022,7 @@
     "values": {}
    }
   ],
+  "python": "y = x[0:1]",
   "title": "Выбор канала"
  },
  {
@@ -3956,6 +4051,7 @@
     "values": {}
    }
   ],
+  "python": "y_delays = [0]",
   "title": "Задержка каналов"
  },
  {
@@ -3986,6 +4082,7 @@
     "values": {}
    }
   ],
+  "python": "y = x.copy()",
   "title": "Ширина стерео"
  },
  {
@@ -4016,6 +4113,7 @@
     "values": {}
    }
   ],
+  "python": "y = x.copy()",
   "title": "Баланс"
  },
  {
@@ -4044,6 +4142,7 @@
     "values": {}
    }
   ],
+  "python": "y = x[:, np.arange(x.shape[1]) - np.arange(x.shape[1]) % 4]",
   "title": "Выборка-хранение"
  },
  {
@@ -4074,6 +4173,7 @@
     "values": {}
    }
   ],
+  "python": "y = signal.lfilter([1.0, -1.0], [1.0, -0.995], x, axis=1)",
   "title": "Блокировка DC"
  },
  {
@@ -4109,6 +4209,7 @@
     "values": {}
    }
   ],
+  "python": "y = signal.lfilter([1], [1], x, axis=1)",
   "title": "Фильтр по коэффициентам b, a"
  },
  {
@@ -4150,6 +4251,7 @@
     }
    }
   ],
+  "python": "y = fir_apply(x, [1], False)",
   "title": "КИХ-фильтр по отводам"
  },
  {
@@ -4217,6 +4319,7 @@
     }
    }
   ],
+  "python": "y = signal.savgol_filter(x, 11, 3, deriv=0, delta=1.0, mode=\"interp\", axis=1)",
   "title": "Сглаживание Савицкого — Голея"
  },
  {
@@ -4253,6 +4356,7 @@
     }
    }
   ],
+  "python": "y = np.imag(signal.hilbert(x, axis=1))",
   "title": "Преобразование Гильберта"
  },
  {
@@ -4332,6 +4436,7 @@
     }
    }
   ],
+  "python": "y_h = signal.remez(63, [0 / fs, 1000 / fs, 1500 / fs, 22050 / fs], [1, 0], weight=None, type=\"bandpass\")",
   "title": "Равноволновой КИХ-фильтр (Ремез)"
  },
  {
@@ -4396,6 +4501,7 @@
     }
    }
   ],
+  "python": "y_h = signal.firls(63, [0 / (fs / 2), 1000 / (fs / 2), 1500 / (fs / 2), 22050 / (fs / 2)], [1, 1, 0, 0], weight=None)",
   "title": "КИХ-фильтр по методу наименьших квадратов"
  },
  {
@@ -4441,6 +4547,7 @@
     "values": {}
    }
   ],
+  "python": "y = []",
   "title": "Коэффициенты из файла"
  },
  {
@@ -4466,6 +4573,7 @@
    }
   ],
   "params": [],
+  "python": "y_even = x[:, 0::2]",
   "title": "Полифазное разложение"
  },
  {
@@ -4491,6 +4599,7 @@
    }
   ],
   "params": [],
+  "python": "y = np.zeros((even.shape[0], even.shape[1] + odd.shape[1]))",
   "title": "Полифазная сборка"
  },
  {
@@ -4570,6 +4679,7 @@
     }
    }
   ],
+  "python": "y, y_paths = wpt(x, \"db2\", \"symmetric\", 3, \"best\")",
   "title": "Пакеты вейвлетов"
  },
  {
@@ -4590,6 +4700,7 @@
    }
   ],
   "params": [],
+  "python": "y = iwpt(x, x_paths, \"db2\", \"symmetric\", 0)",
   "title": "Обратные пакеты вейвлетов"
  },
  {
@@ -4646,6 +4757,7 @@
     }
    }
   ],
+  "python": "y = keep_largest(x, True, 10, 1)",
   "title": "Крупнейшие коэффициенты"
  },
  {
@@ -4698,6 +4810,7 @@
     "values": {}
    }
   ],
+  "python": "y = coeff_quantize(x, True, 8, 0.01)",
   "title": "Квантование коэффициентов"
  },
  {
@@ -4741,6 +4854,7 @@
     }
    }
   ],
+  "python": "y = np.zeros_like(x)",
   "title": "Сдвиг"
  },
  {
@@ -4814,6 +4928,7 @@
     "values": {}
    }
   ],
+  "python": "y = biquad(x, \"lowpass\", 1000, 0.7071, 0, fs)",
   "title": "Биквадратный фильтр (RBJ)"
  },
  {
@@ -4911,6 +5026,7 @@
     "values": {}
    }
   ],
+  "python": "y = dynamics(x, fs, \"compressor\", -20, ratio=4, knee=0, attack_ms=10, release_ms=100, makeup=0, detector=\"peak\", rms_ms=10)",
   "title": "Компрессор"
  },
  {
@@ -4959,6 +5075,7 @@
     "values": {}
    }
   ],
+  "python": "y = dynamics(x, fs, \"limiter\", -1, attack_ms=0, release_ms=50)",
   "title": "Лимитер"
  },
  {
@@ -5016,6 +5133,7 @@
     "values": {}
    }
   ],
+  "python": "y = dynamics(x, fs, \"gate\", -50, attack_ms=1, release_ms=100, range_db=80)",
   "title": "Шумовой гейт"
  },
  {
@@ -5064,6 +5182,7 @@
     "values": {}
    }
   ],
+  "python": "y = delay_lines(x, \"echo\", 11025, 0.4, 0.5)",
   "title": "Эхо"
  },
  {
@@ -5114,6 +5233,7 @@
     "values": {}
    }
   ],
+  "python": "y = delay_lines(x, \"feedback\", 100, 0.7)",
   "title": "Гребенчатый фильтр"
  },
  {
@@ -5189,6 +5309,7 @@
     "values": {}
    }
   ],
+  "python": "y = mix_signals(a, b, 10.0 ** (0 / 20), 10.0 ** (0 / 20), False, 0, 441)",
   "title": "Микшер"
  },
  {
@@ -5224,6 +5345,7 @@
     "values": {}
    }
   ],
+  "python": "y_residual, y_report = lpc(x, 12)",
   "title": "Линейное предсказание (LPC)"
  },
  {
@@ -5249,6 +5371,7 @@
    }
   ],
   "params": [],
+  "python": "y = lpc_synth(residual, report_)",
   "title": "Синтез по LPC"
  },
  {
@@ -5297,6 +5420,7 @@
     "values": {}
    }
   ],
+  "python": "y = spectrum_peaks(x, fs, 5, 4096, 6)",
   "title": "Пики спектра"
  },
  {
@@ -5340,6 +5464,7 @@
     "values": {}
    }
   ],
+  "python": "y = band_power(x, fs, False, 4096)",
   "title": "Мощность по октавам"
  },
  {
@@ -5411,6 +5536,7 @@
     "values": {}
    }
   ],
+  "python": "y_report, y_f0 = pitch(x, fs, 2048, 512, 60, 1000, 0.1)",
   "title": "Основной тон (YIN)"
  },
  {
@@ -5468,6 +5594,7 @@
     "values": {}
    }
   ],
+  "python": "y = sst_band(x, fs, 100, 4000, 32, 6)",
   "title": "Полоса синхросжатия"
  },
  {
@@ -5535,6 +5662,7 @@
     "values": {}
    }
   ],
+  "python": "y_report, y_freq, y_amp = sst_ridge(x, fs, 100, 4000, 32, 6)",
   "title": "Гребень синхросжатия"
  },
  {
@@ -5592,6 +5720,7 @@
     "values": {}
    }
   ],
+  "python": "y = mfcc(x, fs, 13, 40, 2048, 512)",
   "title": "Мел-кепстральные коэффициенты"
  },
  {
@@ -5640,6 +5769,7 @@
     "values": {}
    }
   ],
+  "python": "y = spectral_features(x, fs, 2048, 512, 85)",
   "title": "Спектральные признаки"
  },
  {
@@ -5677,6 +5807,7 @@
     "values": {}
    }
   ],
+  "python": "y = histogram(x, 10, None)",
   "title": "Гистограмма"
  },
  {
@@ -5702,6 +5833,7 @@
    }
   ],
   "params": [],
+  "python": "y = delay_estimate(a, b, fs)",
   "title": "Оценка задержки"
  },
  {
@@ -5727,6 +5859,7 @@
    }
   ],
   "params": [],
+  "python": "y = correlation(a, b)",
   "title": "Корреляция"
  },
  {
@@ -5757,6 +5890,7 @@
     "values": {}
    }
   ],
+  "python": "y = coeff_stats(x, [], [], 0.01)",
   "title": "Статистика коэффициентов"
  },
  {
@@ -5820,6 +5954,7 @@
     "values": {}
    }
   ],
+  "python": "y = time_stretch(x, 1.25, \"vocoder\", 2048, 512)",
   "title": "Растяжение во времени"
  },
  {
@@ -5883,6 +6018,7 @@
     "values": {}
    }
   ],
+  "python": "y = pitch_shift(x, 3, \"vocoder\", 2048, 512)",
   "title": "Сдвиг высоты"
  },
  {
@@ -5913,6 +6049,7 @@
     "values": {}
    }
   ],
+  "python": "y = speed(x, 1.25)",
   "title": "Скорость, как у пластинки"
  }
 ]

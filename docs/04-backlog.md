@@ -270,7 +270,7 @@
 - Н66. man-страница, собранная из описаний CLI11. *Сделано в M10: `signals man`.*
 - Н67. Коды выхода перечислены в `signals run --help`. Сейчас они описаны только в справочнике `.sig`.
 - Н68. `signals explain` без аргументов печатает список блоков по группам.
-- Н69. `signals explain --json`. У остальных команд этот флаг уже есть.
+- Н69. `signals explain --json`. У остальных команд этот флаг уже есть. *Сделано в M11: `explain --json`, с теорией и Python-формой блока.*
 - Н70. `signals filter --export c|numpy|csv`.
 - Н71. `signals diff a.wav b.wav`: SNR, max|e|, задержка и корреляция двух файлов.
 - Н72. `signals convert in.flac out.wav` с выбором разрядности и частоты.

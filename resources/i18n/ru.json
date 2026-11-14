@@ -1402,6 +1402,8 @@
   "cli.explain.inputs": "Входы:",
   "cli.explain.outputs": "Выходы:",
   "cli.explain.params": "Параметры:",
+  "cli.explain.python": "В Python:",
+  "cli.explain.json": "описание в JSON, как элемент signals blocks --json, с карточкой теории и Python-формой",
   "cli.explain.card": "Теория: карточка «{title}» — F1 на узле в «Конвейере» или «Теория» ▸ «Под капотом»",
   "cli.explain.section": "Теория: раздел {title} «Учебника» — F1 на узле в «Конвейере»",
   "cli.explain.unknown": "нет блока {block}; список — signals blocks",
