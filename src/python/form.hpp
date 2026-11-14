@@ -39,6 +39,7 @@ const std::set<std::string, std::less<>>& by_filter_bank();
 
 std::string py_name(std::string_view id, const std::set<std::string, std::less<>>& taken);
 std::string py_str(std::string_view text);
+std::string py_comment(std::string_view text);
 
 class Emitter {
 public:

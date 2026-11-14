@@ -100,3 +100,12 @@ TEST_CASE("unsupported names the node, block and parameter", "[py-forms]") {
     CHECK(e.code == core::Errc::unsupported);
     for (const char* part : {"boost", "gain", "db", "6"}) CHECK(e.message.find(part) != std::string::npos);
 }
+
+TEST_CASE("comment text cannot break out of its line", "[py-forms]") {
+    const auto c = py_comment("node x = gen()\rimport os\nos.remove('x')\x0b\x0c\x7f end     \u0085");
+    for (const char ch : c) CHECK((static_cast<unsigned char>(ch) >= 0x20 && ch != 0x7f));
+    CHECK(c.find(" ") == std::string::npos);
+    CHECK(c.find(" ") == std::string::npos);
+    CHECK(c.find("\u0085") == std::string::npos);
+    CHECK(c.find("node x = gen()") == 0);
+}

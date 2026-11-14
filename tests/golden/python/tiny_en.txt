@@ -32,6 +32,10 @@ def verify_text(what, got, ref):
     _verify_rows.append((what, 0.0 if ok else None, 0.0, "", ok))
 
 
+def verify_name(what, got, ref):
+    verify_text(what, Path(str(got)).name, Path(str(ref)).name)
+
+
 def report(labels):
     width = max([len(labels[0])] + [len(r[0]) for r in _verify_rows])
     print(f"{labels[0]:<{width}}  {labels[1]:>22}  {labels[2]:>8}  {labels[3]}")

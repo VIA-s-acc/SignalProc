@@ -109,6 +109,26 @@ std::string py_str(std::string_view text) {
     return out + "\"";
 }
 
+std::string py_comment(std::string_view text) {
+    std::string out;
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        const auto u = static_cast<unsigned char>(text[i]);
+        if (u < 0x20 || u == 0x7f) {
+            out += ' ';
+        } else if (u == 0xE2 && i + 2 < text.size() && static_cast<unsigned char>(text[i + 1]) == 0x80 &&
+                   (static_cast<unsigned char>(text[i + 2]) == 0xA8 || static_cast<unsigned char>(text[i + 2]) == 0xA9)) {
+            out += ' ';
+            i += 2;
+        } else if (u == 0xC2 && i + 1 < text.size() && static_cast<unsigned char>(text[i + 1]) == 0x85) {
+            out += ' ';
+            ++i;
+        } else {
+            out += text[i];
+        }
+    }
+    return out;
+}
+
 std::string Emitter::name_for(std::string_view id) {
     auto name = py_name(id, taken_);
     taken_.insert(name);

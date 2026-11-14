@@ -112,9 +112,9 @@ private:
         if (n.line > 0 && static_cast<std::size_t>(n.line) <= lines.size()) {
             auto line = lines[static_cast<std::size_t>(n.line) - 1];
             const auto start = line.find_first_not_of(' ');
-            return "# " + (start == std::string::npos ? line : line.substr(start));
+            return "# " + py_comment(start == std::string::npos ? line : line.substr(start));
         }
-        return "# " + n.id + " = " + n.type->id + "(…)";
+        return "# " + py_comment(n.id + " = " + n.type->id + "(…)");
     }
 
     struct Input {
@@ -249,9 +249,9 @@ private:
         const std::string data{data_name.begin(), data_name.end()};
         const auto script = utf8(o_.out.filename());
         std::string out;
-        out += "# " + fmt::format(fmt::runtime(tr("python.header.title")), fmt::arg("graph", doc_.name.empty() ? std::string{"—"} : doc_.name), fmt::arg("file", utf8(o_.sig.filename()))) + "\n";
+        out += "# " + py_comment(fmt::format(fmt::runtime(tr("python.header.title")), fmt::arg("graph", doc_.name.empty() ? std::string{"—"} : doc_.name), fmt::arg("file", utf8(o_.sig.filename())))) + "\n";
         out += "# " + fmt::format(fmt::runtime(tr("python.header.version")), fmt::arg("version", core::version()), fmt::arg("versions", SIGNALS_BRIDGE_VERSIONS)) + "\n";
-        out += "# " + fmt::format(fmt::runtime(tr("python.header.run")), fmt::arg("script", script), fmt::arg("data", data)) + "\n";
+        out += "# " + py_comment(fmt::format(fmt::runtime(tr("python.header.run")), fmt::arg("script", script), fmt::arg("data", data))) + "\n";
         if (pywt_sign_) out += "# " + tr("python.header.sign") + "\n";
         out += "\nimport sys\nfrom pathlib import Path\n\nimport numpy as np\n";
         for (const auto& line : em_.imports()) out += line + "\n";
