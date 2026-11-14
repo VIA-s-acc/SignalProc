@@ -57,8 +57,8 @@ std::vector<std::uint64_t> bits(const NpArray& a) {
     return out;
 }
 
-std::string header_claiming(std::string_view shape) {
-    std::string dict = "{'descr': '<f8', 'fortran_order': False, 'shape': " + std::string{shape} + ", }";
+std::string header_claiming(std::string_view shape, std::string_view descr = "<f8") {
+    std::string dict = "{'descr': '" + std::string{descr} + "', 'fortran_order': False, 'shape': " + std::string{shape} + ", }";
     while ((10 + dict.size() + 1) % 64 != 0) dict += ' ';
     dict += '\n';
     std::string out = "\x93NUMPY";
@@ -125,6 +125,9 @@ TEST_CASE("npy checks the size before allocating", "[npy]") {
     const auto tall = decode_npy(header_claiming("(5000, 2)"));
     REQUIRE_FALSE(tall);
     CHECK(tall.error().message.find("4096") != std::string::npos);
+    const auto empty_text = decode_npy(header_claiming("(1, 200000000)", "<U0"));
+    REQUIRE_FALSE(empty_text);
+    CHECK(empty_text.error().message.find("U0") != std::string::npos);
 }
 
 TEST_CASE("npz reads savez and savez_compressed", "[npy]") {

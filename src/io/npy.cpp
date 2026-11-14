@@ -131,7 +131,7 @@ core::Result<Dtype> parse_dtype(const std::string& s) {
     if (i != s.size() || !any) return fail("npy dtype '" + s + "' is not understood");
     d.size = size;
     const bool ok = (d.kind == 'f' && (size == 4 || size == 8)) || ((d.kind == 'i' || d.kind == 'u') && (size == 1 || size == 2 || size == 4 || size == 8)) ||
-                    (d.kind == 'b' && size == 1) || d.kind == 'U';
+                    (d.kind == 'b' && size == 1) || (d.kind == 'U' && size >= 1);
     if (!ok) return fail("npy dtype '" + s + "' is not supported");
     return d;
 }
@@ -375,9 +375,12 @@ core::Result<NpArray> read_member(mz_zip_archive& zip, mz_uint index, std::uint6
     if (!h) return std::unexpected{h.error()};
     const auto total = h->data_offset + h->count * h->item();
     if (total > size) return fail("truncated .npy data: expected " + std::to_string(h->count) + " values");
-    const auto from = buf.size();
-    buf.resize(total);
-    if (!it.fill(buf, from)) return fail("truncated archive member");
+    constexpr std::size_t kChunk = std::size_t{1} << 20;
+    while (buf.size() < total) {
+        const auto from = buf.size();
+        buf.resize(from + std::min(kChunk, total - from));
+        if (!it.fill(buf, from)) return fail("truncated archive member");
+    }
     return decode_npy(buf, limits);
 }
 
