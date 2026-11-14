@@ -37,6 +37,10 @@ function versionOk(text) {
   return true;
 }
 
+function programPath(setting) {
+  return (setting && (setting.globalValue || setting.defaultValue)) || 'signals';
+}
+
 function polyline(values, peak, index) {
   const n = values.length;
   const points = values.map((v, i) => {
@@ -118,4 +122,4 @@ function renderNote(text) {
   return page('Signals', `<p class="dim">${escapeHtml(text)}</p>`);
 }
 
-module.exports = { say, parseLine, diagnostics, versionOk, renderPanel, renderError, renderNote };
+module.exports = { say, parseLine, diagnostics, versionOk, programPath, renderPanel, renderError, renderNote };

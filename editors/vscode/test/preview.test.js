@@ -58,3 +58,9 @@ test('refuses a signals older than 0.9.0', () => {
   assert.strictEqual(preview.versionOk('signals 1.2.3\n'), true);
   assert.strictEqual(preview.versionOk('garbage'), false);
 });
+
+test('takes the program only from user settings, never from the workspace', () => {
+  assert.strictEqual(preview.programPath({ defaultValue: 'signals', workspaceValue: '/tmp/evil', workspaceFolderValue: '/tmp/evil' }), 'signals');
+  assert.strictEqual(preview.programPath({ defaultValue: 'signals', globalValue: '/opt/signals/bin/signals', workspaceValue: '/tmp/evil' }), '/opt/signals/bin/signals');
+  assert.strictEqual(preview.programPath(undefined), 'signals');
+});

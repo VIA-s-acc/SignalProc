@@ -249,7 +249,7 @@ function activatePreview(context, ru) {
     if (document.isDirty) await document.save();
     const key = document.uri.toString();
     if (open.has(key)) return open.get(key).panel.reveal(vscode.ViewColumn.Beside, true);
-    const exe = vscode.workspace.getConfiguration('signals').get('path', 'signals');
+    const exe = preview.programPath(vscode.workspace.getConfiguration('signals').inspect('path'));
     const version = await new Promise((resolve) => childProcess.execFile(exe, ['--version'], (error, stdout) => resolve(error ? null : stdout)));
     if (version === null) return vscode.window.showErrorMessage(preview.say(ru, 'missing', { path: exe }));
     if (!preview.versionOk(version)) return vscode.window.showErrorMessage(preview.say(ru, 'old', { version: version.trim() }));

@@ -97,9 +97,19 @@
         "signals.path": {
           "type": "string",
           "default": "signals",
-          "description": "The signals program the preview runs: a name on PATH or a full path"
+          "description": "The signals program the preview runs: a name on PATH or a full path",
+          "scope": "machine"
         }
       }
+    }
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In an untrusted folder the preview runs only the signals program from your user settings or PATH.",
+      "restrictedConfigurations": [
+        "signals.path"
+      ]
     }
   }
 }
