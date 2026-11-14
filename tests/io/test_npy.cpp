@@ -256,3 +256,58 @@ TEST_CASE("a compressed npz member that expands too far is refused", "[npy]") {
     CHECK(refused.error().message.find("np.savez") != std::string::npos);
     CHECK(read_npz(path));
 }
+
+TEST_CASE("an npz with a key twice is refused", "[npy]") {
+    const auto path = npy_fixture("duplicate.npz");
+    const auto read = read_npz(path);
+    REQUIRE_FALSE(read);
+    CHECK(read.error().message.find("twice") != std::string::npos);
+    CHECK_FALSE(read_npz(path, {}, {"x"}));
+    CHECK_FALSE(probe_npz(path));
+}
+
+TEST_CASE("an npz whose members together expand too far is refused", "[npy]") {
+    const auto path = npy_fixture("zeros_many.npz");
+    NpLimits tight;
+    tight.expand_floor = std::uint64_t{3} << 20;
+    const auto refused = read_npz(path, tight);
+    REQUIRE_FALSE(refused);
+    CHECK(refused.error().message.find("np.savez") != std::string::npos);
+    CHECK(read_npz(path));
+}
+
+TEST_CASE("npz members that share their compressed bytes count the file size once", "[npy]") {
+    const auto source = read_bytes(npy_fixture("sparse_compressed.npz"));
+    const auto local = source.find("PK\x03\x04");
+    const auto central = source.find(std::string{"PK\x01\x02", 4});
+    const auto end = source.find(std::string{"PK\x05\x06", 4});
+    REQUIRE(local == 0);
+    REQUIRE(central != std::string::npos);
+    REQUIRE(end != std::string::npos);
+    const auto entry = source.substr(central, end - central);
+    std::string forged = source.substr(0, central);
+    const std::size_t copies = 8;
+    for (std::size_t k = 0; k < copies; ++k) {
+        auto e = entry;
+        e.replace(46, 1, std::string(1, static_cast<char>('a' + k)));
+        forged += e;
+    }
+    auto tail = source.substr(end);
+    const auto put = [&](std::size_t at, std::size_t v, std::size_t width) {
+        std::string bytes;
+        for (std::size_t b = 0; b < width; ++b) bytes += static_cast<char>((v >> (8 * b)) & 0xff);
+        tail.replace(at, width, bytes);
+    };
+    put(8, copies, 2);
+    put(10, copies, 2);
+    put(12, entry.size() * copies, 4);
+    forged += tail;
+    const auto path = signals::test::temp_path("overlap.npz");
+    std::ofstream{path, std::ios::binary} << forged;
+    NpLimits tight;
+    tight.expand_floor = std::uint64_t{32} << 20;
+    REQUIRE(read_npz(npy_fixture("sparse_compressed.npz"), tight));
+    const auto refused = read_npz(path, tight);
+    REQUIRE_FALSE(refused);
+    CHECK(refused.error().message.find("np.savez") != std::string::npos);
+}

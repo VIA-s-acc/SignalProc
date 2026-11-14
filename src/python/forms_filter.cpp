@@ -406,6 +406,7 @@ void register_filter_forms(std::vector<PyForm>& out) {
                        return savgol(io, em);
                    }});
     out.push_back({"hilbert", 1e-12, hilbert});
+    out.push_back({"inst_freq", 1e-7, inst_freq});
     out.push_back({"remez", 1e-8, remez});
     out.push_back({"firls", 1e-10, firls});
     out.push_back({"cepstrum", 1e-9, cepstrum});
@@ -413,7 +414,7 @@ void register_filter_forms(std::vector<PyForm>& out) {
     out.push_back({"idct", 1e-12, [](const NodeIo& io, Emitter& em) { return dct(io, em, 3); }});
     for (auto [id, fn] : std::initializer_list<std::pair<const char*, core::Result<std::string> (*)(const NodeIo&, Emitter&)>>{
              {"downsample", downsample}, {"upsample", upsample}, {"resample", resample}, {"convolve", convolve}, {"dwt", dwt}, {"idwt", idwt}, {"swt", swt}, {"iswt", iswt}, {"threshold", threshold}, {"band_edit", band_edit}, {"band_energy", band_energy},
-             {"envelope", envelope}, {"inst_freq", inst_freq}, {"xcorr", xcorr}, {"denoise", denoise}, {"thd", thd}, {"onsets", onsets}, {"export", export_signal},
+             {"envelope", envelope}, {"xcorr", xcorr}, {"denoise", denoise}, {"thd", thd}, {"onsets", onsets}, {"export", export_signal},
              {"export_report", export_report}, {"check", check}, {"listen", listen}})
         out.push_back({id, 1e-12, fn});
 }

@@ -115,6 +115,21 @@ TEST_CASE("bridge scripts agree with Signals", "[bridge]") {
         INFO(name << ": " << err);
         CHECK(code == 0);
     }
+    {
+        const auto bior = core::wavelet("bior2.2");
+        REQUIRE(bior);
+        core::set_user_wavelets([bior](std::string_view name) -> std::optional<core::FilterBank> {
+            if (name != "my_bank") return std::nullopt;
+            auto b = *bior;
+            b.name = "my_bank";
+            return b;
+        }, [] { return std::vector<std::string>{"my_bank"}; });
+        const auto sig = root / "sig" / "user-bank.sig";
+        std::ofstream{sig} << "pipeline \"user-bank\" v1\nnode s1 = gen(kind=harmonics, freq=220, rate=8000, duration=0.25, channels=2, amplitude=0.5)\n"
+                              "node c = dwt(wavelet=my_bank, levels=3)\nnode t = threshold(rule=sure)\nnode y = idwt()\ns1 -> c -> t -> y\nprobe c as \"c\"\nprobe y as \"y\"\n";
+        generate(sig, "user-bank");
+        core::set_user_wavelets({}, {});
+    }
     for (const auto& t : pipeline::block_types())
         for (const auto& g : signals::test::block_graphs(t, root / "files")) {
             if (!all_forms(g.sig)) {

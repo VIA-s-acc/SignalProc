@@ -2905,6 +2905,8 @@
   "python.check.origin": "откуда допуск",
   "python.nothing_to_check": "в графе нет щупов, отчётов и выходов — нечего сверять",
   "python.written": "записано {script} и {data} · сверка: python {script}",
+  "python.bad_extension": "скрипт пишется только в файл .py или в тетрадь .ipynb, а не в «{name}»",
+  "python.same_file": "скрипт не может занять место самого графа",
   "python.module_name": "«{name}.py» называется как модуль Python: в этой папке import {name} загрузит скрипт вместо модуля. Выберите другое имя",
   "python.module_name_cli": "другое имя задаёт ключ -o",
   "python.notebook.title": "Тетрадь Signals по графу «{graph}» ({file})",

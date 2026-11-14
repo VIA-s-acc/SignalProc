@@ -53,6 +53,22 @@ function resolveProgram(name, env, paths, exists, extensions) {
   return null;
 }
 
+function followProcess(child, { onLine, onExit, onError }) {
+  let pending = '';
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => {
+    pending += chunk;
+    for (let at = pending.indexOf('\n'); at >= 0; at = pending.indexOf('\n')) {
+      const line = pending.slice(0, at).replace(/\r$/, '');
+      pending = pending.slice(at + 1);
+      if (line) onLine(line);
+    }
+  });
+  if (child.stderr) child.stderr.resume();
+  child.on('error', onError);
+  child.on('close', (code) => onExit(code));
+}
+
 function polyline(values, peak, index) {
   const n = values.length;
   const points = values.map((v, i) => {
@@ -134,4 +150,4 @@ function renderNote(text) {
   return page('Signals', `<p class="dim">${escapeHtml(text)}</p>`);
 }
 
-module.exports = { say, parseLine, diagnostics, versionOk, programPath, resolveProgram, renderPanel, renderError, renderNote };
+module.exports = { say, parseLine, diagnostics, versionOk, programPath, resolveProgram, followProcess, renderPanel, renderError, renderNote };

@@ -76,3 +76,15 @@ test('finds the program on PATH by an absolute path, never in the current folder
   const win = { delimiter: ';', sep: '\\', isAbsolute: (p) => /^[A-Za-z]:\\/.test(p), join: (a, b) => `${a}\\${b}` };
   assert.strictEqual(preview.resolveProgram('signals', { PATH: 'C:\\Tools' }, win, exists, ['.EXE', '.CMD']), 'C:\\Tools\\signals.exe');
 });
+
+test('follows a process that writes a lot to stderr without stalling it', async () => {
+  const childProcess = require('child_process');
+  const script = "process.stderr.write('x'.repeat(2 * 1024 * 1024)); for (let k = 0; k < 3; ++k) console.log(JSON.stringify({ pipeline: 'p' + k, nodes: [], probes: {}, reports: [], checks_passed: true }));";
+  const child = childProcess.spawn(process.execPath, ['-e', script]);
+  const lines = [];
+  const code = await new Promise((resolve) => preview.followProcess(child, { onLine: (l) => lines.push(l), onExit: resolve, onError: () => resolve(-1) }));
+  assert.strictEqual(code, 0);
+  assert.strictEqual(lines.length, 3);
+  const failed = await new Promise((resolve) => preview.followProcess(childProcess.spawn('/no/such/signals'), { onLine: () => {}, onExit: () => resolve('exit'), onError: (e) => resolve(e.code) }));
+  assert.strictEqual(failed, 'ENOENT');
+});

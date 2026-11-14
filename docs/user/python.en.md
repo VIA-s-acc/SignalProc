@@ -94,8 +94,11 @@ By default `tol` = 10⁻¹². For a few blocks the library call gives the same n
 | `sst_band`, `sst_ridge` | 10⁻¹⁰ | own function |
 | `cepstrum` | 10⁻⁹ | own function on `numpy.fft` |
 | `time_stretch`, `pitch_shift` | 10⁻⁹ | own function on `numpy.fft` |
+| `inst_freq` | 10⁻⁷ | `scipy.signal.hilbert` |
 
 The phase vocoder of `time_stretch` and `pitch_shift` adds up the phase of every frame, so the last bit of the FFT grows with the length of the audio. And numpy's last bit depends on the build: the wheels for Apple Silicon compute the FFT with fused multiply-add (FMA), Signals without it. Ten seconds of audio give 5·10⁻¹²; the 10⁻⁹ tolerance covers about half an hour.
+
+`inst_freq` has the same issue for another reason: the difference of neighbouring phases is taken after unwrapping, the unwrapped phase grows with the length of the signal, and so does its last bit. Ten seconds of 44.1 kHz audio give 2.6·10⁻⁸ Hz; the 10⁻⁷ tolerance covers several hours.
 
 A probe takes the weakest tolerance among the blocks upstream of it; the check table names the block that set it.
 

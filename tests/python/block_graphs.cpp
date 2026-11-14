@@ -97,7 +97,7 @@ std::string graph_text(const pipeline::BlockType& t, const std::string& name, co
 
 void prepare_block_files(const std::filesystem::path& dir) {
     std::filesystem::create_directories(dir);
-    const auto doc = pipeline::parse_sig(std::string{"pipeline \"c\" v1\n"} + kSources + "node c = dwt(wavelet=db2, levels=3)\nx -> c\nprobe c as \"c\"\n");
+    const auto doc = pipeline::parse_sig(std::string{"pipeline \"c\" v1\n"} + kSources + "node c = dwt(wavelet=db2, levels=3)\nx -> c\nprobe c as \"c\"\nprobe x as \"x\"\n");
     REQUIRE(doc);
     const auto graph = pipeline::build_graph(*doc, dir);
     REQUIRE(graph);
@@ -108,6 +108,12 @@ void prepare_block_files(const std::filesystem::path& dir) {
     const auto entries = pipeline::coeffs_entries(std::get<pipeline::Coeffs>(run->probes.at("c")));
     REQUIRE(entries);
     REQUIRE(io::write_npz(dir / "coeffs.npz", *entries));
+    const auto& x = std::get<core::AudioBuffer>(run->probes.at("x"));
+    REQUIRE(io::write_npz(dir / "only.npz", {{"arr_0", io::NpArray{{x.channels.size(), x.frames()}, [&] {
+                                                 std::vector<double> flat;
+                                                 for (const auto& c : x.channels) flat.insert(flat.end(), c.begin(), c.end());
+                                                 return flat;
+                                             }()}}}));
 }
 
 std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::filesystem::path& dir) {
@@ -124,6 +130,7 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
             out.push_back({name, graph_text(t, name, params)});
         }
     }
+    if (t.id == "wav") out.push_back({"wav-npz-only", graph_text(t, "wav-npz-only", {{"path", quoted(dir / "only.npz")}, {"rate", "8000"}})});
     if (t.id == "wav")
         for (const char* f : {"s16_stereo.wav", "s32_mono.wav", "u8_mono.wav", "f32_stereo.wav", "f64_mono.wav", "alaw_mono.wav", "mulaw_mono.wav", "s16_6ch_extensible.wav"}) {
             const auto name = std::string{"wav-"} + f;
@@ -141,6 +148,20 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
             const std::string kind{source, std::string_view{source}.find('(')};
             out.push_back({t.id + "-from-" + kind, graph_text(t, t.id + "-from-" + kind, paths, source)});
         }
+    if (t.id == "correlation") {
+        auto text = graph_text(t, "correlation-names", paths);
+        text += "node s = stats()\nx -> s\nnode s_ok = gain(db=-1)\nx -> s_ok\nnode io = gain(db=-2)\nx -> io\nnode display = gain(db=-3)\nx -> display\n"
+                "node sp_stats = gain(db=-4)\nx -> sp_stats\nnode stats = gain(db=-5)\nx -> stats\nnode x_v = gain(db=-6)\nx -> x_v\n"
+                "probe s_ok as \"a\"\nprobe io as \"b\"\nprobe display as \"c\"\nprobe sp_stats as \"d\"\nprobe stats as \"e\"\nprobe x_v as \"f\"\n";
+        out.push_back({"correlation-names", std::move(text)});
+    }
+    if (t.id == "gain" || t.id == "assert" || t.id == "threshold") {
+        auto text = graph_text(t, t.id + "-bypass", paths);
+        const auto at = text.find("node b = ");
+        const auto end = text.find('\n', at);
+        text.insert(end, " bypass");
+        out.push_back({t.id + "-bypass", std::move(text)});
+    }
     if (t.id == "sst_band" || t.id == "sst_ridge") {
         std::string text = "pipeline \"" + t.id + "-long\" v1\nnode x = gen(kind=harmonics, freq=220, rate=8000, duration=5)\nnode b = " + t.id + "()\nx -> b\n";
         for (const auto& port : t.outputs) text += "probe b." + port.name + " as \"" + port.name + "\"\n";
