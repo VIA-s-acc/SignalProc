@@ -66,6 +66,9 @@ def main() -> None:
         z.writestr("cA1.npy", claim)
         z.writestr("cD1.npy", claim)
     np.savez_compressed(out / "zeros_compressed.npz", x=np.zeros(1 << 20))
+    sparse = np.zeros(1 << 20)
+    sparse[::40] = np.random.default_rng(7).integers(0, 4, size=sparse[::40].size)
+    np.savez_compressed(out / "sparse_compressed.npz", x=sparse)
     np.savez_compressed(out / "zeros_many.npz", a=np.zeros(1 << 18), b=np.zeros(1 << 18), c=np.zeros(1 << 18), d=np.zeros(1 << 18))
     with zipfile.ZipFile(out / "duplicate.npz", "w") as z:
         for value in (1.0, 2.0):

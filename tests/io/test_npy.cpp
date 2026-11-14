@@ -275,3 +275,39 @@ TEST_CASE("an npz whose members together expand too far is refused", "[npy]") {
     CHECK(refused.error().message.find("np.savez") != std::string::npos);
     CHECK(read_npz(path));
 }
+
+TEST_CASE("npz members that share their compressed bytes count the file size once", "[npy]") {
+    const auto source = read_bytes(npy_fixture("sparse_compressed.npz"));
+    const auto local = source.find("PK\x03\x04");
+    const auto central = source.find(std::string{"PK\x01\x02", 4});
+    const auto end = source.find(std::string{"PK\x05\x06", 4});
+    REQUIRE(local == 0);
+    REQUIRE(central != std::string::npos);
+    REQUIRE(end != std::string::npos);
+    const auto entry = source.substr(central, end - central);
+    std::string forged = source.substr(0, central);
+    const std::size_t copies = 8;
+    for (std::size_t k = 0; k < copies; ++k) {
+        auto e = entry;
+        const auto name_at = std::size_t{46};
+        e[name_at] = static_cast<char>('a' + k);
+        forged += e;
+    }
+    auto tail = source.substr(end);
+    const auto put16 = [&](std::size_t at, std::size_t v) { tail[at] = static_cast<char>(v & 0xff), tail[at + 1] = static_cast<char>((v >> 8) & 0xff); };
+    const auto put32 = [&](std::size_t at, std::size_t v) {
+        for (int b = 0; b < 4; ++b) tail[at + b] = static_cast<char>((v >> (8 * b)) & 0xff);
+    };
+    put16(8, copies);
+    put16(10, copies);
+    put32(12, entry.size() * copies);
+    forged += tail;
+    const auto path = signals::test::temp_path("overlap.npz");
+    std::ofstream{path, std::ios::binary} << forged;
+    NpLimits tight;
+    tight.expand_floor = std::uint64_t{32} << 20;
+    REQUIRE(read_npz(npy_fixture("sparse_compressed.npz"), tight));
+    const auto refused = read_npz(path, tight);
+    REQUIRE_FALSE(refused);
+    CHECK(refused.error().message.find("np.savez") != std::string::npos);
+}

@@ -517,9 +517,9 @@ core::Result<void> write_npz(const std::filesystem::path& path, const NpzEntries
 
 namespace {
 
-core::Result<void> check_members(mz_zip_archive& zip, const NpLimits& limits, const std::vector<std::string>& only) {
+core::Result<void> check_members(mz_zip_archive& zip, std::uint64_t archive, const NpLimits& limits, const std::vector<std::string>& only) {
     std::set<std::string, std::less<>> seen;
-    std::uint64_t size = 0, packed = 0;
+    std::uint64_t size = 0;
     const auto n = mz_zip_reader_get_num_files(&zip);
     for (mz_uint i = 0; i < n; ++i) {
         mz_zip_archive_file_stat st;
@@ -529,11 +529,10 @@ core::Result<void> check_members(mz_zip_archive& zip, const NpLimits& limits, co
         if (!seen.insert(name).second) return fail("member '" + name + "' appears twice in the archive");
         const auto key = name.ends_with(".npy") ? name.substr(0, name.size() - 4) : name;
         if (!only.empty() && std::find(only.begin(), only.end(), key) == only.end()) continue;
-        size += st.m_uncomp_size;
-        packed += st.m_comp_size;
+        size = st.m_uncomp_size > std::numeric_limits<std::uint64_t>::max() - size ? std::numeric_limits<std::uint64_t>::max() : size + st.m_uncomp_size;
     }
-    if (size > limits.expand_floor && size / std::max<std::uint64_t>(packed, 1) > limits.expand_ratio)
-        return fail("the archive expands from " + std::to_string(packed) + " to " + std::to_string(size) + " bytes, more than " + std::to_string(limits.expand_ratio) +
+    if (size > limits.expand_floor && size / std::max<std::uint64_t>(archive, 1) > limits.expand_ratio)
+        return fail("the archive expands from " + std::to_string(archive) + " to " + std::to_string(size) + " bytes, more than " + std::to_string(limits.expand_ratio) +
                     " times; save such arrays with np.savez, not np.savez_compressed");
     return {};
 }
@@ -548,7 +547,7 @@ core::Result<NpzEntries> read_npz(const std::filesystem::path& path, const NpLim
     ZipReader reader;
     if (!reader.open(*bytes)) return at(path, core::Error{Errc::invalid_argument, "not an .npz archive: " + zip_error(reader.zip())});
     auto& zip = reader.zip();
-    if (auto ok = check_members(zip, limits, only); !ok) return at(path, ok.error());
+    if (auto ok = check_members(zip, bytes->size(), limits, only); !ok) return at(path, ok.error());
     NpzEntries out;
     const auto n = mz_zip_reader_get_num_files(&zip);
     for (mz_uint i = 0; i < n; ++i) {
@@ -592,7 +591,7 @@ core::Result<std::vector<std::pair<std::string, NpHeader>>> probe_npz(const std:
     ZipReader reader;
     if (!reader.open(*bytes)) return at(path, core::Error{Errc::invalid_argument, "not an .npz archive: " + zip_error(reader.zip())});
     auto& zip = reader.zip();
-    if (auto ok = check_members(zip, limits, {}); !ok) return at(path, ok.error());
+    if (auto ok = check_members(zip, bytes->size(), limits, {}); !ok) return at(path, ok.error());
     std::vector<std::pair<std::string, NpHeader>> out;
     const auto n = mz_zip_reader_get_num_files(&zip);
     for (mz_uint i = 0; i < n; ++i) {
