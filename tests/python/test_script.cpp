@@ -149,3 +149,28 @@ TEST_CASE("the first two lines of a script are fixed", "[py-script]") {
     CHECK(second.find("coding") == std::string::npos);
     CHECK(second.find("raw_unicode_escape") == std::string::npos);
 }
+
+TEST_CASE("tolerance follows the weakest block upstream", "[py-script]") {
+    const auto s = script_for("pipeline \"t\" v1\nnode x = gen(kind=sine, rate=8000, duration=0.05)\nnode f = iir(cutoff=1000)\nnode g = gain(db=-3)\nx -> f -> g\nprobe g as \"g\"\nprobe x as \"x\"\n",
+                              "t");
+    REQUIRE(s);
+    for (const auto& c : s->checks) {
+        INFO(c.what);
+        if (c.what == "g") {
+            CHECK(c.tol == 1e-8);
+            CHECK(c.origin == "f");
+        }
+        if (c.what == "x") {
+            CHECK(c.tol == 1e-12);
+            CHECK(c.origin.empty());
+        }
+    }
+}
+
+TEST_CASE("a symlet goes to pywt with the filters of Signals", "[py-script]") {
+    const auto s = script_for("pipeline \"s\" v1\nnode x = gen(kind=sine, rate=8000, duration=0.05)\nnode d = dwt(wavelet=sym8, levels=2)\nx -> d\nprobe d as \"d\"\n", "s");
+    REQUIRE(s);
+    CHECK(s->text.find("pywt.Wavelet(\"sym8\", filter_bank=") != std::string::npos);
+    CHECK(io::np_find(s->data, "wavelet.sym8.dec_lo"));
+    CHECK(s->text.find("# Детали cD") != std::string::npos);
+}

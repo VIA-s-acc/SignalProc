@@ -4,9 +4,11 @@
 
 #include <fmt/format.h>
 
+#include "core/dtcwt.hpp"
 #include "core/extension.hpp"
 #include "core/lifting.hpp"
 #include "core/packets.hpp"
+#include "io/npy.hpp"
 #include "pipeline/npz_values.hpp"
 #include "python/form.hpp"
 
@@ -31,6 +33,36 @@ std::string paths_of(const pipeline::Coeffs& c) {
 }
 
 std::size_t length_of(const pipeline::Coeffs* c) { return c && !c->lengths.empty() ? c->lengths.front() : 0; }
+
+void put_dtcwt_filters(Emitter& em, const std::string& biort, const std::string& qshift) {
+    if (const auto* b = core::dtcwt::find_biort(biort)) {
+        const std::pair<const char*, const std::vector<double>*> parts[] = {{"h0o", &b->h0o}, {"g0o", &b->g0o}, {"h1o", &b->h1o}, {"g1o", &b->g1o}};
+        for (const auto& [k, v] : parts) em.put("dtcwt." + biort + "." + k, io::np_vector(*v));
+    }
+    if (const auto* q = core::dtcwt::find_qshift(qshift)) {
+        const std::pair<const char*, const std::vector<double>*> parts[] = {{"h0a", &q->h0a}, {"h0b", &q->h0b}, {"g0a", &q->g0a}, {"g0b", &q->g0b},
+                                                                            {"h1a", &q->h1a}, {"h1b", &q->h1b}, {"g1a", &q->g1a}, {"g1b", &q->g1b}};
+        for (const auto& [k, v] : parts) em.put("dtcwt." + qshift + "." + k, io::np_vector(*v));
+    }
+}
+
+core::Result<std::string> dtcwt(const NodeIo& io, Emitter& em) {
+    const auto& p = io.node.params;
+    const auto& b = param_text(p, "biort");
+    const auto& q = param_text(p, "qshift");
+    put_dtcwt_filters(em, b, q);
+    em.function("dtcwt");
+    return fmt::format("{} = dtcwt({}, {}, {}, {}, D)", io.out[0], io.in[0], param_int(p, "levels"), py_str(b), py_str(q));
+}
+
+core::Result<std::string> idtcwt(const NodeIo& io, Emitter& em) {
+    const auto* c = coeffs_of(io.in_values[0]);
+    const std::string w = c ? c->wavelet : std::string{"near_sym_a+qshift_a"};
+    const auto plus = w.find('+');
+    put_dtcwt_filters(em, w.substr(0, plus), w.substr(plus + 1));
+    em.function("dtcwt");
+    return fmt::format("{} = idtcwt({}, {}, {}, D, {})", io.out[0], io.in[0], py_str(w.substr(0, plus)), py_str(w.substr(plus + 1)), length_of(c));
+}
 
 core::Result<std::string> lift53(const NodeIo& io, Emitter& em) {
     em.function("lift");
@@ -102,6 +134,7 @@ std::string inverse_expr(const pipeline::Coeffs& c, const std::string& var, Emit
     if (c.transform == "dtcwt") {
         em.function("dtcwt");
         const auto plus = c.wavelet.find('+');
+        put_dtcwt_filters(em, c.wavelet.substr(0, plus), c.wavelet.substr(plus + 1));
         return fmt::format("idtcwt({}, {}, {}, D, {})", var, py_str(c.wavelet.substr(0, plus)), py_str(c.wavelet.substr(plus + 1)), n);
     }
     em.function("lift");
@@ -144,7 +177,7 @@ core::Result<std::string> coeffs_file(const NodeIo& io, Emitter& em) {
 void register_wavelet_forms(std::vector<PyForm>& out) {
     for (auto [id, fn] : std::initializer_list<std::pair<const char*, core::Result<std::string> (*)(const NodeIo&, Emitter&)>>{
              {"lift53", lift53}, {"lift97", lift97}, {"ilift53", ilift}, {"ilift97", ilift}, {"wpt", wpt}, {"iwpt", iwpt}, {"keep_largest", keep_largest},
-             {"coeff_quantize", coeff_quantize}, {"polyphase", polyphase}, {"ipolyphase", ipolyphase}, {"mra", mra}, {"coeffs_file", coeffs_file}})
+             {"coeff_quantize", coeff_quantize}, {"polyphase", polyphase}, {"ipolyphase", ipolyphase}, {"mra", mra}, {"coeffs_file", coeffs_file}, {"dtcwt", dtcwt}, {"idtcwt", idtcwt}})
         out.push_back({id, 1e-12, fn});
 }
 
