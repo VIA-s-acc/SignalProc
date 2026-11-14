@@ -254,6 +254,7 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `D` | duplicate node |
 | `y` | copy samples |
 | `x` | save probe |
+| `P` | to Python |
 | `w` | compare two probes |
 | `+ − E` | digits and powers of 10 |
 | `L` | layout and view |

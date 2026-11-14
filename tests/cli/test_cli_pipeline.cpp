@@ -363,3 +363,35 @@ TEST_CASE("watch reruns when the graph or an input changes and never because of 
     CHECK(code == 0);
     CHECK(runs == 3);
 }
+
+TEST_CASE("explain shows the python form", "[cli-pipeline]") {
+    const auto r = run({"signals", "explain", "dwt"});
+    CHECK(r.code == 0);
+    CHECK(r.out.find(signals::tr("cli.explain.python")) != std::string::npos);
+    CHECK(r.out.find("pywt.wavedec(") != std::string::npos);
+}
+
+TEST_CASE("explain --json has every field", "[cli-pipeline]") {
+    const auto all = nlohmann::json::parse(run({"signals", "blocks", "--json"}).out);
+    REQUIRE(all.is_array());
+    REQUIRE_FALSE(all.empty());
+    for (const auto& b : all) {
+        const auto id = b.at("id").get<std::string>();
+        INFO(id);
+        const auto r = run({"signals", "explain", id, "--json"});
+        REQUIRE(r.code == 0);
+        const auto j = nlohmann::json::parse(r.out);
+        for (const char* key : {"id", "title", "about", "inputs", "outputs", "params", "theory", "python"}) CHECK(j.contains(key));
+        CHECK(j.at("id") == id);
+        CHECK(j.at("params") == b.at("params"));
+        CHECK(j.at("inputs") == b.at("inputs"));
+        CHECK(j.at("outputs") == b.at("outputs"));
+        CHECK_FALSE(j.at("python").get<std::string>().empty());
+        CHECK(j.at("python") == b.at("python"));
+        if (!j.at("theory").is_null()) {
+            CHECK(j.at("theory").contains("kind"));
+            CHECK(j.at("theory").contains("id"));
+            CHECK(j.at("theory").contains("title"));
+        }
+    }
+}

@@ -5,6 +5,7 @@
 #include <sstream>
 
 #include <fmt/format.h>
+#include <nlohmann/json.hpp>
 
 #include "core/version.hpp"
 #include "i18n/i18n.hpp"
@@ -78,6 +79,7 @@ public:
         if (!result) return std::unexpected{result.error()};
         result_ = std::move(*result);
         em_.set_out_dir(std::filesystem::absolute(o_.out).parent_path());
+        em_.set_notebook(o_.kind == ScriptKind::notebook);
         name_nodes();
         if (auto ok = emit_nodes(); !ok) return std::unexpected{ok.error()};
         em_.function("verify");
@@ -85,7 +87,7 @@ public:
         if (auto ok = collect_checks(); !ok) return std::unexpected{ok.error()};
         if (rows_.empty()) return core::make_error(core::Errc::invalid_argument, tr("python.nothing_to_check"));
         Script s;
-        s.text = text();
+        s.text = o_.kind == ScriptKind::notebook ? notebook() : text();
         s.data = em_.entries();
         for (const auto& r : rows_) s.checks.push_back({r.what, r.chain.origin, r.chain.tol});
         return s;
@@ -170,7 +172,16 @@ private:
             auto code = form->emit(io, em_);
             if (!code) return std::unexpected{code.error()};
             if (n.type->id == "dwt" || n.type->id == "swt") pywt_sign_ = true;
-            blocks_.push_back(comment_for(n) + "\n" + *code);
+            Block block{comment_for(n) + "\n" + *code, n.id, n.type->id, {}};
+            if (em_.notebook())
+                for (const auto& p : graph_.probes) {
+                    if (p.source.node != i || !p.source.band.empty()) continue;
+                    const auto* a = value_of(i, p.source.output) ? std::get_if<core::AudioBuffer>(value_of(i, p.source.output)) : nullptr;
+                    if (!a) continue;
+                    em_.function("plot_signal");
+                    block.plots.push_back(fmt::format("plot_signal({}, {}, {})", vars_[i][p.source.output], em_.number(a->sample_rate), py_str(p.name)));
+                }
+            blocks_.push_back(std::move(block));
         }
         em_.set_node("");
         return {};
@@ -263,12 +274,65 @@ private:
         out += "\n\nHERE = Path(__file__).resolve().parent\n";
         out += "D = np.load(HERE / " + py_str(data) + ", allow_pickle=False)\n";
         for (const auto& line : em_.prelude()) out += line + "\n";
-        for (const auto& b : blocks_) out += "\n" + b + (b.ends_with('\n') ? "" : "\n");
-        out += "\n# " + tr("python.section.check") + "\n";
-        for (const auto& r : rows_) out += check_line(r) + "\n";
-        out += "if not report([" + py_str(tr("python.check.what")) + ", " + py_str(tr("python.check.error")) + ", " + py_str(tr("python.check.tol")) + ", " +
-               py_str(tr("python.check.origin")) + "]):\n    sys.exit(1)\n";
+        for (const auto& b : blocks_) out += "\n" + b.code + (b.code.ends_with('\n') ? "" : "\n");
+        out += "\n# " + tr("python.section.check") + "\n" + check_rows();
+        out += "if not report(" + report_args() + "):\n    sys.exit(1)\n";
         return out;
+    }
+
+    static nlohmann::json cell(const char* kind, std::string text) {
+        while (text.ends_with('\n')) text.pop_back();
+        auto source = nlohmann::json::array();
+        for (std::size_t at = 0; at < text.size();) {
+            const auto end = text.find('\n', at);
+            source.push_back(text.substr(at, end == std::string::npos ? std::string::npos : end + 1 - at));
+            at = end == std::string::npos ? text.size() : end + 1;
+        }
+        nlohmann::json c{{"cell_type", kind}, {"metadata", nlohmann::json::object()}, {"source", std::move(source)}};
+        if (std::string_view{kind} == "code") c["execution_count"] = nullptr, c["outputs"] = nlohmann::json::array();
+        return c;
+    }
+
+    std::string check_rows() const {
+        std::string out;
+        for (const auto& r : rows_) out += check_line(r) + "\n";
+        return out;
+    }
+
+    std::string report_args() const {
+        return "[" + py_str(tr("python.check.what")) + ", " + py_str(tr("python.check.error")) + ", " + py_str(tr("python.check.tol")) + ", " + py_str(tr("python.check.origin")) + "]";
+    }
+
+    std::string notebook() const {
+        const auto data_name = o_.out.stem().u8string() + u8".npz";
+        const std::string data{data_name.begin(), data_name.end()};
+        auto cells = nlohmann::json::array();
+        std::string head = "# " + fmt::format(fmt::runtime(tr("python.notebook.title")), fmt::arg("graph", doc_.name.empty() ? std::string{"—"} : doc_.name), fmt::arg("file", utf8(o_.sig.filename())));
+        head += "\n\n" + fmt::format(fmt::runtime(tr("python.header.version")), fmt::arg("version", core::version()), fmt::arg("versions", SIGNALS_NOTEBOOK_VERSIONS));
+        head += "\n\n" + fmt::format(fmt::runtime(tr("python.notebook.run")), fmt::arg("data", data));
+        if (pywt_sign_) head += "\n\n" + tr("python.header.sign");
+        cells.push_back(cell("markdown", head));
+        std::string imports = "from pathlib import Path\n\nimport numpy as np\n";
+        for (const auto& line : em_.imports()) imports += line + "\n";
+        cells.push_back(cell("code", imports));
+        std::string functions;
+        for (const auto& f : em_.functions()) functions += (functions.empty() ? "" : "\n\n") + f;
+        if (!functions.empty()) cells.push_back(cell("code", functions));
+        std::string load = "HERE = Path.cwd()\nD = np.load(HERE / " + py_str(data) + ", allow_pickle=False)\n";
+        for (const auto& line : em_.prelude()) load += line + "\n";
+        cells.push_back(cell("code", load));
+        for (const auto& b : blocks_) {
+            cells.push_back(cell("markdown", "**" + b.node + "** · `" + b.type + "` · " + tr("pipeline.block." + b.type) + "\n\n" + tr("pipeline.about." + b.type)));
+            cells.push_back(cell("code", b.code));
+            for (const auto& plot : b.plots) cells.push_back(cell("code", plot));
+        }
+        cells.push_back(cell("markdown", "## " + tr("python.section.check")));
+        cells.push_back(cell("code", check_rows() + "assert report(" + report_args() + "), " + py_str(tr("python.notebook.failed"))));
+        const nlohmann::json nb{{"cells", std::move(cells)},
+                                {"metadata", {{"kernelspec", {{"display_name", "Python 3"}, {"language", "python"}, {"name", "python3"}}}, {"language_info", {{"name", "python"}}}}},
+                                {"nbformat", 4},
+                                {"nbformat_minor", 4}};
+        return nb.dump(1) + "\n";
     }
 
     const pipeline::PipelineDoc& doc_;
@@ -278,7 +342,11 @@ private:
     Emitter em_;
     std::vector<std::vector<std::string>> vars_;
     std::vector<Chain> chain_;
-    std::vector<std::string> blocks_;
+    struct Block {
+        std::string code, node, type;
+        std::vector<std::string> plots;
+    };
+    std::vector<Block> blocks_;
     std::vector<Row> rows_;
     std::deque<Value> keep_;
     bool pywt_sign_ = false;

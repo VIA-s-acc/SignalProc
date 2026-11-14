@@ -22,6 +22,8 @@
 #include "pipeline/examples.hpp"
 #include "pipeline/block.hpp"
 #include "pipeline/sig.hpp"
+#include "python/form.hpp"
+#include "python/script.hpp"
 #include "theory/pipeline_cards.hpp"
 #include "tui/shell/palette.hpp"
 #include "tui/widgets/format.hpp"
@@ -38,6 +40,24 @@ constexpr int kRightWidth = 44, kBottomHeight = 12, kTextWidth = 46, kRunHeight 
 constexpr std::size_t kStemFrames = 64;
 
 std::filesystem::path utf8_file(const std::string& text) { return expand_path(text); }
+
+std::string utf8_name(const std::filesystem::path& p) {
+    const auto u = p.u8string();
+    return {u.begin(), u.end()};
+}
+
+std::string python_line(const pipeline::BlockType& t, const pipeline::Params& params) {
+    const auto code = python::python_preview(t, params);
+    std::string first;
+    for (std::size_t at = 0; at < code.size();) {
+        const auto end = std::min(code.find('\n', at), code.size());
+        const auto line = code.substr(at, end - at);
+        if (first.empty()) first = line;
+        if (line.find(" = ") != std::string::npos && !line.starts_with("#")) return line;
+        at = end + 1;
+    }
+    return first;
+}
 
 std::optional<std::string> value_note(const std::string& block, const std::string& param, const std::string& value) {
     const auto key = "pipeline.param." + block + "." + param + ".";
@@ -147,6 +167,7 @@ std::vector<Command> PipelineScreen::commands() {
     out.push_back({"pipeline.probe_copy", tr("tui.pipeline.cmd.probe_copy"), [this] { copy_probe(); }});
     out.push_back({"pipeline.probe_compare", tr("tui.pipeline.cmd.compare"), [this] { toggle_compare(); }});
     out.push_back({"pipeline.probe_save", tr("tui.pipeline.cmd.probe_save"), [this] { save_probe(); }});
+    out.push_back({"pipeline.python", tr("tui.pipeline.cmd.python"), [this] { export_python(); }});
     return out;
 }
 
@@ -160,7 +181,7 @@ std::vector<Hint> PipelineScreen::hints() const {
             {"Ctrl+Z/Y", tr("tui.pipeline.hint.undo")},    {"Ctrl+S", tr("tui.pipeline.hint.save")}, {"o", tr("tui.pipeline.hint.open")},
             {"r", tr("tui.pipeline.hint.run")},           {"A/B", tr("tui.pipeline.hint.ab")},      {"Space", tr("tui.pipeline.hint.listen")},
             {"+ − 0", tr("tui.pipeline.hint.zoom")},       {"O", tr("tui.pipeline.hint.examples")},  {"PgUp/PgDn", tr("tui.hint.page")},
-            {"v", tr("tui.pipeline.hint.view")},          {"n", tr("tui.pipeline.hint.name")},     {"k", tr("tui.pipeline.hint.channels")},     {"S", tr("tui.pipeline.hint.sweep")},     {"D", tr("tui.pipeline.hint.duplicate")},  {"y", tr("tui.pipeline.hint.copy_probe")},  {"x", tr("tui.pipeline.hint.save_probe")},  {"w", tr("tui.pipeline.hint.compare")},  {"+ − E", tr("tui.pipeline.hint.digits")},     {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")},
+            {"v", tr("tui.pipeline.hint.view")},          {"n", tr("tui.pipeline.hint.name")},     {"k", tr("tui.pipeline.hint.channels")},     {"S", tr("tui.pipeline.hint.sweep")},     {"D", tr("tui.pipeline.hint.duplicate")},  {"y", tr("tui.pipeline.hint.copy_probe")},  {"x", tr("tui.pipeline.hint.save_probe")},  {"P", tr("tui.pipeline.hint.python")},  {"w", tr("tui.pipeline.hint.compare")},  {"+ − E", tr("tui.pipeline.hint.digits")},     {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")},
             {"c/C", tr("tui.pipeline.hint.connect_keys")}};
 }
 
@@ -351,6 +372,8 @@ ftxui::Element PipelineScreen::inspector_panel(int width, int height) {
                     for (const auto& line : wrap_words(value + ": " + *note, std::max(8, width))) tail.push_back(text(line) | fg(th.accent, ui_));
                 for (const auto& line : wrap_words(range_text(spec), std::max(8, width))) tail.push_back(text(line) | fg(th.dim, ui_));
             }
+            if (const auto code = python_line(*it->type, it->params); !code.empty())
+                tail.push_back(text(ellipsize(tr("tui.pipeline.python_line") + ": " + code, width, ui_.caps.glyphs == GlyphMode::ascii)) | fg(th.dim, ui_));
             if (it->bypass) tail.push_back(text(tr("tui.pipeline.state.bypassed")) | fg(th.warn, ui_));
             const auto run = model_->run_view();
             if (const auto r = run.nodes.find(it->id); r != run.nodes.end() && !r->second.status.message.empty())
@@ -839,6 +862,58 @@ void PipelineScreen::save_probe() {
         }
         notice_ = written ? fmt::format(fmt::runtime(tr("tui.pipeline.probe.saved")), fmt::arg("path", path.string())) : written.error().message;
     });
+}
+
+void PipelineScreen::export_python() {
+    if (!ui_.ask_text) return;
+    const auto& name = model_->doc().name;
+    const auto stem = model_->path() ? utf8_name(model_->path()->stem()) : name.empty() ? std::string{"graph"} : name;
+    ui_.ask_text(tr("tui.pipeline.python.prompt"), stem + ".py", [this](std::string answer) {
+        auto target = utf8_file(answer);
+        if (target.is_relative()) target = model_->base_dir() / target;
+        if (auto ok = python::check_script_name(target); !ok) {
+            notice_ = ok.error().message;
+            return;
+        }
+        const auto source = pipeline::write_sig(model_->doc());
+        auto doc = pipeline::parse_sig(source);
+        if (!doc) {
+            notice_ = doc.error().message;
+            return;
+        }
+        auto graph = pipeline::build_graph(*doc, model_->base_dir());
+        if (!graph) {
+            notice_ = graph.error().message;
+            return;
+        }
+        const auto sig = model_->path() ? *model_->path() : std::filesystem::path{doc->name.empty() ? "graph.sig" : doc->name + ".sig"};
+        const auto work = [result = python_result_, doc = std::move(*doc), graph = std::move(*graph), target, sig, source](JobContext& ctx) {
+            ctx.begin(0);
+            const bool notebook = target.extension() == ".ipynb";
+            core::CancelToken cancel;
+            const auto script = python::build_script(doc, graph, {notebook ? python::ScriptKind::notebook : python::ScriptKind::script, target, sig, source}, cancel);
+            auto data = target;
+            data.replace_extension(".npz");
+            std::string message;
+            if (!script) message = script.error().message;
+            else if (auto ok = io::write_file_atomic(target, script->text); !ok) message = ok.error().message;
+            else if (auto saved = io::write_npz(data, script->data); !saved) message = saved.error().message;
+            else
+                message = fmt::format(fmt::runtime(tr(notebook ? "python.written_notebook" : "python.written")), fmt::arg("script", utf8_name(target.filename())),
+                                      fmt::arg("data", utf8_name(data.filename())));
+            if (script) ctx.finish();
+            else ctx.fail(message);
+            const std::lock_guard lock{result->mutex};
+            result->message = std::move(message);
+        };
+        if (ui_.jobs) ui_.jobs->submit(tr("tui.pipeline.python.job"), {tr("tui.pipeline.python.stage")}, work);
+        notice_ = tr("tui.pipeline.python.running");
+    });
+}
+
+void PipelineScreen::take_python_result() {
+    const std::lock_guard lock{python_result_->mutex};
+    if (python_result_->message) notice_ = std::move(*python_result_->message), python_result_->message.reset();
 }
 
 void PipelineScreen::duplicate_selected() {
@@ -1441,6 +1516,7 @@ ftxui::Element PipelineScreen::text_panel(int width, int height) {
 
 ftxui::Element PipelineScreen::OnRender() {
     using namespace ftxui;
+    take_python_result();
     panel_boxes_.fill(kNoBox);
     graph_box_ = kNoBox;
     probe_view_boxes_.fill(kNoBox);
@@ -1717,6 +1793,7 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
     if (e == Event::Character('y')) return copy_probe(), true;
     if (e == Event::Character('w')) return toggle_compare(), true;
     if (e == Event::Character('x')) return save_probe(), true;
+    if (e == Event::Character('P')) return export_python(), true;
     if (focus_ == kProbe && probe_view_ == ProbeView::values) {
         if (e == Event::Character('+') || e == Event::Character('=')) return value_digits_ = std::min(15, value_digits_ + 1), true;
         if (e == Event::Character('-')) return value_digits_ = std::max(1, value_digits_ - 1), true;

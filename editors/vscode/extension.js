@@ -29,6 +29,10 @@ function blockDoc(b, ru) {
   md.appendMarkdown(`**${b.id}** — ${b.title}\n\n${b.about}\n\n`);
   md.appendMarkdown(`${ru ? 'Входы' : 'Inputs'}: ${ports(b.inputs)}  \n${ru ? 'Выходы' : 'Outputs'}: ${ports(b.outputs)}\n\n`);
   for (const p of b.params) md.appendMarkdown(`- ${paramLine(p, ru)}\n`);
+  if (b.python) {
+    md.appendMarkdown(`\n${ru ? 'В Python' : 'In Python'}:\n`);
+    md.appendCodeblock(b.python, 'python');
+  }
   return md;
 }
 

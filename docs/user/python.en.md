@@ -69,6 +69,16 @@ The `.npz` holds only what Python cannot repeat:
 - parameter lists longer than 64 numbers and the symlet filters (see below);
 - the values to check against.
 
+In the Pipeline tab `P` or the palette item "Pipeline: export to Python…" does the same: a `.py` path gives a script, an `.ipynb` path a notebook. The graph open in the editor is exported, unsaved edits included. The inspector shows an "In Python" line for the selected node, and `signals explain <block>` shows the Python form of the block with the default parameters.
+
+### A Jupyter notebook
+
+```bash
+signals python examples/first_steps.sig -o first_steps.ipynb
+```
+
+With an `.ipynb` path the command writes a Jupyter notebook instead of a script. Its code is the code of the script, one cell per node. Above each cell is the name of the block and what it does; after each signal probe comes its plot. The `listen` block becomes an `IPython.display.Audio` player in the notebook. The last cell checks the numbers against the program and fails on `assert` if any row does not match. The notebook looks for the `.npz` and the input files in the current folder, so start Jupyter from the notebook's folder. It also needs matplotlib and IPython; the versions the notebooks are checked on in CI are in `tools/requirements-bridge.txt`.
+
 ### The check
 
 At the end the script compares every probe, every field of every report and the input of every node with a side effect (`wav_out`, `export`, `listen`) with what the program computed, prints a "what — max |Python − Signals| — tolerance — tolerance from" table and exits with code 1 on any ✗. A number matches when `max|a − b| ≤ tol · max(1, max|b|)`; strings are compared exactly, a file path by its file name.

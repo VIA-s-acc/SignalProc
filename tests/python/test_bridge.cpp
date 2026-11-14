@@ -109,6 +109,12 @@ TEST_CASE("bridge scripts agree with Signals", "[bridge]") {
         }
         generate(file, name);
     }
+    for (const char* name : {"first_steps", "denoise", "packets"}) {
+        const auto sig = std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples" / (std::string{name} + ".sig");
+        auto [code, out, err] = signals::test::run_cli({"signals", "python", utf8(sig), "-o", utf8(scripts / (std::string{name} + "-notebook.ipynb"))});
+        INFO(name << ": " << err);
+        CHECK(code == 0);
+    }
     for (const auto& t : pipeline::block_types())
         for (const auto& g : signals::test::block_graphs(t, root / "files")) {
             if (!all_forms(g.sig)) {

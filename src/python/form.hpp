@@ -57,6 +57,8 @@ public:
     void set_out_dir(std::filesystem::path dir) { out_dir_ = std::move(dir); }
     std::string file(const std::filesystem::path& absolute) const;
 
+    void set_notebook(bool on) { notebook_ = on; }
+    bool notebook() const { return notebook_; }
     bool preview() const { return preview_; }
     const std::vector<std::string>& imports() const { return imports_; }
     std::vector<std::string> functions() const;
@@ -66,6 +68,7 @@ public:
 
 private:
     bool preview_;
+    bool notebook_ = false;
     std::string node_;
     std::filesystem::path out_dir_;
     std::set<std::string, std::less<>> taken_;

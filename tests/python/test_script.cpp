@@ -125,8 +125,6 @@ TEST_CASE("signals python writes the script and its data", "[py-script]") {
     CHECK(std::filesystem::exists(py));
     CHECK(std::filesystem::exists(signals::test::temp_path("tiny-cli.npz")));
     CHECK(out.find("tiny-cli.py") != std::string::npos);
-    auto [ncode, nout, nerr] = signals::test::run_cli({"signals", "python", sig.string(), "-o", signals::test::temp_path("t.ipynb").string()});
-    CHECK(ncode == 2);
 }
 
 TEST_CASE("only the blocks of the tolerance table weaken tolerance", "[py-script]") {

@@ -76,7 +76,7 @@ std::string blocks_markdown() {
     return out;
 }
 
-std::string blocks_json() {
+std::string blocks_json(const std::function<std::string(const BlockType&)>& python) {
     auto ports_json = [](const std::vector<PortSpec>& list) {
         auto out = nlohmann::json::array();
         for (const auto& p : list) out.push_back({{"name", p.name}, {"type", std::string{to_string(p.type)}}, {"optional", p.optional}});
@@ -95,8 +95,10 @@ std::string blocks_json() {
             param["values"] = values;
             params_json.push_back(std::move(param));
         }
-        out.push_back({{"id", b.id}, {"title", block_title(b)}, {"about", tr_opt("pipeline.about." + b.id).value_or("")}, {"inputs", ports_json(b.inputs)},
-                       {"outputs", ports_json(b.outputs)}, {"params", std::move(params_json)}});
+        nlohmann::json block{{"id", b.id}, {"title", block_title(b)}, {"about", tr_opt("pipeline.about." + b.id).value_or("")}, {"inputs", ports_json(b.inputs)},
+                             {"outputs", ports_json(b.outputs)}, {"params", std::move(params_json)}};
+        if (python) block["python"] = python(b);
+        out.push_back(std::move(block));
     }
     return out.dump(1) + "\n";
 }

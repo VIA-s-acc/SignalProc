@@ -11,6 +11,7 @@
 
 #include "i18n/i18n.hpp"
 #include "pipeline/docs.hpp"
+#include "python/form.hpp"
 
 namespace {
 
@@ -68,7 +69,20 @@ TEST_CASE("blocks_json describes every block with its explanations", "[pipeline]
 TEST_CASE("the VS Code extension data is the generated block list", "[pipeline][docs][vscode]") {
     const std::filesystem::path dir = std::filesystem::path{SIGNALS_SOURCE_DIR} / "editors" / "vscode" / "data";
     INFO("regenerate with: signals --lang ru blocks --json > editors/vscode/data/blocks.ru.json and signals --lang en blocks --json > editors/vscode/data/blocks.en.json");
-    CHECK(read(dir / "blocks.ru.json") == signals::pipeline::blocks_json());
+    const auto python = [](const signals::pipeline::BlockType& t) { return signals::python::python_preview(t, {}); };
+    CHECK(read(dir / "blocks.ru.json") == signals::pipeline::blocks_json(python));
     const signals::LanguageScope en{signals::Language::en};
-    CHECK(read(dir / "blocks.en.json") == signals::pipeline::blocks_json());
+    CHECK(read(dir / "blocks.en.json") == signals::pipeline::blocks_json(python));
+}
+
+TEST_CASE("vscode block data carries the python form", "[docs]") {
+    const std::filesystem::path dir = std::filesystem::path{SIGNALS_SOURCE_DIR} / "editors" / "vscode" / "data";
+    for (const char* name : {"blocks.ru.json", "blocks.en.json"}) {
+        const auto j = nlohmann::json::parse(read(dir / name));
+        for (const auto& b : j) {
+            INFO(name << " " << b.at("id"));
+            REQUIRE(b.contains("python"));
+            CHECK_FALSE(b.at("python").get<std::string>().empty());
+        }
+    }
 }
