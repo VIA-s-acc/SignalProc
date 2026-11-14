@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <exception>
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <string>
@@ -21,6 +22,9 @@
 #include "core/version.hpp"
 #include "core/wavelet/regularity.hpp"
 #include "i18n/i18n.hpp"
+#include "io/npy.hpp"
+#include "pipeline/block.hpp"
+#include "pipeline/npz_values.hpp"
 
 namespace signals::cli {
 namespace {
@@ -66,10 +70,19 @@ std::string join(const std::vector<double>& v) {
 
 std::string yes_no(bool b) { return tr(b ? "yes" : "no"); }
 
-int run_filter_info(const std::string& name, bool json, std::ostream& out, std::ostream& err) {
+int run_filter_info(const std::string& name, bool json, const std::string& output, std::ostream& out, std::ostream& err) {
     const auto bank = core::wavelet(name);
     const auto info = core::wavelet_info(name);
     if (!bank) return report_error(err, bank.error());
+    if (!output.empty()) {
+        if (std::filesystem::path{output}.extension() != ".npz") {
+            err << fmt::format(fmt::runtime(tr("filter.npz_only")), fmt::arg("path", output)) << '\n';
+            return 2;
+        }
+        if (auto ok = io::write_npz(pipeline::utf8_path(output), pipeline::bank_entries(*bank)); !ok) return report_error(err, ok.error());
+        out << fmt::format(fmt::runtime(tr("filter.written")), fmt::arg("name", bank->name), fmt::arg("path", output)) << '\n';
+        return 0;
+    }
     if (!info) return report_error(err, info.error());
     const double tol = base_tolerance(info->generated, name == "dmey");
     const auto pr = core::check_pr(*bank, tol);
@@ -162,7 +175,7 @@ struct CliBindings {
     std::string lang_option;
     bool show_version = false;
     bool check_json = false;
-    std::string filter_name;
+    std::string filter_name, filter_output;
     bool filter_json = false;
     int design_p = 2;
     bool design_json = false;
@@ -187,6 +200,7 @@ void build_cli(CLI::App& app, CliBindings& b) {
     b.filter_info = filter->add_subcommand("info", tr("cli.filter.info.description"));
     b.filter_info->add_option("name", b.filter_name, tr("cli.filter.name"))->required();
     b.filter_info->add_flag("--json", b.filter_json, tr("cli.json.description"));
+    b.filter_info->add_option("-o,--output", b.filter_output, tr("cli.filter.output"));
     filter->require_subcommand(1);
     b.design = app.add_subcommand("design", tr("cli.design.description"));
     b.design->add_option("--p", b.design_p, tr("cli.design.p"))->required();
@@ -233,7 +247,7 @@ int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out,
         return 0;
     }
     if (b.check->parsed()) return run_check(b.check_json, out);
-    if (b.filter_info->parsed()) return run_filter_info(b.filter_name, b.filter_json, out, err);
+    if (b.filter_info->parsed()) return run_filter_info(b.filter_name, b.filter_json, b.filter_output, out, err);
     if (b.design->parsed()) return run_design(b.design_p, b.design_json, out, err);
     if (b.tui->parsed()) {
         if (!tui_request) return report_error(err, {core::Errc::invalid_argument, tr("tui.unavailable")});

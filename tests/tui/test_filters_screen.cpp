@@ -18,6 +18,10 @@
 #include <sstream>
 #include <string>
 
+#include "core/design/families.hpp"
+#include "io/npy.hpp"
+#include "pipeline/npz_values.hpp"
+#include "support/paths.hpp"
 #include "tui/data/user_filters.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/filters_screen.hpp"
@@ -841,4 +845,25 @@ TEST_CASE("the z-plane exports its unit circle, zeros and poles with a csv row p
     const auto plane = f.screen->area("zplane");
     const auto items = f.screen->context_menu((plane.x_min + plane.x_max) / 2, (plane.y_min + plane.y_max) / 2);
     CHECK(std::any_of(items.begin(), items.end(), [](const MenuItem& m) { return m.label == signals::tr("tui.menu.export_plot"); }));
+}
+
+TEST_CASE("N writes the bank of the focused wavelet", "[tui][filters]") {
+    Fixture f;
+    Harness h{f.screen, 150, 41};
+    REQUIRE(f.set->add(FilterRef{Kind::bank, "db4"}));
+    h.frame();
+    const auto path = signals::test::temp_path("filters-bank.npz");
+    std::filesystem::remove(path);
+    f.ui->ask_text = [&](std::string, std::string, std::function<void(std::string)> done) { done(path.string()); };
+    h.send(ftxui::Event::Character('N'));
+    const auto read = signals::io::read_npz(path);
+    REQUIRE(read);
+    const auto bank = signals::core::wavelet("db4");
+    REQUIRE(bank);
+    const auto want = signals::pipeline::bank_entries(*bank);
+    CHECK(std::get<std::vector<double>>(signals::io::np_find(*read, "dec_hi")->data) == std::get<std::vector<double>>(signals::io::np_find(want, "dec_hi")->data));
+    CHECK(std::get<std::vector<std::string>>(signals::io::np_find(*read, "name")->data).at(0) == "db4");
+    bool listed = false;
+    for (const auto& c : f.screen->commands()) listed = listed || c.id == "filters.export_bank";
+    CHECK(listed);
 }

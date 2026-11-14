@@ -1,5 +1,7 @@
 #include "tui/shell/plot_export.hpp"
 
+#include "io/npy.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -59,11 +61,17 @@ std::filesystem::path with_svg(std::string text) {
     return p;
 }
 
-void ask(UiContext& ui, const std::string& default_name, std::function<std::pair<std::string, std::string>()> render) {
+void ask(UiContext& ui, const std::string& default_name, std::function<std::pair<std::string, std::string>()> render, std::function<io::NpzEntries()> arrays) {
     if (!ui.ask_text) return;
-    ui.ask_text(tr("tui.export.prompt"), default_name + ".svg", [&ui, render = std::move(render)](std::string answer) {
+    ui.ask_text(tr("tui.export.prompt"), default_name + ".svg", [&ui, render = std::move(render), arrays = std::move(arrays)](std::string answer) {
         if (answer.empty()) return;
         const auto path = with_svg(std::move(answer));
+        if (path.extension() == ".npz") {
+            const auto r = io::write_npz(path, arrays());
+            if (ui.notice) ui.notice(r ? fmt::format(fmt::runtime(tr("tui.export.saved_npz")), fmt::arg("path", path.string())) : r.error().message);
+            if (!r && ui.warn) ui.warn(r.error().message);
+            return;
+        }
         const auto [svg, csv] = render();
         auto csv_path = path;
         csv_path.replace_extension(".csv");
@@ -226,20 +234,41 @@ ChartExport zplane_export(std::string id, std::string title, const ZPlaneSpec& s
     return out;
 }
 
+io::NpzEntries chart_arrays(const svg::Chart& c) {
+    io::NpzEntries out;
+    std::vector<std::string> names;
+    for (std::size_t k = 0; k < c.series.size(); ++k) {
+        const auto& s = c.series[k];
+        out.emplace_back("x" + std::to_string(k), io::np_vector(s.x));
+        out.emplace_back("y" + std::to_string(k), io::np_vector(s.y));
+        if (!s.lo.empty()) out.emplace_back("lo" + std::to_string(k), io::np_vector(s.lo));
+        if (!s.hi.empty()) out.emplace_back("hi" + std::to_string(k), io::np_vector(s.hi));
+        names.push_back(s.name);
+    }
+    const auto n = names.size();
+    out.emplace_back("names", io::NpArray{{n}, std::move(names)});
+    return out;
+}
+
+io::NpzEntries heatmap_arrays(const svg::Heatmap& m) {
+    return {{"z", io::NpArray{{m.rows, m.cols}, m.values}}, {"x", io::np_vector({m.x.lo, m.x.hi})}, {"y", io::np_vector({m.y.lo, m.y.hi})}};
+}
+
 void export_plot(UiContext& ui, PlotExport plot) {
     const auto chart = to_chart(plot, ui.theme);
-    ask(ui, export_stem(plot.title.empty() ? plot.id : plot.title), [chart] { return std::pair{svg::to_svg(chart), svg::to_csv(chart)}; });
+    ask(ui, export_stem(plot.title.empty() ? plot.id : plot.title), [chart] { return std::pair{svg::to_svg(chart), svg::to_csv(chart)}; }, [chart] { return chart_arrays(chart); });
 }
 
 void export_heatmap(UiContext& ui, HeatmapExport map) {
     const auto m = to_heatmap(map, ui.theme);
-    ask(ui, export_stem(map.title.empty() ? map.id : map.title), [m] { return std::pair{svg::to_svg(m), svg::to_csv(m)}; });
+    ask(ui, export_stem(map.title.empty() ? map.id : map.title), [m] { return std::pair{svg::to_svg(m), svg::to_csv(m)}; }, [m] { return heatmap_arrays(m); });
 }
 
 void export_chart(UiContext& ui, ChartExport chart) {
     const auto c = to_chart(chart, ui.theme);
     ask(ui, export_stem(chart.title.empty() ? chart.id : chart.title),
-        [c, csv = chart.csv, w = chart.width, h = chart.height] { return std::pair{svg::to_svg(c, w, h), csv.empty() ? svg::to_csv(c) : csv}; });
+        [c, csv = chart.csv, w = chart.width, h = chart.height] { return std::pair{svg::to_svg(c, w, h), csv.empty() ? svg::to_csv(c) : csv}; },
+        [c] { return chart_arrays(c); });
 }
 
 MenuItem export_item(UiContext& ui, PlotExport plot) {

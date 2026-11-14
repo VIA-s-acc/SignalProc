@@ -118,6 +118,7 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `t` | role |
 | `o/O` | order |
 | `f/F` | cutoff |
+| `N` | bank to .npz |
 | `c` | custom filter |
 | `Ctrl+Z` | undo a zero/pole edit |
 | `drag ○ ×` | move a zero or pole |
@@ -180,6 +181,7 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `a/b/x` | A, B, difference |
 | `v` | change view |
 | `u` | undo |
+| `N` | coefficients to .npz |
 | `F1` | DWT theory |
 | `wheel` | zoom t, over the labels: scroll |
 

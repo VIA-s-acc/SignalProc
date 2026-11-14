@@ -60,6 +60,7 @@ public:
     std::optional<std::string> explain_at(int x, int y) const override;
     std::vector<Command> commands() override;
     std::optional<std::pair<int, int>> root_cell(bool pole, std::size_t index) const;
+    void export_bank();
 
 private:
     struct RootDrag {

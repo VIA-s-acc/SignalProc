@@ -1,6 +1,6 @@
 [
  {
-  "about": "Reads a WAV, FLAC or MP3 audio file with all its channels and its sample rate; the format is detected from the content, not the extension",
+  "about": "Reads a WAV, FLAC or MP3 audio file or a NumPy .npy/.npz array with all its channels and its sample rate; the format is detected from the content, not the extension",
   "id": "wav",
   "inputs": [],
   "outputs": [
@@ -16,6 +16,22 @@
     "choices": [],
     "default": "",
     "name": "path",
+    "values": {}
+   },
+   {
+    "about": "Sample rate of an .npy or .npz array without a rate key, Hz; 0 — take it from the file",
+    "choices": [],
+    "default": "0",
+    "max": 10000000.0,
+    "min": 0.0,
+    "name": "rate",
+    "values": {}
+   },
+   {
+    "about": "Which array to take from an .npz; empty — x or the only array",
+    "choices": [],
+    "default": "",
+    "name": "key",
     "values": {}
    }
   ],
@@ -1475,7 +1491,7 @@
   "title": "Onsets"
  },
  {
-  "about": "Saves the samples to CSV or JSON and reports what was written",
+  "about": "Saves the samples to CSV, JSON or .npy and reports what was written",
   "id": "export",
   "inputs": [
    {
@@ -1503,20 +1519,22 @@
     "about": "File format",
     "choices": [
      "csv",
-     "json"
+     "json",
+     "npy"
     ],
     "default": "csv",
     "name": "format",
     "values": {
      "csv": "table: column n plus one column ch0, ch1… per channel",
-     "json": "object {rate, channels: [[…], …]}: the rate and channel arrays"
+     "json": "object {rate, channels: [[…], …]}: the rate and channel arrays",
+     "npy": "a NumPy array: (N,) for one channel, (C, N) for several; np.load reads it without loss"
     }
    }
   ],
-  "title": "Export CSV / JSON"
+  "title": "Export CSV / JSON / NPY"
  },
  {
-  "about": "Saves the fields of the incoming report to CSV or JSON",
+  "about": "Saves the fields of the incoming report to CSV, JSON or .npz",
   "id": "export_report",
   "inputs": [
    {
@@ -1544,13 +1562,15 @@
     "about": "File format",
     "choices": [
      "csv",
-     "json"
+     "json",
+     "npz"
     ],
     "default": "json",
     "name": "format",
     "values": {
      "csv": "two columns field,value, one row per field",
-     "json": "object with passed and fields (name → value)"
+     "json": "object with passed and fields (name → value)",
+     "npz": "a NumPy archive: one key per field, passed and the field order in fields"
     }
    }
   ],
@@ -4377,6 +4397,51 @@
    }
   ],
   "title": "Least-squares FIR"
+ },
+ {
+  "about": "Reads coefficients from an .npz written by Signals or pywt: keys cA3, cD3…cD1 or packet paths, the wavelet and mode from the file or from the parameters",
+  "id": "coeffs_file",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "coeffs",
+    "optional": false,
+    "type": "coeffs"
+   }
+  ],
+  "params": [
+   {
+    "about": "Path to the .npz file; a relative path is resolved against the pipeline's folder",
+    "choices": [],
+    "default": "",
+    "name": "path",
+    "values": {}
+   },
+   {
+    "about": "Wavelet, when the file has no wavelet key (written by hand or by pywt)",
+    "choices": [],
+    "default": "",
+    "name": "wavelet",
+    "values": {}
+   },
+   {
+    "about": "Extension mode, when the file has no mode key, in pywt names",
+    "choices": [],
+    "default": "",
+    "name": "mode",
+    "values": {}
+   },
+   {
+    "about": "Sample rate of the original signal, when the file has no rate key, Hz; 0 — take it from the file",
+    "choices": [],
+    "default": "0",
+    "max": 10000000.0,
+    "min": 0.0,
+    "name": "rate",
+    "values": {}
+   }
+  ],
+  "title": "Coefficients from a file"
  },
  {
   "about": "Splits the signal into its polyphase components x[2n] and x[2n+1] at half the rate",

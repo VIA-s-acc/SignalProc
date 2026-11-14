@@ -1,0 +1,62 @@
+# Signals and Python
+
+[Русский](python.md)
+
+Signals exchanges `.npy` and `.npz` files with numpy, scipy and pywt. Numbers are stored as their eight double bytes, with no text in between. `np.load(path, allow_pickle=False)` opens any file the program writes, and the program opens files written by `np.save`, `np.savez` and `np.savez_compressed`.
+
+## Export
+
+| Where | What it does |
+|---|---|
+| `signals run graph.sig --npz out.npz` | every probe in one file; the key is the probe name, a dot and the value key: `clean.x`, `clean.rate` |
+| `signals run graph.sig --probe-dir dir --probe-format npy` | a signal probe to `<name>.npy`, the other probes to `<name>.npz`; `wav` (the default) and `json` work as before |
+| `signals dwt in.wav --wavelet db4 --levels 5 -o out.npz` | the decomposition coefficients; any other extension writes JSON as before |
+| `signals filter info db4 -o bank.npz` | the filter bank of a wavelet |
+| block `export(format=npy)` | the samples of a signal |
+| block `export_report(format=npz)` | the fields of a report |
+| Pipeline, `x` | a signal probe to `.npy`, any probe to `.npz` |
+| Decomposition, `N` | the coefficients on screen |
+| Filters, `N` | the bank of the selected wavelet |
+| plot menu "Save the plot" with a `*.npz` path | the plot series `x0`, `y0`, `x1`, `y1`… and their `names`; a map gives `z`, `x`, `y` |
+
+## Import
+
+- The `wav` block and `o` on the Signal tab open `.npy` and `.npz` the way they open WAV: the format is detected from the file content.
+- The rate comes from the `rate` key. An `.npy` has none: set the block's `rate` parameter; the Signal tab asks for it. A rate in the file that contradicts the `rate` parameter is an error.
+- From an `.npz` the `x` array is taken. Without such a key, the only array is taken. The `key` parameter picks another one.
+- An `(N,)` array is one channel, `(C, N)` is C channels. An array with more than 64 rows is an error: it is most likely `(N, C)` from soundfile, save it as `x.T`.
+- A compressed `.npz` member that expands to more than 256 MiB and more than 200 times is not read: that is what a zip bomb looks like. Save a large array of zeros with `np.savez`, uncompressed.
+- The `coeffs_file` block reads coefficients from an `.npz` written by Signals or pywt. When the file has no `wavelet`, `mode` or `rate` keys, the block parameters give them. A trial inverse transform checks that the bands fit the wavelet.
+
+## Key layout
+
+| Value | Keys |
+|---|---|
+| signal | `x` — `(N,)` or `(C, N)`; `rate` |
+| `dwt` and lifting coefficients | `cA{J}`, `cD{J}` … `cD1` |
+| `swt` coefficients | `cA{J}`, `cD{J}` … `cD1`, as `pywt.swt(..., trim_approx=True)`; `norm` |
+| `wpt` coefficients | the packet node path: `aa`, `ad`, `da`, `dd`…; `length` is required |
+| `dtcwt` coefficients | `cA{J}`, `re_cD{j}` and `im_cD{j}` |
+| all coefficients | `wavelet`, `mode`, `rate`, `transform`, `length`, `detail_sign` |
+| report | one key per field, `passed`, `fields` — the field order |
+| filter bank | `dec_lo`, `dec_hi`, `rec_lo`, `rec_hi`, `name` — as `pywt.Wavelet(...).filter_bank` |
+
+Multichannel coefficients are `(C, len)` arrays, single-channel ones are `(len,)`.
+
+```python
+import numpy as np, pywt
+f = np.load("out.npz", allow_pickle=False)
+x = pywt.waverec([f["cA5"], f["cD5"], f["cD4"], f["cD3"], f["cD2"], f["cD1"]], str(f["wavelet"]), mode=str(f["mode"]))
+b = np.load("bank.npz")
+w = pywt.Wavelet(str(b["name"]), filter_bank=[b[k] for k in ("dec_lo", "dec_hi", "rec_lo", "rec_hi")])
+```
+
+## Detail sign
+
+Signals computes detail coefficients with the opposite sign to pywt, following Strang and Nguyen. Outside the program everything uses the pywt sign:
+
+- writing `dwt` and `swt` flips the detail sign and stores `detail_sign = "pywt"`; the program already computes `wpt` packets in the pywt sign;
+- reading a file without `detail_sign` or with `"pywt"` converts it to the Signals sign; `"signals"` is read as is;
+- lifting and `dtcwt` have no pywt counterpart: their bands are written as is, with `detail_sign = "signals"`.
+
+So `cD1` in the file is the negative of what the Decomposition tab shows. A reconstructed signal does not depend on the sign.

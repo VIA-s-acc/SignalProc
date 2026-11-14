@@ -11,6 +11,9 @@
 #include <nlohmann/json.hpp>
 
 #include "commands/command.hpp"
+#include "io/npy.hpp"
+#include "pipeline/block.hpp"
+#include "pipeline/npz_values.hpp"
 #include "i18n/i18n.hpp"
 #include "core/design/families.hpp"
 #include "core/freq.hpp"
@@ -71,6 +74,11 @@ public:
             return report_error(err, {core::Errc::invalid_argument, "channel " + std::to_string(*channel_) + " of " +
                                                                         std::to_string(audio.channels.size())});
         const core::DwtOptions options{*core::parse_extension(ext_), false};
+        const bool npz = std::filesystem::path{output_}.extension() == ".npz";
+        pipeline::Coeffs all;
+        all.wavelet = wavelet_;
+        all.mode = options.mode;
+        all.rate = audio.sample_rate;
         nlohmann::json channels = nlohmann::json::array();
         for (std::size_t c = 0; c < audio.channels.size(); ++c) {
             if (channel_ && c != *channel_) continue;
@@ -86,6 +94,15 @@ public:
                     if (auto r = write_band(c, name, j, rate, coeffs->bands[b]); !r) return report_error(err, r.error());
             }
             channels.push_back({{"index", c}, {"bands", bands}});
+            all.lengths.push_back(audio.channels[c].size());
+            all.channels.push_back(std::move(*coeffs));
+        }
+        if (npz) {
+            const auto entries = pipeline::coeffs_entries(all);
+            if (!entries) return report_error(err, entries.error());
+            if (auto ok = io::write_npz(pipeline::utf8_path(output_), *entries); !ok) return report_error(err, ok.error());
+            out << fmt::format(fmt::runtime(tr("dwt.written")), fmt::arg("path", output_), fmt::arg("levels", levels_), fmt::arg("wavelet", wavelet_)) << '\n';
+            return 0;
         }
         std::ofstream json_out{output_};
         json_out << nlohmann::json{{"wavelet", wavelet_}, {"levels", levels_}, {"ext", ext_},

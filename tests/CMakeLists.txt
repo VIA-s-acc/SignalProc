@@ -56,11 +56,13 @@ add_executable(signals_tests
   io/test_stats.cpp
   io/test_generators.cpp
   io/test_config_dir.cpp
+  io/test_npy.cpp
   cli/test_cli.cpp
   cli/test_cli_commands.cpp
   cli/test_cli_docs.cpp
   cli/test_cli_audio.cpp
   cli/test_cli_tui.cpp
+  tui/test_npz_exports.cpp
   tui/test_harness.cpp
   tui/test_format.cpp
   tui/test_list_window.cpp
@@ -111,6 +113,8 @@ add_executable(signals_tests
   tui/harness.cpp
   audio/test_player.cpp
   theory/test_sections.cpp
+  pipeline/test_npz_values.cpp
+  pipeline/test_blocks_npz.cpp
   pipeline/test_blocks_basic.cpp
   pipeline/test_blocks_dsp.cpp
   pipeline/test_blocks_more.cpp
@@ -134,6 +138,7 @@ add_executable(signals_tests
   tui/test_pipeline_model.cpp
   tui/test_pipeline_screen.cpp
   cli/test_cli_pipeline.cpp
+  cli/test_cli_npz.cpp
   cli/test_cli_learn.cpp
   tui/test_learn_state.cpp
   tui/test_learn_screen.cpp

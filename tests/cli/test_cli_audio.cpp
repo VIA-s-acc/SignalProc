@@ -12,6 +12,7 @@
 #include <nlohmann/json.hpp>
 
 #include "io/generators.hpp"
+#include "io/npy.hpp"
 #include "io/wav.hpp"
 #include "support/cli_run.hpp"
 #include "support/paths.hpp"
@@ -218,4 +219,17 @@ TEST_CASE("an oversized response is refused instead of hanging", "[cli]") {
         CHECK(err.find("Ошибка") != std::string::npos);
     }
     CHECK(std::get<0>(run_cli({"signals", "filter", "response", "sym8", "--band", "a", "--level", "12"})) == 0);
+}
+
+TEST_CASE("signals info names the npz container", "[cli][audio]") {
+    const auto path = temp_path("info.npz");
+    REQUIRE(signals::io::write_npz(path, {{"x", signals::io::NpArray{{2, 3}, std::vector<double>{0, 0.5, -0.5, 0.25, 0, 0}}}, {"rate", signals::io::np_scalar(8000)}}));
+    auto [code, out, err] = run_cli({"signals", "info", path.string(), "--json"});
+    REQUIRE(code == 0);
+    const auto j = nlohmann::json::parse(out);
+    CHECK(j["container"] == "npz");
+    CHECK(j["channels"] == 2);
+    auto [tcode, text, terr] = run_cli({"signals", "info", path.string()});
+    REQUIRE(tcode == 0);
+    CHECK(text.find("npz") != std::string::npos);
 }

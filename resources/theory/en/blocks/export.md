@@ -24,6 +24,8 @@ $$\text{bytes} \le K\,\big(\lfloor\log_{10}K\rfloor + 2 + 25\,C\big)$$
 
 Signal CSV: the header `n,ch0,ch1,…`, row $k$ is the index and the samples of every channel, $K = \max_c N_c$; a shorter channel leaves empty cells. Signal JSON: `{"rate":…,"channels":[[…],…]}`.
 
+The `npy` format of `export` and the `npz` format of `export_report` write binary NumPy files: a double is stored as its eight bytes, with no text in between. A signal is an `(N,)` array for one channel or `(C, N)` for several; a report has one key per field, `passed` and the field order in `fields`. `np.load(..., allow_pickle=False)` reads both; the key layout is in `docs/user/python.en.md`.
+
 Report CSV: `field,value`; a string value is quoted only if it contains a comma, a quote or a line break, and inner quotes are doubled (RFC 4180); the field name is written as is. Report JSON: `{"passed":…,"fields":{…}}`; strings escape `"` and `\`, and bytes below 0x20 as `\u00XX`. NaN and infinity are written as `null` in JSON and in the report CSV, but as `nan` and `inf` in the signal CSV.
 
 ## Algorithm and cost

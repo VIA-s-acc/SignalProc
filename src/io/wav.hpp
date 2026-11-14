@@ -12,7 +12,7 @@
 namespace signals::io {
 
 enum class SampleFormat { pcm_u8, pcm_s16, pcm_s24, pcm_s32, float32, float64, alaw, mulaw };
-enum class Container { wav, flac, mp3 };
+enum class Container { wav, flac, mp3, npy, npz };
 
 std::string_view to_string(SampleFormat format);
 std::string_view to_string(Container container);

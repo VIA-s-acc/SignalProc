@@ -16,6 +16,8 @@
 
 #include <ftxui/component/event.hpp>
 
+#include "io/npy.hpp"
+#include "pipeline/npz_values.hpp"
 #include "audio/manual_sink.hpp"
 #include "core/memory.hpp"
 #include "io/wav.hpp"
@@ -1234,4 +1236,32 @@ TEST_CASE("DTCWT filters come from the palette and the edge keys leave the mode 
     f.h.send(ftxui::Event::Character('e'));
     CHECK(f.model->options().mode == mode);
     CHECK(f.h.frame().find("near_sym_b + qshift_c ▾") != std::string::npos);
+}
+
+TEST_CASE("N writes the shown coefficients with pywt keys", "[tui][decomposition]") {
+    DecompositionFixture f;
+    const auto data = f.model->data();
+    REQUIRE(data);
+    const auto path = signals::test::temp_path("decomposition.npz");
+    std::filesystem::remove(path);
+    std::string prefill;
+    f.ui->ask_text = [&](std::string, std::string p, std::function<void(std::string)> done) {
+        prefill = std::move(p);
+        done(path.string());
+    };
+    f.h.send(ftxui::Event::Character('N'));
+    CHECK(prefill.ends_with(".npz"));
+    const auto read = signals::io::read_npz(path);
+    REQUIRE(read);
+    const auto want = signals::pipeline::coeffs_entries(as_pipeline_coeffs(*data));
+    REQUIRE(want);
+    REQUIRE(read->size() == want->size());
+    for (std::size_t i = 0; i < want->size(); ++i) {
+        CHECK((*read)[i].first == (*want)[i].first);
+        CHECK((*read)[i].second.data == (*want)[i].second.data);
+    }
+    CHECK(signals::io::np_find(*read, "cA6"));
+    bool listed = false;
+    for (const auto& c : f.screen->commands()) listed = listed || c.id == "decomposition.export_npz";
+    CHECK(listed);
 }

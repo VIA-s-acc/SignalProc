@@ -24,6 +24,7 @@ set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(miniaudio GIT_REPOSITORY https://github.com/mackron/miniaudio.git
                      GIT_TAG 0.11.26 GIT_SHALLOW TRUE SOURCE_SUBDIR _none)
 FetchContent_Declare(eigen GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git GIT_TAG 5.0.1 GIT_SHALLOW TRUE SYSTEM)
+FetchContent_Declare(miniz GIT_REPOSITORY https://github.com/richgel999/miniz.git GIT_TAG 3.0.2 GIT_SHALLOW TRUE SOURCE_SUBDIR _none)
 FetchContent_Declare(taskflow GIT_REPOSITORY https://github.com/taskflow/taskflow.git GIT_TAG v4.1.0 GIT_SHALLOW TRUE SOURCE_SUBDIR _none)
 
 set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
@@ -36,7 +37,7 @@ set(FTXUI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(FTXUI_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 set(FTXUI_QUIET ON CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(catch2 cli11 json fmt nanobench rapidcheck pocketfft dr_libs ftxui tomlplusplus multiprecision eigen miniaudio taskflow)
+FetchContent_MakeAvailable(catch2 cli11 json fmt nanobench rapidcheck pocketfft dr_libs ftxui tomlplusplus multiprecision eigen miniaudio taskflow miniz)
 
 add_library(signals_taskflow INTERFACE)
 target_include_directories(signals_taskflow SYSTEM INTERFACE ${taskflow_SOURCE_DIR})
@@ -52,3 +53,9 @@ list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 
 add_library(signals_dr_libs STATIC ${PROJECT_SOURCE_DIR}/src/io/dr_wav_impl.cpp ${PROJECT_SOURCE_DIR}/src/io/dr_flac_impl.cpp ${PROJECT_SOURCE_DIR}/src/io/dr_mp3_impl.cpp)
 target_include_directories(signals_dr_libs SYSTEM PUBLIC ${dr_libs_SOURCE_DIR})
+
+file(WRITE ${CMAKE_BINARY_DIR}/miniz_export/miniz_export.h "#pragma once\n#define MINIZ_EXPORT\n")
+add_library(signals_miniz STATIC ${miniz_SOURCE_DIR}/miniz.c ${miniz_SOURCE_DIR}/miniz_tdef.c ${miniz_SOURCE_DIR}/miniz_tinfl.c ${miniz_SOURCE_DIR}/miniz_zip.c)
+target_include_directories(signals_miniz SYSTEM PUBLIC ${miniz_SOURCE_DIR} ${CMAKE_BINARY_DIR}/miniz_export)
+target_compile_definitions(signals_miniz PUBLIC MINIZ_NO_STDIO MINIZ_NO_TIME)
+set_target_properties(signals_miniz PROPERTIES POSITION_INDEPENDENT_CODE ON)

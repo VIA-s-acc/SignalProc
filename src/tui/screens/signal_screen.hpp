@@ -2,6 +2,7 @@
 
 #include <array>
 #include <chrono>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -21,6 +22,8 @@
 #include "tui/widgets/scroll.hpp"
 
 namespace signals::tui {
+
+void open_audio(UiContext& ui, SignalModel& model, JobRunner& jobs, const std::filesystem::path& path);
 
 class SignalScreen final : public TabScreen {
 public:

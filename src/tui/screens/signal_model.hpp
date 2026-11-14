@@ -51,7 +51,7 @@ class SignalModel {
 public:
     explicit SignalModel(std::function<std::string()> clock = {}, std::size_t memory_budget = 0);
 
-    void open(const std::filesystem::path& path, JobRunner& jobs);
+    void open(const std::filesystem::path& path, JobRunner& jobs, std::optional<double> rate = std::nullopt);
     void set_on_loaded(std::function<void(const std::filesystem::path&)> callback);
     std::shared_ptr<const SignalData> data() const;
     std::vector<LogLine> log() const;

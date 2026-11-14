@@ -11,6 +11,8 @@
 #include <utility>
 #include <vector>
 
+#include "pipeline/value.hpp"
+
 #include "audio/player.hpp"
 #include "core/extension.hpp"
 #include "core/packets.hpp"
@@ -70,6 +72,8 @@ struct DecompositionData {
     core::TrackedBytes display_memory;
     double duration() const { return fs > 0 ? static_cast<double>(x.size()) / fs : 0.0; }
 };
+
+pipeline::Coeffs as_pipeline_coeffs(const DecompositionData& d);
 
 struct Processing {
     std::optional<core::ShrinkRule> rule;

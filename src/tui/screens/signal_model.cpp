@@ -1,5 +1,7 @@
 #include "tui/screens/signal_model.hpp"
 
+#include "io/npy_audio.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -58,13 +60,13 @@ void SignalModel::set_on_loaded(std::function<void(const std::filesystem::path&)
     on_loaded_ = std::move(callback);
 }
 
-void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
+void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs, std::optional<double> rate) {
     if (const auto previous = job()) jobs.cancel(*previous);
     const auto name = path.filename().string();
     auto id = jobs.submit(fmt::format(fmt::runtime(tr("tui.signal.job")), fmt::arg("name", name)),
                           {tr("tui.signal.stage.read"), tr("tui.signal.stage.stats"), tr("tui.signal.stage.pyramid"),
                            tr("tui.signal.stage.welch"), tr("tui.signal.stage.dwt")},
-                          [this, path, name](JobContext& ctx) {
+                          [this, path, name, rate](JobContext& ctx) {
                               try {
                               ctx.begin(0);
                               if (const auto probe = io::probe_audio(path); probe && memory_budget_ > 0) {
@@ -78,7 +80,7 @@ void SignalModel::open(const std::filesystem::path& path, JobRunner& jobs) {
                                       return;
                                   }
                               }
-                              auto file = io::read_audio(path, &ctx);
+                              auto file = rate ? io::read_array_audio(path, {rate, ""}) : io::read_audio(path, &ctx);
                               if (!file) {
                                   if (file.error().code == core::Errc::cancelled) return;
                                   const auto text = error_text(file.error());
