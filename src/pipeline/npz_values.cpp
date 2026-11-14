@@ -83,9 +83,13 @@ struct Rows {
 core::Result<Rows> rows_of(const io::NpArray& a, std::string_view key) {
     const auto* v = std::get_if<std::vector<double>>(&a.data);
     if (!v) return fail("band '" + std::string{key} + "' is not numeric");
-    if (a.shape.size() == 1) return Rows{1, a.shape[0], v};
-    if (a.shape.size() == 2) return Rows{a.shape[0], a.shape[1], v};
-    return fail("band '" + std::string{key} + "' must be (len,) or (C, len)");
+    if (a.shape.empty() || a.shape.size() > 2) return fail("band '" + std::string{key} + "' must be (len,) or (C, len)");
+    const Rows r = a.shape.size() == 1 ? Rows{1, a.shape[0], v} : Rows{a.shape[0], a.shape[1], v};
+    if (r.channels == 0) return fail("band '" + std::string{key} + "' has no channels");
+    if (v->size() / r.channels != r.length || v->size() % r.channels != 0)
+        return fail("band '" + std::string{key} + "' holds " + std::to_string(v->size()) + " values, not the " + std::to_string(r.channels) + " × " +
+                    std::to_string(r.length) + " of its shape");
+    return r;
 }
 
 }  // namespace

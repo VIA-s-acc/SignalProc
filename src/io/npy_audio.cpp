@@ -13,7 +13,7 @@ namespace {
 using core::Errc;
 
 constexpr std::size_t kMaxChannels = 64;
-constexpr NpLimits kAudioLimits{std::size_t{1} << 28, std::size_t{1} << 28};
+constexpr NpLimits kAudioLimits{std::size_t{1} << 28, std::size_t{1} << 28, std::uint64_t{1} << 28, 200};
 
 std::unexpected<core::Error> fail(std::string message) { return core::make_error(Errc::invalid_argument, std::move(message)); }
 
@@ -164,6 +164,7 @@ core::Result<WavFile> read_array_audio(const std::filesystem::path& path, const 
                                                          number(*options.rate) + ")"});
         const auto rate = options.rate ? options.rate : *in_file;
         if (!rate) return at(path, {Errc::invalid_argument, "the file has no 'rate' key; set the rate"});
+        if (const auto l = layout_of(picked->second.shape, picked->second.text); !l) return at(path, l.error());
         const auto entries = read_npz(path, kAudioLimits, {picked->first});
         if (!entries) return std::unexpected{entries.error()};
         const auto* array = np_find(*entries, picked->first);

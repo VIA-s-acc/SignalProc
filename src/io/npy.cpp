@@ -377,7 +377,10 @@ core::Result<Header> read_member_header(ExtractIter& it, std::uint64_t size, con
     return parse_header(buf, limits);
 }
 
-core::Result<NpArray> read_member(mz_zip_archive& zip, mz_uint index, std::uint64_t size, const NpLimits& limits) {
+core::Result<NpArray> read_member(mz_zip_archive& zip, mz_uint index, std::uint64_t size, std::uint64_t packed, const NpLimits& limits) {
+    if (size > limits.expand_floor && size / std::max<std::uint64_t>(packed, 1) > limits.expand_ratio)
+        return fail("the member expands from " + std::to_string(packed) + " to " + std::to_string(size) + " bytes, more than " + std::to_string(limits.expand_ratio) +
+                    " times; save such an array with np.savez, not np.savez_compressed");
     ExtractIter it{mz_zip_reader_extract_iter_new(&zip, index, 0)};
     if (!it) return fail("cannot read: " + zip_error(zip));
     std::string buf;
@@ -530,7 +533,7 @@ core::Result<NpzEntries> read_npz(const std::filesystem::path& path, const NpLim
         if (!name.ends_with(".npy")) return at(path, core::Error{Errc::invalid_argument, "member '" + name + "' is not an .npy array"});
         const auto key = name.substr(0, name.size() - 4);
         if (!only.empty() && std::find(only.begin(), only.end(), key) == only.end()) continue;
-        auto a = read_member(zip, i, st.m_uncomp_size, limits);
+        auto a = read_member(zip, i, st.m_uncomp_size, st.m_comp_size, limits);
         if (!a) return at(path, core::Error{a.error().code, name + ": " + a.error().message});
         out.emplace_back(key, std::move(*a));
     }

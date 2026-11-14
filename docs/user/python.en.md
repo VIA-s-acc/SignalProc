@@ -25,6 +25,7 @@ Signals exchanges `.npy` and `.npz` files with numpy, scipy and pywt. Numbers ar
 - The rate comes from the `rate` key. An `.npy` has none: set the block's `rate` parameter; the Signal tab asks for it. A rate in the file that contradicts the `rate` parameter is an error.
 - From an `.npz` the `x` array is taken. Without such a key, the only array is taken. The `key` parameter picks another one.
 - An `(N,)` array is one channel, `(C, N)` is C channels. An array with more than 64 rows is an error: it is most likely `(N, C)` from soundfile, save it as `x.T`.
+- A compressed `.npz` member that expands to more than 256 MiB and more than 200 times is not read: that is what a zip bomb looks like. Save a large array of zeros with `np.savez`, uncompressed.
 - The `coeffs_file` block reads coefficients from an `.npz` written by Signals or pywt. When the file has no `wavelet`, `mode` or `rate` keys, the block parameters give them. A trial inverse transform checks that the bands fit the wavelet.
 
 ## Key layout

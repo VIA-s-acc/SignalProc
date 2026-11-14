@@ -64,6 +64,7 @@ def main() -> None:
     with zipfile.ZipFile(out / "huge_claim.npz", "w") as z:
         z.writestr("cA1.npy", claim)
         z.writestr("cD1.npy", claim)
+    np.savez_compressed(out / "zeros_compressed.npz", x=np.zeros(1 << 20))
     for key, value in (("a", a), ("b", b), ("name", name)):
         record(expected, "npz." + key, value)
 
