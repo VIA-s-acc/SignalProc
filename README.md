@@ -28,7 +28,7 @@ Homebrew, on macOS and Linux:
 brew install VIA-s-acc/signals/signals
 ```
 
-The script takes the build of the latest release, checks its checksum and installs into your home folder, without `sudo`: `~/.local/bin/signals` on macOS and Linux, `%LOCALAPPDATA%\Programs\signals` on Windows. It also installs the man page and completions for bash and fish, and prints the line to add to `~/.zshrc` for zsh. Running it again updates the program. To pick a version or a folder: `… | sh -s -- --version v0.8.0 --dir ~/bin`; on Windows, the variables `SIGNALS_VERSION` and `SIGNALS_INSTALL_DIR`.
+The script takes the build of the latest release, checks its checksum and installs into your home folder, without `sudo`: `~/.local/bin/signals` on macOS and Linux, `%LOCALAPPDATA%\Programs\signals` on Windows. It also installs the man page and completions for bash and fish, and prints the line to add to `~/.zshrc` for zsh. Running it again updates the program. To pick a version or a folder: `… | sh -s -- --version v0.9.0 --dir ~/bin`; on Windows, the variables `SIGNALS_VERSION` and `SIGNALS_INSTALL_DIR`.
 
 ### By hand
 
@@ -129,7 +129,7 @@ Denoising a fragment against a clean reference: Bayes, Visu, SURE and Minimax ru
 
 ![The Pipeline tab](docs/images/en/pipeline.svg)
 
-An editor of `.sig` graphs built from 136 blocks: the graph lays itself out, every node shows the time and memory of its last run, probes show a signal, a spectrum or numbers.
+An editor of `.sig` graphs built from 137 blocks: the graph lays itself out, every node shows the time and memory of its last run, probes show a signal, a spectrum or numbers.
 
 ![Running the example and switching probes](docs/images/en/pipeline-run.svg)
 
@@ -166,10 +166,11 @@ Messages are in English or Russian: `--lang ru` anywhere in a command, or `SIGNA
 | `signals resample <file>` | ↓M or ↑M with a Kaiser filter |
 | `signals dwt <file>` | multilevel DWT: coefficients as JSON, bands as WAV |
 | `signals denoise <file>` | wavelet threshold denoising |
-| `signals run <file.sig>` | run a pipeline; `--set`, `-o`, `--probe-dir`, `--report`, `--values N`, `--watch`, `--json` |
+| `signals run <file.sig>` | run a pipeline; `--set`, `-o`, `--probe-dir`, `--npz`, `--report`, `--values N`, `--watch`, `--json` |
+| `signals python <file.sig>` | a numpy, scipy and PyWavelets script or a Jupyter notebook that repeats the graph and checks every number against the program |
 | `signals sweep <file.sig>` | a series of runs over a node parameter |
 | `signals graph <file.sig>` | draw the graph as text |
-| `signals blocks`, `signals explain <block>` | the pipeline block reference, one block in detail |
+| `signals blocks`, `signals explain <block>` | the pipeline block reference, one block in detail with its Python form; `--json` |
 | `signals learn …` | the learning path: `list`, `show`, `start`, `check`, `hint`, `solution`, `variant`, `report`, `lint` |
 | `signals completions bash\|zsh\|fish` | the completion script for a shell |
 | `signals man` | the man page in roff |
@@ -199,7 +200,18 @@ probe noisy as "noisy"
 probe idwt as "clean"
 ```
 
-`signals run examples/first_steps.sig` prints the SNR before and after: 10 and 19 dB. The full format is in [docs/user/sig-format.en.md](docs/user/sig-format.en.md), every block with its ports and parameters in [docs/user/blocks.en.md](docs/user/blocks.en.md), more examples in [examples/](examples/). A VS Code extension with highlighting and completion is in [editors/vscode](editors/vscode).
+`signals run examples/first_steps.sig` prints the SNR before and after: 10 and 19 dB. The full format is in [docs/user/sig-format.en.md](docs/user/sig-format.en.md), every block with its ports and parameters in [docs/user/blocks.en.md](docs/user/blocks.en.md), more examples in [examples/](examples/). A VS Code extension with highlighting, completion and a live preview of the run is in [editors/vscode](editors/vscode).
+
+## Signals and Python
+
+```bash
+signals python examples/first_steps.sig
+python examples/first_steps.py
+```
+
+The command writes `first_steps.py` and the data file `first_steps.npz`. The script needs only numpy, scipy and PyWavelets and repeats the graph node by node, each node under its `.sig` line; where pywt or scipy give the same numbers it calls them. At the end it checks every probe and every report field against the program and prints the difference: up to 10⁻¹², or up to the recorded tolerance of a few blocks. With `-o lesson.ipynb` the same comes as a Jupyter notebook with a plot after every probe; in the Pipeline tab `P` does it for the open graph.
+
+Signals and numpy also exchange files: `signals run --npz`, `signals dwt -o out.npz`, the `export` blocks and the plots write `.npy` and `.npz`, and the `wav` block and the Signal tab read them. The coefficient keys are those of pywt. Details are in [docs/user/python.en.md](docs/user/python.en.md).
 
 ## Learning path
 
@@ -223,6 +235,7 @@ A course of your own uses the same files as the built-in one and is checked with
 | [docs/user/blocks.en.md](docs/user/blocks.en.md) | the pipeline block reference, generated from the registry |
 | [docs/user/sig-format.en.md](docs/user/sig-format.en.md) | the `.sig` pipeline file format |
 | [docs/user/learn.en.md](docs/user/learn.en.md) | the learning path: tasks, variants, report, your own course |
+| [docs/user/python.en.md](docs/user/python.en.md) | `.npy` and `.npz`, the script and the notebook from a graph, the check and its tolerances |
 | [docs/user/config.en.md](docs/user/config.en.md) | the settings folder, program files, environment variables |
 | [examples/prak1](examples/prak1) | a sample lab: a notebook and the same tasks done in Signals (in Russian) |
 | [docs/03-design.md](docs/03-design.md) | the design document: goals, architecture, milestones (in Russian) |
@@ -230,7 +243,7 @@ A course of your own uses the same files as the built-in one and is checked with
 
 ## Status
 
-Milestones M0–M10 are done (M7 without pixel formulas): the filter bank core, audio and the command line, the interface with all nine tabs, theory inside the interface, `.sig` pipelines, adaptive filters, pitch and time, synchrosqueezing and DTCWT, the learning path and the one-command install. The core matches PyWavelets on all 106 wavelets and 9 boundary modes; the classic filters match scipy. Next is a bridge to Python: export to `.npy` and a pywt/scipy script generated from a `.sig` graph. Versions follow milestones: M9 is 0.8.0, M10 and M11 are 0.9.0; the history is in [CHANGELOG.md](CHANGELOG.md).
+Milestones M0–M11 are done (M7 without pixel formulas): the filter bank core, audio and the command line, the interface with all nine tabs, theory inside the interface, `.sig` pipelines, adaptive filters, pitch and time, synchrosqueezing and DTCWT, the learning path, the one-command install and the bridge to Python. The core matches PyWavelets on all 106 wavelets and 9 boundary modes; the classic filters match scipy, and the script generated for the graph of every block agrees with the program. Versions follow milestones: M9 is 0.8.0, M10 and M11 are 0.9.0; the history is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Development
 

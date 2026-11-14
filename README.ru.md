@@ -28,7 +28,7 @@ Homebrew, на macOS и Linux:
 brew install VIA-s-acc/signals/signals
 ```
 
-Скрипт берёт сборку последнего выпуска, сверяет её контрольную сумму и ставит программу в домашнюю папку, без `sudo`: `~/.local/bin/signals` на macOS и Linux, `%LOCALAPPDATA%\Programs\signals` на Windows. Заодно он кладёт man-страницу и дополнение команд для bash и fish, а для zsh печатает строку, которую нужно добавить в `~/.zshrc`. Повторный запуск обновляет программу. Версию и папку можно выбрать: `… | sh -s -- --version v0.8.0 --dir ~/bin`; на Windows — переменными `SIGNALS_VERSION` и `SIGNALS_INSTALL_DIR`.
+Скрипт берёт сборку последнего выпуска, сверяет её контрольную сумму и ставит программу в домашнюю папку, без `sudo`: `~/.local/bin/signals` на macOS и Linux, `%LOCALAPPDATA%\Programs\signals` на Windows. Заодно он кладёт man-страницу и дополнение команд для bash и fish, а для zsh печатает строку, которую нужно добавить в `~/.zshrc`. Повторный запуск обновляет программу. Версию и папку можно выбрать: `… | sh -s -- --version v0.9.0 --dir ~/bin`; на Windows — переменными `SIGNALS_VERSION` и `SIGNALS_INSTALL_DIR`.
 
 ### Вручную
 
@@ -129,7 +129,7 @@ DWT, SWT, MODWT и DTCWT сигнала: подполосы, MRA, плитки �
 
 ![Вкладка «Конвейер»](docs/images/ru/pipeline.svg)
 
-Редактор графов `.sig` из 136 блоков: граф раскладывается сам, у каждого узла видно время и память последнего запуска, щупы показывают сигнал, спектр или числа.
+Редактор графов `.sig` из 137 блоков: граф раскладывается сам, у каждого узла видно время и память последнего запуска, щупы показывают сигнал, спектр или числа.
 
 ![Прогон примера и переключение щупов](docs/images/ru/pipeline-run.svg)
 
@@ -166,10 +166,11 @@ DWT, SWT, MODWT и DTCWT сигнала: подполосы, MRA, плитки �
 | `signals resample <файл>` | ↓M или ↑M с фильтром Кайзера |
 | `signals dwt <файл>` | многоуровневое DWT: коэффициенты в JSON, полосы — в WAV |
 | `signals denoise <файл>` | шумоподавление вейвлет-порогом |
-| `signals run <файл.sig>` | прогнать конвейер; `--set`, `-o`, `--probe-dir`, `--report`, `--values N`, `--watch`, `--json` |
+| `signals run <файл.sig>` | прогнать конвейер; `--set`, `-o`, `--probe-dir`, `--npz`, `--report`, `--values N`, `--watch`, `--json` |
+| `signals python <файл.sig>` | скрипт на numpy, scipy и PyWavelets или тетрадь Jupyter, которые повторяют граф и сверяют каждое число с программой |
 | `signals sweep <файл.sig>` | серия прогонов по параметру узла |
 | `signals graph <файл.sig>` | нарисовать граф текстом |
-| `signals blocks`, `signals explain <блок>` | справочник блоков конвейера, описание одного блока |
+| `signals blocks`, `signals explain <блок>` | справочник блоков конвейера, описание одного блока с его Python-формой; `--json` |
 | `signals learn …` | учебный путь: `list`, `show`, `start`, `check`, `hint`, `solution`, `variant`, `report`, `lint` |
 | `signals completions bash\|zsh\|fish` | скрипт дополнения команд для оболочки |
 | `signals man` | man-страница в формате roff |
@@ -199,7 +200,18 @@ probe noisy as "noisy"
 probe idwt as "clean"
 ```
 
-`signals run examples/first_steps.sig` печатает SNR до и после: 10 и 19 дБ. Формат целиком — в [docs/user/sig-format.md](docs/user/sig-format.md), все блоки с портами и параметрами — в [docs/user/blocks.md](docs/user/blocks.md), остальные примеры — в [examples/](examples/). Расширение для VS Code с подсветкой и подсказками лежит в [editors/vscode](editors/vscode).
+`signals run examples/first_steps.sig` печатает SNR до и после: 10 и 19 дБ. Формат целиком — в [docs/user/sig-format.md](docs/user/sig-format.md), все блоки с портами и параметрами — в [docs/user/blocks.md](docs/user/blocks.md), остальные примеры — в [examples/](examples/). Расширение для VS Code с подсветкой, подсказками и живым предпросмотром прогона лежит в [editors/vscode](editors/vscode).
+
+## Signals и Python
+
+```bash
+signals python examples/first_steps.sig
+python examples/first_steps.py
+```
+
+Команда пишет `first_steps.py` и файл данных `first_steps.npz`. Скрипту нужны только numpy, scipy и PyWavelets; он повторяет граф узел за узлом, каждый узел — под своей строкой `.sig`, и там, где pywt или scipy дают те же числа, вызывает их. В конце он сверяет каждый щуп и каждое поле отчёта с программой и печатает расхождение: до 10⁻¹², у нескольких блоков — до записанного допуска. С `-o lesson.ipynb` то же выходит тетрадью Jupyter с графиком после каждого щупа, а в «Конвейере» это делает `P` для открытого графа.
+
+Signals и numpy обмениваются и файлами: `signals run --npz`, `signals dwt -o out.npz`, блоки `export` и графики пишут `.npy` и `.npz`, а блок `wav` и вкладка «Сигнал» их читают. Ключи коэффициентов — как у pywt. Подробности — в [docs/user/python.md](docs/user/python.md).
 
 ## Учебный путь
 
@@ -223,6 +235,7 @@ signals learn report -o report.md
 | [docs/user/blocks.md](docs/user/blocks.md) | справочник блоков конвейера — генерируется из реестра |
 | [docs/user/sig-format.md](docs/user/sig-format.md) | формат файла конвейера `.sig` |
 | [docs/user/learn.md](docs/user/learn.md) | учебный путь: задания, варианты, отчёт, свой курс |
+| [docs/user/python.md](docs/user/python.md) | `.npy` и `.npz`, скрипт и тетрадь по графу, сверка и её допуски |
 | [docs/user/config.md](docs/user/config.md) | папка настроек, файлы программы, переменные окружения |
 | [examples/prak1](examples/prak1) | пример учебной работы: ноутбук и те же задания в Signals |
 | [docs/03-design.md](docs/03-design.md) | проектный документ: цели, архитектура, этапы |
@@ -230,7 +243,7 @@ signals learn report -o report.md
 
 ## Состояние
 
-Готовы этапы M0–M10 (у M7 нет пиксельных формул): ядро банков фильтров, звук и командная строка, интерфейс со всеми девятью вкладками, теория в интерфейсе, конвейеры `.sig`, адаптивные фильтры, тон и время, синхросжатие и DTCWT, учебный путь и лёгкая установка. Ядро совпадает с PyWavelets на всех 106 вейвлетах и 9 режимах границ, классические фильтры — со scipy. Следующий этап — мост в Python: экспорт в `.npy` и скрипт на pywt и scipy по графу `.sig`. Версии идут за этапами: M9 — 0.8.0, M10 и M11 — 0.9.0; история — в [CHANGELOG.md](CHANGELOG.md).
+Готовы этапы M0–M11 (у M7 нет пиксельных формул): ядро банков фильтров, звук и командная строка, интерфейс со всеми девятью вкладками, теория в интерфейсе, конвейеры `.sig`, адаптивные фильтры, тон и время, синхросжатие и DTCWT, учебный путь, лёгкая установка и мост в Python. Ядро совпадает с PyWavelets на всех 106 вейвлетах и 9 режимах границ, классические фильтры — со scipy, а скрипт по графу каждого блока сходится с программой. Версии идут за этапами: M9 — 0.8.0, M10 и M11 — 0.9.0; история — в [CHANGELOG.md](CHANGELOG.md).
 
 ## Разработка
 
