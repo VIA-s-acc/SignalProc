@@ -135,7 +135,7 @@ TEST_CASE("signals python writes the script and its data", "[py-script]") {
 
 TEST_CASE("only the blocks of the tolerance table weaken tolerance", "[py-script]") {
     const std::map<std::string, double> table{{"iir", 1e-8},        {"remez", 1e-8},     {"firls", 1e-10},         {"lms", 1e-10},        {"sst_band", 1e-10},
-                                              {"sst_ridge", 1e-10}, {"cepstrum", 1e-9}, {"time_stretch", 1e-9}, {"pitch_shift", 1e-9}};
+                                              {"sst_ridge", 1e-10}, {"cepstrum", 1e-9}, {"time_stretch", 1e-9}, {"pitch_shift", 1e-9}, {"inst_freq", 1e-7}};
     for (const auto& f : python::py_forms()) {
         INFO(f.block);
         if (f.tol == 1e-12) continue;
