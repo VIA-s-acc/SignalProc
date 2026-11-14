@@ -177,7 +177,9 @@ core::Result<WavFile> read_array_audio(const std::filesystem::path& path, const 
     return at(path, {Errc::invalid_argument, "not an .npy or .npz file"});
 }
 
-core::Result<WavInfo> probe_array_audio(const std::filesystem::path& path) {
+bool is_array_audio(const std::filesystem::path& path) { return kind_of(path) != Kind::other; }
+
+core::Result<WavInfo> probe_array_audio(const std::filesystem::path& path, const std::string& key) {
     const auto k = kind_of(path);
     if (k == Kind::npy) {
         const auto h = probe_npy(path, kAudioLimits);
@@ -191,7 +193,7 @@ core::Result<WavInfo> probe_array_audio(const std::filesystem::path& path) {
     if (k == Kind::npz) {
         const auto members = probe_npz(path, kAudioLimits);
         if (!members) return std::unexpected{members.error()};
-        const auto picked = pick(*members, "");
+        const auto picked = pick(*members, key);
         if (!picked) return at(path, picked.error());
         const auto l = layout_of(picked->second.shape, picked->second.text);
         if (!l) return at(path, l.error());

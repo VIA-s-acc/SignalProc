@@ -250,7 +250,9 @@ core::Result<Coeffs> coeffs_from_entries(const io::NpzEntries& e, const CoeffsHi
     for (const auto& r : parts)
         for (const auto& part : r) bound += part.length;
     std::size_t length = 0;
-    if (const auto given = number_of(e, "length")) {
+    const auto given = number_of(e, "length");
+    if (!given && c.transform == "wpt") return fail("a wavelet packet file needs 'length', the length of the original signal");
+    if (given) {
         if (!std::isfinite(*given) || *given < 0 || std::floor(*given) != *given || *given > static_cast<double>(bound))
             return fail("length " + std::to_string(*given) + " does not fit the bands: expected a whole number up to " + std::to_string(bound));
         length = static_cast<std::size_t>(*given);
@@ -272,7 +274,7 @@ core::Result<Coeffs> coeffs_from_entries(const io::NpzEntries& e, const CoeffsHi
             b.bands.push_back(std::move(band));
         }
         c.channels.push_back(std::move(b));
-        c.lengths.push_back(length);
+        if (given) c.lengths.push_back(length);
     }
     return c;
 }

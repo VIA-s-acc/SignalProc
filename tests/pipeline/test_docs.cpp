@@ -28,7 +28,7 @@ TEST_CASE("the block reference lists every block with its ports and parameters",
     for (const char* id : {"`gain`", "`lift53`", "`xcorr`", "`export`", "`denoise`"}) CHECK(md.find(id) != std::string::npos);
     CHECK(md.find("Усиление") != std::string::npos);
     CHECK(md.find("`levels` = 4 (1…30)") != std::string::npos);
-    CHECK(md.find("`format` = csv (csv, json)") != std::string::npos);
+    CHECK(md.find("`format` = csv (csv, json, npy)") != std::string::npos);
     const signals::LanguageScope en{signals::Language::en};
     CHECK(signals::pipeline::blocks_markdown().find("Gain") != std::string::npos);
 }

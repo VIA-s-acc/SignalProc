@@ -4,7 +4,9 @@
 
 #include "core/design/families.hpp"
 #include "core/packets.hpp"
+#include "io/npy.hpp"
 #include "pipeline/blocks_common.hpp"
+#include "pipeline/npz_values.hpp"
 
 namespace signals::pipeline {
 namespace {
@@ -150,9 +152,40 @@ Out coeff_quantize(const RunContext& ctx, std::span<const Value> in, const Param
     return one(std::move(c));
 }
 
+Out coeffs_file(const RunContext& ctx, std::span<const Value>, const Params& p) {
+    auto path = utf8_path(param_text(p, "path"));
+    if (path.is_relative()) path = ctx.base_dir / path;
+    const auto entries = io::read_npz(path);
+    if (!entries) return std::unexpected{entries.error()};
+    const double rate = param_real(p, "rate");
+    auto c = coeffs_from_entries(*entries, {param_text(p, "wavelet"), param_text(p, "mode"), rate > 0 ? std::optional<double>{rate} : std::nullopt});
+    if (!c) return fail(tr("pipeline.error.coeffs_file"), fmt::arg("path", path.string()), fmt::arg("message", c.error().message));
+    if (!(c->rate > 0)) return fail(tr("pipeline.error.coeffs_file_rate"), fmt::arg("path", path.string()));
+    const auto* inverse = find_block_type(inverse_of(c->transform));
+    if (!inverse) return fail(tr("pipeline.error.coeffs_file"), fmt::arg("path", path.string()), fmt::arg("message", c->transform));
+    const auto params = resolve_params(*inverse, {});
+    if (!params) return std::unexpected{params.error()};
+    const std::vector<Value> trial{Value{*c}};
+    const auto ok = inverse->run(ctx, trial, *params);
+    if (!ok) return fail(tr("pipeline.error.coeffs_file_bands"), fmt::arg("path", path.string()), fmt::arg("wavelet", c->wavelet), fmt::arg("message", ok.error().message));
+    if (c->lengths.empty()) {
+        const auto& y = std::get<core::AudioBuffer>(ok->front());
+        for (std::size_t i = 0; i < c->channels.size() && i < y.channels.size(); ++i) {
+            c->lengths.push_back(y.channels[i].size());
+            c->channels[i].original_length = y.channels[i].size();
+        }
+    }
+    return std::vector<Value>{std::move(*c)};
+}
+
 }  // namespace
 
 void register_coeff_blocks(std::vector<BlockType>& out) {
+    out.push_back(checked({"coeffs_file",
+                           {},
+                           kCoeffsOut,
+                           {{"path", Kind::path, ""}, {"wavelet", Kind::text, ""}, {"mode", Kind::text, ""}, {"rate", Kind::real, "0", {}, 0, 1e7}},
+                           coeffs_file}));
     out.push_back(checked({"polyphase", kIn, {{"even", PortType::signal}, {"odd", PortType::signal}}, {}, [](const RunContext&, std::span<const Value> in, const Params&) {
                                return polyphase(in);
                            }}));

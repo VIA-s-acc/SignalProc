@@ -4,7 +4,7 @@
 
 | Блок | Название | Что делает | Входы | Выходы | Параметры |
 |---|---|---|---|---|---|
-| `wav` | Аудиофайл | Читает звуковой файл WAV, FLAC или MP3 со всеми каналами и его частотой дискретизации; формат определяется по содержимому, а не по расширению | — | `out`: signal | `path` = — |
+| `wav` | Аудиофайл | Читает звуковой файл WAV, FLAC или MP3 или массив NumPy .npy/.npz со всеми каналами и частотой дискретизации; формат определяется по содержимому, а не по расширению | — | `out`: signal | `path` = —; `rate` = 0 (0…1e+07); `key` = — |
 | `samples` | Отсчёты | Сигнал из списка чисел, введённых вручную; каналы разделяются чертой \| | — | `out`: signal | `values` = 4 6 10 12 8 6 5 5; `rate` = 8 (1…768000) |
 | `add` | Сумматор ⊕ | Складывает или вычитает два сигнала поотсчётно; короткий дополняется нулями | `a`: signal; `b`: signal | `out`: signal | `op` = add (add, sub) |
 | `gen` | Генератор | Тестовые сигналы: тон, свип, импульс, шум, сигналы Донохо–Джонстона | — | `out`: signal | `kind` = sine (sine, sweep, impulse, step, white, pink, harmonics, doppler, blocks, bumps, heavisine); `freq` = 440; `f1` = 8000; `amplitude` = 1; `rate` = 44100 (1…768000); `duration` = 1 (0…3600); `seed` = 1; `channels` = 1 (1…64) |
@@ -42,8 +42,8 @@
 | `denoise` | Шумоподавление | Вейвлет-шумоподавление: DWT, порог по деталям, обратное DWT | `in`: signal | `out`: signal | `wavelet` = sym8; `levels` = 0 (0…32); `rule` = bayes (bayes, visu, sure, minimax); `mode` = soft (soft, hard); `shifts` = 1 (1…64) |
 | `thd` | THD | Отчёт: основная частота и коэффициент гармонических искажений THD | `in`: signal | `report`: report | `harmonics` = 5 (2…20) |
 | `onsets` | Онсеты | Отчёт: моменты атак (онсетов) по спектральному потоку, в секундах | `in`: signal | `report`: report | `n` = 1024 (64…65536); `hop` = 256 (1…65536) |
-| `export` | Выгрузка CSV / JSON | Сохраняет отсчёты в CSV или JSON и выдаёт отчёт о записи | `in`: signal | `report`: report | `path` = out.csv; `format` = csv (csv, json) |
-| `export_report` | Выгрузка отчёта | Сохраняет поля входного отчёта в CSV или JSON | `in`: report | `report`: report | `path` = report.json; `format` = json (csv, json) |
+| `export` | Выгрузка CSV / JSON / NPY | Сохраняет отсчёты в CSV, JSON или .npy и выдаёт отчёт о записи | `in`: signal | `report`: report | `path` = out.csv; `format` = csv (csv, json, npy) |
+| `export_report` | Выгрузка отчёта | Сохраняет поля входного отчёта в CSV, JSON или .npz | `in`: report | `report`: report | `path` = report.json; `format` = json (csv, json, npz) |
 | `check` | Проверка | Сравнивает сигнал с эталоном ref и сообщает, пройдена ли проверка | `ref`: signal; `in`: signal | `report`: report | `kind` = pr (pr, error, snr); `tol` = 1e-12; `delay` = 0 |
 | `wav_out` | Запись | Записывает сигнал в WAV-файл и сообщает число обрезанных отсчётов | `in`: signal | `report`: report | `path` = out.wav; `bits` = 24 (16, 24, 32, f32); `dither` = tpdf (none, tpdf); `seed` = 24301 |
 | `listen` | Прослушивание | Точка прослушивания: подключённый сигнал можно проиграть из редактора | `in`: signal | — | — |
@@ -110,6 +110,7 @@
 | `hilbert` | Преобразование Гильберта | Мнимая часть или фаза аналитического сигнала, как scipy hilbert | `in`: signal | `out`: signal | `output` = imag (imag, phase, unwrapped) |
 | `remez` | Равноволновой КИХ-фильтр (Ремез) | Синтез минимаксного КИХ-фильтра (Паркс — Макклеллан), как scipy remez, и фильтрация | `in`: signal | `out`: signal | `numtaps` = 63 (3…4095); `bands` = 0 1000 1500 nyquist; `desired` = 1 0; `weight` = —; `type` = bandpass (bandpass, differentiator, hilbert); `compensate` = no (no, yes) |
 | `firls` | КИХ-фильтр по методу наименьших квадратов | Синтез КИХ-фильтра методом наименьших квадратов, как scipy firls, и фильтрация | `in`: signal | `out`: signal | `numtaps` = 63 (1…4095); `bands` = 0 1000 1500 nyquist; `desired` = 1 1 0 0; `weight` = —; `compensate` = no (no, yes) |
+| `coeffs_file` | Коэффициенты из файла | Читает коэффициенты из .npz, записанного Signals или pywt: ключи cA3, cD3…cD1 или пути пакетов, вейвлет и режим из файла или из параметров | — | `coeffs`: coeffs | `path` = —; `wavelet` = —; `mode` = —; `rate` = 0 (0…1e+07) |
 | `polyphase` | Полифазное разложение | Делит сигнал на полифазные компоненты x[2n] и x[2n+1] с вдвое меньшей частотой | `in`: signal | `even`: signal; `odd`: signal | — |
 | `ipolyphase` | Полифазная сборка | Чередует even и odd обратно в один сигнал с вдвое большей частотой | `even`: signal; `odd`: signal | `out`: signal | — |
 | `wpt` | Пакеты вейвлетов | Разложение на пакеты вейвлетов: делятся и детали, на выходе выбранный базис | `in`: signal | `coeffs`: coeffs | `wavelet` = db2; `levels` = 3 (1…16); `basis` = best (best, full, dwt); `ext` = symmetric (symmetric, periodization, zero, constant, smooth, periodic, reflect, antisymmetric, antireflect) |
@@ -146,6 +147,8 @@
 ### `wav` — Аудиофайл
 
 - `path` — Путь к файлу; относительный путь отсчитывается от папки конвейера
+- `rate` — Частота дискретизации массива .npy или .npz без ключа rate, Гц; 0 — взять из файла
+- `key` — Какой массив взять из .npz; пусто — x или единственный массив
 
 ### `samples` — Отсчёты
 
@@ -364,12 +367,13 @@
 - `n` — Длина окна БПФ, отсч.: больше — точнее по частоте, грубее по времени
 - `hop` — Шаг окна, отсч.: меньше — точнее моменты атак, но дольше расчёт
 
-### `export` — Выгрузка CSV / JSON
+### `export` — Выгрузка CSV / JSON / NPY
 
 - `path` — Путь к файлу; относительный путь отсчитывается от папки конвейера
 - `format` — Формат файла
   - `csv` — таблица: столбец n и по столбцу ch0, ch1… на канал
   - `json` — объект {rate, channels: [[…], …]}: частота и массивы каналов
+  - `npy` — массив NumPy: (N,) для одного канала, (C, N) для нескольких; np.load читает его без потерь
 
 ### `export_report` — Выгрузка отчёта
 
@@ -377,6 +381,7 @@
 - `format` — Формат файла
   - `csv` — две колонки field,value, по строке на поле
   - `json` — объект с полями passed и fields (имя → значение)
+  - `npz` — архив NumPy: по ключу на поле, passed и порядок полей в fields
 
 ### `check` — Проверка
 
@@ -778,6 +783,13 @@
 - `compensate` — Убирать ли задержку в (N−1)/2 отсчётов у фильтра из N отводов
   - `no` — выход отстаёт на (N−1)/2 отсч., как у настоящего причинного фильтра
   - `yes` — выход сдвинут назад на (N−1)/2 и выровнен по времени со входом
+
+### `coeffs_file` — Коэффициенты из файла
+
+- `path` — Путь к файлу .npz; относительный путь отсчитывается от папки конвейера
+- `wavelet` — Вейвлет, если в файле нет ключа wavelet (файл записан вручную или pywt)
+- `mode` — Режим продолжения, если в файле нет ключа mode, в обозначениях pywt
+- `rate` — Частота дискретизации исходного сигнала, если в файле нет ключа rate, Гц; 0 — взять из файла
 
 ### `wpt` — Пакеты вейвлетов
 

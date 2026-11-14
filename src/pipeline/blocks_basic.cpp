@@ -7,6 +7,7 @@
 #include "core/signal_ops.hpp"
 #include "i18n/i18n.hpp"
 #include "io/audio_file.hpp"
+#include "io/npy_audio.hpp"
 #include "io/generators.hpp"
 #include "io/wav.hpp"
 #include "pipeline/block.hpp"
@@ -38,8 +39,23 @@ const std::vector<PortSpec> kOneOut{{"out", PortType::signal}};
 }  // namespace
 
 void register_basic_blocks(std::vector<BlockType>& out) {
-    out.push_back({"wav", {}, kOneOut, {{"path", Kind::path, ""}}, [](const RunContext& ctx, std::span<const Value>, const Params& p) -> Out {
+    out.push_back({"wav", {}, kOneOut, {{"path", Kind::path, ""}, {"rate", Kind::real, "0", {}, 0, 1e7}, {"key", Kind::text, ""}},
+                   [](const RunContext& ctx, std::span<const Value>, const Params& p) -> Out {
                        const auto path = resolve(ctx, param_text(p, "path"));
+                       const double rate = param_real(p, "rate");
+                       const auto& key = param_text(p, "key");
+                       if (io::is_array_audio(path)) {
+                           const auto info = io::probe_array_audio(path, key);
+                           if (!info) return std::unexpected{info.error()};
+                           if (static_cast<double>(info->frames) * info->channels > kMaxSamples)
+                               return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.file_too_long")), fmt::arg("path", path.string()),
+                                                                                                 fmt::arg("frames", info->frames), fmt::arg("channels", info->channels)));
+                           auto file = io::read_array_audio(path, {rate > 0 ? std::optional<double>{rate} : std::nullopt, key});
+                           if (!file) return std::unexpected{file.error()};
+                           return std::vector<Value>{std::move(file->audio)};
+                       }
+                       if (rate > 0 || !key.empty())
+                           return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.wav_array_only")), fmt::arg("path", path.string())));
                        if (const auto info = io::probe_audio(path); info && static_cast<double>(info->frames) * info->channels > kMaxSamples)
                            return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.error.file_too_long")), fmt::arg("path", path.string()),
                                                                                              fmt::arg("frames", info->frames), fmt::arg("channels", info->channels)));

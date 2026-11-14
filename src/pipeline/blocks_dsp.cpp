@@ -24,6 +24,9 @@
 #include "io/wav.hpp"
 #include "pipeline/block.hpp"
 #include "pipeline/blocks_common.hpp"
+#include "pipeline/npz_values.hpp"
+#include "io/npy_audio.hpp"
+#include "io/npy.hpp"
 
 namespace signals::pipeline {
 namespace {
@@ -569,11 +572,20 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"export",
                    kSignalIn,
                    kReportOut,
-                   {{"path", Kind::path, "out.csv"}, {"format", Kind::choice, "csv", {"csv", "json"}}},
+                   {{"path", Kind::path, "out.csv"}, {"format", Kind::choice, "csv", {"csv", "json", "npy"}}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                        constexpr std::size_t kChunk = std::size_t{1} << 16;
                        const auto path = output_path(ctx, p);
                        const auto& a = in_audio(in);
+                       if (param_text(p, "format") == "npy") {
+                           const auto entries = io::signal_entries(a);
+                           if (auto w = io::write_npy(path, entries.front().second); !w) return std::unexpected{w.error()};
+                           std::error_code ec;
+                           const auto size = std::filesystem::file_size(path, ec);
+                           Report r;
+                           r.fields = {{"path", path.string()}, {"bytes", ec ? 0.0 : static_cast<double>(size)}};
+                           return std::vector<Value>{std::move(r)};
+                       }
                        StreamFile file{path};
                        if (!file.open()) return core::make_error(core::Errc::io_error, "cannot write file: " + path.string());
                        std::string text;
@@ -618,10 +630,18 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"export_report",
                    {{"in", PortType::report}},
                    kReportOut,
-                   {{"path", Kind::path, "report.json"}, {"format", Kind::choice, "json", {"csv", "json"}}},
+                   {{"path", Kind::path, "report.json"}, {"format", Kind::choice, "json", {"csv", "json", "npz"}}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                        const auto path = output_path(ctx, p);
                        const auto& report = std::get<Report>(in[0]);
+                       if (param_text(p, "format") == "npz") {
+                           if (auto w = io::write_npz(path, report_entries(report)); !w) return std::unexpected{w.error()};
+                           std::error_code ec;
+                           const auto size = std::filesystem::file_size(path, ec);
+                           Report r;
+                           r.fields = {{"path", path.string()}, {"bytes", ec ? 0.0 : static_cast<double>(size)}};
+                           return std::vector<Value>{std::move(r)};
+                       }
                        std::string text;
                        auto value = [](const std::variant<double, std::string>& v, bool json) {
                            if (const auto* d = std::get_if<double>(&v)) return number(*d);
