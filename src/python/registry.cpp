@@ -10,6 +10,7 @@ namespace {
 
 std::vector<PyForm> build() {
     std::vector<PyForm> out;
+    register_basic_forms(out);
     return out;
 }
 

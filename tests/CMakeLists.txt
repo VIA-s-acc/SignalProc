@@ -153,6 +153,7 @@ add_executable(signals_tests
   test_i18n_keys.cpp
   test_readme.cpp
   python/test_forms.cpp
+  python/test_script.cpp
   support/golden.cpp
   support/banks.cpp
 )

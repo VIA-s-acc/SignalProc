@@ -23,6 +23,7 @@
 #include "io/npy.hpp"
 #include "io/npy_audio.hpp"
 #include "pipeline/npz_values.hpp"
+#include "python/script.hpp"
 #include "pipeline/sweep.hpp"
 #include "svg/svg.hpp"
 #include "i18n/i18n.hpp"
@@ -588,7 +589,54 @@ private:
 
 }  // namespace
 
+class PythonCommand final : public Command {
+public:
+    explicit PythonCommand(CLI::App& app) : sub_{app.add_subcommand("python", tr("cli.python.description"))} {
+        sub_->add_option("file", file_, tr("cli.run.file"))->required();
+        sub_->add_option("-o,--output", output_, tr("cli.python.output"));
+        sub_->add_option("--set", sets_, tr("cli.run.set"));
+    }
+    bool parsed() const override { return sub_->parsed(); }
+
+    int run(std::ostream& out, std::ostream& err) override {
+        const std::filesystem::path file{file_};
+        auto doc = load(file, err);
+        if (!doc) return 1;
+        for (const auto& s : sets_)
+            if (auto ok = pipeline::apply_set(*doc, s); !ok) return report_error(err, ok.error()), 1;
+        auto target = output_.empty() ? std::filesystem::path{file}.replace_extension(".py") : pipeline::utf8_path(output_);
+        if (target.extension() == ".ipynb") {
+            err << tr("python.notebook_later") << '\n';
+            return 2;
+        }
+        auto graph = pipeline::build_graph(*doc, std::filesystem::absolute(file).parent_path());
+        if (!graph) return sig_error(err, file, graph.error());
+        std::ifstream in{file, std::ios::binary};
+        const std::string source{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+        core::CancelToken cancel;
+        const python::ScriptOptions options{python::ScriptKind::script, target, file, source};
+        const auto script = python::build_script(*doc, *graph, options, cancel);
+        if (!script) return report_error(err, script.error()), 1;
+        auto data = target;
+        data.replace_extension(".npz");
+        if (auto ok = io::write_file_atomic(target, script->text); !ok) return report_error(err, ok.error()), 1;
+        if (auto ok = io::write_npz(data, script->data); !ok) return report_error(err, ok.error()), 1;
+        const auto name = [](const std::filesystem::path& p) {
+            const auto u = p.filename().u8string();
+            return std::string{u.begin(), u.end()};
+        };
+        out << fmt::format(fmt::runtime(tr("python.written")), fmt::arg("script", name(target)), fmt::arg("data", name(data))) << '\n';
+        return 0;
+    }
+
+private:
+    CLI::App* sub_;
+    std::string file_, output_;
+    std::vector<std::string> sets_;
+};
+
 void add_pipeline_commands(CLI::App& app, Commands& commands) {
+    commands.push_back(std::make_unique<PythonCommand>(app));
     commands.push_back(std::make_unique<RunCommand>(app));
     commands.push_back(std::make_unique<GraphCommand>(app));
     commands.push_back(std::make_unique<SweepCommand>(app));

@@ -170,6 +170,17 @@ std::string Emitter::numbers(std::string key, std::span<const double> v) {
     return out + "]";
 }
 
+std::string Emitter::file(const std::filesystem::path& absolute) const {
+    if (preview_ || out_dir_.empty()) return "Path(" + py_str(std::string{reinterpret_cast<const char*>(absolute.filename().u8string().c_str())}) + ")";
+    const auto rel = absolute.lexically_relative(out_dir_);
+    const auto text = [](const std::filesystem::path& p) {
+        const auto u = p.generic_u8string();
+        return std::string{u.begin(), u.end()};
+    };
+    if (rel.empty()) return "Path(" + py_str(text(absolute)) + ")";
+    return "HERE / " + py_str(text(rel));
+}
+
 std::string Emitter::wavelet(std::string_view name) {
     import_line("import pywt");
     if (preview_ || !by_filter_bank().contains(name)) return py_str(name);

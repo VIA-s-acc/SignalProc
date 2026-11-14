@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <functional>
 #include <map>
 #include <set>
@@ -23,6 +24,7 @@ struct NodeIo {
     std::vector<std::string> in_fs;
     std::vector<const pipeline::Value*> in_values;
     std::vector<const pipeline::Value*> out_values;
+    std::filesystem::path base_dir = {};
 };
 
 struct FunctionFile {
@@ -51,6 +53,8 @@ public:
     std::string number(double v) const;
     std::string numbers(std::string key, std::span<const double> v);
     std::string wavelet(std::string_view name);
+    void set_out_dir(std::filesystem::path dir) { out_dir_ = std::move(dir); }
+    std::string file(const std::filesystem::path& absolute) const;
 
     bool preview() const { return preview_; }
     const std::vector<std::string>& imports() const { return imports_; }
@@ -62,6 +66,7 @@ public:
 private:
     bool preview_;
     std::string node_;
+    std::filesystem::path out_dir_;
     std::set<std::string, std::less<>> taken_;
     std::vector<std::string> imports_, functions_, missing_, prelude_;
     std::map<std::string, std::string, std::less<>> wavelets_;
@@ -78,5 +83,7 @@ std::span<const PyForm> py_forms();
 const PyForm* find_py_form(std::string_view block);
 core::Error unsupported(const NodeIo& io, std::string_view param);
 std::string python_preview(const pipeline::BlockType& t, const pipeline::Params& params);
+
+void register_basic_forms(std::vector<PyForm>& out);
 
 }  // namespace signals::python
