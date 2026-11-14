@@ -866,8 +866,8 @@ void PipelineScreen::save_probe() {
 
 void PipelineScreen::export_python() {
     if (!ui_.ask_text) return;
-    const auto& doc = model_->doc();
-    const auto stem = model_->path() ? utf8_name(model_->path()->stem()) : doc.name.empty() ? std::string{"graph"} : doc.name;
+    const auto& name = model_->doc().name;
+    const auto stem = model_->path() ? utf8_name(model_->path()->stem()) : name.empty() ? std::string{"graph"} : name;
     ui_.ask_text(tr("tui.pipeline.python.prompt"), stem + ".py", [this](std::string answer) {
         auto target = utf8_file(answer);
         if (target.is_relative()) target = model_->base_dir() / target;
