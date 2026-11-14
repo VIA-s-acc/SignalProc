@@ -360,10 +360,8 @@ private:
     mz_zip_reader_extract_iter_state* s_;
 };
 
-core::Result<NpArray> read_member(mz_zip_archive& zip, mz_uint index, std::uint64_t size, const NpLimits& limits) {
-    ExtractIter it{mz_zip_reader_extract_iter_new(&zip, index, 0)};
-    if (!it) return fail("cannot read: " + zip_error(zip));
-    std::string buf(static_cast<std::size_t>(std::min<std::uint64_t>(size, 12)), '\0');
+core::Result<Header> read_member_header(ExtractIter& it, std::uint64_t size, const NpLimits& limits, std::string& buf) {
+    buf.assign(static_cast<std::size_t>(std::min<std::uint64_t>(size, 12)), '\0');
     if (!it.fill(buf, 0)) return fail("truncated archive member");
     const auto byte = [&](std::size_t k) { return k < buf.size() ? static_cast<std::size_t>(static_cast<unsigned char>(buf[k])) : 0; };
     const std::size_t header = byte(6) == 1 ? 10 + (byte(8) | byte(9) << 8) : 12 + (byte(8) | byte(9) << 8 | byte(10) << 16 | byte(11) << 24);
@@ -371,7 +369,14 @@ core::Result<NpArray> read_member(mz_zip_archive& zip, mz_uint index, std::uint6
     const auto have = buf.size();
     buf.resize(static_cast<std::size_t>(std::min<std::uint64_t>(size, header)));
     if (buf.size() > have && !it.fill(buf, have)) return fail("truncated archive member");
-    const auto h = parse_header(buf, limits);
+    return parse_header(buf, limits);
+}
+
+core::Result<NpArray> read_member(mz_zip_archive& zip, mz_uint index, std::uint64_t size, const NpLimits& limits) {
+    ExtractIter it{mz_zip_reader_extract_iter_new(&zip, index, 0)};
+    if (!it) return fail("cannot read: " + zip_error(zip));
+    std::string buf;
+    const auto h = read_member_header(it, size, limits, buf);
     if (!h) return std::unexpected{h.error()};
     const auto total = h->data_offset + h->count * h->item();
     if (total > size) return fail("truncated .npy data: expected " + std::to_string(h->count) + " values");
@@ -493,7 +498,9 @@ core::Result<void> write_npz(const std::filesystem::path& path, const NpzEntries
     return write_file_atomic(path, bytes);
 }
 
-core::Result<NpzEntries> read_npz(const std::filesystem::path& path, const NpLimits& limits) {
+core::Result<NpzEntries> read_npz(const std::filesystem::path& path, const NpLimits& limits) { return read_npz(path, limits, {}); }
+
+core::Result<NpzEntries> read_npz(const std::filesystem::path& path, const NpLimits& limits, const std::vector<std::string>& only) {
     const auto bytes = read_file(path);
     if (!bytes) return std::unexpected{bytes.error()};
     ZipReader reader;
@@ -507,9 +514,55 @@ core::Result<NpzEntries> read_npz(const std::filesystem::path& path, const NpLim
         if (st.m_is_directory) continue;
         const std::string name = st.m_filename;
         if (!name.ends_with(".npy")) return at(path, core::Error{Errc::invalid_argument, "member '" + name + "' is not an .npy array"});
+        const auto key = name.substr(0, name.size() - 4);
+        if (!only.empty() && std::find(only.begin(), only.end(), key) == only.end()) continue;
         auto a = read_member(zip, i, st.m_uncomp_size, limits);
         if (!a) return at(path, core::Error{a.error().code, name + ": " + a.error().message});
-        out.emplace_back(name.substr(0, name.size() - 4), std::move(*a));
+        out.emplace_back(key, std::move(*a));
+    }
+    return out;
+}
+
+core::Result<NpHeader> probe_npy(const std::filesystem::path& path, const NpLimits& limits) {
+    std::ifstream in{path, std::ios::binary};
+    if (!in) return core::make_error(Errc::io_error, "cannot open " + utf8(path));
+    std::string buf(12, '\0');
+    in.read(buf.data(), static_cast<std::streamsize>(buf.size()));
+    buf.resize(static_cast<std::size_t>(in.gcount()));
+    const auto byte = [&](std::size_t k) { return k < buf.size() ? static_cast<std::size_t>(static_cast<unsigned char>(buf[k])) : 0; };
+    const std::size_t header = byte(6) == 1 ? 10 + (byte(8) | byte(9) << 8) : 12 + (byte(8) | byte(9) << 8 | byte(10) << 16 | byte(11) << 24);
+    if (header > kMaxHeader + 12) return at(path, core::Error{Errc::invalid_argument, ".npy header is too long"});
+    if (header > buf.size()) {
+        const auto have = buf.size();
+        buf.resize(header);
+        in.read(buf.data() + have, static_cast<std::streamsize>(header - have));
+        buf.resize(have + static_cast<std::size_t>(in.gcount()));
+    }
+    const auto h = parse_header(buf, limits);
+    if (!h) return at(path, h.error());
+    return NpHeader{h->shape, h->dtype.kind == 'U'};
+}
+
+core::Result<std::vector<std::pair<std::string, NpHeader>>> probe_npz(const std::filesystem::path& path, const NpLimits& limits) {
+    const auto bytes = read_file(path);
+    if (!bytes) return std::unexpected{bytes.error()};
+    ZipReader reader;
+    if (!reader.open(*bytes)) return at(path, core::Error{Errc::invalid_argument, "not an .npz archive: " + zip_error(reader.zip())});
+    auto& zip = reader.zip();
+    std::vector<std::pair<std::string, NpHeader>> out;
+    const auto n = mz_zip_reader_get_num_files(&zip);
+    for (mz_uint i = 0; i < n; ++i) {
+        mz_zip_archive_file_stat st;
+        if (!mz_zip_reader_file_stat(&zip, i, &st)) return at(path, core::Error{Errc::invalid_argument, zip_error(zip)});
+        if (st.m_is_directory) continue;
+        const std::string name = st.m_filename;
+        if (!name.ends_with(".npy")) return at(path, core::Error{Errc::invalid_argument, "member '" + name + "' is not an .npy array"});
+        ExtractIter it{mz_zip_reader_extract_iter_new(&zip, i, 0)};
+        if (!it) return at(path, core::Error{Errc::invalid_argument, name + ": cannot read: " + zip_error(zip)});
+        std::string buf;
+        const auto h = read_member_header(it, st.m_uncomp_size, limits, buf);
+        if (!h) return at(path, core::Error{h.error().code, name + ": " + h.error().message});
+        out.emplace_back(name.substr(0, name.size() - 4), NpHeader{h->shape, h->dtype.kind == 'U'});
     }
     return out;
 }

@@ -24,12 +24,20 @@ struct NpLimits {
 
 using NpzEntries = std::vector<std::pair<std::string, NpArray>>;
 
+struct NpHeader {
+    std::vector<std::size_t> shape;
+    bool text = false;
+};
+
 core::Result<std::string> encode_npy(const NpArray& a);
 core::Result<NpArray> decode_npy(std::string_view bytes, const NpLimits& limits = {});
 core::Result<void> write_npy(const std::filesystem::path& path, const NpArray& a);
 core::Result<NpArray> read_npy(const std::filesystem::path& path, const NpLimits& limits = {});
 core::Result<void> write_npz(const std::filesystem::path& path, const NpzEntries& entries);
 core::Result<NpzEntries> read_npz(const std::filesystem::path& path, const NpLimits& limits = {});
+core::Result<NpzEntries> read_npz(const std::filesystem::path& path, const NpLimits& limits, const std::vector<std::string>& only);
+core::Result<NpHeader> probe_npy(const std::filesystem::path& path, const NpLimits& limits = {});
+core::Result<std::vector<std::pair<std::string, NpHeader>>> probe_npz(const std::filesystem::path& path, const NpLimits& limits = {});
 
 NpArray np_scalar(double v);
 NpArray np_text(std::string s);

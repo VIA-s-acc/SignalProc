@@ -205,3 +205,27 @@ TEST_CASE("broken npy and npz give a readable error", "[npy]") {
     REQUIRE_FALSE(c);
     CHECK(c.error().message.find("cut.npz") != std::string::npos);
 }
+
+TEST_CASE("npy and npz headers are read without the data", "[npy]") {
+    const auto path = signals::test::temp_path("header-only.npy");
+    write_bytes(path, header_claiming("(2, 1000)"));
+    const auto h = probe_npy(path);
+    REQUIRE(h);
+    CHECK(h->shape == std::vector<std::size_t>{2, 1000});
+    CHECK_FALSE(h->text);
+    CHECK_FALSE(read_npy(path));
+    const auto members = probe_npz(npy_fixture("savez_compressed.npz"));
+    REQUIRE(members);
+    REQUIRE(members->size() == 3);
+    CHECK((*members)[0].first == "a");
+    CHECK((*members)[0].second.shape == std::vector<std::size_t>{2, 5});
+    CHECK((*members)[2].first == "name");
+    CHECK((*members)[2].second.text);
+}
+
+TEST_CASE("npz reads only the asked keys", "[npy]") {
+    const auto some = read_npz(npy_fixture("savez.npz"), {}, {"b", "missing"});
+    REQUIRE(some);
+    REQUIRE(some->size() == 1);
+    CHECK(some->front().first == "b");
+}
