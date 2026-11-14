@@ -72,10 +72,7 @@ Quantising one sample: scale, triangular dither, rounding and saturation.
 ```cpp
     for (std::size_t n = 0; n < x.size(); ++n) {
         double v = std::isfinite(x[n]) ? x[n] * scale : 0.0;
-        if (dither) {
-            const double d1 = uniform(rng), d2 = uniform(rng);
-            v += d1 - d2;
-        }
+        if (dither) v += tpdf.next();
         out[n] = std::clamp(std::nearbyint(v), -scale, scale - 1) / scale;
     }
 ```

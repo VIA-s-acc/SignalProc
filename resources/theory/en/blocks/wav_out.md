@@ -65,11 +65,7 @@ Quantization of one sample: scaling, TPDF dither, rounding and saturation with a
 
 ```cpp
         double v = x * scale_;
-        if (dither_) {
-            const double d1 = uniform_(rng_);
-            const double d2 = uniform_(rng_);
-            v += d1 - d2;
-        }
+        if (dither_) v += tpdf_.next();
         double q = std::round(v);
         if (q < -scale_) {
             q = -scale_;
