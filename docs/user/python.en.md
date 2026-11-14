@@ -58,7 +58,7 @@ signals python examples/first_steps.sig
 python examples/first_steps.py
 ```
 
-The command runs the graph like `signals run` does and writes a `first_steps.py` script and a `first_steps.npz` data file next to it. `-o` chooses the path, `--set node.param=value` changes parameters. A graph error gives the same text and exit code as `signals run`, and no file is written.
+The command runs the graph like `signals run` does and writes a `first_steps.py` script and a `first_steps.npz` data file next to it. `-o` chooses the path, `--set node.param=value` changes parameters. A graph error gives the same text and exit code as `signals run`, and no file is written. The script name cannot be the name of a Python module (`math.py`, `signal.py`, `numpy.py`): from the same folder Python would load the script instead of the module, so the command refuses such a name — choose another with `-o`.
 
 The script depends on numpy, scipy and PyWavelets only and follows the graph node by node: each node has its `.sig` line above it and a variable named after it. Where a block has a pywt or scipy function with the same numbers, the script calls it; the other blocks are short numpy functions at the top of the file. A signal in the script is a `(C, N)` array, coefficients are a list of bands as from `pywt.wavedec`, a report is a dict of fields.
 
@@ -83,6 +83,9 @@ By default `tol` = 10⁻¹². For a few blocks the library call gives the same n
 | `lms` | 10⁻¹⁰ | own function |
 | `sst_band`, `sst_ridge` | 10⁻¹⁰ | own function |
 | `cepstrum` | 10⁻⁹ | own function on `numpy.fft` |
+| `time_stretch`, `pitch_shift` | 10⁻⁹ | own function on `numpy.fft` |
+
+The phase vocoder of `time_stretch` and `pitch_shift` adds up the phase of every frame, so the last bit of the FFT grows with the length of the audio. And numpy's last bit depends on the build: the wheels for Apple Silicon compute the FFT with fused multiply-add (FMA), Signals without it. Ten seconds of audio give 5·10⁻¹²; the 10⁻⁹ tolerance covers about half an hour.
 
 A probe takes the weakest tolerance among the blocks upstream of it; the check table names the block that set it.
 

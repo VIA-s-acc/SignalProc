@@ -2896,6 +2896,7 @@
   "python.check.origin": "tolerance from",
   "python.nothing_to_check": "the graph has no probes, reports or outputs — there is nothing to check",
   "python.written": "wrote {script} and {data} · check: python {script}",
+  "python.module_name": "\"{name}.py\" has the name of a Python module: import {name} in this folder would load the script instead. Choose another name with -o",
   "python.notebook_later": "the .ipynb notebook comes in the next part of the milestone; write a .py for now",
   "python.listen": "listen:",
   "cli.python.description": "A numpy, scipy and pywt script for a .sig graph that checks every number against the program",

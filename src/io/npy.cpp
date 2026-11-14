@@ -495,7 +495,16 @@ core::Result<void> write_npz(const std::filesystem::path& path, const NpzEntries
         const auto bytes = encode_npy(array);
         if (!bytes) return bail(std::unexpected{bytes.error()});
         const auto member = key + ".npy";
-        if (!mz_zip_writer_add_mem(&zip, member.c_str(), bytes->data(), bytes->size(), MZ_NO_COMPRESSION)) return bail(fail(zip_error(zip)));
+        const auto read = [](void* opaque, mz_uint64 offset, void* out, std::size_t n) -> std::size_t {
+            const auto& from = *static_cast<const std::string*>(opaque);
+            if (offset >= from.size()) return 0;
+            n = std::min<std::size_t>(n, from.size() - offset);
+            std::memcpy(out, from.data() + offset, n);
+            return n;
+        };
+        if (!mz_zip_writer_add_read_buf_callback(&zip, member.c_str(), read, const_cast<std::string*>(&*bytes), bytes->size(), nullptr, nullptr, 0,
+                                                 static_cast<mz_uint>(MZ_NO_COMPRESSION) | static_cast<mz_uint>(MZ_ZIP_FLAG_WRITE_HEADER_SET_SIZE), nullptr, 0, nullptr, 0))
+            return bail(fail(zip_error(zip)));
     }
     void* buf = nullptr;
     std::size_t size = 0;

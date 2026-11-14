@@ -172,6 +172,17 @@ TEST_CASE("npz written by Signals is a stored zip of npy members", "[npy]") {
     CHECK_FALSE(np_find(*back, "missing"));
 }
 
+TEST_CASE("npz written by Signals has the size of a plain zipfile archive", "[npy]") {
+    const auto path = signals::test::temp_path("plain.npz");
+    const auto array = np_vector({0.25, -0.5});
+    REQUIRE(write_npz(path, {{"x", array}}));
+    const auto raw = read_bytes(path);
+    const auto member = encode_npy(array);
+    REQUIRE(member);
+    CHECK((static_cast<unsigned char>(raw[6]) & 0x08) == 0);
+    CHECK(raw.size() == 30 + 5 + member->size() + 46 + 5 + 22);
+}
+
 TEST_CASE("npz works under a Cyrillic folder with spaces", "[npy]") {
     const auto dir = signals::test::temp_path("npz-unicode") / std::filesystem::path{u8"данные с пробелом"};
     std::filesystem::create_directories(dir);

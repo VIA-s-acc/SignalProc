@@ -33,6 +33,8 @@ struct Script {
     std::vector<CheckRow> checks;
 };
 
+core::Result<void> check_script_name(const std::filesystem::path& out);
+
 core::Result<Script> build_script(const pipeline::PipelineDoc& doc, const pipeline::Graph& graph, const ScriptOptions& options, const core::CancelToken& cancel);
 
 }  // namespace signals::python

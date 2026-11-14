@@ -609,6 +609,7 @@ public:
             err << tr("python.notebook_later") << '\n';
             return 2;
         }
+        if (auto ok = python::check_script_name(target); !ok) return report_error(err, ok.error()), 2;
         auto graph = pipeline::build_graph(*doc, std::filesystem::absolute(file).parent_path());
         if (!graph) return sig_error(err, file, graph.error());
         std::ifstream in{file, std::ios::binary};

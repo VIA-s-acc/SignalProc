@@ -13,6 +13,8 @@ std::vector<PyForm> build() {
     register_basic_forms(out);
     register_filter_forms(out);
     register_wavelet_forms(out);
+    register_effect_forms(out);
+    register_analysis_forms(out);
     return out;
 }
 

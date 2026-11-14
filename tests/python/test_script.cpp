@@ -130,12 +130,19 @@ TEST_CASE("signals python writes the script and its data", "[py-script]") {
 }
 
 TEST_CASE("only the blocks of the tolerance table weaken tolerance", "[py-script]") {
-    const std::map<std::string, double> table{{"iir", 1e-8}, {"remez", 1e-8}, {"firls", 1e-10}, {"lms", 1e-10}, {"sst_band", 1e-10}, {"sst_ridge", 1e-10}, {"cepstrum", 1e-9}};
+    const std::map<std::string, double> table{{"iir", 1e-8},        {"remez", 1e-8},     {"firls", 1e-10},         {"lms", 1e-10},        {"sst_band", 1e-10},
+                                              {"sst_ridge", 1e-10}, {"cepstrum", 1e-9}, {"time_stretch", 1e-9}, {"pitch_shift", 1e-9}};
     for (const auto& f : python::py_forms()) {
         INFO(f.block);
         if (f.tol == 1e-12) continue;
         REQUIRE(table.contains(f.block));
         CHECK(table.at(f.block) == f.tol);
+    }
+    for (const auto& [block, tol] : table) {
+        INFO(block);
+        const auto* f = python::find_py_form(block);
+        REQUIRE(f);
+        CHECK(f->tol == tol);
     }
 }
 
@@ -173,4 +180,22 @@ TEST_CASE("a symlet goes to pywt with the filters of Signals", "[py-script]") {
     CHECK(s->text.find("pywt.Wavelet(\"sym8\", filter_bank=") != std::string::npos);
     CHECK(io::np_find(s->data, "wavelet.sym8.dec_lo"));
     CHECK(s->text.find("# Детали cD") != std::string::npos);
+}
+
+TEST_CASE("a script named like a Python module is refused", "[py-script]") {
+    for (const char* name : {"math.py", "numpy.py", "signal.py", "pywt.py", "random.py"}) {
+        INFO(name);
+        CHECK_FALSE(python::check_script_name(name));
+    }
+    for (const char* name : {"first_steps.py", "Math.py", "math-2.py", "lesson.ipynb", "math.ipynb"}) {
+        INFO(name);
+        CHECK(python::check_script_name(name));
+    }
+    const auto sig = write_sig("math.sig", kTiny);
+    std::filesystem::remove(signals::test::temp_path("math.py"));
+    auto [code, out, err] = signals::test::run_cli({"signals", "python", sig.string()});
+    CHECK(code == 2);
+    CHECK(err.find("math.py") != std::string::npos);
+    CHECK(err.find("-o") != std::string::npos);
+    CHECK_FALSE(std::filesystem::exists(signals::test::temp_path("math.py")));
 }

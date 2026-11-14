@@ -8,7 +8,8 @@ def onsets(x, fs, n, hop):
         previous = np.zeros(n // 2 + 1)
         flux = []
         for start in range(0, mono.size - n + 1, hop):
-            m = np.abs(np.fft.rfft(mono[start : start + n] * window))
+            spectrum = np.fft.rfft(mono[start : start + n] * window)
+            m = np.hypot(spectrum.real, spectrum.imag)
             f = 0.0
             for v in np.maximum(0.0, m - previous):
                 f += v
