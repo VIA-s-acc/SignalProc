@@ -3,6 +3,8 @@
 
 #include <fmt/format.h>
 
+#include "core/design/families.hpp"
+#include "core/extension.hpp"
 #include "pipeline/blocks_common.hpp"
 #include "python/form.hpp"
 
@@ -154,6 +156,82 @@ core::Result<std::string> firls(const NodeIo& io, Emitter& em) {
                        weight_arg(io, em), io.in[0], param_text(p, "compensate") == "yes" ? "True" : "False");
 }
 
+const pipeline::Coeffs* coeffs_value(const pipeline::Value* v) { return v ? std::get_if<pipeline::Coeffs>(v) : nullptr; }
+
+std::size_t levels_of(const NodeIo& io, bool input) {
+    const auto* c = coeffs_value(input ? io.in_values[0] : io.out_values[0]);
+    return c ? c->levels() : 3;
+}
+
+std::size_t length_of(const NodeIo& io) {
+    const auto* c = coeffs_value(io.in_values[0]);
+    return c && !c->lengths.empty() ? c->lengths.front() : 0;
+}
+
+core::Result<std::string> downsample(const NodeIo& io, Emitter& em) {
+    const auto& p = io.node.params;
+    const auto m = param_int(p, "m"), phase = param_int(p, "phase");
+    em.function("multirate");
+    return fmt::format("{} = multirate({}[:, {}:], 1, {}, {}, {})", io.out[0], io.in[0], phase, m, em.number(param_real(p, "attenuation_db")),
+                       param_text(p, "anti_alias") == "yes" ? "True" : "False");
+}
+
+core::Result<std::string> upsample(const NodeIo& io, Emitter& em) {
+    const auto& p = io.node.params;
+    em.function("multirate");
+    return fmt::format("{} = multirate({}, {}, 1, {}, {})", io.out[0], io.in[0], param_int(p, "m"), em.number(param_real(p, "attenuation_db")),
+                       param_text(p, "anti_image") == "yes" ? "True" : "False");
+}
+
+core::Result<std::string> resample(const NodeIo& io, Emitter& em) {
+    const auto& p = io.node.params;
+    em.function("multirate");
+    return fmt::format("{} = multirate({}, {}, {}, {}, True)", io.out[0], io.in[0], param_int(p, "l"), param_int(p, "m"), em.number(param_real(p, "attenuation_db")));
+}
+
+core::Result<std::string> convolve(const NodeIo& io, Emitter& em) {
+    const auto& spec = param_text(io.node.params, "filter");
+    std::vector<double> h;
+    const auto dot = spec.rfind('.');
+    if (dot != std::string::npos)
+        if (const auto bank = core::wavelet(spec.substr(0, dot))) {
+            const auto role = spec.substr(dot + 1);
+            const auto* f = role == "h0" ? &bank->h0 : role == "h1" ? &bank->h1 : role == "f0" ? &bank->f0 : role == "f1" ? &bank->f1 : nullptr;
+            if (f) h = f->coeffs;
+        }
+    if (h.empty())
+        if (const auto mine = core::named_filter(spec)) h = mine->coeffs;
+    if (h.empty()) return std::unexpected{unsupported(io, "filter")};
+    return fmt::format("{0}_h = {1}\n{0} = np.stack([np.convolve(row, {0}_h) for row in {2}])", io.out[0], em.numbers("h", h), io.in[0]);
+}
+
+core::Result<std::string> dwt(const NodeIo& io, Emitter& em) {
+    const auto& p = io.node.params;
+    return fmt::format("{} = pywt.wavedec({}, {}, mode={}, level={}, axis=-1)", io.out[0], io.in[0], em.wavelet(param_text(p, "wavelet")), py_str(param_text(p, "ext")),
+                       levels_of(io, false));
+}
+
+core::Result<std::string> idwt(const NodeIo& io, Emitter& em) {
+    const auto* c = coeffs_value(io.in_values[0]);
+    const std::string wavelet = c ? c->wavelet : param_text(io.node.params, "wavelet");
+    const std::string mode = c ? std::string{core::to_string(c->mode)} : std::string{"symmetric"};
+    return fmt::format("{} = pywt.waverec({}, {}, mode={}, axis=-1)[:, :{}]", io.out[0], io.in[0], em.wavelet(wavelet), py_str(mode), length_of(io));
+}
+
+core::Result<std::string> swt(const NodeIo& io, Emitter& em) {
+    const auto& p = io.node.params;
+    const auto levels = levels_of(io, false);
+    return fmt::format("{0}_block = 2 ** {1}\n{0}_size = -(-{2}.shape[1] // {0}_block) * {0}_block\n"
+                       "{0} = pywt.swt({2}[:, np.arange({0}_size) % {2}.shape[1]], {3}, level={1}, trim_approx=True, norm={4}, axis=-1)",
+                       io.out[0], levels, io.in[0], em.wavelet(param_text(p, "wavelet")), param_text(p, "norm") == "yes" ? "True" : "False");
+}
+
+core::Result<std::string> iswt(const NodeIo& io, Emitter& em) {
+    const auto* c = coeffs_value(io.in_values[0]);
+    return fmt::format("{} = pywt.iswt({}, {}, norm={}, axis=-1)[:, :{}]", io.out[0], io.in[0], em.wavelet(c ? c->wavelet : std::string{"db2"}), c && c->norm ? "True" : "False",
+                       length_of(io));
+}
+
 }  // namespace
 
 void register_filter_forms(std::vector<PyForm>& out) {
@@ -172,6 +250,9 @@ void register_filter_forms(std::vector<PyForm>& out) {
     out.push_back({"hilbert", 1e-12, hilbert});
     out.push_back({"remez", 1e-8, remez});
     out.push_back({"firls", 1e-10, firls});
+    for (auto [id, fn] : std::initializer_list<std::pair<const char*, core::Result<std::string> (*)(const NodeIo&, Emitter&)>>{
+             {"downsample", downsample}, {"upsample", upsample}, {"resample", resample}, {"convolve", convolve}, {"dwt", dwt}, {"idwt", idwt}, {"swt", swt}, {"iswt", iswt}})
+        out.push_back({id, 1e-12, fn});
 }
 
 }  // namespace signals::python
