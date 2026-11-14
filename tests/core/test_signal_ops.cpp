@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <random>
 #include <vector>
@@ -100,4 +101,19 @@ TEST_CASE("psnr and band energy fractions", "[ops]") {
     CHECK(std::abs(bands - energy(x)) <= 1e-12 * energy(x));
     BasicCoeffs<double> zero{{{0.0, 0.0}, {0.0, 0.0}}, 4};
     CHECK(band_energy_fractions(zero) == std::vector<double>{0.0, 0.0});
+}
+
+TEST_CASE("quantize dither is the tpdf draws", "[signal-ops]") {
+    std::vector<double> x(500);
+    for (std::size_t k = 0; k < x.size(); ++k) x[k] = 0.7 * std::sin(0.013 * static_cast<double>(k));
+    const auto q = quantize(x, 8, true, 24301);
+    REQUIRE(q);
+    const auto d = tpdf_draws(x.size(), 24301);
+    std::mt19937_64 rng{24301};
+    std::uniform_real_distribution<double> uniform{0.0, 1.0};
+    for (std::size_t k = 0; k < x.size(); ++k) {
+        const double u1 = uniform(rng), u2 = uniform(rng);
+        CHECK(d[k] == u1 - u2);
+        CHECK((*q)[k] == std::clamp(std::nearbyint(x[k] * 128 + d[k]), -128.0, 127.0) / 128);
+    }
 }

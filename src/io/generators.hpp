@@ -19,6 +19,8 @@ std::vector<double> step(std::size_t n, std::size_t at);
 
 enum class NoiseColor { white, pink, brown };
 std::vector<double> noise(NoiseColor color, double rms, std::size_t n, std::uint64_t seed, const core::ProgressSink* progress = nullptr);
+std::vector<double> normal_draws(std::size_t n, std::uint64_t seed, const core::ProgressSink* progress = nullptr);
+std::vector<double> noise_from_draws(NoiseColor color, double rms, std::vector<double> draws);
 
 std::vector<double> harmonics(double f0, std::span<const double> amplitudes, double fs, std::size_t n,
                               const core::ProgressSink* progress = nullptr);

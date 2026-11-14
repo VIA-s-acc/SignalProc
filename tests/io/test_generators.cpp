@@ -4,6 +4,7 @@
 #include <cmath>
 #include <complex>
 #include <numbers>
+#include <random>
 #include <string>
 #include <utility>
 #include <vector>
@@ -97,4 +98,15 @@ TEST_CASE("impulse, step, am and fm are exact", "[generators]") {
 TEST_CASE("degenerate sweeps are constant", "[generators]") {
     CHECK(sweep(100, 200, SweepKind::linear, 8000, 1) == std::vector<double>{1.0});
     CHECK(sweep(100, 200, SweepKind::logarithmic, 8000, 0).empty());
+}
+
+TEST_CASE("noise is the normal draws shaped and scaled", "[generators]") {
+    const auto draws = normal_draws(1000, 7);
+    std::mt19937_64 rng{7};
+    std::normal_distribution<double> normal{0.0, 1.0};
+    for (const double d : draws) CHECK(d == normal(rng));
+    for (const auto color : {NoiseColor::white, NoiseColor::pink, NoiseColor::brown}) {
+        const auto x = noise(color, 0.3, 1000, 7);
+        CHECK(x == noise_from_draws(color, 0.3, normal_draws(1000, 7)));
+    }
 }

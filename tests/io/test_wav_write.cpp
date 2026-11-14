@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "core/metrics.hpp"
+#include "core/signal_ops.hpp"
 #include "io/generators.hpp"
 #include "io/wav.hpp"
 #include "support/paths.hpp"
@@ -215,4 +216,19 @@ TEST_CASE("the temporary file has an unpredictable name and is never reused", "[
     const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
     CHECK(text == "keep");
     CHECK(std::distance(std::filesystem::directory_iterator{dir}, std::filesystem::directory_iterator{}) == 2);
+}
+
+TEST_CASE("wav dither is the tpdf draws in frame order", "[wav]") {
+    AudioBuffer a{8000, {std::vector<double>(300), std::vector<double>(300)}};
+    for (std::size_t k = 0; k < 300; ++k) a.channels[0][k] = 0.3 * std::sin(0.05 * static_cast<double>(k)), a.channels[1][k] = -0.2 * std::cos(0.02 * static_cast<double>(k));
+    const auto path = signals::test::temp_path("dither.wav");
+    REQUIRE(signals::io::write_wav(path, a, {signals::io::SampleFormat::pcm_s16, true, 99}));
+    const auto back = signals::io::read_wav(path);
+    REQUIRE(back);
+    const auto d = signals::core::tpdf_draws(600, 99);
+    for (std::size_t k = 0; k < 300; ++k)
+        for (std::size_t c = 0; c < 2; ++c) {
+            const double q = std::clamp(std::round(a.channels[c][k] * 32768 + d[2 * k + c]), -32768.0, 32767.0);
+            CHECK(back->audio.channels[c][k] == q / 32768);
+        }
 }

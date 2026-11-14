@@ -105,7 +105,7 @@ std::vector<double> step(std::size_t n, std::size_t at) {
     return x;
 }
 
-std::vector<double> noise(NoiseColor color, double rms, std::size_t n, std::uint64_t seed, const core::ProgressSink* progress) {
+std::vector<double> normal_draws(std::size_t n, std::uint64_t seed, const core::ProgressSink* progress) {
     std::mt19937_64 rng{seed};
     std::normal_distribution<double> normal{0.0, 1.0};
     std::vector<double> x;
@@ -114,9 +114,19 @@ std::vector<double> noise(NoiseColor color, double rms, std::size_t n, std::uint
         if (core::stop_requested(progress, k)) return x;
         x.push_back(normal(rng));
     }
-    if (n > 0 && color != NoiseColor::white) shape_spectrum(x, color == NoiseColor::pink ? -0.5 : -1.0);
+    return x;
+}
+
+std::vector<double> noise_from_draws(NoiseColor color, double rms, std::vector<double> x) {
+    if (!x.empty() && color != NoiseColor::white) shape_spectrum(x, color == NoiseColor::pink ? -0.5 : -1.0);
     scale_to_rms(x, rms);
     return x;
+}
+
+std::vector<double> noise(NoiseColor color, double rms, std::size_t n, std::uint64_t seed, const core::ProgressSink* progress) {
+    auto x = normal_draws(n, seed, progress);
+    if (x.size() < n) return x;
+    return noise_from_draws(color, rms, std::move(x));
 }
 
 std::vector<double> harmonics(double f0, std::span<const double> amplitudes, double fs, std::size_t n, const core::ProgressSink* progress) {

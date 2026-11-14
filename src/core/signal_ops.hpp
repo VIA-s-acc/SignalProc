@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <random>
 #include <span>
 #include <vector>
 
@@ -21,6 +22,21 @@ struct ClipResult {
     std::size_t clipped = 0;
 };
 ClipResult hard_clip(std::span<const double> x, double limit);
+class TpdfDither {
+public:
+    explicit TpdfDither(std::uint64_t seed) : rng_{seed} {}
+    double next() {
+        const double d1 = uniform_(rng_);
+        const double d2 = uniform_(rng_);
+        return d1 - d2;
+    }
+
+private:
+    std::mt19937_64 rng_;
+    std::uniform_real_distribution<double> uniform_{0.0, 1.0};
+};
+
+std::vector<double> tpdf_draws(std::size_t n, std::uint64_t seed);
 Result<std::vector<double>> quantize(std::span<const double> x, int bits, bool dither, std::uint64_t seed);
 std::vector<double> mulaw_encode(std::span<const double> x, double mu = 255);
 std::vector<double> mulaw_decode(std::span<const double> y, double mu = 255);
