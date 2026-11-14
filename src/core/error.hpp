@@ -15,6 +15,7 @@ enum class Errc {
     no_convergence,
     io_error,
     cancelled,
+    unsupported,
 };
 
 struct Error {
@@ -35,6 +36,7 @@ constexpr std::string_view errc_name(Errc code) {
     case Errc::no_convergence: return "no_convergence";
     case Errc::io_error: return "io_error";
     case Errc::cancelled: return "cancelled";
+    case Errc::unsupported: return "unsupported";
     }
     return "invalid_argument";
 }
