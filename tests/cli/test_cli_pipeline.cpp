@@ -512,3 +512,12 @@ TEST_CASE("run json lists the bands of a coefficient probe", "[cli-pipeline]") {
     }
     CHECK(total == nlohmann::json::parse(r.out).at("probes").at("c").at("length"));
 }
+
+TEST_CASE("seeded noise and dither give the pinned samples of the Windows CI step", "[cli-pipeline]") {
+    const auto sig = std::filesystem::path{SIGNALS_SOURCE_DIR} / "tests" / "fixtures" / "noise" / "pinned.sig";
+    const auto r = run({"signals", "run", sig.string(), "--json", "--values", "4"});
+    REQUIRE(r.code == 0);
+    const auto probes = nlohmann::json::parse(r.out).at("probes");
+    CHECK(probes.at("w").at("values") == nlohmann::json::parse("[[-0.04520348258180983, -0.4438112180588447, -0.2856173093236448, 0.787991230653915]]"));
+    CHECK(probes.at("d").at("values") == nlohmann::json::parse("[[-0.046875, -0.4375, -0.2890625, 0.7890625]]"));
+}
