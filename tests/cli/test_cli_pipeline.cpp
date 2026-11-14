@@ -497,3 +497,20 @@ TEST_CASE("the vscode fixture matches the current output", "[cli-watch]") {
     }
     CHECK(same_json(j, nlohmann::json::parse(bytes_of(fixture))));
 }
+
+TEST_CASE("run json lists the bands of a coefficient probe", "[cli-pipeline]") {
+    const auto dir = fresh_dir("cli-json-bands");
+    const auto sig = write_sig(dir, "pipeline \"b\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode c = dwt(wavelet=db2, levels=2)\nx -> c\nprobe c as \"c\"\n");
+    const auto r = run({"signals", "run", sig.string(), "--json"});
+    REQUIRE(r.code == 0);
+    const auto bands = nlohmann::json::parse(r.out).at("probes").at("c").at("bands");
+    REQUIRE(bands.size() == 3);
+    CHECK(bands[0].at("name") == "a2");
+    CHECK(bands[2].at("name") == "d1");
+    std::size_t total = 0;
+    for (const auto& b : bands) {
+        CHECK(b.at("energy").get<double>() >= 0);
+        total += b.at("length").get<std::size_t>();
+    }
+    CHECK(total == nlohmann::json::parse(r.out).at("probes").at("c").at("length"));
+}

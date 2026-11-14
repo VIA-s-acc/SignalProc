@@ -127,6 +127,16 @@ nlohmann::json summary(const pipeline::Value& v, std::optional<std::size_t> list
         j["levels"] = c->levels();
         j["length"] = total;
         j["wavelet"] = c->wavelet;
+        j["bands"] = nlohmann::json::array();
+        for (std::size_t b = 0; !c->channels.empty() && b < c->channels.front().bands.size(); ++b) {
+            std::size_t length = 0;
+            double energy = 0;
+            for (const auto& ch : c->channels) {
+                length += ch.bands[b].size();
+                for (const double x : ch.bands[b]) energy += x * x;
+            }
+            j["bands"].push_back({{"name", pipeline::band_label(*c, b)}, {"length", length}, {"energy", energy}});
+        }
     } else if (const auto* d = std::get_if<double>(&v)) {
         j["value"] = *d;
     } else if (const auto* r = std::get_if<Report>(&v)) {

@@ -107,6 +107,10 @@ Blocks that choose by comparing (peaks, onsets, the `sure` rule, the best `wpt` 
 
 The script looks for the `.npz` and the input files next to itself, so it runs from any folder and moves together with its data.
 
+## Preview in VS Code
+
+The VS Code extension in `editors/vscode` shows the graph beside the file: the "Signals: Preview" command (a button in the editor title) runs `signals run --watch --json` and on every save draws the signal probes, the coefficient bands, the reports and the state of the nodes. A graph error goes to "Problems" at its line. It needs Signals 0.9.0 or newer; the `signals.path` setting gives the path to the program. The hover over a block shows its Python form.
+
 ## Detail sign
 
 Signals computes detail coefficients with the opposite sign to pywt, following Strang and Nguyen. Outside the program everything uses the pywt sign:
