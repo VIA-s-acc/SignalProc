@@ -18,6 +18,7 @@
 #include "pipeline/sig.hpp"
 #include "python/block_graphs.hpp"
 #include "python/form.hpp"
+#include "python/script.hpp"
 #include "support/cli_run.hpp"
 #include "support/paths.hpp"
 
@@ -94,7 +95,8 @@ TEST_CASE("bridge scripts agree with Signals", "[bridge]") {
     std::vector<std::string> skipped;
     std::size_t written = 0;
     const auto generate = [&](const std::filesystem::path& sig, const std::string& name) {
-        auto [code, out, err] = signals::test::run_cli({"signals", "python", utf8(sig), "-o", utf8(scripts / (name + ".py"))});
+        const auto file = python::check_script_name(name + ".py") ? name : name + "-block";
+        auto [code, out, err] = signals::test::run_cli({"signals", "python", utf8(sig), "-o", utf8(scripts / (file + ".py"))});
         INFO(name << ": " << err);
         CHECK(code == 0);
         written += code == 0;

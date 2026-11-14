@@ -9,6 +9,7 @@ add_library(signals_python STATIC
   forms_wavelet.cpp
   forms_effects.cpp
   forms_analysis.cpp
+  module_names.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/python_functions.cpp
 )
 target_include_directories(signals_python PUBLIC ${PROJECT_SOURCE_DIR}/src)

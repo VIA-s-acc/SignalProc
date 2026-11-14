@@ -2896,6 +2896,7 @@
   "python.check.origin": "откуда допуск",
   "python.nothing_to_check": "в графе нет щупов, отчётов и выходов — нечего сверять",
   "python.written": "записано {script} и {data} · сверка: python {script}",
+  "python.module_name": "«{name}.py» называется как модуль Python: в этой папке import {name} загрузит скрипт вместо модуля. Выберите другое имя через -o",
   "python.notebook_later": "тетрадь .ipynb появится в следующей части этапа; пока пишите .py",
   "python.listen": "послушать:",
   "cli.python.description": "Скрипт на numpy, scipy и pywt по графу .sig, сверяющий каждое число с программой",
