@@ -35,7 +35,7 @@ std::string quoted(const std::filesystem::path& p) {
     return "\"" + std::string{u.begin(), u.end()} + "\"";
 }
 
-Producer producer_for(const pipeline::BlockType& t, const std::map<std::string, std::string, std::less<>>& params) {
+Producer producer_for(const pipeline::BlockType& t, const std::map<std::string, std::string, std::less<>>& params, const std::string& source) {
     const std::map<std::string, std::string, std::less<>> coeffs{{"iswt", "swt(wavelet=db2, levels=3)"}, {"iwpt", "wpt(wavelet=db2, levels=3)"},
                                                                  {"ilift53", "lift53(levels=3)"},     {"ilift97", "lift97(levels=3)"},
                                                                  {"idtcwt", "dtcwt(levels=3)"}};
@@ -52,7 +52,7 @@ Producer producer_for(const pipeline::BlockType& t, const std::map<std::string, 
     for (const auto& port : t.inputs) {
         if (port.type == pipeline::PortType::coeffs) {
             const auto it = coeffs.find(t.id);
-            p.lines += "node c = " + (it == coeffs.end() ? std::string{"dwt(wavelet=db2, levels=3)"} : it->second) + "\nx -> c\n";
+            p.lines += "node c = " + (!source.empty() ? source : it == coeffs.end() ? std::string{"dwt(wavelet=db2, levels=3)"} : it->second) + "\nx -> c\n";
             p.ports.emplace_back("c");
         } else if (port.type == pipeline::PortType::report) {
             const auto name = "r" + std::to_string(p.ports.size());
@@ -81,8 +81,9 @@ std::map<std::string, std::string, std::less<>> base_params(const pipeline::Bloc
     return params;
 }
 
-std::string graph_text(const pipeline::BlockType& t, const std::string& name, const std::map<std::string, std::string, std::less<>>& params) {
-    const auto prod = producer_for(t, params);
+std::string graph_text(const pipeline::BlockType& t, const std::string& name, const std::map<std::string, std::string, std::less<>>& params,
+                       const std::string& source = {}) {
+    const auto prod = producer_for(t, params, source);
     std::string text = "pipeline \"" + name + "\" v1\n" + kSources + prod.lines + "node b = " + t.id + "(";
     bool first = true;
     for (const auto& [k, v] : params) text += (first ? "" : ", ") + k + "=" + v, first = false;
@@ -134,6 +135,12 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
         auto text = graph_text(bare, t.id + "-bare", paths);
         out.push_back({t.id + "-bare", std::move(text)});
     }
+    const bool generic_coeffs = std::ranges::any_of(t.inputs, [](const auto& port) { return port.type == pipeline::PortType::coeffs; }) && !t.id.starts_with("i");
+    if (generic_coeffs)
+        for (const char* source : {"swt(wavelet=db2, levels=3)", "wpt(wavelet=db2, levels=3)", "lift53(levels=3)", "lift97(levels=3)", "dtcwt(levels=3)"}) {
+            const std::string kind{source, std::string_view{source}.find('(')};
+            out.push_back({t.id + "-from-" + kind, graph_text(t, t.id + "-from-" + kind, paths, source)});
+        }
     if (t.id == "sst_band" || t.id == "sst_ridge") {
         std::string text = "pipeline \"" + t.id + "-long\" v1\nnode x = gen(kind=harmonics, freq=220, rate=8000, duration=5)\nnode b = " + t.id + "()\nx -> b\n";
         for (const auto& port : t.outputs) text += "probe b." + port.name + " as \"" + port.name + "\"\n";
