@@ -246,7 +246,15 @@ core::Result<Coeffs> coeffs_from_entries(const io::NpzEntries& e, const CoeffsHi
         parts.push_back(std::move(rows));
     }
     if (channels == 0) return fail("the coefficients have no channels");
-    const auto length = static_cast<std::size_t>(std::max(0.0, number_of(e, "length").value_or(0)));
+    std::size_t bound = 0;
+    for (const auto& r : parts)
+        for (const auto& part : r) bound += part.length;
+    std::size_t length = 0;
+    if (const auto given = number_of(e, "length")) {
+        if (!std::isfinite(*given) || *given < 0 || std::floor(*given) != *given || *given > static_cast<double>(bound))
+            return fail("length " + std::to_string(*given) + " does not fit the bands: expected a whole number up to " + std::to_string(bound));
+        length = static_cast<std::size_t>(*given);
+    }
     for (std::size_t ch = 0; ch < channels; ++ch) {
         core::BasicCoeffs<double> b;
         b.original_length = length;

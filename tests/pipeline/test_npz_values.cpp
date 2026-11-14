@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -245,4 +246,18 @@ TEST_CASE("bank entries equal the pywt filter bank", "[npz-values]") {
         }
         CHECK(text(e, "name") == name);
     }
+}
+
+TEST_CASE("a length that does not fit the bands is refused", "[npz-values]") {
+    for (const double length : {1e30, std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN(), 2.5, -4.0, 100000.0}) {
+        INFO(length);
+        auto e = fixture_entries("pywt_dwt.npz");
+        e.emplace_back("length", io::np_scalar(length));
+        const auto c = coeffs_from_entries(e, {});
+        REQUIRE_FALSE(c);
+        CHECK(c.error().message.find("length") != std::string::npos);
+    }
+    auto ok = fixture_entries("pywt_dwt.npz");
+    ok.emplace_back("length", io::np_scalar(1000));
+    CHECK(coeffs_from_entries(ok, {}));
 }
