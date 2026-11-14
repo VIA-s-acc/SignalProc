@@ -86,5 +86,6 @@ core::Error unsupported(const NodeIo& io, std::string_view param);
 std::string python_preview(const pipeline::BlockType& t, const pipeline::Params& params);
 
 void register_basic_forms(std::vector<PyForm>& out);
+void register_filter_forms(std::vector<PyForm>& out);
 
 }  // namespace signals::python
