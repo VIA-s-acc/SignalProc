@@ -289,18 +289,18 @@ TEST_CASE("npz members that share their compressed bytes count the file size onc
     const std::size_t copies = 8;
     for (std::size_t k = 0; k < copies; ++k) {
         auto e = entry;
-        const auto name_at = std::size_t{46};
-        e[name_at] = static_cast<char>('a' + k);
+        e.replace(46, 1, std::string(1, static_cast<char>('a' + k)));
         forged += e;
     }
     auto tail = source.substr(end);
-    const auto put16 = [&](std::size_t at, std::size_t v) { tail[at] = static_cast<char>(v & 0xff), tail[at + 1] = static_cast<char>((v >> 8) & 0xff); };
-    const auto put32 = [&](std::size_t at, std::size_t v) {
-        for (int b = 0; b < 4; ++b) tail[at + b] = static_cast<char>((v >> (8 * b)) & 0xff);
+    const auto put = [&](std::size_t at, std::size_t v, std::size_t width) {
+        std::string bytes;
+        for (std::size_t b = 0; b < width; ++b) bytes += static_cast<char>((v >> (8 * b)) & 0xff);
+        tail.replace(at, width, bytes);
     };
-    put16(8, copies);
-    put16(10, copies);
-    put32(12, entry.size() * copies);
+    put(8, copies, 2);
+    put(10, copies, 2);
+    put(12, entry.size() * copies, 4);
     forged += tail;
     const auto path = signals::test::temp_path("overlap.npz");
     std::ofstream{path, std::ios::binary} << forged;
