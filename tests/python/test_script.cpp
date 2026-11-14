@@ -346,3 +346,18 @@ TEST_CASE("a script build stops when its run is cancelled between nodes", "[py-s
     CHECK(s.error().code == core::Errc::cancelled);
     CHECK(seen >= 1);
 }
+
+TEST_CASE("the size of an exported text file is checked loosely", "[py-script]") {
+    const auto dir = signals::test::temp_path("py-script");
+    for (const char* format : {"csv", "json"}) {
+        INFO(format);
+        const auto s = script_for(std::string{"pipeline \"e\" v1\nnode x = gen(kind=white, rate=8000, duration=0.01, seed=3)\nnode r = stats()\nnode b = export_report(format="} + format +
+                                      ", path=\"" + (dir / "r.out").generic_string() + "\")\nnode e = export(format=" + format + ", path=\"" + (dir / "x.out").generic_string() +
+                                      "\")\nx -> r\nr -> b.in\nx -> e\nprobe b.report as \"written\"\n",
+                                  std::string{"loose-"} + format);
+        REQUIRE(s);
+        CHECK(s->text.find("verify(\"b · bytes\", b[\"bytes\"], D[\"ref.b.bytes\"], 1e-02, \"b\")") != std::string::npos);
+        CHECK(s->text.find("verify(\"written · bytes\", b[\"bytes\"], D[\"ref.written.bytes\"], 1e-02, \"b\")") != std::string::npos);
+        CHECK(s->text.find("verify(\"e · bytes\", e[\"bytes\"], D[\"ref.e.bytes\"], 1e-02, \"e\")") != std::string::npos);
+    }
+}

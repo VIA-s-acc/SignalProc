@@ -227,6 +227,15 @@ private:
         return {};
     }
 
+    void loosen_text_size(std::size_t from, std::size_t node) {
+        const auto& n = graph_.nodes[node];
+        if (n.type->id != "export" && n.type->id != "export_report") return;
+        const auto format = pipeline::param_text(n.params, "format");
+        if (format == "npy" || format == "npz") return;
+        for (auto k = from; k < rows_.size(); ++k)
+            if (rows_[k].what.ends_with(" · bytes")) rows_[k].chain = {1e-2, n.id};
+    }
+
     core::Result<void> collect_checks() {
         for (const auto& p : graph_.probes) {
             const auto it = result_.probes.find(p.name);
@@ -235,7 +244,9 @@ private:
             if (!p.source.band.empty())
                 if (const auto* v = value_of(p.source.node, p.source.output))
                     if (const auto i = pipeline::band_index(std::get<pipeline::Coeffs>(*v), p.source.band)) expr = band_expr(std::get<pipeline::Coeffs>(*v), *i, expr);
+            const auto from = rows_.size();
             if (auto ok = add_value(p.name, expr, it->second, "ref." + p.name, chain_[p.source.node]); !ok) return ok;
+            loosen_text_size(from, p.source.node);
         }
         for (const auto i : graph_.order) {
             const auto& n = graph_.nodes[i];
@@ -243,7 +254,9 @@ private:
                 const auto* v = value_of(i, p);
                 if (!v || !std::holds_alternative<pipeline::Report>(*v)) continue;
                 const auto what = n.type->outputs.size() == 1 ? n.id : n.id + "." + n.type->outputs[p].name;
+                const auto from = rows_.size();
                 if (auto ok = add_value(what, vars_[i][p], *v, "ref." + what, chain_[i]); !ok) return ok;
+                loosen_text_size(from, i);
             }
             if (!n.type->side_effect) continue;
             for (std::size_t k = 0; k < n.sources.size(); ++k) {
