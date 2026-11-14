@@ -5,6 +5,9 @@
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <cstdlib>
+#include <thread>
+#include <functional>
 #include <fstream>
 #include <initializer_list>
 #include <iterator>
@@ -394,4 +397,103 @@ TEST_CASE("explain --json has every field", "[cli-pipeline]") {
             CHECK(j.at("theory").contains("title"));
         }
     }
+}
+
+namespace {
+
+std::string watch_json(std::initializer_list<std::string_view> args, const std::function<void()>& meanwhile) {
+    std::thread stopper{[&] {
+        meanwhile();
+        signals::cli::stop_watching();
+    }};
+    const auto r = run(args);
+    stopper.join();
+    return r.out;
+}
+
+void wait_for(const std::function<bool()>& done) {
+    for (int k = 0; k < 1000 && !done(); ++k) std::this_thread::sleep_for(std::chrono::milliseconds{10});
+}
+
+std::vector<std::string> lines_of(const std::string& text) {
+    std::vector<std::string> out;
+    std::istringstream in{text};
+    for (std::string line; std::getline(in, line);)
+        if (!line.empty()) out.push_back(line);
+    return out;
+}
+
+bool same_json(const nlohmann::json& a, const nlohmann::json& b) {
+    if (a.is_number() && b.is_number()) {
+        const double x = a.get<double>(), y = b.get<double>();
+        return std::abs(x - y) <= 1e-9 * std::max(1.0, std::abs(y));
+    }
+    if (a.type() != b.type() || a.size() != b.size()) return false;
+    if (a.is_object()) {
+        for (const auto& [key, value] : b.items())
+            if (!a.contains(key) || !same_json(a.at(key), value)) return false;
+        return true;
+    }
+    if (a.is_array()) {
+        for (std::size_t k = 0; k < a.size(); ++k)
+            if (!same_json(a[k], b[k])) return false;
+        return true;
+    }
+    return a == b;
+}
+
+constexpr const char* kWatched = "pipeline \"w\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode y = gain(db=-6)\nx -> y\nprobe y as \"y\"\n";
+
+}  // namespace
+
+TEST_CASE("watch json prints one document per line on stdout", "[cli-watch]") {
+    const auto dir = fresh_dir("cli-watch-json");
+    const auto sig = write_sig(dir, kWatched);
+    const auto npz = dir / "y.npz";
+    const auto out = watch_json({"signals", "run", sig.string(), "--watch", "--json", "--npz", npz.string()}, [&] {
+        wait_for([&] { return std::filesystem::exists(npz); });
+        const auto first = std::filesystem::last_write_time(npz);
+        std::this_thread::sleep_for(std::chrono::milliseconds{50});
+        write_sig(dir, std::string{kWatched}.replace(std::string{kWatched}.find("-6"), 2, "-12"));
+        wait_for([&] { return std::filesystem::last_write_time(npz) != first; });
+    });
+    const auto lines = lines_of(out);
+    REQUIRE(lines.size() == 2);
+    for (const auto& line : lines) {
+        INFO(line);
+        const auto j = nlohmann::json::parse(line);
+        CHECK(j.contains("nodes"));
+        CHECK(j.at("pipeline") == "w");
+    }
+}
+
+TEST_CASE("watch json reports a sig error with its line", "[cli-watch]") {
+    const auto dir = fresh_dir("cli-watch-error");
+    const auto sig = write_sig(dir, std::string{kWatched} + "node bad = nosuchblock()\n");
+    const auto out = watch_json({"signals", "run", sig.string(), "--watch", "--json"}, [] { std::this_thread::sleep_for(std::chrono::milliseconds{800}); });
+    const auto lines = lines_of(out);
+    REQUIRE(lines.size() == 1);
+    const auto j = nlohmann::json::parse(lines[0]);
+    REQUIRE(j.contains("error"));
+    CHECK(j.at("error").at("line") == 6);
+    CHECK(j.at("error").at("file").get<std::string>().ends_with("graph.sig"));
+    CHECK_FALSE(j.at("error").at("message").get<std::string>().empty());
+}
+
+TEST_CASE("the vscode fixture matches the current output", "[cli-watch]") {
+    const auto dir = fresh_dir("cli-watch-fixture");
+    const auto npz = dir / "done.npz";
+    const auto sig = std::filesystem::path{SIGNALS_SOURCE_DIR} / "examples" / "first_steps.sig";
+    const auto out = watch_json({"signals", "run", sig.string(), "--watch", "--json", "--values", "256", "--npz", npz.string()},
+                                [&] { wait_for([&] { return std::filesystem::exists(npz); }); });
+    const auto lines = lines_of(out);
+    REQUIRE(lines.size() == 1);
+    auto j = nlohmann::json::parse(lines[0]);
+    for (auto& n : j.at("nodes")) n["wall_ms"] = 0, n["cpu_ms"] = 0;
+    const auto fixture = std::filesystem::path{SIGNALS_SOURCE_DIR} / "tests" / "fixtures" / "vscode" / "first_steps.ndjson";
+    if (std::getenv("SIGNALS_UPDATE_SNAPSHOTS")) {
+        std::filesystem::create_directories(fixture.parent_path());
+        std::ofstream{fixture, std::ios::binary} << j.dump() << '\n';
+    }
+    CHECK(same_json(j, nlohmann::json::parse(bytes_of(fixture))));
 }

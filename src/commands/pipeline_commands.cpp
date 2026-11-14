@@ -43,10 +43,8 @@ namespace {
 
 std::atomic<core::CancelToken*> g_cancel{nullptr};
 
-std::atomic<bool> g_stop{false};
-
 extern "C" void stop_on_interrupt(int) {
-    g_stop.store(true);
+    stop_watching();
     if (auto* token = g_cancel.load()) token->cancel();
 }
 
@@ -215,35 +213,53 @@ public:
     int run(std::ostream& out, std::ostream& err) override {
         if (!watch_) return run_once(out, err);
         const std::filesystem::path file{file_};
-        g_stop.store(false);
+        restart_watching();
         const auto previous = std::signal(SIGINT, stop_on_interrupt);
         const auto code = watch_loop(
             [&] {
                 const int c = run_once(out, err);
                 std::string names;
                 for (const auto& f : watched_files(file)) names += (names.empty() ? "" : ", ") + f.filename().string();
-                out << fmt::format(fmt::runtime(tr("pipeline.cli.watching")), fmt::arg("files", names)) << std::endl;
+                out << std::flush;
+                err << fmt::format(fmt::runtime(tr("pipeline.cli.watching")), fmt::arg("files", names)) << std::endl;
                 return c;
             },
-            [&] { return watched_files(file); }, [] { return !g_stop.load(); }, [] { std::this_thread::sleep_for(std::chrono::milliseconds{300}); });
+            [&] { return watched_files(file); }, [] { return !watching_stopped(); }, [] { std::this_thread::sleep_for(std::chrono::milliseconds{300}); });
         std::signal(SIGINT, previous);
-        return g_stop.load() ? 0 : code;
+        return watching_stopped() ? 0 : code;
     }
 
 private:
+    int json_error(std::ostream& out, const std::filesystem::path& file, int line, const std::string& message) const {
+        const auto u = std::filesystem::absolute(file).u8string();
+        out << nlohmann::json{{"error", {{"file", std::string{u.begin(), u.end()}}, {"line", line}, {"message", message}}}}.dump() << std::endl;
+        return 1;
+    }
+
     int run_once(std::ostream& out, std::ostream& err) {
         const std::filesystem::path file{file_};
-        auto doc = load(file, err);
-        if (!doc) return 1;
+        const bool lines = watch_ && json_;
+        std::optional<pipeline::PipelineDoc> doc;
+        if (lines) {
+            std::ifstream in{file, std::ios::binary};
+            if (!in) return json_error(out, file, 0, fmt::format(fmt::runtime(tr("pipeline.cli.cannot_read")), fmt::arg("path", file.string())));
+            const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+            auto parsed = pipeline::parse_sig(text);
+            if (!parsed) return json_error(out, file, parsed.error().line, parsed.error().message);
+            doc = std::move(*parsed);
+        } else {
+            doc = load(file, err);
+            if (!doc) return 1;
+        }
         for (const auto& s : sets_)
-            if (auto ok = pipeline::apply_set(*doc, s); !ok) return report_error(err, ok.error()), 1;
+            if (auto ok = pipeline::apply_set(*doc, s); !ok) return lines ? json_error(out, file, 0, ok.error().message) : (report_error(err, ok.error()), 1);
         if (!output_.empty()) {
             const auto target = std::find_if(doc->nodes.begin(), doc->nodes.end(), [](const auto& n) { return n.type == "wav_out"; });
-            if (target == doc->nodes.end()) return report_error(err, {core::Errc::invalid_argument, tr("pipeline.cli.no_output")}), 1;
+            if (target == doc->nodes.end()) return lines ? json_error(out, file, 0, tr("pipeline.cli.no_output")) : (report_error(err, {core::Errc::invalid_argument, tr("pipeline.cli.no_output")}), 1);
             target->params["path"] = std::filesystem::absolute(output_).string();
         }
         auto graph = pipeline::build_graph(*doc, std::filesystem::absolute(file).parent_path());
-        if (!graph) return sig_error(err, file, graph.error());
+        if (!graph) return lines ? json_error(out, file, graph.error().line, graph.error().message) : sig_error(err, file, graph.error());
         for (const auto& n : graph->nodes)
             if (n.type->id == "listen") err << fmt::format(fmt::runtime(tr("pipeline.cli.listen_skipped")), fmt::arg("node", n.id)) << '\n';
 
@@ -259,7 +275,7 @@ private:
                 err << tr("pipeline.cli.cancelled") << '\n';
                 return 130;
             }
-            return report_error(err, result.error()), 1;
+            return lines ? json_error(out, file, 0, result.error().message) : (report_error(err, result.error()), 1);
         }
         if (!probe_dir_.empty())
             for (const auto& [name, value] : result->probes)
@@ -275,12 +291,13 @@ private:
         }
         if (!report_.empty())
             if (auto ok = write_run_report(report_, *doc, *graph, *result, file); !ok) return report_error(err, ok.error()), 1;
-        if (json_) print_json(*doc, *graph, *result, out, values_);
+        if (json_) print_json(*doc, *graph, *result, out, values_, lines);
         else print_text(*doc, *graph, *result, out, values_);
         return result->checks_passed ? 0 : 3;
     }
 
-    static void print_json(const pipeline::PipelineDoc& doc, const pipeline::Graph& g, const pipeline::RunResult& r, std::ostream& out, std::optional<std::size_t> listed) {
+    static void print_json(const pipeline::PipelineDoc& doc, const pipeline::Graph& g, const pipeline::RunResult& r, std::ostream& out, std::optional<std::size_t> listed,
+                           bool one_line) {
         nlohmann::json j{{"pipeline", doc.name}, {"checks_passed", r.checks_passed}};
         j["nodes"] = nlohmann::json::array();
         for (std::size_t i = 0; i < r.nodes.size(); ++i) {
@@ -303,7 +320,8 @@ private:
                 std::visit([&, &key = name](const auto& x) { fields[key] = x; }, value);
             j["reports"].push_back({{"node", nr.node}, {"passed", nr.report.passed}, {"fields", fields}});
         }
-        out << j.dump(2) << '\n';
+        if (one_line) out << j.dump() << std::endl;
+        else out << j.dump(2) << '\n';
     }
 
     static void print_text(const pipeline::PipelineDoc& doc, const pipeline::Graph& g, const pipeline::RunResult& r, std::ostream& out, std::optional<std::size_t> listed) {
