@@ -33,6 +33,14 @@ jobs:
         run: cmake --build --preset ${{ matrix.preset }}
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
+      - name: Install script
+        if: matrix.preset == 'release'
+        run: |
+          if command -v shellcheck > /dev/null; then shellcheck install.sh packaging/*.sh; fi
+          sh packaging/test_install.sh build/release/app/signals
+      - name: Homebrew formula
+        if: matrix.preset == 'release' && runner.os == 'macOS'
+        run: sh packaging/homebrew/test_render.sh
 
   windows:
     runs-on: windows-latest
@@ -50,3 +58,10 @@ jobs:
         run: cmake --build build --config Release --target signals --parallel 4
       - name: Check
         run: build/app/Release/signals.exe check
+      - name: Install script
+        run: |
+          rel="$(cygpath -u "$RUNNER_TEMP")/rel"
+          sh packaging/package.sh build/app/Release/signals.exe windows-x86_64 v9.9.9 "$rel/v9.9.9"
+          (cd "$rel/v9.9.9" && sha256sum signals-v9.9.9-windows-x86_64.zip > SHA256SUMS)
+          pwsh -NoProfile -File packaging/test_install.ps1 -Release "$(cygpath -w "$rel")"
+          powershell -NoProfile -ExecutionPolicy Bypass -File packaging/test_install.ps1 -Release "$(cygpath -w "$rel")"

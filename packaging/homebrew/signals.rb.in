@@ -1,0 +1,27 @@
+class Signals < Formula
+  desc "Filter banks, wavelets and Toeplitz matrices with a terminal interface"
+  homepage "https://github.com/VIA-s-acc/SignalProc"
+  version "@VERSION@"
+  license "MIT"
+
+  on_macos do
+@MACOS@
+  end
+
+  on_linux do
+    on_intel do
+      url "@URL@/signals-@TAG@-linux-x86_64.tar.gz"
+      sha256 "@SHA_LINUX@"
+    end
+  end
+
+  def install
+    bin.install "signals"
+@EXTRAS@
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/signals --version")
+    system bin/"signals", "check"
+  end
+end

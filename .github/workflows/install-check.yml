@@ -1,0 +1,77 @@
+name: install-check
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release tag to install, for example v0.9.0 (empty for the latest)
+        required: false
+        default: ''
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  script:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    env:
+      SIGNALS_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Install with the one-line command
+        run: |
+          start=$(date +%s)
+          curl -fsSL https://raw.githubusercontent.com/VIA-s-acc/SignalProc/main/install.sh | sh
+          took=$(( $(date +%s) - start ))
+          echo "install took ${took}s"
+          if [ "$took" -gt 60 ]; then echo "::warning::install took ${took}s, more than a minute"; fi
+      - name: Run the installed program
+        run: |
+          "$HOME/.local/bin/signals" --version
+          "$HOME/.local/bin/signals" check
+
+  windows:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: windows-latest
+    env:
+      SIGNALS_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Install with the one-line command (PowerShell 7)
+        shell: pwsh
+        run: |
+          $took = Measure-Command { irm https://raw.githubusercontent.com/VIA-s-acc/SignalProc/main/install.ps1 | iex }
+          $seconds = [int]$took.TotalSeconds
+          "install took ${seconds}s"
+          if ($seconds -gt 60) { "::warning::install took ${seconds}s, more than a minute" }
+          signals --version
+          signals check
+      - name: Run the one-line command again (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          irm https://raw.githubusercontent.com/VIA-s-acc/SignalProc/main/install.ps1 | iex
+          signals --version
+
+  homebrew:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: macos-15
+    steps:
+      - name: Install with brew
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh api repos/VIA-s-acc/homebrew-signals > /dev/null 2>&1; then
+            echo "::warning::the tap VIA-s-acc/homebrew-signals does not exist yet"
+            exit 0
+          fi
+          start=$(date +%s)
+          brew install VIA-s-acc/signals/signals
+          echo "install took $(( $(date +%s) - start ))s"
+          signals --version
+          brew test signals
