@@ -112,6 +112,7 @@ add_executable(signals_tests
   tui/harness.cpp
   audio/test_player.cpp
   theory/test_sections.cpp
+  pipeline/test_npz_values.cpp
   pipeline/test_blocks_basic.cpp
   pipeline/test_blocks_dsp.cpp
   pipeline/test_blocks_more.cpp

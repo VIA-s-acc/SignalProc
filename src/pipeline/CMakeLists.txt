@@ -5,6 +5,7 @@ add_library(signals_pipeline STATIC
   ${CMAKE_CURRENT_BINARY_DIR}/examples_embedded.cpp
   docs.cpp
   value.cpp
+  npz_values.cpp
   registry.cpp
   expr_text.cpp
   blocks_basic.cpp
