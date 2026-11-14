@@ -13,6 +13,10 @@
 #include "core/dtcwt.hpp"
 #include "core/design/families.hpp"
 #include "i18n/i18n.hpp"
+#include "io/npy.hpp"
+#include "pipeline/block.hpp"
+#include "pipeline/npz_values.hpp"
+#include "tui/shell/palette.hpp"
 #include "tui/shell/plot_export.hpp"
 #include "core/check.hpp"
 #include "core/wavedec.hpp"
@@ -93,6 +97,7 @@ std::vector<Hint> DecompositionScreen::hints() const {
             {"w", tr("tui.decomposition.hint.wavelet")},
             {"Space", tr("tui.decomposition.hint.listen")}, {"a/b/x", tr("tui.decomposition.hint.ab")},
             {"v", tr("tui.decomposition.hint.view")},     {"u", tr("tui.decomposition.hint.undo")},
+            {"N", tr("tui.decomposition.hint.npz")},
             {"F1", tr("tui.decomposition.hint.f1")},      {tr("tui.signal.key.wheel"), tr("tui.decomposition.hint.zoom")}};
 }
 
@@ -1213,6 +1218,7 @@ bool DecompositionScreen::OnEvent(ftxui::Event e) {
         model_->set_options(k, jobs);
         return true;
     }
+    if (e == Event::Character('N')) return export_npz(), true;
     if (e == Event::Character('e') || e == Event::Character('E')) {
         if (model_->options().transform == Transform::dtcwt) return notice_ = tr("tui.decomposition.dtcwt_edges"), true;
         auto k = model_->options();
@@ -1317,8 +1323,25 @@ std::optional<std::string> DecompositionScreen::explain_at(int x, int y) const {
     return notes_.at(x, y);
 }
 
+void DecompositionScreen::export_npz() {
+    const auto data = model_->data();
+    if (!data) {
+        notice_ = tr("tui.decomposition.npz_empty");
+        return;
+    }
+    if (!ui_.ask_text) return;
+    ui_.ask_text(tr("tui.decomposition.npz_prompt"), export_stem(data->options.wavelet) + "_coeffs.npz", [this, data](std::string answer) {
+        if (answer.empty()) return;
+        const auto path = expand_path(std::move(answer));
+        const auto entries = pipeline::coeffs_entries(as_pipeline_coeffs(*data));
+        const auto written = entries ? io::write_npz(path, *entries) : core::Result<void>{std::unexpected{entries.error()}};
+        notice_ = written ? fmt::format(fmt::runtime(tr("tui.decomposition.npz_saved")), fmt::arg("path", path.string())) : written.error().message;
+    });
+}
+
 std::vector<Command> DecompositionScreen::commands() {
     std::vector<Command> out;
+    out.push_back({"decomposition.export_npz", tr("tui.decomposition.cmd.export_npz"), [this] { export_npz(); }});
     for (const auto& name : core::all_wavelet_names())
         out.push_back({"decomposition.wavelet." + std::string{name}, tr("tui.decomposition.cmd.wavelet") + " " + std::string{name}, [this, n = std::string{name}] {
                            if (!ui_.jobs) return;

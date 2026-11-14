@@ -2,9 +2,11 @@
 
 ## [Unreleased]
 
-Этап M10 — лёгкий вход.
+Этапы M10 — лёгкий вход — и M11 — мост в Python.
 
 ### Added
+
+- Обмен с numpy, scipy и pywt через `.npy` и `.npz` (M11). Выгрузка: `signals run --npz`, `--probe-format npy`, `signals dwt -o *.npz`, `signals filter info -o bank.npz`, форматы `npy` у `export` и `npz` у `export_report`, `x` в «Конвейере», `N` в «Разложении» и «Фильтрах», графики в `.npz`. Загрузка: блок `wav` и вкладка «Сигнал» читают `.npy` и `.npz` (параметры `rate` и `key`), новый блок `coeffs_file` читает коэффициенты Signals и pywt. Ключи коэффициентов как у pywt, детали в знаке pywt, ключ `detail_sign`; раскладка описана в `docs/user/python.md`. Файлы открываются `np.load(..., allow_pickle=False)`, в том числе сжатые `np.savez_compressed`.
 
 - Установка одной командой: `install.sh` для macOS и Linux (`curl … | sh`) и `install.ps1` для Windows (`irm … | iex`). Скрипты берут последний выпуск или заданную версию, сверяют SHA-256, ставят программу в домашнюю папку без `sudo`, раскладывают man-страницу и дополнения и обновляют программу при повторном запуске. В CI они проверяются на поддельном выпуске, а `install-check.yml` ставит программу настоящими однострочниками на чистых машинах GitHub.
 - Свой репозиторий Homebrew: `brew install VIA-s-acc/signals/signals`. Формула собирается из `SHA256SUMS` выпуска; задание выпуска обновляет её само, если задан секрет `HOMEBREW_TAP_TOKEN`.

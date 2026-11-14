@@ -83,6 +83,19 @@ core::Result<core::BasicCoeffs<double>> forward_transform(const std::vector<doub
     return c;
 }
 
+pipeline::Coeffs as_pipeline_coeffs(const DecompositionData& d) {
+    const auto& o = d.options;
+    pipeline::Coeffs c;
+    c.transform = o.transform == Transform::dtcwt ? "dtcwt" : o.transform == Transform::dwt ? "dwt" : "swt";
+    c.norm = o.transform == Transform::modwt;
+    c.wavelet = o.transform == Transform::dtcwt ? o.biort + "+" + o.qshift : o.wavelet;
+    c.mode = o.transform == Transform::dwt ? o.mode : o.transform == Transform::dtcwt ? core::Extension::symmetric : core::Extension::periodization;
+    c.rate = d.fs;
+    c.channels.push_back(d.coeffs);
+    c.lengths.push_back(d.x.size());
+    return c;
+}
+
 core::Result<std::vector<double>> inverse_transform(const core::BasicCoeffs<double>& c, const core::FilterBank& bank, const DecompositionOptions& o) {
     if (o.transform == Transform::dwt) return core::waverec<double>(c, bank, {o.mode});
     if (o.transform == Transform::dtcwt) return dtcwt_inverse(c, o);

@@ -1,4 +1,9 @@
 #include "tui/screens/filters_screen.hpp"
+#include "io/npy.hpp"
+#include "pipeline/block.hpp"
+#include "pipeline/npz_values.hpp"
+#include "tui/shell/palette.hpp"
+#include "tui/shell/plot_export.hpp"
 #include "tui/data/user_filters.hpp"
 #include "tui/shell/errors.hpp"
 #include "tui/term/caps.hpp"
@@ -151,6 +156,7 @@ std::vector<Hint> FiltersScreen::hints() const {
             {"l", tr("tui.filters.hint.log")},         {"d", tr("tui.filters.hint.db")},
             {"n", tr("tui.filters.hint.normalise")},   {"t", tr("tui.filters.hint.role")},
             {"o/O", tr("tui.filters.hint.order")},      {"f/F", tr("tui.filters.hint.edge")},
+            {"N", tr("tui.filters.hint.npz")},
             {"c", tr("tui.filters.hint.custom")},       {"Ctrl+Z", tr("tui.filters.hint.undo")},
             {tr("tui.filters.key.drag_root"), tr("tui.filters.hint.drag_root")},
             {"F1", tr("tui.filters.hint.f1")},         {tr("tui.signal.key.wheel"), tr("tui.filters.hint.zoom")},
@@ -1217,7 +1223,24 @@ void FiltersScreen::ask_roots() {
 
 std::vector<Command> FiltersScreen::commands() {
     return {{"filters.from_ba", tr("tui.filters.cmd.from_ba"), [this] { ask_ba(); }},
-            {"filters.edit_roots", tr("tui.filters.cmd.edit_roots"), [this] { ask_roots(); }}};
+            {"filters.edit_roots", tr("tui.filters.cmd.edit_roots"), [this] { ask_roots(); }},
+            {"filters.export_bank", tr("tui.filters.cmd.export_bank"), [this] { export_bank(); }}};
+}
+
+void FiltersScreen::export_bank() {
+    const auto* e = focused();
+    auto bank = e && !e->ref.wavelet.empty() ? core::wavelet(e->ref.wavelet) : core::Result<core::FilterBank>{std::unexpected{core::Error{core::Errc::invalid_argument, ""}}};
+    if (!bank) {
+        notice_ = tr("tui.filters.npz_no_bank");
+        return;
+    }
+    if (!ui_.ask_text) return;
+    ui_.ask_text(tr("tui.filters.npz_prompt"), export_stem(bank->name) + ".npz", [this, bank = std::move(*bank)](std::string answer) {
+        if (answer.empty()) return;
+        const auto path = expand_path(std::move(answer));
+        const auto written = io::write_npz(path, pipeline::bank_entries(bank));
+        notice_ = written ? fmt::format(fmt::runtime(tr("tui.filters.npz_saved")), fmt::arg("name", bank.name), fmt::arg("path", path.string())) : written.error().message;
+    });
 }
 
 void FiltersScreen::pan(double delta) {
@@ -1464,6 +1487,7 @@ bool FiltersScreen::OnEvent(ftxui::Event e) {
     }
     if (e.is_mouse()) return on_mouse(e.mouse());
     if (e == Event::CtrlZ) return undo_edit();
+    if (e == Event::Character('N')) return export_bank(), true;
     if (focus_ == impulse && impulse_zoom_.on_key(e, "impulse")) return true;
     if (focus_ == library && key_scroll(e, library_scroll_, false)) return true;
     if (focus_ == zeros && zview_.on_key(e, ZPlaneSpec{}.extent)) return true;

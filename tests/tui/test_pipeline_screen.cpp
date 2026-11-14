@@ -19,6 +19,7 @@
 
 #include <ftxui/component/event.hpp>
 
+#include "io/npy.hpp"
 #include "audio/manual_sink.hpp"
 #include "commands/cli.hpp"
 #include "core/design/families.hpp"
@@ -1527,4 +1528,40 @@ TEST_CASE("an unknown example name leaves the pipeline as it was", "[tui][pipeli
     const auto before = f.screen->context();
     f.screen->open_with(NavArgs{.example = "no_such_example"});
     CHECK(f.screen->context() == before);
+}
+
+TEST_CASE("x saves a signal probe to npy and any probe to npz", "[tui][pipeline_screen][probe_tools]") {
+    PipelineFixture f{150, 44, false};
+    run_text(f, kTwoChannels);
+    const auto dir = signals::test::temp_path("probe-npz");
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    std::string answer, prefill;
+    f.ui->ask_text = [&](std::string, std::string p, std::function<void(std::string)> done) {
+        prefill = std::move(p);
+        done(answer);
+    };
+    answer = (dir / "g.npy").string();
+    f.h.send(ftxui::Event::Character('x'));
+    const auto npy = signals::io::read_npy(dir / "g.npy");
+    REQUIRE(npy);
+    CHECK(npy->shape == std::vector<std::size_t>{2, 2});
+    CHECK(std::get<std::vector<double>>(npy->data) == std::vector<double>{0.125, -0.5, 1, 0.333333333333});
+    answer = (dir / "g.npz").string();
+    f.h.send(ftxui::Event::Character('x'));
+    const auto npz = signals::io::read_npz(dir / "g.npz");
+    REQUIRE(npz);
+    CHECK(signals::io::np_find(*npz, "rate"));
+    run_text(f, "pipeline \"c\" v1\nnode x = samples(values=\"0.5 0.25 -0.125 1\", rate=8)\nnode d = dwt(wavelet=haar, levels=1)\nx -> d\nprobe d as \"d\"\n");
+    answer = (dir / "d.npz").string();
+    f.h.send(ftxui::Event::Character('x'));
+    CHECK(prefill == "d.npz");
+    const auto coeffs = signals::io::read_npz(dir / "d.npz");
+    REQUIRE(coeffs);
+    CHECK(signals::io::np_find(*coeffs, "cA1"));
+    CHECK(signals::io::np_find(*coeffs, "detail_sign"));
+    answer = (dir / "d.csv").string();
+    f.h.send(ftxui::Event::Character('x'));
+    CHECK_FALSE(std::filesystem::exists(dir / "d.csv"));
+    CHECK(f.screen->notice().find(".npz") != std::string::npos);
 }

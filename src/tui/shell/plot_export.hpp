@@ -1,5 +1,7 @@
 #pragma once
 
+#include "io/npy.hpp"
+
 #include <map>
 #include <string>
 #include <string_view>
@@ -17,6 +19,8 @@ svg::Chart to_chart(const ChartExport& chart, const Theme& theme);
 ChartExport zplane_export(std::string id, std::string title, const ZPlaneSpec& spec, const Theme& theme,
                           const std::map<std::string, std::string, std::less<>>& marker_names = {});
 std::string export_stem(std::string_view title);
+io::NpzEntries chart_arrays(const svg::Chart& c);
+io::NpzEntries heatmap_arrays(const svg::Heatmap& m);
 void export_plot(UiContext& ui, PlotExport plot);
 void export_heatmap(UiContext& ui, HeatmapExport map);
 void export_chart(UiContext& ui, ChartExport chart);

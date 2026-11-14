@@ -1,4 +1,7 @@
 #include "tui/screens/pipeline_screen.hpp"
+#include "pipeline/npz_values.hpp"
+#include "io/npy_audio.hpp"
+#include "io/npy.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -801,20 +804,32 @@ void PipelineScreen::copy_probe() {
 }
 
 void PipelineScreen::save_probe() {
-    if (!probe_signal(model_->run_view(), probe_.name)) {
+    const auto run = model_->run_view();
+    const auto found = run.probes.find(probe_.name);
+    if (found == run.probes.end() || !found->second) {
         notice_ = tr("tui.pipeline.probe.not_signal");
         return;
     }
     if (!ui_.ask_text) return;
-    ui_.ask_text(tr("tui.pipeline.probe.save_prompt"), probe_.name + ".csv", [this, name = probe_.name](std::string answer) {
-        const auto run = model_->run_view();
-        const auto* audio = probe_signal(run, name);
-        if (!audio) return;
+    const bool signal = probe_signal(run, probe_.name) != nullptr;
+    ui_.ask_text(tr("tui.pipeline.probe.save_prompt"), probe_.name + (signal ? ".csv" : ".npz"), [this, name = probe_.name](std::string answer) {
+        const auto now = model_->run_view();
+        const auto it = now.probes.find(name);
+        if (it == now.probes.end() || !it->second) return;
+        const auto* audio = std::get_if<core::AudioBuffer>(it->second.get());
         auto path = utf8_file(answer);
         if (path.is_relative()) path = model_->base_dir() / path;
         const auto ext = path.extension().string();
         core::Result<void> written;
-        if (ext == ".wav") {
+        if (ext == ".npz") {
+            const auto entries = pipeline::value_entries(*it->second);
+            written = entries ? io::write_npz(path, *entries) : core::Result<void>{std::unexpected{entries.error()}};
+        } else if (!audio) {
+            notice_ = tr("tui.pipeline.probe.save_kinds_npz");
+            return;
+        } else if (ext == ".npy") {
+            written = io::write_npy(path, io::signal_entries(*audio).front().second);
+        } else if (ext == ".wav") {
             if (auto r = io::write_wav(path, *audio, {io::SampleFormat::float32, false}); !r) written = std::unexpected{r.error()};
         } else if (ext == ".csv") {
             written = io::write_file_atomic(path, probe_table(*audio, ',', audio->frames()));
