@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -20,6 +21,8 @@ struct NpArray {
 struct NpLimits {
     std::size_t row = std::size_t{1} << 28;
     std::size_t rows = 4096;
+    std::uint64_t expand_floor = std::uint64_t{1} << 28;
+    std::uint64_t expand_ratio = 200;
 };
 
 using NpzEntries = std::vector<std::pair<std::string, NpArray>>;
