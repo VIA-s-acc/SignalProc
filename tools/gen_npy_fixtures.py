@@ -4,6 +4,7 @@ Run: python3 tools/gen_npy_fixtures.py tests/fixtures/npy  (numpy, pywt as pinne
 """
 
 import json
+import io
 import sys
 from pathlib import Path
 
@@ -65,6 +66,12 @@ def main() -> None:
         z.writestr("cA1.npy", claim)
         z.writestr("cD1.npy", claim)
     np.savez_compressed(out / "zeros_compressed.npz", x=np.zeros(1 << 20))
+    np.savez_compressed(out / "zeros_many.npz", a=np.zeros(1 << 18), b=np.zeros(1 << 18), c=np.zeros(1 << 18), d=np.zeros(1 << 18))
+    with zipfile.ZipFile(out / "duplicate.npz", "w") as z:
+        for value in (1.0, 2.0):
+            buffer = io.BytesIO()
+            np.save(buffer, np.full(4, value))
+            z.writestr("x.npy", buffer.getvalue())
     for key, value in (("a", a), ("b", b), ("name", name)):
         record(expected, "npz." + key, value)
 

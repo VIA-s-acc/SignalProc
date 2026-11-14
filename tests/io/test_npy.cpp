@@ -256,3 +256,22 @@ TEST_CASE("a compressed npz member that expands too far is refused", "[npy]") {
     CHECK(refused.error().message.find("np.savez") != std::string::npos);
     CHECK(read_npz(path));
 }
+
+TEST_CASE("an npz with a key twice is refused", "[npy]") {
+    const auto path = npy_fixture("duplicate.npz");
+    const auto read = read_npz(path);
+    REQUIRE_FALSE(read);
+    CHECK(read.error().message.find("twice") != std::string::npos);
+    CHECK_FALSE(read_npz(path, {}, {"x"}));
+    CHECK_FALSE(probe_npz(path));
+}
+
+TEST_CASE("an npz whose members together expand too far is refused", "[npy]") {
+    const auto path = npy_fixture("zeros_many.npz");
+    NpLimits tight;
+    tight.expand_floor = std::uint64_t{3} << 20;
+    const auto refused = read_npz(path, tight);
+    REQUIRE_FALSE(refused);
+    CHECK(refused.error().message.find("np.savez") != std::string::npos);
+    CHECK(read_npz(path));
+}
