@@ -77,12 +77,72 @@ core::Result<std::string> impulse_train(const NodeIo& io, Emitter& em) {
     return fmt::format("{0} = np.zeros((1, {1}))\n{0}[0, {2}::{3}] = 1.0\n{0} = {0} * {4}", io.out[0], source_length(io), *offset, *period, real(em, io, "amplitude"));
 }
 
+core::Result<std::string> shift(const NodeIo& io, Emitter&) {
+    const auto s = param_int(io.node.params, "samples");
+    if (param_text(io.node.params, "mode") == "circular") return fmt::format("{} = np.roll({}, {}, axis=1)", io.out[0], io.in[0], s);
+    return fmt::format("{0} = np.zeros_like({1})\n{0}_n = {1}.shape[1]\n{0}[:, max(0, {2}):{0}_n + min(0, {2})] = {1}[:, max(0, -({2})):{0}_n - max(0, {2})]", io.out[0], io.in[0], s);
+}
+
+core::Result<std::string> biquad(const NodeIo& io, Emitter& em) {
+    em.function("biquad");
+    return fmt::format("{} = biquad({}, {}, {}, {}, {}, {})", io.out[0], io.in[0], py_str(param_text(io.node.params, "type")), real(em, io, "f0"), real(em, io, "q"),
+                       real(em, io, "gain_db"), io.in_fs[0]);
+}
+
+core::Result<std::string> compressor(const NodeIo& io, Emitter& em) {
+    em.function("dynamics");
+    return fmt::format("{} = dynamics({}, {}, \"compressor\", {}, ratio={}, knee={}, attack_ms={}, release_ms={}, makeup={}, detector={}, rms_ms={})", io.out[0], io.in[0], io.in_fs[0],
+                       real(em, io, "threshold_db"), real(em, io, "ratio"), real(em, io, "knee_db"), real(em, io, "attack_ms"), real(em, io, "release_ms"), real(em, io, "makeup_db"),
+                       py_str(param_text(io.node.params, "detector")), real(em, io, "rms_ms"));
+}
+
+core::Result<std::string> limiter(const NodeIo& io, Emitter& em) {
+    em.function("dynamics");
+    return fmt::format("{} = dynamics({}, {}, \"limiter\", {}, attack_ms={}, release_ms={})", io.out[0], io.in[0], io.in_fs[0], real(em, io, "threshold_db"),
+                       real(em, io, "attack_ms"), real(em, io, "release_ms"));
+}
+
+core::Result<std::string> gate(const NodeIo& io, Emitter& em) {
+    em.function("dynamics");
+    return fmt::format("{} = dynamics({}, {}, \"gate\", {}, attack_ms={}, release_ms={}, range_db={})", io.out[0], io.in[0], io.in_fs[0], real(em, io, "threshold_db"),
+                       real(em, io, "attack_ms"), real(em, io, "release_ms"), real(em, io, "range_db"));
+}
+
+double input_rate(const NodeIo& io) {
+    if (!io.in_values.empty() && io.in_values[0])
+        if (const auto* a = std::get_if<core::AudioBuffer>(io.in_values[0])) return a->sample_rate;
+    return 44100;
+}
+
+core::Result<std::string> echo(const NodeIo& io, Emitter& em) {
+    const auto delay = static_cast<std::size_t>(std::floor(param_real(io.node.params, "delay_ms") / 1000 * input_rate(io) + 0.5));
+    em.function("delay_lines");
+    return fmt::format("{} = delay_lines({}, \"echo\", {}, {}, {})", io.out[0], io.in[0], delay, real(em, io, "feedback"), real(em, io, "mix"));
+}
+
+core::Result<std::string> comb(const NodeIo& io, Emitter& em) {
+    const auto delay = pipeline::param_samples(io.node.params, "delay", input_rate(io));
+    if (!delay) return std::unexpected{unsupported(io, "delay")};
+    em.function("delay_lines");
+    return fmt::format("{} = delay_lines({}, {}, {}, {})", io.out[0], io.in[0], py_str(param_text(io.node.params, "kind")), *delay, real(em, io, "gain"));
+}
+
+core::Result<std::string> mix(const NodeIo& io, Emitter& em) {
+    const auto& p = io.node.params;
+    const double fs = input_rate(io);
+    em.function("mix_signals");
+    return fmt::format("{} = mix_signals({}, {}, 10.0 ** ({} / 20), 10.0 ** ({} / 20), {}, {}, {})", io.out[0], io.in[0], io.in[1], real(em, io, "gain_a_db"), real(em, io, "gain_b_db"),
+                       param_text(p, "mode") == "crossfade" ? "True" : "False", em.number(std::floor(param_real(p, "at") * fs + 0.5)),
+                       em.number(std::floor(param_real(p, "crossfade_ms") / 1000 * fs + 0.5)));
+}
+
 }  // namespace
 
 void register_effect_forms(std::vector<PyForm>& out) {
     for (auto [id, fn] : std::initializer_list<std::pair<const char*, core::Result<std::string> (*)(const NodeIo&, Emitter&)>>{
              {"tremolo", tremolo}, {"modulated_delay", modulated_delay}, {"phaser", phaser}, {"reverb", reverb}, {"wavefold", wavefold}, {"am", am}, {"fm", fm},
-             {"gausspulse", gausspulse}, {"impulse_train", impulse_train}})
+             {"gausspulse", gausspulse}, {"impulse_train", impulse_train}, {"shift", shift}, {"biquad", biquad}, {"compressor", compressor},
+             {"limiter", limiter}, {"gate", gate}, {"echo", echo}, {"comb", comb}, {"mix", mix}})
         out.push_back({id, 1e-12, fn});
 }
 
