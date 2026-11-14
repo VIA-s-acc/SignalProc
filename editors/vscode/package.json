@@ -106,7 +106,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "In an untrusted folder the preview runs only the signals program from your user settings or PATH.",
+      "description": "In an untrusted folder the preview does not run: a graph can write files.",
       "restrictedConfigurations": [
         "signals.path"
       ]

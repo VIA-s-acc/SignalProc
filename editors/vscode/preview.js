@@ -41,6 +41,18 @@ function programPath(setting) {
   return (setting && (setting.globalValue || setting.defaultValue)) || 'signals';
 }
 
+function resolveProgram(name, env, paths, exists, extensions) {
+  const candidates = (base) => [base, ...extensions.map((e) => base + e.toLowerCase())];
+  if (paths.isAbsolute(name)) return candidates(name).find(exists) || null;
+  if (name.includes('/') || name.includes('\\')) return null;
+  for (const dir of (env.PATH || env.Path || '').split(paths.delimiter)) {
+    if (!dir || !paths.isAbsolute(dir)) continue;
+    const found = candidates(paths.join(dir, name)).find(exists);
+    if (found) return found;
+  }
+  return null;
+}
+
 function polyline(values, peak, index) {
   const n = values.length;
   const points = values.map((v, i) => {
@@ -122,4 +134,4 @@ function renderNote(text) {
   return page('Signals', `<p class="dim">${escapeHtml(text)}</p>`);
 }
 
-module.exports = { say, parseLine, diagnostics, versionOk, programPath, renderPanel, renderError, renderNote };
+module.exports = { say, parseLine, diagnostics, versionOk, programPath, resolveProgram, renderPanel, renderError, renderNote };

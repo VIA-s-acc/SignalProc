@@ -249,9 +249,18 @@ function activatePreview(context, ru) {
     if (document.isDirty) await document.save();
     const key = document.uri.toString();
     if (open.has(key)) return open.get(key).panel.reveal(vscode.ViewColumn.Beside, true);
-    const exe = preview.programPath(vscode.workspace.getConfiguration('signals').inspect('path'));
-    const version = await new Promise((resolve) => childProcess.execFile(exe, ['--version'], (error, stdout) => resolve(error ? null : stdout)));
-    if (version === null) return vscode.window.showErrorMessage(preview.say(ru, 'missing', { path: exe }));
+    if (!vscode.workspace.isTrusted) return vscode.window.showWarningMessage(preview.say(ru, 'untrusted'));
+    const wanted = preview.programPath(vscode.workspace.getConfiguration('signals').inspect('path'));
+    const isFile = (p) => {
+      try {
+        return fs.statSync(p).isFile();
+      } catch {
+        return false;
+      }
+    };
+    const exe = preview.resolveProgram(wanted, process.env, path, isFile, process.platform === 'win32' ? ['.EXE', '.COM'] : []);
+    const version = exe && (await new Promise((resolve) => childProcess.execFile(exe, ['--version'], (error, stdout) => resolve(error ? null : stdout))));
+    if (!version) return vscode.window.showErrorMessage(preview.say(ru, 'missing', { path: wanted }));
     if (!preview.versionOk(version)) return vscode.window.showErrorMessage(preview.say(ru, 'old', { version: version.trim() }));
     const file = document.uri.fsPath;
     const panel = vscode.window.createWebviewPanel('signalsPreview', preview.say(ru, 'title', { name: path.basename(file) }), { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, {});

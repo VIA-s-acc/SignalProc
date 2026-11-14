@@ -64,3 +64,15 @@ test('takes the program only from user settings, never from the workspace', () =
   assert.strictEqual(preview.programPath({ defaultValue: 'signals', globalValue: '/opt/signals/bin/signals', workspaceValue: '/tmp/evil' }), '/opt/signals/bin/signals');
   assert.strictEqual(preview.programPath(undefined), 'signals');
 });
+
+test('finds the program on PATH by an absolute path, never in the current folder', () => {
+  const files = new Set(['/usr/local/bin/signals', '/work/repo/signals', 'C:\\Tools\\signals.exe']);
+  const exists = (p) => files.has(p);
+  const posix = { delimiter: ':', sep: '/', isAbsolute: (p) => p.startsWith('/'), join: (a, b) => `${a}/${b}` };
+  assert.strictEqual(preview.resolveProgram('signals', { PATH: '.::/usr/local/bin' }, posix, exists, []), '/usr/local/bin/signals');
+  assert.strictEqual(preview.resolveProgram('signals', { PATH: '/nowhere' }, posix, exists, []), null);
+  assert.strictEqual(preview.resolveProgram('/work/repo/signals', { PATH: '' }, posix, exists, []), '/work/repo/signals');
+  assert.strictEqual(preview.resolveProgram('bin/signals', { PATH: '/usr/local/bin' }, posix, exists, []), null);
+  const win = { delimiter: ';', sep: '\\', isAbsolute: (p) => /^[A-Za-z]:\\/.test(p), join: (a, b) => `${a}\\${b}` };
+  assert.strictEqual(preview.resolveProgram('signals', { PATH: 'C:\\Tools' }, win, exists, ['.EXE', '.CMD']), 'C:\\Tools\\signals.exe');
+});
