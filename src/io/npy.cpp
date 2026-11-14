@@ -22,6 +22,8 @@ using core::Errc;
 
 constexpr std::string_view kMagic{"\x93NUMPY", 6};
 constexpr std::size_t kMaxHeader = std::size_t{1} << 20;
+constexpr std::size_t kMaxTextValues = std::size_t{1} << 20;
+constexpr std::size_t kMaxTextWidth = std::size_t{1} << 16;
 
 std::string utf8(const std::filesystem::path& p) {
     const auto u = p.u8string();
@@ -127,6 +129,7 @@ core::Result<Dtype> parse_dtype(const std::string& s) {
         size = size * 10 + static_cast<std::size_t>(s[i] - '0');
         any = true;
         if (size > (std::size_t{1} << 20)) return fail("npy dtype '" + s + "' is not supported");
+        if (d.kind == 'U' && size > kMaxTextWidth) return fail("npy strings of dtype '" + s + "' are longer than " + std::to_string(kMaxTextWidth) + " characters");
     }
     if (i != s.size() || !any) return fail("npy dtype '" + s + "' is not understood");
     d.size = size;
@@ -209,6 +212,8 @@ core::Result<Header> parse_header(std::string_view bytes, const NpLimits& limits
     if (row > limits.row)
         return fail("array shape " + shape_text(h->shape) + " exceeds the limit of " + std::to_string(limits.row) + " values per row");
     h->count = rows * row;
+    if (h->dtype.kind == 'U' && h->count > kMaxTextValues)
+        return fail("array shape " + shape_text(h->shape) + " holds more than " + std::to_string(kMaxTextValues) + " strings");
     return h;
 }
 

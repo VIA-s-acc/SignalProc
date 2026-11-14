@@ -128,6 +128,12 @@ TEST_CASE("npy checks the size before allocating", "[npy]") {
     const auto empty_text = decode_npy(header_claiming("(1, 200000000)", "<U0"));
     REQUIRE_FALSE(empty_text);
     CHECK(empty_text.error().message.find("U0") != std::string::npos);
+    const auto many_strings = decode_npy(header_claiming("(2000000,)", "<U1"));
+    REQUIRE_FALSE(many_strings);
+    CHECK(many_strings.error().message.find("strings") != std::string::npos);
+    const auto wide_strings = decode_npy(header_claiming("(1,)", "<U100000"));
+    REQUIRE_FALSE(wide_strings);
+    CHECK(wide_strings.error().message.find("U100000") != std::string::npos);
 }
 
 TEST_CASE("npz reads savez and savez_compressed", "[npy]") {
