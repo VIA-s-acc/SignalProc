@@ -261,3 +261,19 @@ TEST_CASE("a length that does not fit the bands is refused", "[npz-values]") {
     ok.emplace_back("length", io::np_scalar(1000));
     CHECK(coeffs_from_entries(ok, {}));
 }
+
+TEST_CASE("a band without channels is refused, not read past its end", "[npz-values]") {
+    const io::NpzEntries empty{{"cA2", io::NpArray{{0, 4}, std::vector<double>{}}},
+                               {"cD2", io::NpArray{{2, 4}, std::vector<double>(8, 1.0)}},
+                               {"cD1", io::NpArray{{2, 8}, std::vector<double>(16, 1.0)}},
+                               {"wavelet", io::np_text("db2")},
+                               {"mode", io::np_text("symmetric")}};
+    const auto c = coeffs_from_entries(empty, {});
+    REQUIRE_FALSE(c);
+    CHECK(c.error().message.find("cA2") != std::string::npos);
+    const io::NpzEntries short_data{{"cA1", io::NpArray{{2, 4}, std::vector<double>(3, 1.0)}},
+                                    {"cD1", io::NpArray{{2, 4}, std::vector<double>(8, 1.0)}},
+                                    {"wavelet", io::np_text("db2")},
+                                    {"mode", io::np_text("symmetric")}};
+    REQUIRE_FALSE(coeffs_from_entries(short_data, {}));
+}

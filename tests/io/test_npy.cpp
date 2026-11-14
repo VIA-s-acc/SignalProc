@@ -246,3 +246,13 @@ TEST_CASE("npz reads only the asked keys", "[npy]") {
     REQUIRE(some->size() == 1);
     CHECK(some->front().first == "b");
 }
+
+TEST_CASE("a compressed npz member that expands too far is refused", "[npy]") {
+    const auto path = npy_fixture("zeros_compressed.npz");
+    NpLimits tight;
+    tight.expand_floor = std::uint64_t{1} << 20;
+    const auto refused = read_npz(path, tight);
+    REQUIRE_FALSE(refused);
+    CHECK(refused.error().message.find("np.savez") != std::string::npos);
+    CHECK(read_npz(path));
+}
