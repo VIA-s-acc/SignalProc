@@ -96,6 +96,7 @@ add_executable(signals_tests
   tui/test_user_filters.cpp
   tui/test_session.cpp
   tui/test_start_panel.cpp
+  tui/test_svg_frame.cpp
   tui/test_designer_screen.cpp
   tui/test_decomposition_model.cpp
   tui/test_decomposition_screen.cpp

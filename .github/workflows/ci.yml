@@ -65,3 +65,18 @@ jobs:
           (cd "$rel/v9.9.9" && sha256sum signals-v9.9.9-windows-x86_64.zip > SHA256SUMS)
           pwsh -NoProfile -File packaging/test_install.ps1 -Release "$(cygpath -w "$rel")"
           powershell -NoProfile -ExecutionPolicy Bypass -File packaging/test_install.ps1 -Release "$(cygpath -w "$rel")"
+
+  gallery:
+    runs-on: ubuntu-24.04
+    env:
+      CXX: g++-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSIGNALS_BUILD_TESTS=OFF -DSIGNALS_BUILD_GALLERY=ON -DSIGNALS_WERROR=ON
+      - name: Build
+        run: cmake --build build --target signals-gallery --parallel 4
+      - name: Render every screen
+        run: |
+          build/tools/gallery/signals-gallery --out "$RUNNER_TEMP/gallery" --lang en
+          test "$(ls "$RUNNER_TEMP/gallery"/*.svg | wc -l)" -eq 19

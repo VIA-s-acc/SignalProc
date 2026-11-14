@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <ftxui/component/component_base.hpp>
@@ -14,6 +15,7 @@ namespace signals::tui {
 
 ftxui::Component make_shell(UiContext& ui, std::vector<std::shared_ptr<TabScreen>> screens, std::function<void()> on_quit);
 int active_tab(const ftxui::Component& shell);
+std::vector<std::string_view> route_names();
 
 std::vector<std::shared_ptr<TabScreen>> placeholder_screens(UiContext& ui);
 std::shared_ptr<TabScreen> make_placeholder(std::string label, std::string title, std::string description, std::string stage,

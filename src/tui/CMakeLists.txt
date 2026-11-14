@@ -32,6 +32,7 @@ add_library(signals_tui STATIC
   shell/panel.cpp
   shell/shell.cpp
   shell/start_panel.cpp
+  render/svg_frame.cpp
   shell/status.cpp
   shell/help.cpp
   shell/placeholder.cpp
