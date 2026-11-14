@@ -1,8 +1,9 @@
+# needs: correlate_full
 def xcorr(a, b, mode, normalize):
     rows = []
     for c in range(a.shape[0]):
         x, y = a[c], b[min(c, b.shape[0] - 1)]
-        full = np.correlate(x, y, "full")
+        full = correlate_full(x, y)
         start, length = 0, full.size
         if mode == "same":
             length = x.size

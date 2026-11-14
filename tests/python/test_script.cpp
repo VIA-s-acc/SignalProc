@@ -309,3 +309,12 @@ TEST_CASE("a wavelet from the user library goes to pywt with its filters", "[py-
     CHECK(s->text.find("pywt.Wavelet(\"my_bank\", filter_bank=") != std::string::npos);
     CHECK(io::np_find(s->data, "wavelet.my_bank.dec_lo"));
 }
+
+TEST_CASE("xcorr in a script switches to the FFT like the program", "[py-script]") {
+    const auto s = script_for("pipeline \"c\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode y = gen(kind=sine, freq=330, rate=8000, duration=0.01)\n"
+                              "node c = xcorr()\nx -> c.a\ny -> c.b\nprobe c as \"c\"\n",
+                              "xcorr-fft");
+    REQUIRE(s);
+    CHECK(s->text.find("def correlate_full(") != std::string::npos);
+    CHECK(s->text.find("np.correlate(") == std::string::npos);
+}
