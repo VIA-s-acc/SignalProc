@@ -19,7 +19,8 @@
   "main": "./extension.js",
   "activationEvents": [
     "onLanguage:signals-sig",
-    "onLanguage:signals-flt"
+    "onLanguage:signals-flt",
+    "onCommand:signals.preview"
   ],
   "contributes": {
     "languages": [
@@ -67,6 +68,48 @@
         "language": "signals-flt",
         "path": "./snippets/flt.json"
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "signals.preview",
+        "title": "Signals: Preview",
+        "icon": "$(open-preview)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "signals.preview",
+          "when": "resourceLangId == signals-sig",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "signals.preview",
+          "when": "editorLangId == signals-sig"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Signals",
+      "properties": {
+        "signals.path": {
+          "type": "string",
+          "default": "signals",
+          "description": "The signals program the preview runs: a name on PATH or a full path",
+          "scope": "machine"
+        }
+      }
+    }
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In an untrusted folder the preview does not run: a graph can write files.",
+      "restrictedConfigurations": [
+        "signals.path"
+      ]
+    }
   }
 }

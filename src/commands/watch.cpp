@@ -1,5 +1,6 @@
 #include "commands/watch.hpp"
 
+#include <atomic>
 #include <fstream>
 #include <iterator>
 #include <string>
@@ -9,6 +10,8 @@
 
 namespace signals::cli {
 namespace {
+
+std::atomic<bool> g_stopped{false};
 
 std::vector<std::filesystem::file_time_type> stamps(const std::vector<std::filesystem::path>& files) {
     std::vector<std::filesystem::file_time_type> out;
@@ -21,6 +24,10 @@ std::vector<std::filesystem::file_time_type> stamps(const std::vector<std::files
 }
 
 }  // namespace
+
+void stop_watching() { g_stopped.store(true); }
+bool watching_stopped() { return g_stopped.load(); }
+void restart_watching() { g_stopped.store(false); }
 
 std::vector<std::filesystem::path> watched_files(const std::filesystem::path& sig) {
     const auto absolute = std::filesystem::absolute(sig);

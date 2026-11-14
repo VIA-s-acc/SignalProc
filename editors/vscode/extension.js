@@ -1,7 +1,10 @@
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
+const childProcess = require('child_process');
+const readline = require('readline');
 const flt = require('./flt');
+const preview = require('./preview');
 
 const NODE_LINE = /^\s*node\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)/;
 
@@ -100,6 +103,7 @@ function nodeContext(document, position) {
 function activate(context) {
   const { blocks, ru } = loadBlocks(context);
   activateFlt(context, ru);
+  activatePreview(context, ru);
   const selector = { language: 'signals-sig' };
 
   context.subscriptions.push(
@@ -231,6 +235,68 @@ function activateFlt(context, ru) {
       ' ',
     ),
   );
+}
+
+function activatePreview(context, ru) {
+  const diagnostics = vscode.languages.createDiagnosticCollection('signals-run');
+  const open = new Map();
+  context.subscriptions.push(diagnostics, { dispose: () => open.forEach((s) => s.child && s.child.kill()) });
+
+  const start = async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document.languageId !== 'signals-sig') return;
+    const document = editor.document;
+    if (document.isDirty) await document.save();
+    const key = document.uri.toString();
+    if (open.has(key)) return open.get(key).panel.reveal(vscode.ViewColumn.Beside, true);
+    if (!vscode.workspace.isTrusted) return vscode.window.showWarningMessage(preview.say(ru, 'untrusted'));
+    const wanted = preview.programPath(vscode.workspace.getConfiguration('signals').inspect('path'));
+    const isFile = (p) => {
+      try {
+        return fs.statSync(p).isFile();
+      } catch {
+        return false;
+      }
+    };
+    const exe = preview.resolveProgram(wanted, process.env, path, isFile, process.platform === 'win32' ? ['.EXE', '.COM'] : []);
+    const version = exe && (await new Promise((resolve) => childProcess.execFile(exe, ['--version'], (error, stdout) => resolve(error ? null : stdout))));
+    if (!version) return vscode.window.showErrorMessage(preview.say(ru, 'missing', { path: wanted }));
+    if (!preview.versionOk(version)) return vscode.window.showErrorMessage(preview.say(ru, 'old', { version: version.trim() }));
+    const file = document.uri.fsPath;
+    const panel = vscode.window.createWebviewPanel('signalsPreview', preview.say(ru, 'title', { name: path.basename(file) }), { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, {});
+    panel.webview.html = preview.renderNote(preview.say(ru, 'waiting'));
+    const child = childProcess.spawn(exe, ['run', file, '--watch', '--json', '--values', '2000'], { cwd: path.dirname(file) });
+    const session = { panel, child };
+    open.set(key, session);
+    readline.createInterface({ input: child.stdout }).on('line', (line) => {
+      let item;
+      try {
+        item = preview.parseLine(line);
+      } catch {
+        return;
+      }
+      if (item.kind === 'run') {
+        diagnostics.delete(document.uri);
+        panel.webview.html = preview.renderPanel(item.run, ru);
+        return;
+      }
+      const d = preview.diagnostics(item.error, document.uri);
+      const range = new vscode.Range(d.range.start.line, 0, d.range.start.line, Number.MAX_SAFE_INTEGER);
+      const diagnostic = new vscode.Diagnostic(range, d.message, vscode.DiagnosticSeverity.Error);
+      diagnostic.source = 'signals';
+      diagnostics.set(document.uri, [diagnostic]);
+      panel.webview.html = preview.renderError(item.error, ru);
+    });
+    child.on('exit', (code) => {
+      if (open.get(key) === session && code !== null && code !== 0) panel.webview.html = preview.renderNote(preview.say(ru, 'stopped', { code }));
+    });
+    panel.onDidDispose(() => {
+      child.kill();
+      open.delete(key);
+      diagnostics.delete(document.uri);
+    });
+  };
+  context.subscriptions.push(vscode.commands.registerCommand('signals.preview', start));
 }
 
 function deactivate() {}

@@ -97,7 +97,7 @@ Before a run the whole graph is checked, and every error names its line:
   - `-o out.wav` — where to write the first `wav_out`;
   - `--probe-dir folder` — save the probes: signals as WAV, the rest as JSON;
   - `--values N` — print the first N samples of every signal probe (`0` for none); without it, all samples of signals up to 64 long are printed;
-  - `--watch` — after the run, watch the graph file and its input files (the `wav` block) and run again on every change; output files are not watched, so a run does not restart itself. `Ctrl+C` exits with code 0;
+  - `--watch` — after the run, watch the graph file and its input files (the `wav` block) and run again on every change; output files are not watched, so a run does not restart itself. `Ctrl+C` exits with code 0; with `--json` every run is one JSON line on stdout (NDJSON), a graph error is a line `{"error": {"file", "line", "message"}}`, and the status lines go to stderr;
   - `--report report.md` — a Markdown report: the graph, the node table, plots of the probes in time and spectrum (SVG and CSV in the `report_files` folder), the report fields;
   - `--json` — the run report as JSON.
   
