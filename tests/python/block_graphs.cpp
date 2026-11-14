@@ -1,0 +1,126 @@
+#include "python/block_graphs.hpp"
+
+#include <map>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include "core/progress.hpp"
+#include "io/npy.hpp"
+#include "pipeline/cache.hpp"
+#include "pipeline/executor.hpp"
+#include "pipeline/graph.hpp"
+#include "pipeline/npz_values.hpp"
+#include "pipeline/sig.hpp"
+#include "support/paths.hpp"
+
+namespace signals::test {
+namespace {
+
+constexpr const char* kSources =
+    "node s1 = gen(kind=harmonics, freq=220, rate=8000, duration=0.25, channels=2, amplitude=0.5)\n"
+    "node s2 = gen(kind=white, rate=8000, duration=0.25, channels=2, amplitude=0.1, seed=5)\n"
+    "node x = add()\n"
+    "s1 -> x.a\n"
+    "s2 -> x.b\n"
+    "node x2 = gen(kind=sine, freq=330, rate=8000, duration=0.25, channels=2, amplitude=0.4)\n";
+
+struct Producer {
+    std::string lines;
+    std::vector<std::string> ports;
+};
+
+std::string quoted(const std::filesystem::path& p) {
+    const auto u = p.generic_u8string();
+    return "\"" + std::string{u.begin(), u.end()} + "\"";
+}
+
+Producer producer_for(const pipeline::BlockType& t, const std::map<std::string, std::string, std::less<>>& params) {
+    const std::map<std::string, std::string, std::less<>> coeffs{{"iswt", "swt(wavelet=db2, levels=3)"}, {"iwpt", "wpt(wavelet=db2, levels=3)"},
+                                                                 {"ilift53", "lift53(levels=3)"},     {"ilift97", "lift97(levels=3)"},
+                                                                 {"idtcwt", "dtcwt(levels=3)"}};
+    if (t.id == "ipolyphase") return {"node p = polyphase()\nx -> p\n", {"p.even", "p.odd"}};
+    if (t.id == "lpc_synth") return {"node l = lpc()\nx -> l\n", {"l.residual", "l.report"}};
+    if (t.id == "math") return {"node xp = affine(scale=0.4, offset=1.5)\nx -> xp\n", {"xp"}};
+    if (t.id == "binary") return {"node xp = affine(scale=0.4, offset=1.5)\nx -> xp\nnode xq = affine(scale=1, offset=1.5)\nx2 -> xq\n", {"xp", "xq"}};
+    if (t.id == "idwt") {
+        const auto ext = params.find("ext");
+        return {"node c = dwt(wavelet=db2, levels=3, ext=" + (ext == params.end() ? std::string{"symmetric"} : ext->second) + ")\nx -> c\n", {"c"}};
+    }
+    Producer p;
+    std::size_t signals_used = 0;
+    for (const auto& port : t.inputs) {
+        if (port.type == pipeline::PortType::coeffs) {
+            const auto it = coeffs.find(t.id);
+            p.lines += "node c = " + (it == coeffs.end() ? std::string{"dwt(wavelet=db2, levels=3)"} : it->second) + "\nx -> c\n";
+            p.ports.emplace_back("c");
+        } else if (port.type == pipeline::PortType::report) {
+            const auto name = "r" + std::to_string(p.ports.size());
+            p.lines += "node " + name + " = stats()\nx -> " + name + "\n";
+            p.ports.push_back(name);
+        } else {
+            p.ports.emplace_back(signals_used++ == 0 ? "x" : "x2");
+        }
+    }
+    return p;
+}
+
+std::map<std::string, std::string, std::less<>> path_params(const pipeline::BlockType& t, const std::filesystem::path& dir) {
+    if (t.id == "wav") return {{"path", quoted(signals::test::fixture("s24_stereo.wav"))}};
+    if (t.id == "coeffs_file") return {{"path", quoted(dir / "coeffs.npz")}};
+    if (t.id == "export") return {{"path", quoted(dir / "export.out")}};
+    if (t.id == "export_report") return {{"path", quoted(dir / "report.out")}};
+    if (t.id == "wav_out") return {{"path", quoted(dir / "out.wav")}};
+    return {};
+}
+
+std::string graph_text(const pipeline::BlockType& t, const std::string& name, const std::map<std::string, std::string, std::less<>>& params) {
+    const auto prod = producer_for(t, params);
+    std::string text = "pipeline \"" + name + "\" v1\n" + kSources + prod.lines + "node b = " + t.id + "(";
+    bool first = true;
+    for (const auto& [k, v] : params) text += (first ? "" : ", ") + k + "=" + v, first = false;
+    text += ")\n";
+    for (std::size_t k = 0; k < t.inputs.size() && k < prod.ports.size(); ++k) text += prod.ports[k] + " -> b." + t.inputs[k].name + "\n";
+    for (const auto& out : t.outputs) text += "probe b." + out.name + " as \"" + out.name + "\"\n";
+    return text;
+}
+
+}  // namespace
+
+void prepare_block_files(const std::filesystem::path& dir) {
+    std::filesystem::create_directories(dir);
+    const auto doc = pipeline::parse_sig(std::string{"pipeline \"c\" v1\n"} + kSources + "node c = dwt(wavelet=db2, levels=3)\nx -> c\nprobe c as \"c\"\n");
+    REQUIRE(doc);
+    const auto graph = pipeline::build_graph(*doc, dir);
+    REQUIRE(graph);
+    pipeline::ResultCache cache{0};
+    core::CancelToken cancel;
+    const auto run = pipeline::run_graph(*graph, cache, {}, cancel);
+    REQUIRE(run);
+    const auto entries = pipeline::coeffs_entries(std::get<pipeline::Coeffs>(run->probes.at("c")));
+    REQUIRE(entries);
+    REQUIRE(io::write_npz(dir / "coeffs.npz", *entries));
+}
+
+std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::filesystem::path& dir) {
+    const auto paths = path_params(t, dir);
+    std::vector<BlockGraph> out{{t.id, graph_text(t, t.id, paths)}};
+    for (const auto& p : t.params) {
+        if (p.kind != pipeline::ParamSpec::Kind::choice) continue;
+        for (const auto& value : p.choices) {
+            if (value == p.fallback) continue;
+            auto params = paths;
+            params[p.name] = value;
+            if (t.id == "iir" && (value == "bandpass" || value == "bandstop")) params["cutoff"] = "\"500, 1500\"";
+            const auto name = t.id + "-" + p.name + "-" + value;
+            out.push_back({name, graph_text(t, name, params)});
+        }
+    }
+    if (t.id == "wav")
+        for (const char* f : {"s16_stereo.wav", "s32_mono.wav", "u8_mono.wav", "f32_stereo.wav", "f64_mono.wav", "alaw_mono.wav", "mulaw_mono.wav", "s16_6ch_extensible.wav"}) {
+            const auto name = std::string{"wav-"} + f;
+            out.push_back({name, graph_text(t, name, {{"path", quoted(signals::test::fixture(f))}})});
+        }
+    return out;
+}
+
+}  // namespace signals::test

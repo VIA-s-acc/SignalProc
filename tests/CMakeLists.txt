@@ -154,6 +154,8 @@ add_executable(signals_tests
   test_readme.cpp
   python/test_forms.cpp
   python/test_script.cpp
+  python/test_bridge.cpp
+  python/block_graphs.cpp
   support/golden.cpp
   support/banks.cpp
 )
@@ -161,6 +163,7 @@ target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_svg s
 target_include_directories(signals_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(signals_tests PRIVATE SIGNALS_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden"
                           SIGNALS_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+                          SIGNALS_NULL_DEVICE="$<IF:$<PLATFORM_ID:Windows>,nul,/dev/null>"
                           SIGNALS_EXPECTED_VERSION="${PROJECT_VERSION}${SIGNALS_VERSION_SUFFIX}")
 signals_configure_target(signals_tests)
 catch_discover_tests(signals_tests)
