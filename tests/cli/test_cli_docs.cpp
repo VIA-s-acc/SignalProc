@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <random>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -35,8 +36,13 @@ bool have(const char* program) {
     return std::system((std::string{"command -v "} + program + " >/dev/null 2>&1").c_str()) == 0;
 }
 
+std::filesystem::path unique_temp(const std::string& name) {
+    std::random_device seed;
+    return std::filesystem::temp_directory_path() / (name + "-" + std::to_string(seed()) + std::to_string(seed()));
+}
+
 bool shell_accepts(const char* program, const std::string& script) {
-    const auto file = std::filesystem::temp_directory_path() / (std::string{"signals-completion-"} + program);
+    const auto file = unique_temp(std::string{"signals-completion-"} + program);
     std::ofstream{file} << script;
     return std::system((std::string{program} + " -n '" + file.string() + "' >/dev/null 2>&1").c_str()) == 0;
 }
@@ -175,7 +181,7 @@ TEST_CASE("man page escapes roff control characters", "[cli-docs]") {
 }
 
 TEST_CASE("mandoc or groff accept the man page", "[cli-docs]") {
-    const auto file = std::filesystem::temp_directory_path() / "signals-man.1";
+    const auto file = unique_temp("signals-man") += ".1";
     std::ofstream{file} << signals::cli::man_page(signals::cli::cli_entries(), "0.0.0");
     if (have("mandoc")) {
         CHECK(std::system(("mandoc -T lint -W warning '" + file.string() + "' >/dev/null 2>&1").c_str()) == 0);

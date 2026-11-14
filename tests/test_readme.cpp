@@ -118,3 +118,25 @@ TEST_CASE("readme links point at files that exist", "[readme]") {
         }
     }
 }
+
+TEST_CASE("screen images do not leak local paths", "[readme][images]") {
+    std::size_t images = 0;
+    for (const auto& lang : {"en", "ru"})
+        for (const auto& entry : fs::directory_iterator{kRoot / "docs" / "images" / lang}) {
+            if (entry.path().extension() != ".svg") continue;
+            ++images;
+            const auto text = read(entry.path());
+            for (const char* leak : {"/private/", "/Users/", "/home/", "/tmp/", ":\\\\", ":\\"}) {
+                INFO(entry.path().filename().string() << " contains " << leak);
+                CHECK(text.find(leak) == std::string::npos);
+            }
+            CHECK(text.find(SIGNALS_SOURCE_DIR) == std::string::npos);
+        }
+    CHECK(images == 38);
+}
+
+TEST_CASE("shell scripts keep LF line endings in every checkout", "[readme][packaging]") {
+    bool lf = false;
+    for (const auto& line : lines(read(kRoot / ".gitattributes"))) lf = lf || line == "*.sh text eol=lf";
+    CHECK(lf);
+}

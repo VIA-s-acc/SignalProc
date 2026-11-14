@@ -25,6 +25,8 @@ function Fail([string]$name, [string]$why, [string]$log) {
 }
 
 function Invoke-Install([string]$release, [string]$dir) {
+    # Windows PowerShell 5.1 turns a native command's stderr into terminating errors under 'Stop'.
+    $ErrorActionPreference = 'Continue'
     $env:SIGNALS_RELEASE_URL = 'file:///' + ($release -replace '\\', '/')
     $env:SIGNALS_VERSION = $Tag
     $env:SIGNALS_INSTALL_DIR = $dir

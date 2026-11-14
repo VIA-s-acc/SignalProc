@@ -20,6 +20,7 @@
 #include "i18n/i18n.hpp"
 #include "learn/answer.hpp"
 #include "learn/checker.hpp"
+#include "pipeline/examples.hpp"
 #include "tui/app_screens.hpp"
 #include "tui/data/learn_state.hpp"
 #include "tui/jobs/jobs.hpp"
@@ -51,6 +52,8 @@ public:
         ui_.jobs = &jobs_;
         models_ = make_app_models();
         models_.signal->open(fs::path{SIGNALS_SOURCE_DIR} / "resources" / "samples" / "test.wav", jobs_);
+        for (const auto& ex : signals::pipeline::examples())
+            if (ex.name == "first_steps" && models_.pipeline->load_text(ex.name, ex.text)) models_.pipeline->run(jobs_);
         shell_ = make_shell(ui_, make_app_screens(ui_, models_), [] {});
         (void)frame();
     }

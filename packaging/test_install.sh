@@ -43,7 +43,7 @@ run() {
     release=$3
     shift 3
     mkdir -p "$home"
-    cat "$root/install.sh" | env -u XDG_DATA_HOME -u XDG_CONFIG_HOME HOME="$home" SIGNALS_RELEASE_URL="file://$release" SIGNALS_VERSION="$tag" "$@" sh > "$tmp/$name.log" 2>&1
+    env -u XDG_DATA_HOME -u XDG_CONFIG_HOME HOME="$home" SIGNALS_RELEASE_URL="file://$release" SIGNALS_VERSION="$tag" "$@" sh < "$root/install.sh" > "$tmp/$name.log" 2>&1
 }
 
 logged() { grep -q -- "$2" "$tmp/$1.log"; }
@@ -111,7 +111,7 @@ else
 fi
 
 mkdir -p "$tmp/flags"
-if ! cat "$root/install.sh" | env HOME="$tmp/home-flags" SIGNALS_RELEASE_URL="file://$tmp/rel" sh -s -- --version "$tag" --dir "$tmp/flags" > "$tmp/flags.log" 2>&1; then
+if ! env HOME="$tmp/home-flags" SIGNALS_RELEASE_URL="file://$tmp/rel" sh -s -- --version "$tag" --dir "$tmp/flags" < "$root/install.sh" > "$tmp/flags.log" 2>&1; then
     fail flags "exit code is not 0"
 elif [ ! -x "$tmp/flags/signals" ]; then
     fail flags "--dir was ignored"

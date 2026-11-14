@@ -29,7 +29,12 @@
     }
 
     if (-not $version) {
-        $version = (Invoke-RestMethod -UseBasicParsing -Uri "https://api.github.com/repos/$repo/releases/latest").tag_name
+        # github.com redirects /releases/latest to /releases/tag/<tag>; the REST API would cap a lab behind one address at 60 installs an hour.
+        $request = [System.Net.WebRequest]::Create("https://github.com/$repo/releases/latest")
+        $request.Method = 'HEAD'
+        $response = $request.GetResponse()
+        $version = ($response.ResponseUri.AbsoluteUri -split '/tag/')[-1]
+        $response.Close()
         if ($version -notmatch '^v[0-9]') { throw "cannot find the latest release of $repo" }
     }
 
