@@ -1,12 +1,18 @@
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <map>
+#include <regex>
+#include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/design/families.hpp"
 #include "core/version.hpp"
+#include "io/npy.hpp"
 #include "i18n/i18n.hpp"
 #include "io/generators.hpp"
 #include "pipeline/graph.hpp"
@@ -129,7 +135,7 @@ TEST_CASE("signals python writes the script and its data", "[py-script]") {
 
 TEST_CASE("only the blocks of the tolerance table weaken tolerance", "[py-script]") {
     const std::map<std::string, double> table{{"iir", 1e-8},        {"remez", 1e-8},     {"firls", 1e-10},         {"lms", 1e-10},        {"sst_band", 1e-10},
-                                              {"sst_ridge", 1e-10}, {"cepstrum", 1e-9}, {"time_stretch", 1e-9}, {"pitch_shift", 1e-9}};
+                                              {"sst_ridge", 1e-10}, {"cepstrum", 1e-9}, {"time_stretch", 1e-9}, {"pitch_shift", 1e-9}, {"inst_freq", 1e-7}};
     for (const auto& f : python::py_forms()) {
         INFO(f.block);
         if (f.tol == 1e-12) continue;
@@ -196,4 +202,147 @@ TEST_CASE("a script named like a Python module is refused", "[py-script]") {
     CHECK(err.find("math.py") != std::string::npos);
     CHECK(err.find("-o") != std::string::npos);
     CHECK_FALSE(std::filesystem::exists(signals::test::temp_path("math.py")));
+}
+
+TEST_CASE("signals python writes only a .py script or an .ipynb notebook", "[py-script]") {
+    for (const char* name : {"g.npz", "g.sig", "g.txt", "g"}) {
+        INFO(name);
+        CHECK_FALSE(python::check_script_name(name));
+    }
+    const auto sig = write_sig("ext-cli.sig", kTiny);
+    const auto npz = signals::test::temp_path("ext-cli.npz");
+    std::filesystem::remove(npz);
+    auto [code, out, err] = signals::test::run_cli({"signals", "python", sig.string(), "-o", npz.string()});
+    CHECK(code == 2);
+    CHECK(err.find(".ipynb") != std::string::npos);
+    CHECK_FALSE(std::filesystem::exists(npz));
+    std::ifstream in{sig};
+    const std::string kept{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+    CHECK(kept == kTiny);
+    auto [same, sout, serr] = signals::test::run_cli({"signals", "python", sig.string(), "-o", sig.string()});
+    CHECK(same == 2);
+}
+
+TEST_CASE("a bypassed node passes its input through in the script", "[py-script]") {
+    const auto s = script_for("pipeline \"b\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode g = gain(db=-6) bypass\nnode r = stats()\nnode q = assert() bypass\n"
+                              "x -> g\ng -> r\nr -> q\nprobe g as \"y\"\n",
+                              "bypass");
+    REQUIRE(s);
+    CHECK(s->text.find("\ng = x") != std::string::npos);
+    CHECK(s->text.find("10 ** (") == std::string::npos);
+    CHECK(s->text.find("\nq = r\nq_ok = r_ok") != std::string::npos);
+}
+
+namespace {
+
+std::set<std::string> import_bindings(const std::string& line) {
+    std::set<std::string> out;
+    std::istringstream words{line.substr(line.starts_with("from ") ? line.find(" import ") + 8 : 7)};
+    for (std::string part; std::getline(words, part, ',');) {
+        while (part.starts_with(' ')) part.erase(0, 1);
+        const auto as = part.find(" as ");
+        auto name = as == std::string::npos ? part : part.substr(as + 4);
+        if (!line.starts_with("from ")) name = name.substr(0, name.find('.'));
+        while (name.ends_with(' ')) name.pop_back();
+        out.insert(name);
+    }
+    return out;
+}
+
+}  // namespace
+
+TEST_CASE("python import bindings never shadow a function", "[py-script]") {
+    std::set<std::string> defined;
+    for (const auto& f : python::python_functions()) {
+        std::istringstream lines{std::string{f.text}};
+        for (std::string line; std::getline(lines, line);)
+            if (line.starts_with("def ")) defined.insert(line.substr(4, line.find('(') - 4));
+    }
+    for (const auto& f : python::python_functions())
+        for (const auto& line : python::function_imports(f.text))
+            for (const auto& name : import_bindings(line)) {
+                INFO(f.name << ": " << line);
+                CHECK_FALSE(defined.contains(name));
+            }
+}
+
+TEST_CASE("node names avoid imports, helpers and form temporaries", "[py-script]") {
+    const auto s = script_for("pipeline \"n\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode s = stats()\nnode s_ok = gain(db=-1)\n"
+                              "node io = gain(db=-2)\nnode display = gain(db=-3)\nnode _stats_spectrum = gain(db=-4)\nnode x_v = gain(db=-5)\n"
+                              "x -> s\nx -> s_ok\nx -> io\nx -> display\nx -> _stats_spectrum\nx -> x_v\n"
+                              "probe s_ok as \"a\"\nprobe io as \"b\"\nprobe display as \"c\"\nprobe _stats_spectrum as \"d\"\nprobe x_v as \"e\"\n",
+                              "names");
+    REQUIRE(s);
+    for (const char* var : {"\ns_ok_ = ", "\nio_ = ", "\ndisplay_ = ", "\n_stats_spectrum_ = ", "\nx_v_ = "}) {
+        INFO(var);
+        CHECK(s->text.find(var) != std::string::npos);
+    }
+}
+
+TEST_CASE("every temporary suffix a form writes is reserved", "[py-script]") {
+    const std::regex pattern{R"(\{[0-9a-z]*\}_([A-Za-z0-9]+)|" ?\+ ?"_([A-Za-z0-9]+)|out\[[0-9]\] \+ "_([A-Za-z0-9]+))"};
+    const auto suffixes = python::temporary_suffixes();
+    for (const auto& file : std::filesystem::directory_iterator{std::filesystem::path{SIGNALS_SOURCE_DIR} / "src" / "python"}) {
+        if (file.path().extension() != ".cpp") continue;
+        std::ifstream in{file.path()};
+        const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+        for (auto it = std::sregex_iterator{text.begin(), text.end(), pattern}; it != std::sregex_iterator{}; ++it) {
+            const auto suffix = (*it)[1].matched ? (*it)[1].str() : (*it)[2].matched ? (*it)[2].str() : (*it)[3].str();
+            INFO(file.path().filename().string() << ": _" << suffix);
+            CHECK(std::ranges::find(suffixes, suffix) != suffixes.end());
+        }
+    }
+}
+
+TEST_CASE("a wavelet from the user library goes to pywt with its filters", "[py-script]") {
+    const auto db2 = core::wavelet("db2");
+    REQUIRE(db2);
+    core::set_user_wavelets([db2](std::string_view name) -> std::optional<core::FilterBank> {
+        if (name != "my_bank") return std::nullopt;
+        auto b = *db2;
+        b.name = "my_bank";
+        return b;
+    }, [] { return std::vector<std::string>{"my_bank"}; });
+    const auto s = script_for("pipeline \"u\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode c = dwt(wavelet=my_bank, levels=2)\nx -> c\nprobe c as \"c\"\n", "user-bank");
+    core::set_user_wavelets({}, {});
+    REQUIRE(s);
+    CHECK(s->text.find("pywt.Wavelet(\"my_bank\", filter_bank=") != std::string::npos);
+    CHECK(io::np_find(s->data, "wavelet.my_bank.dec_lo"));
+}
+
+TEST_CASE("xcorr in a script switches to the FFT like the program", "[py-script]") {
+    const auto s = script_for("pipeline \"c\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode y = gen(kind=sine, freq=330, rate=8000, duration=0.01)\n"
+                              "node c = xcorr()\nx -> c.a\ny -> c.b\nprobe c as \"c\"\n",
+                              "xcorr-fft");
+    REQUIRE(s);
+    CHECK(s->text.find("def correlate_full(") != std::string::npos);
+    CHECK(s->text.find("np.correlate(") == std::string::npos);
+}
+
+TEST_CASE("the wav form reads the array the program picked", "[py-script]") {
+    const auto dir = signals::test::temp_path("py-script");
+    std::filesystem::create_directories(dir);
+    REQUIRE(io::write_npz(dir / "only.npz", {{"arr_0", io::np_vector({0.25, -0.5, 0.125, 1})}}));
+    const auto s = script_for("pipeline \"w\" v1\nnode w = wav(path=\"only.npz\", rate=8000)\nnode g = gain(db=-6)\nw -> g\nprobe g as \"g\"\n", "only-array");
+    REQUIRE(s);
+    CHECK(s->text.find("read_audio_array(HERE / \"only.npz\", \"arr_0\")") != std::string::npos);
+}
+
+TEST_CASE("a script build stops when its run is cancelled between nodes", "[py-script]") {
+    const auto doc = pipeline::parse_sig(kTiny);
+    REQUIRE(doc);
+    const auto dir = signals::test::temp_path("py-script");
+    const auto graph = pipeline::build_graph(*doc, dir);
+    REQUIRE(graph);
+    core::CancelToken cancel;
+    int seen = 0;
+    python::ScriptOptions options{python::ScriptKind::script, dir / "cancel.py", "cancel.sig", kTiny};
+    options.on_node = [&](const pipeline::NodeStatus&) {
+        ++seen;
+        cancel.cancel();
+    };
+    const auto s = python::build_script(*doc, *graph, options, cancel);
+    REQUIRE_FALSE(s);
+    CHECK(s.error().code == core::Errc::cancelled);
+    CHECK(seen >= 1);
 }

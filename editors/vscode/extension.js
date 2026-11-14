@@ -2,7 +2,6 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const childProcess = require('child_process');
-const readline = require('readline');
 const flt = require('./flt');
 const preview = require('./preview');
 
@@ -268,7 +267,7 @@ function activatePreview(context, ru) {
     const child = childProcess.spawn(exe, ['run', file, '--watch', '--json', '--values', '2000'], { cwd: path.dirname(file) });
     const session = { panel, child };
     open.set(key, session);
-    readline.createInterface({ input: child.stdout }).on('line', (line) => {
+    const onLine = (line) => {
       let item;
       try {
         item = preview.parseLine(line);
@@ -286,9 +285,15 @@ function activatePreview(context, ru) {
       diagnostic.source = 'signals';
       diagnostics.set(document.uri, [diagnostic]);
       panel.webview.html = preview.renderError(item.error, ru);
-    });
-    child.on('exit', (code) => {
-      if (open.get(key) === session && code !== null && code !== 0) panel.webview.html = preview.renderNote(preview.say(ru, 'stopped', { code }));
+    };
+    preview.followProcess(child, {
+      onLine,
+      onExit: (code) => {
+        if (open.get(key) === session && code !== null && code !== 0) panel.webview.html = preview.renderNote(preview.say(ru, 'stopped', { code }));
+      },
+      onError: (error) => {
+        if (open.get(key) === session) panel.webview.html = preview.renderNote(preview.say(ru, 'stopped', { code: error.code || error.message }));
+      },
     });
     panel.onDidDispose(() => {
       child.kill();

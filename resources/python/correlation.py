@@ -1,6 +1,6 @@
 # needs: energy
 # import: import math
-# import: from scipy import stats
+# import: from scipy import stats as sp_stats
 def _correlation_pearson(a, b):
     ma, mb = np.cumsum(a)[-1] / a.size, np.cumsum(b)[-1] / b.size
     sab, saa, sbb = (np.cumsum((u - mu) * (v - mv))[-1] for u, mu, v, mv in ((a, ma, b, mb), (a, ma, a, ma), (b, mb, b, mb)))
@@ -16,7 +16,7 @@ def correlation(a, b):
         x, z = a[ch, :n], y[:n]
         energies = energy(x) * energy(z)
         report["pearson" + suffix] = float(_correlation_pearson(x, z))
-        report["spearman" + suffix] = float(_correlation_pearson(stats.rankdata(x), stats.rankdata(z)))
+        report["spearman" + suffix] = float(_correlation_pearson(sp_stats.rankdata(x), sp_stats.rankdata(z)))
         report["cosine" + suffix] = float(min(max(np.cumsum(x * z)[-1] / math.sqrt(energies), -1.0), 1.0)) if energies > 0 else 0.0
         report["n" + suffix] = float(n)
     return report

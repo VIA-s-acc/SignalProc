@@ -14,6 +14,7 @@
 
 #include "i18n/i18n.hpp"
 #include "io/audio_file.hpp"
+#include "io/npy_audio.hpp"
 #include "tui/shell/plot_export.hpp"
 #include "tui/screens/publish_util.hpp"
 #include "tui/shell/panel.hpp"
@@ -847,6 +848,10 @@ std::shared_ptr<TabScreen> make_signal_screen(UiContext& ui, std::shared_ptr<Sig
 
 void open_audio(UiContext& ui, SignalModel& model, JobRunner& jobs, const std::filesystem::path& path) {
     const auto probe = io::probe_audio(path);
+    if (!probe && io::is_array_audio(path)) {
+        if (ui.notice) ui.notice(probe.error().message);
+        return;
+    }
     const bool array = probe && (probe->container == io::Container::npy || probe->container == io::Container::npz);
     if (!array || probe->sample_rate != 0 || !ui.ask_text) {
         model.open(path, jobs);

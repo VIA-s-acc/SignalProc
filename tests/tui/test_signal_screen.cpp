@@ -19,6 +19,7 @@
 #include "audio/manual_sink.hpp"
 #include "core/metrics.hpp"
 #include "io/npy.hpp"
+#include "io/npy_audio.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/signal_model.hpp"
@@ -638,4 +639,24 @@ TEST_CASE("signal tab asks the rate of an npy and then opens it", "[tui][signal]
     REQUIRE(m.data());
     CHECK(m.data()->info.sample_rate == 16000);
     CHECK(m.data()->info.frames == 256);
+}
+
+TEST_CASE("signal tab names the x.T hint for an (N, C) array instead of asking the rate", "[tui][signal]") {
+    auto ui = signals::test::make_ui(150, 44);
+    JobRunner jobs{[] {}, 0ms, true};
+    ui->jobs = &jobs;
+    bool asked = false;
+    std::string notice;
+    ui->ask_text = [&](std::string, std::string, std::function<void(std::string)>) { asked = true; };
+    ui->notice = [&](std::string text) { notice = std::move(text); };
+    const auto path = signals::test::temp_path("columns.npy");
+    REQUIRE(signals::io::write_npy(path, signals::io::NpArray{{300, 2}, std::vector<double>(600, 0.25)}));
+    SignalModel m;
+    open_audio(*ui, m, jobs, path);
+    CHECK_FALSE(asked);
+    CHECK_FALSE(m.data());
+    CHECK(notice.find("x.T") != std::string::npos);
+    const auto read = signals::io::read_array_audio(path, {});
+    REQUIRE_FALSE(read);
+    CHECK(read.error().message.find("x.T") != std::string::npos);
 }

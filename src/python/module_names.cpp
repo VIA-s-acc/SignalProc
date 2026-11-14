@@ -30,6 +30,10 @@ constexpr std::array<std::string_view, 198> kModules{
 }  // namespace
 
 core::Result<void> check_script_name(const std::filesystem::path& out) {
+    if (out.extension() != ".py" && out.extension() != ".ipynb") {
+        const auto u = out.filename().u8string();
+        return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("python.bad_extension")), fmt::arg("name", std::string{u.begin(), u.end()})));
+    }
     if (out.extension() != ".py") return {};
     const auto u = out.stem().u8string();
     const std::string stem{u.begin(), u.end()};

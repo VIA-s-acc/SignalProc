@@ -889,19 +889,28 @@ void PipelineScreen::export_python() {
         const auto sig = model_->path() ? *model_->path() : std::filesystem::path{doc->name.empty() ? "graph.sig" : doc->name + ".sig"};
         const auto work = [result = python_result_, doc = std::move(*doc), graph = std::move(*graph), target, sig, source](JobContext& ctx) {
             ctx.begin(0);
-            const bool notebook = target.extension() == ".ipynb";
-            core::CancelToken cancel;
-            const auto script = python::build_script(doc, graph, {notebook ? python::ScriptKind::notebook : python::ScriptKind::script, target, sig, source}, cancel);
-            auto data = target;
-            data.replace_extension(".npz");
             std::string message;
-            if (!script) message = script.error().message;
-            else if (auto ok = io::write_file_atomic(target, script->text); !ok) message = ok.error().message;
-            else if (auto saved = io::write_npz(data, script->data); !saved) message = saved.error().message;
-            else
-                message = fmt::format(fmt::runtime(tr(notebook ? "python.written_notebook" : "python.written")), fmt::arg("script", utf8_name(target.filename())),
-                                      fmt::arg("data", utf8_name(data.filename())));
-            if (script) ctx.finish();
+            bool done = false;
+            try {
+                const bool notebook = target.extension() == ".ipynb";
+                core::CancelToken cancel;
+                python::ScriptOptions options{notebook ? python::ScriptKind::notebook : python::ScriptKind::script, target, sig, source};
+                options.on_node = [&](const pipeline::NodeStatus&) {
+                    if (ctx.cancelled()) cancel.cancel();
+                };
+                const auto script = python::build_script(doc, graph, options, cancel);
+                auto data = target;
+                data.replace_extension(".npz");
+                if (!script) message = script.error().message;
+                else if (auto ok = io::write_file_atomic(target, script->text); !ok) message = ok.error().message;
+                else if (auto saved = io::write_npz(data, script->data); !saved) message = saved.error().message;
+                else
+                    done = true, message = fmt::format(fmt::runtime(tr(notebook ? "python.written_notebook" : "python.written")), fmt::arg("script", utf8_name(target.filename())),
+                                                       fmt::arg("data", utf8_name(data.filename())));
+            } catch (const std::exception& e) {
+                message = e.what();
+            }
+            if (done) ctx.finish();
             else ctx.fail(message);
             const std::lock_guard lock{result->mutex};
             result->message = std::move(message);
