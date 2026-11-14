@@ -5,6 +5,8 @@
 #include <fmt/format.h>
 
 #include "core/expr.hpp"
+#include "core/swt.hpp"
+#include "pipeline/blocks_common.hpp"
 #include "python/form.hpp"
 
 namespace signals::python {
@@ -166,13 +168,84 @@ core::Result<std::string> band_power(const NodeIo& io, Emitter& em) {
                        param_int(io.node.params, "segment"));
 }
 
+std::string real_param(const NodeIo& io, Emitter& em, const char* name) { return em.number(param_real(io.node.params, name)); }
+
+core::Result<std::string> pitch(const NodeIo& io, Emitter& em) {
+    em.function("pitch");
+    return fmt::format("{0}, {1} = pitch({2}, {3}, {4}, {5}, {6}, {7}, {8})\n{0}_ok = True", io.out[0], io.out[1], io.in[0], io.in_fs[0], param_int(io.node.params, "frame"),
+                       param_int(io.node.params, "hop"), real_param(io, em, "fmin"), real_param(io, em, "fmax"), real_param(io, em, "threshold"));
+}
+
+std::string sst_args(const NodeIo& io, Emitter& em) {
+    return fmt::format("{}, {}, {}, {}, {}, {}", io.in[0], io.in_fs[0], real_param(io, em, "lo"), real_param(io, em, "hi"), param_int(io.node.params, "voices"), real_param(io, em, "mu"));
+}
+
+core::Result<std::string> sst_band(const NodeIo& io, Emitter& em) {
+    em.function("sst_band");
+    return fmt::format("{} = sst_band({})", io.out[0], sst_args(io, em));
+}
+
+core::Result<std::string> sst_ridge(const NodeIo& io, Emitter& em) {
+    em.function("sst_ridge");
+    return fmt::format("{0}, {1}, {2} = sst_ridge({3})\n{0}_ok = True", io.out[0], io.out[1], io.out[2], sst_args(io, em));
+}
+
+core::Result<std::string> mfcc(const NodeIo& io, Emitter& em) {
+    em.function("mfcc");
+    return fmt::format("{0} = mfcc({1}, {2}, {3}, {4}, {5}, {6})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_int(io.node.params, "n_mfcc"),
+                       param_int(io.node.params, "n_mels"), param_int(io.node.params, "frame"), param_int(io.node.params, "hop"));
+}
+
+core::Result<std::string> spectral_features(const NodeIo& io, Emitter& em) {
+    em.function("spectral_features");
+    return fmt::format("{0} = spectral_features({1}, {2}, {3}, {4}, {5})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_int(io.node.params, "frame"),
+                       param_int(io.node.params, "hop"), real_param(io, em, "rolloff_pct"));
+}
+
+core::Result<std::string> histogram(const NodeIo& io, Emitter& em) {
+    const auto& text = param_text(io.node.params, "range");
+    std::string limits = "None";
+    if (text != "auto") {
+        const auto v = pipeline::blocks::parse_numbers("histogram", "range", text);
+        if (!v || v->size() != 2) return std::unexpected{unsupported(io, "range")};
+        limits = "(" + em.number((*v)[0]) + ", " + em.number((*v)[1]) + ")";
+    }
+    em.function("histogram");
+    return fmt::format("{0} = histogram({1}, {2}, {3})\n{0}_ok = True", io.out[0], io.in[0], param_int(io.node.params, "bins"), limits);
+}
+
+core::Result<std::string> delay_estimate(const NodeIo& io, Emitter& em) {
+    em.function("delay_estimate");
+    return fmt::format("{0} = delay_estimate({1}, {2}, {3})\n{0}_ok = True", io.out[0], io.in[0], io.in[1], io.in_fs[0]);
+}
+
+core::Result<std::string> correlation(const NodeIo& io, Emitter& em) {
+    em.function("correlation");
+    return fmt::format("{0} = correlation({1}, {2})\n{0}_ok = True", io.out[0], io.in[0], io.in[1]);
+}
+
+core::Result<std::string> coeff_stats(const NodeIo& io, Emitter& em) {
+    const auto* c = !io.in_values.empty() && io.in_values[0] ? std::get_if<pipeline::Coeffs>(io.in_values[0]) : nullptr;
+    std::string labels, weights;
+    if (c) {
+        for (std::size_t b = 0; b <= c->levels(); ++b) labels += (b ? ", " : "") + py_str(pipeline::band_label(*c, b));
+        if (c->transform == "swt")
+            for (const double w : core::swt_energy_weights(c->levels(), c->norm)) weights += (weights.empty() ? "" : ", ") + em.number(w);
+    }
+    em.function("coeff_stats");
+    return fmt::format("{0} = coeff_stats({1}, [{2}], [{3}], {4})\n{0}_ok = True", io.out[0], io.in[0], labels, weights, real_param(io, em, "tol"));
+}
+
 }  // namespace
 
 void register_analysis_forms(std::vector<PyForm>& out) {
     for (auto [id, fn] : std::initializer_list<std::pair<const char*, core::Result<std::string> (*)(const NodeIo&, Emitter&)>>{
              {"stats", stats}, {"loudness", loudness}, {"assert", assert_block}, {"wiener", wiener}, {"spectral_subtract", spectral_subtract}, {"deconvolve", deconvolve}, {"lpc", lpc}, {"lpc_synth", lpc_synth},
-             {"spectrum_peaks", spectrum_peaks}, {"band_power", band_power}})
+             {"spectrum_peaks", spectrum_peaks}, {"band_power", band_power}, {"pitch", pitch}, {"mfcc", mfcc}, {"spectral_features", spectral_features},
+             {"histogram", histogram}, {"delay_estimate", delay_estimate}, {"correlation", correlation}, {"coeff_stats", coeff_stats}})
         out.push_back({id, 1e-12, fn});
+    out.push_back({"sst_band", 1e-10, sst_band});
+    out.push_back({"sst_ridge", 1e-10, sst_ridge});
     out.push_back({"lms", 1e-10, lms});
 }
 

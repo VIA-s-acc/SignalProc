@@ -74,6 +74,12 @@ std::map<std::string, std::string, std::less<>> path_params(const pipeline::Bloc
     return {};
 }
 
+std::map<std::string, std::string, std::less<>> base_params(const pipeline::BlockType& t, const std::filesystem::path& dir) {
+    auto params = path_params(t, dir);
+    if (t.id == "pitch" || t.id == "mfcc" || t.id == "spectral_features") params["frame"] = "512", params["hop"] = "128";
+    return params;
+}
+
 std::string graph_text(const pipeline::BlockType& t, const std::string& name, const std::map<std::string, std::string, std::less<>>& params) {
     const auto prod = producer_for(t, params);
     std::string text = "pipeline \"" + name + "\" v1\n" + kSources + prod.lines + "node b = " + t.id + "(";
@@ -103,7 +109,7 @@ void prepare_block_files(const std::filesystem::path& dir) {
 }
 
 std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::filesystem::path& dir) {
-    const auto paths = path_params(t, dir);
+    const auto paths = base_params(t, dir);
     std::vector<BlockGraph> out{{t.id, graph_text(t, t.id, paths)}};
     for (const auto& p : t.params) {
         if (p.kind != pipeline::ParamSpec::Kind::choice) continue;
@@ -126,6 +132,11 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
         std::erase_if(bare.inputs, [](const auto& port) { return port.optional; });
         auto text = graph_text(bare, t.id + "-bare", paths);
         out.push_back({t.id + "-bare", std::move(text)});
+    }
+    if (t.id == "sst_band" || t.id == "sst_ridge") {
+        std::string text = "pipeline \"" + t.id + "-long\" v1\nnode x = gen(kind=harmonics, freq=220, rate=8000, duration=5)\nnode b = " + t.id + "()\nx -> b\n";
+        for (const auto& port : t.outputs) text += "probe b." + port.name + " as \"" + port.name + "\"\n";
+        out.push_back({t.id + "-long", std::move(text)});
     }
     if (t.id == "assert")
         out.push_back({"assert-ops", graph_text(t, "assert-ops", {{"expr", "\"a.rms_ch0 / 0 > 1 && (0 - 8) ^ 0.5 != 1 && 10 ^ 400 > a.passed && sqrt(0 - 1) != 0 && log10(0) < 0 && pi > 3 && "
