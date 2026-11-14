@@ -20,6 +20,9 @@
 #include "commands/run_report.hpp"
 #include "commands/watch.hpp"
 #include "io/temp_file.hpp"
+#include "io/npy.hpp"
+#include "io/npy_audio.hpp"
+#include "pipeline/npz_values.hpp"
 #include "pipeline/sweep.hpp"
 #include "svg/svg.hpp"
 #include "i18n/i18n.hpp"
@@ -133,9 +136,26 @@ nlohmann::json summary(const pipeline::Value& v, std::optional<std::size_t> list
     return j;
 }
 
-core::Result<void> save_probe(const std::filesystem::path& dir, const std::string& name, const pipeline::Value& v) {
+core::Result<void> save_probe(const std::filesystem::path& dir, const std::string& name, const pipeline::Value& v, std::string_view format) {
     std::error_code ec;
     std::filesystem::create_directories(dir, ec);
+    if (format == "npy") {
+        if (const auto* a = std::get_if<core::AudioBuffer>(&v)) {
+            const auto entries = io::signal_entries(*a);
+            return io::write_npy(dir / pipeline::utf8_path(name + ".npy"), entries.front().second);
+        }
+        const auto entries = pipeline::value_entries(v);
+        if (!entries) return std::unexpected{entries.error()};
+        return io::write_npz(dir / pipeline::utf8_path(name + ".npz"), *entries);
+    }
+    if (const auto* a = std::get_if<core::AudioBuffer>(&v); a && format == "json") {
+        nlohmann::json j{{"rate", a->sample_rate}, {"channels", a->channels}};
+        const auto path = dir / pipeline::utf8_path(name + ".json");
+        std::ofstream out{path};
+        out << j.dump(2) << '\n';
+        if (!out) return core::make_error(core::Errc::io_error, "cannot write " + path.string());
+        return {};
+    }
     if (const auto* a = std::get_if<core::AudioBuffer>(&v)) {
         auto copy = *a;
         copy.sample_rate = std::max(1.0, std::round(copy.sample_rate));
@@ -183,6 +203,8 @@ public:
         sub_->add_option("--probe-dir", probe_dir_, tr("cli.run.probe_dir"));
         sub_->add_option("--report", report_, tr("cli.run.report"));
         sub_->add_option("--values", values_, tr("cli.run.values"));
+        sub_->add_option("--probe-format", probe_format_, tr("cli.run.probe_format"))->check(CLI::IsMember({"wav", "json", "npy"}));
+        sub_->add_option("--npz", npz_, tr("cli.run.npz"));
         sub_->add_flag("--watch", watch_, tr("cli.run.watch"));
         sub_->add_flag("--json", json_, tr("cli.json.description"));
     }
@@ -239,7 +261,16 @@ private:
         }
         if (!probe_dir_.empty())
             for (const auto& [name, value] : result->probes)
-                if (auto ok = save_probe(probe_dir_, name, value); !ok) return report_error(err, ok.error()), 1;
+                if (auto ok = save_probe(probe_dir_, name, value, probe_format_); !ok) return report_error(err, ok.error()), 1;
+        if (!npz_.empty()) {
+            io::NpzEntries all;
+            for (const auto& [name, value] : result->probes) {
+                auto entries = pipeline::value_entries(value);
+                if (!entries) return report_error(err, entries.error()), 1;
+                for (auto& e : pipeline::prefixed(name, std::move(*entries))) all.push_back(std::move(e));
+            }
+            if (auto ok = io::write_npz(pipeline::utf8_path(npz_), all); !ok) return report_error(err, ok.error()), 1;
+        }
         if (!report_.empty())
             if (auto ok = write_run_report(report_, *doc, *graph, *result, file); !ok) return report_error(err, ok.error()), 1;
         if (json_) print_json(*doc, *graph, *result, out, values_);
@@ -320,7 +351,7 @@ private:
     }
 
     CLI::App* sub_;
-    std::string file_, output_, probe_dir_, report_;
+    std::string file_, output_, probe_dir_, report_, npz_, probe_format_ = "wav";
     std::vector<std::string> sets_;
     std::optional<std::size_t> values_;
     bool json_ = false, watch_ = false;

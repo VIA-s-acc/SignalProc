@@ -136,6 +136,7 @@ add_executable(signals_tests
   tui/test_pipeline_model.cpp
   tui/test_pipeline_screen.cpp
   cli/test_cli_pipeline.cpp
+  cli/test_cli_npz.cpp
   cli/test_cli_learn.cpp
   tui/test_learn_state.cpp
   tui/test_learn_screen.cpp
