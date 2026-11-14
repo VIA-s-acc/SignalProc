@@ -61,6 +61,14 @@ jobs:
         run: cmake --build build --config Release --target signals --parallel 4
       - name: Check
         run: build/app/Release/signals.exe check
+      - name: Cyrillic paths
+        run: |
+          dir="$(cygpath -u "$RUNNER_TEMP")/данные с пробелом"
+          mkdir -p "$dir"
+          build/app/Release/signals.exe python examples/first_steps.sig -o "$(cygpath -w "$dir")\скрипт.py"
+          test -f "$dir/скрипт.py" && test -f "$dir/скрипт.npz"
+          build/app/Release/signals.exe run examples/first_steps.sig --npz "$(cygpath -w "$dir")\щупы.npz" > /dev/null
+          test -f "$dir/щупы.npz"
       - name: Install script
         run: |
           rel="$(cygpath -u "$RUNNER_TEMP")/rel"
