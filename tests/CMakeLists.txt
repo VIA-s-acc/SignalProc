@@ -146,6 +146,7 @@ add_executable(signals_tests
   support/golden_text.cpp
   test_golden_files.cpp
   test_i18n_keys.cpp
+  test_readme.cpp
   support/golden.cpp
   support/banks.cpp
 )
