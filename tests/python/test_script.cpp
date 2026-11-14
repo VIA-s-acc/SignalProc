@@ -134,3 +134,14 @@ TEST_CASE("only the blocks of the tolerance table weaken tolerance", "[py-script
         CHECK(table.at(f.block) == f.tol);
     }
 }
+
+TEST_CASE("the first two lines of a script are fixed", "[py-script]") {
+    const auto s = script_for("pipeline \"coding: raw_unicode_escape\" v1\nnode x = gen(kind=sine, rate=8000, duration=0.01)\nprobe x as \"x\"\n", "coding_raw_unicode_escape");
+    REQUIRE(s);
+    const auto first = s->text.substr(0, s->text.find('\n'));
+    const auto rest = s->text.substr(first.size() + 1);
+    const auto second = rest.substr(0, rest.find('\n'));
+    CHECK(first == "# -*- coding: utf-8 -*-");
+    CHECK(second.find("coding") == std::string::npos);
+    CHECK(second.find("raw_unicode_escape") == std::string::npos);
+}

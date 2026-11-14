@@ -1,5 +1,6 @@
-# Скрипт Signals по графу «tiny» (tiny.sig)
+# -*- coding: utf-8 -*-
 # Сделан Signals X.Y.Z; в CI сверялся на numpy 2.3.5, scipy 1.16.2, PyWavelets 1.8.0
+# Скрипт Signals по графу «tiny» (tiny.sig)
 # Запуск: python tiny.py; рядом должен лежать tiny.npz
 
 import sys

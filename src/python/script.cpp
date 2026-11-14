@@ -248,9 +248,9 @@ private:
         const auto data_name = o_.out.stem().u8string() + u8".npz";
         const std::string data{data_name.begin(), data_name.end()};
         const auto script = utf8(o_.out.filename());
-        std::string out;
-        out += "# " + py_comment(fmt::format(fmt::runtime(tr("python.header.title")), fmt::arg("graph", doc_.name.empty() ? std::string{"—"} : doc_.name), fmt::arg("file", utf8(o_.sig.filename())))) + "\n";
+        std::string out = "# -*- coding: utf-8 -*-\n";
         out += "# " + fmt::format(fmt::runtime(tr("python.header.version")), fmt::arg("version", core::version()), fmt::arg("versions", SIGNALS_BRIDGE_VERSIONS)) + "\n";
+        out += "# " + py_comment(fmt::format(fmt::runtime(tr("python.header.title")), fmt::arg("graph", doc_.name.empty() ? std::string{"—"} : doc_.name), fmt::arg("file", utf8(o_.sig.filename())))) + "\n";
         out += "# " + py_comment(fmt::format(fmt::runtime(tr("python.header.run")), fmt::arg("script", script), fmt::arg("data", data))) + "\n";
         if (pywt_sign_) out += "# " + tr("python.header.sign") + "\n";
         out += "\nimport sys\nfrom pathlib import Path\n\nimport numpy as np\n";

@@ -1,5 +1,6 @@
-# Signals script for the graph “tiny” (tiny.sig)
+# -*- coding: utf-8 -*-
 # Made by Signals X.Y.Z; checked in CI on numpy 2.3.5, scipy 1.16.2, PyWavelets 1.8.0
+# Signals script for the graph “tiny” (tiny.sig)
 # Run: python tiny.py; tiny.npz must lie next to it
 
 import sys
