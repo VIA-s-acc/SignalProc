@@ -318,3 +318,12 @@ TEST_CASE("xcorr in a script switches to the FFT like the program", "[py-script]
     CHECK(s->text.find("def correlate_full(") != std::string::npos);
     CHECK(s->text.find("np.correlate(") == std::string::npos);
 }
+
+TEST_CASE("the wav form reads the array the program picked", "[py-script]") {
+    const auto dir = signals::test::temp_path("py-script");
+    std::filesystem::create_directories(dir);
+    REQUIRE(io::write_npz(dir / "only.npz", {{"arr_0", io::np_vector({0.25, -0.5, 0.125, 1})}}));
+    const auto s = script_for("pipeline \"w\" v1\nnode w = wav(path=\"only.npz\", rate=8000)\nnode g = gain(db=-6)\nw -> g\nprobe g as \"g\"\n", "only-array");
+    REQUIRE(s);
+    CHECK(s->text.find("read_audio_array(HERE / \"only.npz\", \"arr_0\")") != std::string::npos);
+}

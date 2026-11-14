@@ -178,6 +178,14 @@ core::Result<WavFile> read_array_audio(const std::filesystem::path& path, const 
     return at(path, {Errc::invalid_argument, "not an .npy or .npz file"});
 }
 
+core::Result<std::string> array_audio_key(const std::filesystem::path& path, const std::string& key) {
+    const auto members = probe_npz(path, kAudioLimits);
+    if (!members) return std::unexpected{members.error()};
+    const auto picked = pick(*members, key);
+    if (!picked) return at(path, picked.error());
+    return picked->first;
+}
+
 bool is_array_audio(const std::filesystem::path& path) { return kind_of(path) != Kind::other; }
 
 core::Result<WavInfo> probe_array_audio(const std::filesystem::path& path, const std::string& key) {

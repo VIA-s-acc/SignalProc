@@ -95,7 +95,10 @@ core::Result<std::string> wav(const NodeIo& io, Emitter& em) {
         char b = 0;
         in.get(b);
         const bool npy = static_cast<unsigned char>(b) == 0x93;
-        return fmt::format("{} = read_audio_array({}, {})", y, em.file(path), npy ? std::string{"None"} : py_str(key.empty() ? "x" : key));
+        if (npy) return fmt::format("{} = read_audio_array({}, None)", y, em.file(path));
+        const auto picked = io::array_audio_key(path, key);
+        if (!picked) return std::unexpected{picked.error()};
+        return fmt::format("{} = read_audio_array({}, {})", y, em.file(path), py_str(*picked));
     }
     const auto info = em.preview() ? core::Result<io::WavInfo>{io::WavInfo{}} : io::probe_audio(path);
     if (em.preview() || (info && scipy_reads(path, *info))) {

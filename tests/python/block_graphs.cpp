@@ -97,7 +97,7 @@ std::string graph_text(const pipeline::BlockType& t, const std::string& name, co
 
 void prepare_block_files(const std::filesystem::path& dir) {
     std::filesystem::create_directories(dir);
-    const auto doc = pipeline::parse_sig(std::string{"pipeline \"c\" v1\n"} + kSources + "node c = dwt(wavelet=db2, levels=3)\nx -> c\nprobe c as \"c\"\n");
+    const auto doc = pipeline::parse_sig(std::string{"pipeline \"c\" v1\n"} + kSources + "node c = dwt(wavelet=db2, levels=3)\nx -> c\nprobe c as \"c\"\nprobe x as \"x\"\n");
     REQUIRE(doc);
     const auto graph = pipeline::build_graph(*doc, dir);
     REQUIRE(graph);
@@ -108,6 +108,12 @@ void prepare_block_files(const std::filesystem::path& dir) {
     const auto entries = pipeline::coeffs_entries(std::get<pipeline::Coeffs>(run->probes.at("c")));
     REQUIRE(entries);
     REQUIRE(io::write_npz(dir / "coeffs.npz", *entries));
+    const auto& x = std::get<core::AudioBuffer>(run->probes.at("x"));
+    REQUIRE(io::write_npz(dir / "only.npz", {{"arr_0", io::NpArray{{x.channels.size(), x.frames()}, [&] {
+                                                 std::vector<double> flat;
+                                                 for (const auto& c : x.channels) flat.insert(flat.end(), c.begin(), c.end());
+                                                 return flat;
+                                             }()}}}));
 }
 
 std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::filesystem::path& dir) {
@@ -124,6 +130,7 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
             out.push_back({name, graph_text(t, name, params)});
         }
     }
+    if (t.id == "wav") out.push_back({"wav-npz-only", graph_text(t, "wav-npz-only", {{"path", quoted(dir / "only.npz")}, {"rate", "8000"}})});
     if (t.id == "wav")
         for (const char* f : {"s16_stereo.wav", "s32_mono.wav", "u8_mono.wav", "f32_stereo.wav", "f64_mono.wav", "alaw_mono.wav", "mulaw_mono.wav", "s16_6ch_extensible.wav"}) {
             const auto name = std::string{"wav-"} + f;
