@@ -327,3 +327,22 @@ TEST_CASE("the wav form reads the array the program picked", "[py-script]") {
     REQUIRE(s);
     CHECK(s->text.find("read_audio_array(HERE / \"only.npz\", \"arr_0\")") != std::string::npos);
 }
+
+TEST_CASE("a script build stops when its run is cancelled between nodes", "[py-script]") {
+    const auto doc = pipeline::parse_sig(kTiny);
+    REQUIRE(doc);
+    const auto dir = signals::test::temp_path("py-script");
+    const auto graph = pipeline::build_graph(*doc, dir);
+    REQUIRE(graph);
+    core::CancelToken cancel;
+    int seen = 0;
+    python::ScriptOptions options{python::ScriptKind::script, dir / "cancel.py", "cancel.sig", kTiny};
+    options.on_node = [&](const pipeline::NodeStatus&) {
+        ++seen;
+        cancel.cancel();
+    };
+    const auto s = python::build_script(*doc, *graph, options, cancel);
+    REQUIRE_FALSE(s);
+    CHECK(s.error().code == core::Errc::cancelled);
+    CHECK(seen >= 1);
+}

@@ -75,7 +75,7 @@ public:
             for (std::size_t p = 0; p < g.nodes[i].type->outputs.size(); ++p)
                 g.probes.push_back({internal_probe(i, p), pipeline::PortRef{g.nodes[i].id, g.nodes[i].type->outputs[p].name}, pipeline::Source{i, p, ""}});
         pipeline::ResultCache cache{0};
-        auto result = pipeline::run_graph(g, cache, {}, cancel);
+        auto result = pipeline::run_graph(g, cache, pipeline::RunEvents{o_.on_node}, cancel);
         if (!result) return std::unexpected{result.error()};
         result_ = std::move(*result);
         em_.set_out_dir(std::filesystem::absolute(o_.out).parent_path());

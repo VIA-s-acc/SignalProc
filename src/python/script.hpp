@@ -1,12 +1,14 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 
 #include "core/error.hpp"
 #include "core/progress.hpp"
 #include "io/npy.hpp"
+#include "pipeline/executor.hpp"
 #include "pipeline/graph.hpp"
 #include "pipeline/sig.hpp"
 
@@ -19,6 +21,7 @@ struct ScriptOptions {
     std::filesystem::path out;
     std::filesystem::path sig;
     std::string source;
+    std::function<void(const pipeline::NodeStatus&)> on_node = {};
 };
 
 struct CheckRow {
