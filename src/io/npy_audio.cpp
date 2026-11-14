@@ -145,9 +145,12 @@ core::Result<core::AudioBuffer> audio_from_array(const NpArray& a, double rate) 
 core::Result<WavFile> read_array_audio(const std::filesystem::path& path, const ArrayAudioOptions& options) {
     switch (kind_of(path)) {
     case Kind::npy: {
+        const auto h = probe_npy(path, kAudioLimits);
+        if (!h) return std::unexpected{h.error()};
+        if (const auto l = layout_of(h->shape, h->text); !l) return at(path, l.error());
+        if (!options.rate) return at(path, {Errc::invalid_argument, "an .npy file has no sample rate; set the rate"});
         const auto a = read_npy(path, kAudioLimits);
         if (!a) return std::unexpected{a.error()};
-        if (!options.rate) return at(path, {Errc::invalid_argument, "an .npy file has no sample rate; set the rate"});
         auto f = as_file(*a, *options.rate, Container::npy);
         if (!f) return at(path, f.error());
         return f;
@@ -157,6 +160,7 @@ core::Result<WavFile> read_array_audio(const std::filesystem::path& path, const 
         if (!members) return std::unexpected{members.error()};
         const auto picked = pick(*members, options.key);
         if (!picked) return at(path, picked.error());
+        if (const auto l = layout_of(picked->second.shape, picked->second.text); !l) return at(path, l.error());
         const auto in_file = file_rate(path, *members);
         if (!in_file) return at(path, in_file.error());
         if (*in_file && options.rate && std::abs(**in_file - *options.rate) > 1e-9 * std::abs(*options.rate))
@@ -164,7 +168,6 @@ core::Result<WavFile> read_array_audio(const std::filesystem::path& path, const 
                                                          number(*options.rate) + ")"});
         const auto rate = options.rate ? options.rate : *in_file;
         if (!rate) return at(path, {Errc::invalid_argument, "the file has no 'rate' key; set the rate"});
-        if (const auto l = layout_of(picked->second.shape, picked->second.text); !l) return at(path, l.error());
         const auto entries = read_npz(path, kAudioLimits, {picked->first});
         if (!entries) return std::unexpected{entries.error()};
         const auto* array = np_find(*entries, picked->first);
