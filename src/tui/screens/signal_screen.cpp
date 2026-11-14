@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <utility>
 
@@ -12,6 +13,7 @@
 #include <ftxui/dom/elements.hpp>
 
 #include "i18n/i18n.hpp"
+#include "io/audio_file.hpp"
 #include "tui/shell/plot_export.hpp"
 #include "tui/screens/publish_util.hpp"
 #include "tui/shell/panel.hpp"
@@ -841,6 +843,24 @@ std::optional<std::pair<int, int>> SignalScreen::menu_anchor() const {
 
 std::shared_ptr<TabScreen> make_signal_screen(UiContext& ui, std::shared_ptr<SignalModel> model) {
     return std::make_shared<SignalScreen>(ui, std::move(model));
+}
+
+void open_audio(UiContext& ui, SignalModel& model, JobRunner& jobs, const std::filesystem::path& path) {
+    const auto probe = io::probe_audio(path);
+    const bool array = probe && (probe->container == io::Container::npy || probe->container == io::Container::npz);
+    if (!array || probe->sample_rate != 0 || !ui.ask_text) {
+        model.open(path, jobs);
+        return;
+    }
+    ui.ask_text(tr("tui.signal.rate_prompt"), "44100", [&ui, &model, &jobs, path](std::string answer) {
+        char* end = nullptr;
+        const double rate = std::strtod(answer.c_str(), &end);
+        if (answer.empty() || end != answer.c_str() + answer.size() || !(rate > 0) || !std::isfinite(rate)) {
+            if (ui.notice) ui.notice(fmt::format(fmt::runtime(tr("tui.signal.bad_rate")), fmt::arg("value", answer)));
+            return;
+        }
+        model.open(path, jobs, rate);
+    });
 }
 
 }  // namespace signals::tui

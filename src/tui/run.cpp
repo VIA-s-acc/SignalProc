@@ -12,6 +12,7 @@
 
 #include "i18n/i18n.hpp"
 #include "tui/app_screens.hpp"
+#include "tui/screens/signal_screen.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/monitor/monitor.hpp"
 #include "learn/task.hpp"
@@ -81,7 +82,7 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme, std::
     ui.first_run_check = !prefs || !prefs->checked;
     ui.first_run_start = !file && session->fresh();
     ui.warn = [signal = models.signal](std::string line) { signal->add_log(std::move(line), LogLine::warn); };
-    ui.open_file = [signal = models.signal, &jobs](const std::filesystem::path& path) { signal->open(path, jobs); };
+    ui.open_file = [&ui, signal = models.signal, &jobs](const std::filesystem::path& path) { open_audio(ui, *signal, jobs, path); };
     models.signal->set_on_loaded([session](const std::filesystem::path& path) { session->remember(RecentKind::audio, path); });
     ui.open_graph = [&ui, pipeline = models.pipeline](const std::filesystem::path& path) {
         if (auto ok = pipeline->load(path); !ok) {

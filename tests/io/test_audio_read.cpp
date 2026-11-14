@@ -9,6 +9,8 @@
 
 #include "core/progress.hpp"
 #include "io/audio_file.hpp"
+#include "io/npy.hpp"
+#include "io/npy_audio.hpp"
 #include "io/wav.hpp"
 #include "pipeline/block.hpp"
 #include "support/paths.hpp"
@@ -191,4 +193,104 @@ TEST_CASE("the wav block of the pipeline opens flac and mp3 too", "[audio][pipel
         CHECK(audio.channels.size() == 2);
         CHECK(audio.frames() == 4410);
     }
+}
+
+namespace {
+
+using signals::io::NpArray;
+using signals::io::np_scalar;
+using signals::io::np_vector;
+
+std::filesystem::path array_file(const std::string& name, const signals::io::NpzEntries& entries) {
+    const auto path = signals::test::temp_path(name);
+    REQUIRE(signals::io::write_npz(path, entries));
+    return path;
+}
+
+}  // namespace
+
+TEST_CASE("read_audio opens npy and npz by content", "[audio][npy]") {
+    const auto path = array_file("stereo-as.wav", {{"x", NpArray{{2, 4}, std::vector<double>{0.1, 0.2, 0.3, 0.4, -0.1, -0.2, -0.3, -0.4}}}, {"rate", np_scalar(8000)}});
+    const auto f = read_audio(path);
+    REQUIRE(f);
+    CHECK(f->info.container == Container::npz);
+    CHECK(f->audio.sample_rate == 8000);
+    REQUIRE(f->audio.channels.size() == 2);
+    CHECK(f->audio.channels[1] == std::vector<double>{-0.1, -0.2, -0.3, -0.4});
+    const auto p = probe_audio(path);
+    REQUIRE(p);
+    CHECK(p->channels == 2);
+    CHECK(p->frames == 4);
+    CHECK(p->sample_rate == 8000);
+}
+
+TEST_CASE("npy without a rate needs one", "[audio][npy]") {
+    const auto path = signals::test::temp_path("mono.npy");
+    REQUIRE(signals::io::write_npy(path, np_vector({0.5, -0.5, 0.25})));
+    const auto p = probe_audio(path);
+    REQUIRE(p);
+    CHECK(p->container == Container::npy);
+    CHECK(p->sample_rate == 0);
+    CHECK(p->frames == 3);
+    const auto f = read_audio(path);
+    REQUIRE_FALSE(f);
+    CHECK(f.error().message.find("rate") != std::string::npos);
+    const auto g = signals::io::read_array_audio(path, {16000.0, ""});
+    REQUIRE(g);
+    CHECK(g->audio.sample_rate == 16000);
+    CHECK(g->info.sample_rate == 16000);
+    CHECK(g->audio.channels.at(0) == std::vector<double>{0.5, -0.5, 0.25});
+}
+
+TEST_CASE("npz key picks the array", "[audio][npy]") {
+    const auto two = array_file("two.npz", {{"x", np_vector({1, 2, 3})}, {"y", np_vector({4, 5})}, {"rate", np_scalar(100)}});
+    const auto y = signals::io::read_array_audio(two, {std::nullopt, "y"});
+    REQUIRE(y);
+    CHECK(y->audio.channels.at(0) == std::vector<double>{4, 5});
+    const auto x = signals::io::read_array_audio(two, {std::nullopt, ""});
+    REQUIRE(x);
+    CHECK(x->audio.channels.at(0) == std::vector<double>{1, 2, 3});
+    const auto missing = signals::io::read_array_audio(two, {std::nullopt, "z"});
+    REQUIRE_FALSE(missing);
+    CHECK(missing.error().message.find("'z'") != std::string::npos);
+    const auto one = array_file("one.npz", {{"data", np_vector({7, 8, 9, 10})}});
+    const auto d = signals::io::read_array_audio(one, {100.0, ""});
+    REQUIRE(d);
+    CHECK(d->audio.channels.at(0).size() == 4);
+    const auto ab = array_file("ab.npz", {{"a", np_vector({1})}, {"b", np_vector({2})}});
+    const auto e = signals::io::read_array_audio(ab, {100.0, ""});
+    REQUIRE_FALSE(e);
+    CHECK(e.error().message.find("a, b") != std::string::npos);
+}
+
+TEST_CASE("npz rate contradicting the given rate is an error", "[audio][npy]") {
+    const auto path = array_file("rated.npz", {{"x", np_vector({1, 2})}, {"rate", np_scalar(8000)}});
+    const auto bad = signals::io::read_array_audio(path, {16000.0, ""});
+    REQUIRE_FALSE(bad);
+    CHECK(bad.error().message.find("8000") != std::string::npos);
+    CHECK(bad.error().message.find("16000") != std::string::npos);
+    CHECK(signals::io::read_array_audio(path, {8000.0, ""}));
+}
+
+TEST_CASE("an (N, C) array is refused with a hint", "[audio][npy]") {
+    const auto e = signals::io::audio_from_array(NpArray{{48000, 2}, std::vector<double>(96000, 0.0)}, 8000);
+    REQUIRE_FALSE(e);
+    CHECK(e.error().message.find("48000") != std::string::npos);
+    CHECK(e.error().message.find("x.T") != std::string::npos);
+    const auto path = signals::test::temp_path("frames-first.npy");
+    REQUIRE(signals::io::write_npy(path, NpArray{{48000, 2}, std::vector<double>(96000, 0.0)}));
+    const auto f = signals::io::read_array_audio(path, {8000.0, ""});
+    REQUIRE_FALSE(f);
+    CHECK(f.error().message.find("x.T") != std::string::npos);
+    CHECK_FALSE(signals::io::audio_from_array(NpArray{{2, 2, 2}, std::vector<double>(8, 0.0)}, 8000));
+    CHECK_FALSE(signals::io::audio_from_array(signals::io::np_text("no"), 8000));
+}
+
+TEST_CASE("signal entries are (N,) for mono and (C, N) for stereo", "[audio][npy]") {
+    const auto mono = signals::io::signal_entries({8000, {{1, 2, 3}}});
+    REQUIRE(signals::io::np_find(mono, "x"));
+    CHECK(signals::io::np_find(mono, "x")->shape == std::vector<std::size_t>{3});
+    CHECK(std::get<std::vector<double>>(signals::io::np_find(mono, "rate")->data) == std::vector<double>{8000});
+    const auto stereo = signals::io::signal_entries({8000, {{1, 2}, {3, 4}}});
+    CHECK(signals::io::np_find(stereo, "x")->shape == std::vector<std::size_t>{2, 2});
 }

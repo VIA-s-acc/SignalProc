@@ -18,6 +18,7 @@
 
 #include "audio/manual_sink.hpp"
 #include "core/metrics.hpp"
+#include "io/npy.hpp"
 #include "support/paths.hpp"
 #include "tui/harness.hpp"
 #include "tui/screens/signal_model.hpp"
@@ -608,4 +609,33 @@ TEST_CASE("the signal model reports a file it loaded and not one it could not", 
     CHECK(seen == std::vector<std::filesystem::path>{signals::test::audio_fixture("tone_stereo.flac")});
     m.open(signals::test::audio_fixture("not_audio.mp3"), jobs);
     CHECK(seen.size() == 1);
+}
+
+TEST_CASE("signal tab asks the rate of an npy and then opens it", "[tui][signal]") {
+    auto ui = signals::test::make_ui(150, 44);
+    JobRunner jobs{[] {}, 0ms, true};
+    ui->jobs = &jobs;
+    std::string initial, notice;
+    std::function<void(std::string)> answer;
+    ui->ask_text = [&](std::string, std::string first, std::function<void(std::string)> done) {
+        initial = std::move(first);
+        answer = std::move(done);
+    };
+    ui->notice = [&](std::string text) { notice = std::move(text); };
+    const auto path = signals::test::temp_path("tab.npy");
+    std::vector<double> x(256);
+    for (std::size_t k = 0; k < x.size(); ++k) x[k] = std::sin(0.1 * static_cast<double>(k));
+    REQUIRE(signals::io::write_npy(path, signals::io::np_vector(x)));
+    SignalModel m;
+    open_audio(*ui, m, jobs, path);
+    CHECK(initial == "44100");
+    REQUIRE(answer);
+    CHECK_FALSE(m.data());
+    answer("abc");
+    CHECK_FALSE(m.data());
+    CHECK(notice.find("abc") != std::string::npos);
+    answer("16000");
+    REQUIRE(m.data());
+    CHECK(m.data()->info.sample_rate == 16000);
+    CHECK(m.data()->info.frames == 256);
 }

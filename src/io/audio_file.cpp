@@ -1,4 +1,5 @@
 #include "io/audio_file.hpp"
+#include "io/npy_audio.hpp"
 
 #include <array>
 #include <cstddef>
@@ -20,7 +21,7 @@ using core::make_error;
 constexpr std::size_t kBlockFrames = std::size_t{1} << 16;
 constexpr std::size_t kMaxReserveFrames = std::size_t{1} << 24;
 
-enum class Sniff { missing, wav, flac, mp3, unknown };
+enum class Sniff { missing, wav, flac, mp3, npy, npz, unknown };
 
 Sniff sniff(const std::filesystem::path& path) {
     std::ifstream in{path, std::ios::binary};
@@ -32,12 +33,14 @@ Sniff sniff(const std::filesystem::path& path) {
     if (is("RIFF") || is("RF64") || is("BW64") || is("riff")) return Sniff::wav;
     if (is("fLaC") || is("OggS")) return Sniff::flac;
     if (b[0] == 'I' && b[1] == 'D' && b[2] == '3') return Sniff::mp3;
+    if (b[0] == 0x93 && b[1] == 'N' && b[2] == 'U' && b[3] == 'M') return Sniff::npy;
+    if (b[0] == 'P' && b[1] == 'K' && (b[2] == 0x03 || b[2] == 0x05)) return Sniff::npz;
     const bool sync = b[0] == 0xFF && (b[1] & 0xE0) == 0xE0, layer = (b[1] & 0x06) != 0, bitrate = (b[2] & 0xF0) != 0xF0, rate = (b[2] & 0x0C) != 0x0C;
     return sync && layer && bitrate && rate ? Sniff::mp3 : Sniff::unknown;
 }
 
 core::Error unsupported(const std::filesystem::path& path) {
-    return {Errc::invalid_argument, "not a WAV, FLAC or MP3 file: " + path.string()};
+    return {Errc::invalid_argument, "not a WAV, FLAC, MP3, NPY or NPZ file: " + path.string()};
 }
 
 SampleFormat format_for_bits(unsigned bits) {
@@ -155,6 +158,8 @@ core::Result<WavInfo> probe_audio(const std::filesystem::path& path) {
         if (!frames) return make_error(Errc::io_error, "cannot rewind FLAC file: " + path.string());
         return flac_info(*f, *frames);
     }
+    case Sniff::npy:
+    case Sniff::npz: return probe_array_audio(path);
     case Sniff::mp3: {
         drmp3 mp3;
         if (!open_mp3(mp3, path)) return make_error(Errc::invalid_argument, "cannot parse MP3 file: " + path.string());
@@ -172,6 +177,8 @@ core::Result<WavFile> read_audio(const std::filesystem::path& path, core::Progre
     case Sniff::wav: return read_wav(path, progress);
     case Sniff::flac: return read_flac(path, progress);
     case Sniff::mp3: return read_mp3(path, progress);
+    case Sniff::npy:
+    case Sniff::npz: return read_array_audio(path, {});
     }
     return std::unexpected{unsupported(path)};
 }

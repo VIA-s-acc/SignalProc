@@ -64,7 +64,8 @@ public:
             return 0;
         }
         const auto format = info.container == io::Container::wav ? std::string{io::to_string(info.format)}
-                            : info.container == io::Container::mp3 ? std::string{"mp3"}
+                            : info.container == io::Container::mp3 || info.container == io::Container::npy || info.container == io::Container::npz
+                                ? std::string{io::to_string(info.container)}
                                                                    : fmt::format(fmt::runtime(tr("audio.info.flac")), fmt::arg("bits", info.bits));
         out << fmt::format(fmt::runtime(tr("audio.info.header")), fmt::arg("path", input_),
                            fmt::arg("format", format), fmt::arg("channels", info.channels),

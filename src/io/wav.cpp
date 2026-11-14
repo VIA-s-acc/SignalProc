@@ -242,6 +242,8 @@ std::string_view to_string(Container container) {
     case Container::wav: return "wav";
     case Container::flac: return "flac";
     case Container::mp3: return "mp3";
+    case Container::npy: return "npy";
+    case Container::npz: return "npz";
     }
     return "unknown";
 }
