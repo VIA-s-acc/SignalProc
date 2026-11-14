@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <map>
 #include <string>
 #include <vector>
@@ -196,4 +197,23 @@ TEST_CASE("a script named like a Python module is refused", "[py-script]") {
     CHECK(err.find("math.py") != std::string::npos);
     CHECK(err.find("-o") != std::string::npos);
     CHECK_FALSE(std::filesystem::exists(signals::test::temp_path("math.py")));
+}
+
+TEST_CASE("signals python writes only a .py script or an .ipynb notebook", "[py-script]") {
+    for (const char* name : {"g.npz", "g.sig", "g.txt", "g"}) {
+        INFO(name);
+        CHECK_FALSE(python::check_script_name(name));
+    }
+    const auto sig = write_sig("ext-cli.sig", kTiny);
+    const auto npz = signals::test::temp_path("ext-cli.npz");
+    std::filesystem::remove(npz);
+    auto [code, out, err] = signals::test::run_cli({"signals", "python", sig.string(), "-o", npz.string()});
+    CHECK(code == 2);
+    CHECK(err.find(".ipynb") != std::string::npos);
+    CHECK_FALSE(std::filesystem::exists(npz));
+    std::ifstream in{sig};
+    const std::string kept{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+    CHECK(kept == kTiny);
+    auto [same, sout, serr] = signals::test::run_cli({"signals", "python", sig.string(), "-o", sig.string()});
+    CHECK(same == 2);
 }
