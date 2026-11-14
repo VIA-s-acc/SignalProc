@@ -238,7 +238,7 @@ private:
         const auto ref = "D[" + py_str(r.ref) + "]";
         switch (r.kind) {
         case RowKind::text: return "verify_text(" + py_str(r.what) + ", " + r.expr + ", " + ref + ")";
-        case RowKind::file_name: return "verify_text(" + py_str(r.what) + ", Path(str(" + r.expr + ")).name, Path(str(" + ref + ")).name)";
+        case RowKind::file_name: return "verify_name(" + py_str(r.what) + ", " + r.expr + ", " + ref + ")";
         case RowKind::number: break;
         }
         return "verify(" + py_str(r.what) + ", " + r.expr + ", " + ref + ", " + fmt::format("{:.0e}", r.chain.tol) + ", " + py_str(r.chain.origin) + ")";
