@@ -58,6 +58,12 @@ def main() -> None:
 
     with zipfile.ZipFile(out / "bad_member.npz", "w") as z:
         z.writestr("readme.txt", "not an array")
+    header = "{'descr': '<f8', 'fortran_order': False, 'shape': (2, 200000000), }"
+    header += " " * ((64 - (10 + len(header) + 1) % 64) % 64) + "\n"
+    claim = b"\x93NUMPY\x01\x00" + len(header).to_bytes(2, "little") + header.encode() + bytes(64)
+    with zipfile.ZipFile(out / "huge_claim.npz", "w") as z:
+        z.writestr("cA1.npy", claim)
+        z.writestr("cD1.npy", claim)
     for key, value in (("a", a), ("b", b), ("name", name)):
         record(expected, "npz." + key, value)
 

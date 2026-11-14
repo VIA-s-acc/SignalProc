@@ -155,6 +155,15 @@ Out coeff_quantize(const RunContext& ctx, std::span<const Value> in, const Param
 Out coeffs_file(const RunContext& ctx, std::span<const Value>, const Params& p) {
     auto path = utf8_path(param_text(p, "path"));
     if (path.is_relative()) path = ctx.base_dir / path;
+    const auto members = io::probe_npz(path);
+    if (!members) return std::unexpected{members.error()};
+    double values = 0;
+    for (const auto& [key, header] : *members) {
+        double n = 1;
+        for (const auto d : header.shape) n *= static_cast<double>(d);
+        values += n;
+    }
+    if (values > kMaxSamples) return fail(tr("pipeline.error.npz_too_large"), fmt::arg("path", path.string()), fmt::arg("values", values));
     const auto entries = io::read_npz(path);
     if (!entries) return std::unexpected{entries.error()};
     const double rate = param_real(p, "rate");

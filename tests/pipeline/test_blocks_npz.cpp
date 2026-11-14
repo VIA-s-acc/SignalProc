@@ -144,3 +144,9 @@ TEST_CASE("coeffs_file refuses bands that do not fit the wavelet", "[blocks-npz]
     REQUIRE_FALSE(bad);
     CHECK(bad.error().message.find("coeffs_file") != std::string::npos);
 }
+
+TEST_CASE("coeffs_file checks the declared size before reading", "[blocks-npz]") {
+    const auto bad = attempt("coeffs_file", {}, {{"path", npy_fixture("huge_claim.npz").string()}, {"wavelet", "db2"}, {"mode", "symmetric"}, {"rate", "8000"}});
+    REQUIRE_FALSE(bad);
+    CHECK(bad.error().message.find("2²⁸") != std::string::npos);
+}

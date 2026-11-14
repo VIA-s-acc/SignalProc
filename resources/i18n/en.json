@@ -665,6 +665,7 @@
   "pipeline.error.out_of_bounds": "{param} = {value}: allowed from {min} to {max}",
   "pipeline.error.too_long": "{param} = {value}: too long, the limit is 2²⁸ samples",
   "pipeline.error.file_too_long": "{path}: {frames} frames × {channels} channels is over the pipeline limit of 2²⁸ samples",
+  "pipeline.error.npz_too_large": "{path}: {values:.0f} values — more than the pipeline limit of 2²⁸ samples",
   "pipeline.error.wav_array_only": "{path}: the rate and key parameters apply only to .npy and .npz",
   "pipeline.error.coeffs_file": "coeffs_file: {path}: {message}",
   "pipeline.error.coeffs_file_rate": "coeffs_file: {path} has no rate key; set the rate parameter",

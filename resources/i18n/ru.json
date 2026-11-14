@@ -1326,6 +1326,7 @@
   "pipeline.error.out_of_bounds": "{param} = {value}: допустимо от {min} до {max}",
   "pipeline.error.too_long": "{param} = {value}: слишком длинно, предел — 2²⁸ отсчётов",
   "pipeline.error.file_too_long": "{path}: {frames} кадров × {channels} кан. — больше предела конвейера в 2²⁸ отсчётов",
+  "pipeline.error.npz_too_large": "{path}: {values:.0f} значений — больше предела конвейера в 2²⁸ отсчётов",
   "pipeline.error.wav_array_only": "{path}: параметры rate и key действуют только для .npy и .npz",
   "pipeline.error.coeffs_file": "coeffs_file: {path}: {message}",
   "pipeline.error.coeffs_file_rate": "coeffs_file: в {path} нет ключа rate; задайте параметр rate",
