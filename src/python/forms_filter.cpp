@@ -384,7 +384,11 @@ core::Result<std::string> check(const NodeIo& io, Emitter& em) {
                        py_str(param_text(p, "delay")));
 }
 
-core::Result<std::string> listen(const NodeIo& io, Emitter&) { return fmt::format("print({}, {})", py_str(tr("python.listen")), py_str(io.node.id)); }
+core::Result<std::string> listen(const NodeIo& io, Emitter& em) {
+    if (!em.notebook()) return fmt::format("print({}, {})", py_str(tr("python.listen")), py_str(io.node.id));
+    em.import_line("from IPython.display import Audio, display");
+    return fmt::format("display(Audio({}, rate={}))", io.in[0], io.in_fs[0]);
+}
 
 }  // namespace
 

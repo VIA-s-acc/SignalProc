@@ -2897,8 +2897,11 @@
   "python.nothing_to_check": "в графе нет щупов, отчётов и выходов — нечего сверять",
   "python.written": "записано {script} и {data} · сверка: python {script}",
   "python.module_name": "«{name}.py» называется как модуль Python: в этой папке import {name} загрузит скрипт вместо модуля. Выберите другое имя через -o",
-  "python.notebook_later": "тетрадь .ipynb появится в следующей части этапа; пока пишите .py",
+  "python.notebook.title": "Тетрадь Signals по графу «{graph}» ({file})",
+  "python.notebook.run": "Выполните все ячейки по порядку; данные лежат в {data} в той же папке.",
+  "python.notebook.failed": "сверка не прошла: строки с ✗ выше",
+  "python.written_notebook": "записано {script} и {data} · сверка: выполните все ячейки в Jupyter",
   "python.listen": "послушать:",
   "cli.python.description": "Скрипт на numpy, scipy и pywt по графу .sig, сверяющий каждое число с программой",
-  "cli.python.output": "куда записать скрипт .py; рядом ложится .npz с данными"
+  "cli.python.output": "куда записать скрипт .py или тетрадь Jupyter .ipynb; рядом ложится .npz с данными"
 }

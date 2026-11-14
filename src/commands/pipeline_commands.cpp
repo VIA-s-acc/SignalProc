@@ -605,17 +605,14 @@ public:
         for (const auto& s : sets_)
             if (auto ok = pipeline::apply_set(*doc, s); !ok) return report_error(err, ok.error()), 1;
         auto target = output_.empty() ? std::filesystem::path{file}.replace_extension(".py") : pipeline::utf8_path(output_);
-        if (target.extension() == ".ipynb") {
-            err << tr("python.notebook_later") << '\n';
-            return 2;
-        }
         if (auto ok = python::check_script_name(target); !ok) return report_error(err, ok.error()), 2;
         auto graph = pipeline::build_graph(*doc, std::filesystem::absolute(file).parent_path());
         if (!graph) return sig_error(err, file, graph.error());
         std::ifstream in{file, std::ios::binary};
         const std::string source{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
         core::CancelToken cancel;
-        const python::ScriptOptions options{python::ScriptKind::script, target, file, source};
+        const bool notebook = target.extension() == ".ipynb";
+        const python::ScriptOptions options{notebook ? python::ScriptKind::notebook : python::ScriptKind::script, target, file, source};
         const auto script = python::build_script(*doc, *graph, options, cancel);
         if (!script) return report_error(err, script.error()), 1;
         auto data = target;
@@ -626,7 +623,7 @@ public:
             const auto u = p.filename().u8string();
             return std::string{u.begin(), u.end()};
         };
-        out << fmt::format(fmt::runtime(tr("python.written")), fmt::arg("script", name(target)), fmt::arg("data", name(data))) << '\n';
+        out << fmt::format(fmt::runtime(tr(notebook ? "python.written_notebook" : "python.written")), fmt::arg("script", name(target)), fmt::arg("data", name(data))) << '\n';
         return 0;
     }
 
