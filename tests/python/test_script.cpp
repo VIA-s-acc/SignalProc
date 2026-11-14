@@ -10,7 +10,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/design/families.hpp"
 #include "core/version.hpp"
+#include "io/npy.hpp"
 #include "i18n/i18n.hpp"
 #include "io/generators.hpp"
 #include "pipeline/graph.hpp"
@@ -290,4 +292,20 @@ TEST_CASE("every temporary suffix a form writes is reserved", "[py-script]") {
             CHECK(std::ranges::find(suffixes, suffix) != suffixes.end());
         }
     }
+}
+
+TEST_CASE("a wavelet from the user library goes to pywt with its filters", "[py-script]") {
+    const auto db2 = core::wavelet("db2");
+    REQUIRE(db2);
+    core::set_user_wavelets([db2](std::string_view name) -> std::optional<core::FilterBank> {
+        if (name != "my_bank") return std::nullopt;
+        auto b = *db2;
+        b.name = "my_bank";
+        return b;
+    }, [] { return std::vector<std::string>{"my_bank"}; });
+    const auto s = script_for("pipeline \"u\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode c = dwt(wavelet=my_bank, levels=2)\nx -> c\nprobe c as \"c\"\n", "user-bank");
+    core::set_user_wavelets({}, {});
+    REQUIRE(s);
+    CHECK(s->text.find("pywt.Wavelet(\"my_bank\", filter_bank=") != std::string::npos);
+    CHECK(io::np_find(s->data, "wavelet.my_bank.dec_lo"));
 }

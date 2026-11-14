@@ -264,7 +264,10 @@ std::string Emitter::file(const std::filesystem::path& absolute) const {
 
 std::string Emitter::wavelet(std::string_view name) {
     import_line("import pywt");
-    if (preview_ || !by_filter_bank().contains(name)) return py_str(name);
+    const auto builtin = core::wavelet_names();
+    const auto user = core::user_wavelet_names();
+    const bool by_name = std::ranges::find(builtin, name) != builtin.end() && std::ranges::find(user, name) == user.end() && !by_filter_bank().contains(name);
+    if (preview_ || by_name) return py_str(name);
     if (const auto it = wavelets_.find(name); it != wavelets_.end()) return it->second;
     const auto bank = core::wavelet(name);
     if (!bank) return py_str(name);
