@@ -1,4 +1,6 @@
 #include "io/wav.hpp"
+
+#include "core/signal_ops.hpp"
 #include "io/temp_file.hpp"
 
 #include <algorithm>
@@ -161,7 +163,7 @@ public:
           bytes_{encoding.bits / 8},
           scale_{std::ldexp(1.0, static_cast<int>(encoding.bits) - 1)},
           dither_{options.dither},
-          rng_{options.dither_seed} {}
+          tpdf_{options.dither_seed} {}
 
     std::size_t bytes() const { return bytes_; }
     std::size_t clipped() const { return clipped_; }
@@ -169,11 +171,7 @@ public:
     void encode(double x, unsigned char* out) {
         if (is_float_) return put(std::bit_cast<std::uint32_t>(static_cast<float>(x)), out);
         double v = x * scale_;
-        if (dither_) {
-            const double d1 = uniform_(rng_);
-            const double d2 = uniform_(rng_);
-            v += d1 - d2;
-        }
+        if (dither_) v += tpdf_.next();
         double q = std::round(v);
         if (q < -scale_) {
             q = -scale_;
@@ -195,8 +193,7 @@ private:
     double scale_;
     bool dither_;
     std::size_t clipped_ = 0;
-    std::mt19937_64 rng_;
-    std::uniform_real_distribution<double> uniform_{0.0, 1.0};
+    core::TpdfDither tpdf_;
 };
 
 

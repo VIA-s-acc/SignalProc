@@ -152,13 +152,18 @@ add_executable(signals_tests
   test_golden_files.cpp
   test_i18n_keys.cpp
   test_readme.cpp
+  python/test_forms.cpp
+  python/test_script.cpp
+  python/test_bridge.cpp
+  python/block_graphs.cpp
   support/golden.cpp
   support/banks.cpp
 )
-target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_svg signals_tui signals_audio signals_theory signals_pipeline signals_learn Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
+target_link_libraries(signals_tests PRIVATE signals_cli signals_io signals_svg signals_tui signals_audio signals_theory signals_pipeline signals_python signals_learn Catch2::Catch2WithMain rapidcheck nlohmann_json::nlohmann_json)
 target_include_directories(signals_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(signals_tests PRIVATE SIGNALS_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden"
                           SIGNALS_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+                          SIGNALS_NULL_DEVICE="$<IF:$<PLATFORM_ID:Windows>,nul,/dev/null>"
                           SIGNALS_EXPECTED_VERSION="${PROJECT_VERSION}${SIGNALS_VERSION_SUFFIX}")
 signals_configure_target(signals_tests)
 catch_discover_tests(signals_tests)

@@ -117,18 +117,21 @@ Result<std::vector<double>> cut(std::span<const double> x, std::size_t begin, st
     return std::vector<double>(x.begin() + static_cast<std::ptrdiff_t>(begin), x.begin() + static_cast<std::ptrdiff_t>(end));
 }
 
+std::vector<double> tpdf_draws(std::size_t n, std::uint64_t seed) {
+    TpdfDither tpdf{seed};
+    std::vector<double> out(n);
+    for (auto& v : out) v = tpdf.next();
+    return out;
+}
+
 Result<std::vector<double>> quantize(std::span<const double> x, int bits, bool dither, std::uint64_t seed) {
     if (bits < 1 || bits > 32) return make_error(Errc::invalid_argument, "quantize: bits must be in 1..32");
     const double scale = std::ldexp(1.0, bits - 1);
-    std::mt19937_64 rng{seed};
-    std::uniform_real_distribution<double> uniform{0.0, 1.0};
+    TpdfDither tpdf{seed};
     std::vector<double> out(x.size());
     for (std::size_t n = 0; n < x.size(); ++n) {
         double v = std::isfinite(x[n]) ? x[n] * scale : 0.0;
-        if (dither) {
-            const double d1 = uniform(rng), d2 = uniform(rng);
-            v += d1 - d2;
-        }
+        if (dither) v += tpdf.next();
         out[n] = std::clamp(std::nearbyint(v), -scale, scale - 1) / scale;
     }
     return out;
