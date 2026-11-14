@@ -11,7 +11,7 @@ def spectral_subtract(x, noise, lead, n, alpha, beta):
         level /= len(frames)
         z = stft(row, n, hop)
         power = np.maximum(z.real * z.real + z.imag * z.imag - alpha * level, beta * level)
-        magnitude = np.abs(z)
+        magnitude = np.hypot(z.real, z.imag)
         with np.errstate(all="ignore"):
             z = np.where(magnitude > 0, z * (np.sqrt(power) / magnitude), np.sqrt(power) + 0j)
         out[ch] = istft(z, n, hop)[: row.size]

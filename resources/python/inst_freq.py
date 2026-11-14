@@ -7,7 +7,7 @@ def inst_freq(x, fs):
             rows.append(np.zeros(0))
             continue
         phase = np.unwrap(np.angle(a))
-        mag = np.abs(a)
+        mag = np.hypot(a.real, a.imag)
         peak = np.max(mag)
         out = np.zeros(a.size - 1)
         for n in range(a.size - 1):

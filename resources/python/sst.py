@@ -74,7 +74,7 @@ def sst(row, fs, lo_hz, hi_hz, voices, mu, ridge):
         part = slice(begin + keep_from, begin + keep_to)
         for wx, dwx in _sst_rows(row[begin:end], s0, count, voices, mu, up, left):
             wx, dwx = wx[keep_from:keep_to], dwx[keep_from:keep_to]
-            m = np.abs(wx)
+            m = np.hypot(wx.real, wx.imag)
             a, b, c, d = dwx.real, dwx.imag, wx.real, wx.imag
             with np.errstate(all="ignore"):
                 w = np.abs((b * c - a * d) / ((c * c + d * d) * 6.283185307179586))

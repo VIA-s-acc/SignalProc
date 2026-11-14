@@ -136,14 +136,34 @@ core::Result<std::string> mix(const NodeIo& io, Emitter& em) {
                        em.number(std::floor(param_real(p, "crossfade_ms") / 1000 * fs + 0.5)));
 }
 
+core::Result<std::string> time_stretch(const NodeIo& io, Emitter& em) {
+    em.function("time_stretch");
+    return fmt::format("{} = time_stretch({}, {}, {}, {}, {})", io.out[0], io.in[0], em.number(param_real(io.node.params, "rate")), py_str(param_text(io.node.params, "method")),
+                       param_int(io.node.params, "n_fft"), param_int(io.node.params, "hop"));
+}
+
+core::Result<std::string> pitch_shift(const NodeIo& io, Emitter& em) {
+    em.function("pitch_shift");
+    return fmt::format("{} = pitch_shift({}, {}, {}, {}, {})", io.out[0], io.in[0], em.number(param_real(io.node.params, "semitones")),
+                       py_str(param_text(io.node.params, "method")), param_int(io.node.params, "n_fft"), param_int(io.node.params, "hop"));
+}
+
+core::Result<std::string> speed(const NodeIo& io, Emitter& em) {
+    em.function("speed");
+    return fmt::format("{} = speed({}, {})", io.out[0], io.in[0], em.number(param_real(io.node.params, "rate")));
+}
+
 }  // namespace
 
 void register_effect_forms(std::vector<PyForm>& out) {
     for (auto [id, fn] : std::initializer_list<std::pair<const char*, core::Result<std::string> (*)(const NodeIo&, Emitter&)>>{
              {"tremolo", tremolo}, {"modulated_delay", modulated_delay}, {"phaser", phaser}, {"reverb", reverb}, {"wavefold", wavefold}, {"am", am}, {"fm", fm},
              {"gausspulse", gausspulse}, {"impulse_train", impulse_train}, {"shift", shift}, {"biquad", biquad}, {"compressor", compressor},
-             {"limiter", limiter}, {"gate", gate}, {"echo", echo}, {"comb", comb}, {"mix", mix}})
+             {"limiter", limiter}, {"gate", gate}, {"echo", echo}, {"comb", comb}, {"mix", mix},
+             {"speed", speed}})
         out.push_back({id, 1e-12, fn});
+    out.push_back({"time_stretch", 1e-9, time_stretch});
+    out.push_back({"pitch_shift", 1e-9, pitch_shift});
 }
 
 }  // namespace signals::python
