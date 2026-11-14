@@ -5,6 +5,7 @@ add_library(signals_io STATIC
   stats.cpp
   generators.cpp
   config_dir.cpp
+  npy.cpp
 )
-target_link_libraries(signals_io PUBLIC signals_core PRIVATE signals_dr_libs)
+target_link_libraries(signals_io PUBLIC signals_core PRIVATE signals_dr_libs signals_miniz)
 signals_configure_target(signals_io)
