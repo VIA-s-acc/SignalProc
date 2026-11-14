@@ -89,5 +89,6 @@ void register_basic_forms(std::vector<PyForm>& out);
 void register_filter_forms(std::vector<PyForm>& out);
 void register_wavelet_forms(std::vector<PyForm>& out);
 void register_effect_forms(std::vector<PyForm>& out);
+void register_analysis_forms(std::vector<PyForm>& out);
 
 }  // namespace signals::python
