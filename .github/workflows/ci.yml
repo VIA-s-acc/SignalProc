@@ -66,6 +66,36 @@ jobs:
           pwsh -NoProfile -File packaging/test_install.ps1 -Release "$(cygpath -w "$rel")"
           powershell -NoProfile -ExecutionPolicy Bypass -File packaging/test_install.ps1 -Release "$(cygpath -w "$rel")"
 
+  python-bridge:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            cxx: g++-14
+          - os: macos-15
+            cxx: clang++
+    runs-on: ${{ matrix.os }}
+    env:
+      CXX: ${{ matrix.cxx }}
+      SIGNALS_REQUIRE_BRIDGE: "1"
+      SIGNALS_PYTHON: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python packages pinned for the bridge
+        run: python -m pip install -r tools/requirements-bridge.txt
+      - name: Configure
+        run: cmake --preset release -DSIGNALS_WERROR=ON
+      - name: Build
+        run: cmake --build --preset release --target signals_tests
+      - name: Python sources compile
+        run: python -m py_compile resources/python/*.py tools/bridge/*.py
+      - name: Bridge
+        run: ctest --preset release -R bridge --output-on-failure
+
   gallery:
     runs-on: ubuntu-24.04
     env:

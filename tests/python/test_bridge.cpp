@@ -7,7 +7,11 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/design/families.hpp"
 #include "core/progress.hpp"
+#include "io/npy.hpp"
+#include "io/npy_audio.hpp"
+#include "pipeline/npz_values.hpp"
 #include "pipeline/cache.hpp"
 #include "pipeline/executor.hpp"
 #include "pipeline/graph.hpp"
@@ -124,4 +128,47 @@ TEST_CASE("bridge scripts agree with Signals", "[bridge]") {
     for (const auto& s : skipped) list += s + " ";
     UNSCOPED_INFO("generated " << written << ", skipped (blocks without a form) " << skipped.size() << ": " << list);
     CHECK(written > 0);
+}
+
+TEST_CASE("bridge files open in numpy and pywt", "[bridge]") {
+    if (!python_ready()) {
+        if (std::getenv("SIGNALS_REQUIRE_BRIDGE")) FAIL("python3 with numpy, scipy and PyWavelets is required: SIGNALS_REQUIRE_BRIDGE is set");
+        SKIP("no python3 with numpy, scipy and PyWavelets");
+    }
+    const auto root = signals::test::temp_path("bridge-files");
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root / "banks");
+    const auto doc = pipeline::parse_sig(
+        "pipeline \"f\" v1\nnode s1 = gen(kind=harmonics, freq=220, rate=8000, duration=0.25, channels=2, amplitude=0.5)\n"
+        "node s2 = gen(kind=white, rate=8000, duration=0.25, channels=2, amplitude=0.1, seed=5)\nnode x = add()\ns1 -> x.a\ns2 -> x.b\n"
+        "node d = dwt(wavelet=db4, levels=4, ext=periodization)\nnode s = swt(wavelet=db2, levels=3, norm=yes)\nnode w = wpt(wavelet=db3, levels=3, basis=full)\n"
+        "x -> d\nx -> s\nx -> w\nprobe x as \"x\"\nprobe d as \"d\"\nprobe s as \"s\"\nprobe w as \"w\"\n");
+    REQUIRE(doc);
+    const auto graph = pipeline::build_graph(*doc, root);
+    REQUIRE(graph);
+    pipeline::ResultCache cache{0};
+    core::CancelToken cancel;
+    const auto run = pipeline::run_graph(*graph, cache, {}, cancel);
+    REQUIRE(run);
+    REQUIRE(io::write_npy(root / "signal.npy", io::signal_entries(std::get<core::AudioBuffer>(run->probes.at("x"))).front().second));
+    for (const char* name : {"d", "s", "w"}) {
+        const auto e = pipeline::coeffs_entries(std::get<pipeline::Coeffs>(run->probes.at(name)));
+        REQUIRE(e);
+        REQUIRE(io::write_npz(root / (std::string{name == std::string{"d"} ? "dwt" : name == std::string{"s"} ? "swt" : "wpt"} + ".npz"), *e));
+    }
+    std::string by_name, by_bank;
+    for (const auto& name : core::all_wavelet_names()) {
+        const auto bank = core::wavelet(name);
+        if (!bank) continue;
+        REQUIRE(io::write_npz(root / "banks" / (std::string{name} + ".npz"), pipeline::bank_entries(*bank)));
+        auto& list = python::by_filter_bank().contains(name) ? by_bank : by_name;
+        list += (list.empty() ? "\"" : ", \"") + std::string{name} + "\"";
+    }
+    std::ofstream{root / "spec.json"} << "{\"by_name\": [" << by_name << "], \"by_filter_bank\": [" << by_bank << "]}\n";
+    const auto log = root / "files.log";
+    const auto cmd = python_exe() + " -I \"" + utf8(std::filesystem::path{SIGNALS_SOURCE_DIR} / "tools" / "bridge" / "check_files.py") + "\" \"" + utf8(root) + "\" > \"" +
+                     utf8(log) + "\" 2>&1";
+    const int code = std::system(cmd.c_str());
+    INFO(read(log));
+    CHECK(code == 0);
 }

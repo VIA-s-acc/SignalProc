@@ -7,6 +7,7 @@
 ### Added
 
 - Обмен с numpy, scipy и pywt через `.npy` и `.npz` (M11). Выгрузка: `signals run --npz`, `--probe-format npy`, `signals dwt -o *.npz`, `signals filter info -o bank.npz`, форматы `npy` у `export` и `npz` у `export_report`, `x` в «Конвейере», `N` в «Разложении» и «Фильтрах», графики в `.npz`. Загрузка: блок `wav` и вкладка «Сигнал» читают `.npy` и `.npz` (параметры `rate` и `key`), новый блок `coeffs_file` читает коэффициенты Signals и pywt. Ключи коэффициентов как у pywt, детали в знаке pywt, ключ `detail_sign`; раскладка описана в `docs/user/python.md`. Файлы открываются `np.load(..., allow_pickle=False)`, в том числе сжатые `np.savez_compressed`.
+- `signals python graph.sig`: скрипт на numpy, scipy и PyWavelets по графу и файл данных `.npz` (M11). Скрипт повторяет граф узел за узлом, вызывает pywt и scipy там, где они дают те же числа, и сверяет каждый щуп и каждое поле отчёта с программой: до 10⁻¹², у `iir`, `remez`, `firls`, `lms`, SST и `cepstrum` — до записанного допуска. В CI задание `python-bridge` на Ubuntu и macOS выполняет такие скрипты для примеров и для графа каждого блока с каждым значением каждого выбора.
 
 - Установка одной командой: `install.sh` для macOS и Linux (`curl … | sh`) и `install.ps1` для Windows (`irm … | iex`). Скрипты берут последний выпуск или заданную версию, сверяют SHA-256, ставят программу в домашнюю папку без `sudo`, раскладывают man-страницу и дополнения и обновляют программу при повторном запуске. В CI они проверяются на поддельном выпуске, а `install-check.yml` ставит программу настоящими однострочниками на чистых машинах GitHub.
 - Свой репозиторий Homebrew: `brew install VIA-s-acc/signals/signals`. Формула собирается из `SHA256SUMS` выпуска; задание выпуска обновляет её само, если задан секрет `HOMEBREW_TAP_TOKEN`.
@@ -15,6 +16,8 @@
 - README на английском (`README.md`) и на русском (`README.ru.md`) с картинкой каждого экрана и анимациями. Картинки рисует сама программа: инструмент `signals-gallery` (ключ CMake `SIGNALS_BUILD_GALLERY`) переводит кадры интерфейса в SVG.
 
 ### Changed
+
+- Сборка на clang и GCC идёт с `-ffp-contract=off`: числа программы теперь одинаковы на всех платформах и совпадают с numpy до последнего разряда в простых выражениях (раньше clang на arm64 сливал `a·b + c` в одну инструкцию).
 
 - Сборка для macOS стала универсальной, для Apple Silicon и Intel: архив `signals-vX.Y.Z-macos-universal.tar.gz` вместо `macos-arm64`. В архивах — ещё `README.ru.md`, `man/signals.1` и `completions/`.
 - В справке ключа `--lang` перечислены значения `ru` и `en`.
