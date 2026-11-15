@@ -109,11 +109,9 @@ TEST_CASE("quantize dither is the tpdf draws", "[signal-ops]") {
     const auto q = quantize(x, 8, true, 24301);
     REQUIRE(q);
     const auto d = tpdf_draws(x.size(), 24301);
-    std::mt19937_64 rng{24301};
-    std::uniform_real_distribution<double> uniform{0.0, 1.0};
+    TpdfDraws tpdf{24301};
     for (std::size_t k = 0; k < x.size(); ++k) {
-        const double u1 = uniform(rng), u2 = uniform(rng);
-        CHECK(d[k] == u1 - u2);
+        CHECK(d[k] == tpdf.next());
         CHECK((*q)[k] == std::clamp(std::nearbyint(x[k] * 128 + d[k]), -128.0, 127.0) / 128);
     }
 }

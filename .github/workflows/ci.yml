@@ -61,6 +61,14 @@ jobs:
         run: cmake --build build --config Release --target signals --parallel 4
       - name: Check
         run: build/app/Release/signals.exe check
+      - name: Seeded noise
+        run: |
+          build/app/Release/signals.exe run tests/fixtures/noise/pinned.sig --json --values 4 | python -c "
+          import json, sys
+          probes = json.load(sys.stdin)['probes']
+          assert probes['w']['values'] == [[-0.04520348258180983, -0.4438112180588447, -0.2856173093236448, 0.787991230653915]], probes['w']['values']
+          assert probes['d']['values'] == [[-0.046875, -0.4375, -0.2890625, 0.7890625]], probes['d']['values']
+          "
       - name: Cyrillic paths
         run: |
           dir="$(cygpath -u "$RUNNER_TEMP")/данные с пробелом"

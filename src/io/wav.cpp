@@ -193,7 +193,7 @@ private:
     double scale_;
     bool dither_;
     std::size_t clipped_ = 0;
-    core::TpdfDither tpdf_;
+    core::TpdfDraws tpdf_;
 };
 
 

@@ -118,7 +118,7 @@ Result<std::vector<double>> cut(std::span<const double> x, std::size_t begin, st
 }
 
 std::vector<double> tpdf_draws(std::size_t n, std::uint64_t seed) {
-    TpdfDither tpdf{seed};
+    TpdfDraws tpdf{seed};
     std::vector<double> out(n);
     for (auto& v : out) v = tpdf.next();
     return out;
@@ -127,7 +127,7 @@ std::vector<double> tpdf_draws(std::size_t n, std::uint64_t seed) {
 Result<std::vector<double>> quantize(std::span<const double> x, int bits, bool dither, std::uint64_t seed) {
     if (bits < 1 || bits > 32) return make_error(Errc::invalid_argument, "quantize: bits must be in 1..32");
     const double scale = std::ldexp(1.0, bits - 1);
-    TpdfDither tpdf{seed};
+    TpdfDraws tpdf{seed};
     std::vector<double> out(x.size());
     for (std::size_t n = 0; n < x.size(); ++n) {
         double v = std::isfinite(x[n]) ? x[n] * scale : 0.0;

@@ -17,6 +17,7 @@ add_library(signals_core STATIC
   tempo.cpp
   restoration.cpp
   signal_ops.cpp
+  random.cpp
   multirate.cpp
   freq.cpp
   process/threshold.cpp

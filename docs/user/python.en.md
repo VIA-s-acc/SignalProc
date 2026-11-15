@@ -108,6 +108,8 @@ A wavelet goes to pywt by name when the pywt filters equal the Signals filters t
 
 Blocks that choose by comparing (peaks, onsets, the `sure` rule, the best `wpt` basis) compute the deciding value with the same operations in the same order as the program. If two values in your graph are exactly equal, the choice may differ — the check then honestly shows ✗.
 
+The `bytes` field of `export` and `export_report` in CSV and JSON is checked to 10⁻²: numbers are written with 17 significant digits, and a number that matches only to the tolerance may take one character more or less.
+
 The script looks for the `.npz` and the input files next to itself, so it runs from any folder and moves together with its data.
 
 ## Preview in VS Code
