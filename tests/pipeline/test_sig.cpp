@@ -113,7 +113,7 @@ TEST_CASE("syntax errors carry a line and a column", "[pipeline][sig]") {
     e = error_of("node a = wav(path=\"ёж\") x\n");
     CHECK(e.column == 25);
 
-    e = error_of("pipeline \"x\" v2\n");
+    e = error_of("pipeline \"x\" v3\n");
     CHECK(e.line == 1);
 }
 
