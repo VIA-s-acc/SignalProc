@@ -1,6 +1,8 @@
 #include "commands/watch.hpp"
 
 #include <atomic>
+#include <cstdint>
+#include <functional>
 #include <chrono>
 #include <thread>
 #include <fstream>
@@ -16,12 +18,31 @@ namespace {
 
 std::atomic<bool> g_stopped{false};
 
-std::vector<std::filesystem::file_time_type> stamps(const std::vector<std::filesystem::path>& files) {
-    std::vector<std::filesystem::file_time_type> out;
+struct Stamp {
+    std::filesystem::file_time_type time;
+    std::uintmax_t size = 0;
+    std::size_t content = 0;
+    bool operator==(const Stamp&) const = default;
+};
+
+constexpr std::uintmax_t kHashedBytes = 256 * 1024;
+
+// File times can be one second coarse (libstdc++ on macOS, HFS+, FAT, network shares): two saves within a second keep the
+// same time, so small files are compared by content as well.
+std::vector<Stamp> stamps(const std::vector<std::filesystem::path>& files) {
+    std::vector<Stamp> out;
     for (const auto& f : files) {
+        Stamp s;
         std::error_code ec;
-        const auto t = std::filesystem::last_write_time(f, ec);
-        out.push_back(ec ? std::filesystem::file_time_type::min() : t);
+        s.time = std::filesystem::last_write_time(f, ec);
+        if (ec) s.time = std::filesystem::file_time_type::min();
+        s.size = std::filesystem::file_size(f, ec);
+        if (ec) s.size = 0;
+        else if (s.size <= kHashedBytes) {
+            std::ifstream in{f, std::ios::binary};
+            s.content = std::hash<std::string>{}(std::string{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}});
+        }
+        out.push_back(s);
     }
     return out;
 }
