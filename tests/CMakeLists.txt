@@ -139,6 +139,7 @@ add_executable(signals_tests
   tui/test_pipeline_model.cpp
   tui/test_pipeline_screen.cpp
   tui/test_pipeline_python.cpp
+  tui/test_prak1_walkthrough.cpp
   cli/test_cli_pipeline.cpp
   cli/test_cli_npz.cpp
   cli/test_cli_learn.cpp
