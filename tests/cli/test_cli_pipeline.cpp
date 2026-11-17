@@ -478,6 +478,7 @@ TEST_CASE("watch skips a half-written file", "[cli-watch]") {
         for (int k = 0; k < 25 && std::filesystem::last_write_time(npz) == before; ++k) std::this_thread::sleep_for(std::chrono::milliseconds{400});
     });
     const auto lines = lines_of(out);
+    INFO(out);
     CHECK(lines.size() == 2);
     for (const auto& line : lines) {
         INFO(line);
