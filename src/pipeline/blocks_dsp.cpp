@@ -557,11 +557,11 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
     out.push_back({"onsets",
                    kSignalIn,
                    kReportOut,
-                   {{"n", Kind::integer, "1024", {}, 64, 65536}, {"hop", Kind::integer, "256", {}, 1, 65536}},
+                   {{"frame", Kind::integer, "1024", {}, 64, 65536}, {"hop", Kind::integer, "256", {}, 1, 65536}},
                    [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
                        const auto mono = core::mixdown(in_audio(in));
                        const auto times = mono.channels.empty() ? std::vector<double>{}
-                                                                : core::onsets(mono.channels.front(), mono.sample_rate, static_cast<std::size_t>(param_int(p, "n")),
+                                                                : core::onsets(mono.channels.front(), mono.sample_rate, static_cast<std::size_t>(param_int(p, "frame")),
                                                                                static_cast<std::size_t>(param_int(p, "hop")));
                        std::string list;
                        for (const double t : times) list += (list.empty() ? "" : " ") + fmt::format("{:.3f}", t);
@@ -705,7 +705,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                    kReportOut,
                    {{"path", Kind::path, "out.wav"},
                     {"bits", Kind::choice, "24", {"16", "24", "32", "f32"}},
-                    {"dither", Kind::choice, "tpdf", {"none", "tpdf"}},
+                    {"dither", Kind::choice, "yes", {"no", "yes"}},
                     {"seed", Kind::integer, "24301"}},
                    [](const RunContext& ctx, std::span<const Value> in, const Params& p) -> Out {
                        auto path = utf8_path(param_text(p, "path"));
@@ -713,7 +713,7 @@ void register_dsp_blocks(std::vector<BlockType>& out) {
                        const auto& bits = param_text(p, "bits");
                        io::WavWriteOptions o;
                        o.format = bits == "16" ? io::SampleFormat::pcm_s16 : bits == "32" ? io::SampleFormat::pcm_s32 : bits == "f32" ? io::SampleFormat::float32 : io::SampleFormat::pcm_s24;
-                       o.dither = param_text(p, "dither") == "tpdf";
+                       o.dither = param_text(p, "dither") == "yes";
                        o.dither_seed = static_cast<std::uint64_t>(param_int(p, "seed"));
                        const auto written = io::write_wav(path, in_audio(in), o, ctx.progress);
                        if (!written) return std::unexpected{written.error()};

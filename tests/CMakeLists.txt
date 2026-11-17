@@ -137,8 +137,11 @@ add_executable(signals_tests
   pipeline/test_migrate.cpp
   pipeline/test_v1_corpus.cpp
   pipeline/test_renames.cpp
+  pipeline/test_report_fields.cpp
   learn/test_migrate_course.cpp
   docs/test_doc_snippets.cpp
+  docs/test_old_names.cpp
+  test_i18n_orphans.cpp
   pipeline/test_no_raw_parse.cpp
   pipeline/test_graph.cpp
   pipeline/test_executor.cpp

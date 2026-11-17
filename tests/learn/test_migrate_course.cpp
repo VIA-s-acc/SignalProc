@@ -140,3 +140,35 @@ TEST_CASE("lint warns about a v1 graph but the course still passes", "[migrate-c
         CHECK(i.warning);
     }
 }
+
+TEST_CASE("a v1 course checks the same before and after migrate", "[migrate-course]") {
+    const auto dir = signals::test::temp_path("migrate-course-v1");
+    std::filesystem::remove_all(dir);
+    std::filesystem::copy(std::filesystem::path{SIGNALS_SOURCE_DIR} / "tests" / "fixtures" / "sig" / "v1" / "mini-course", dir, std::filesystem::copy_options::recursive);
+    const std::vector<int> variants{1, 2};
+    const auto lint = [&] {
+        const auto course = signals::learn::load_course(*signals::learn::read_course_dir(dir));
+        REQUIRE(course);
+        return signals::learn::lint_course(*course, variants);
+    };
+    const auto before = lint();
+    bool format = false, name = false;
+    for (const auto& i : before) {
+        INFO(i.task << ": " << i.message);
+        CHECK(i.warning);
+        format = format || i.message.find("signals migrate") != std::string::npos;
+        name = name || i.message.find("scale") != std::string::npos;
+    }
+    CHECK(format);
+    CHECK(name);
+    const std::vector<std::filesystem::path> paths{dir};
+    for (const auto& r : signals::cli::migrate_paths(paths, true, false)) {
+        INFO(r.file.string());
+        CHECK_FALSE(r.error);
+    }
+    const auto after = lint();
+    for (const auto& i : after) {
+        INFO(i.task << ": " << i.message);
+        CHECK(false);
+    }
+}

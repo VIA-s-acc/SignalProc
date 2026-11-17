@@ -138,7 +138,7 @@ node dwt  = dwt(wavelet=db2, levels=6, ext=symmetric)
 node thr  = threshold(rule=bayes, mode=soft, levels=1..4, sigma=mad_d1)
 node idwt = idwt(wavelet=db2, ext=symmetric)
 node chk  = check(kind=pr, tol=1e-12)
-node out  = wav_out(path="out.wav", bits=24, dither=tpdf)
+node out  = wav_out(path="out.wav", bits=24, dither=yes)
 src -> ch
 ch.l -> dwt -> thr -> idwt -> out
 src -> chk.ref

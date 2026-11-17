@@ -1,0 +1,18 @@
+kind = "answer"
+theory = ["lti-convolution"]
+
+[[param]]
+name = "x"
+kind = "ints"
+count = 4
+min = -9
+max = 9
+
+[[measure]]
+name = "ys"
+kind = "samples"
+a = "y"
+
+[answer]
+type = "vector"
+expected = "ys"

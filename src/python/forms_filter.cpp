@@ -66,13 +66,13 @@ core::Result<std::string> fir(const NodeIo& io, Emitter& em) {
 
 core::Result<std::string> median(const NodeIo& io, Emitter& em) {
     em.function("median_filter");
-    return fmt::format("{} = median_filter({}, {})", io.out[0], io.in[0], param_int(io.node.params, "kernel"));
+    return fmt::format("{} = median_filter({}, {})", io.out[0], io.in[0], param_int(io.node.params, "length"));
 }
 
 core::Result<std::string> moving_average(const NodeIo& io, Emitter& em) {
     em.function("fir_apply");
     const auto n = param_int(io.node.params, "length");
-    return fmt::format("{} = fir_apply({}, np.full({}, 1.0 / {}), {})", io.out[0], io.in[0], n, n, param_text(io.node.params, "centred") == "yes" ? "True" : "False");
+    return fmt::format("{} = fir_apply({}, np.full({}, 1.0 / {}), {})", io.out[0], io.in[0], n, n, param_text(io.node.params, "compensate") == "yes" ? "True" : "False");
 }
 
 core::Result<std::string> preemphasis(const NodeIo& io, Emitter& em) {
@@ -103,7 +103,7 @@ core::Result<std::string> fir_taps(const NodeIo& io, Emitter& em) {
 core::Result<std::string> savgol(const NodeIo& io, Emitter&) {
     const auto& p = io.node.params;
     const auto deriv = param_int(p, "deriv");
-    return fmt::format("{} = signal.savgol_filter({}, {}, {}, deriv={}, delta={}, mode={}, axis=1)", io.out[0], io.in[0], param_int(p, "window"), param_int(p, "polyorder"), deriv,
+    return fmt::format("{} = signal.savgol_filter({}, {}, {}, deriv={}, delta={}, mode={}, axis=1)", io.out[0], io.in[0], param_int(p, "length"), param_int(p, "polyorder"), deriv,
                        deriv > 0 ? "1 / " + io.in_fs[0] : std::string{"1.0"}, py_str(param_text(p, "mode")));
 }
 
@@ -359,7 +359,7 @@ core::Result<std::string> thd(const NodeIo& io, Emitter& em) {
 
 core::Result<std::string> onsets(const NodeIo& io, Emitter& em) {
     em.function("onsets");
-    return fmt::format("{0} = onsets({1}, {2}, {3}, {4})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_int(io.node.params, "n"), param_int(io.node.params, "hop"));
+    return fmt::format("{0} = onsets({1}, {2}, {3}, {4})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_int(io.node.params, "frame"), param_int(io.node.params, "hop"));
 }
 
 std::filesystem::path out_file(const NodeIo& io) {

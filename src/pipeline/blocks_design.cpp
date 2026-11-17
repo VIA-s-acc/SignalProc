@@ -207,24 +207,24 @@ void register_design_blocks(std::vector<BlockType>& out) {
     out.push_back(checked({"savgol",
                            kIn,
                            kOut,
-                           {{"window", Kind::integer, "11", {}, 1, 4095},
+                           {{"length", Kind::integer, "11", {}, 1, 4095},
                             {"polyorder", Kind::integer, "3", {}, 0, 20},
                             {"deriv", Kind::integer, "0", {}, 0, 20},
                             {"mode", Kind::choice, "interp", {"interp", "mirror", "nearest", "constant", "wrap"}}},
                            [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
                                const auto& a = audio(in);
-                               const auto window = static_cast<std::size_t>(param_int(p, "window"));
+                               const auto window = static_cast<std::size_t>(param_int(p, "length"));
                                const auto order = static_cast<std::size_t>(param_int(p, "polyorder"));
                                const auto deriv = static_cast<std::size_t>(param_int(p, "deriv"));
                                if (window % 2 == 0) return fail(tr("pipeline.error.savgol_window"), fmt::arg("value", window));
                                if (order >= window || deriv > order)
-                                   return fail(tr("pipeline.error.savgol_order"), fmt::arg("order", order), fmt::arg("window", window), fmt::arg("deriv", deriv));
+                                   return fail(tr("pipeline.error.savgol_order"), fmt::arg("order", order), fmt::arg("length", window), fmt::arg("deriv", deriv));
                                if (deriv > 0 && !(a.sample_rate > 0)) return fail(tr("pipeline.error.needs_rate"), fmt::arg("block", "savgol"));
                                const auto edge = parse_edge(param_text(p, "mode"));
                                const Savgol filter{window, order, deriv, deriv > 0 ? a.sample_rate : 1.0};
                                return each_channel(a, [&](const Samples& c) -> core::Result<Samples> {
                                    if (edge == Edge::interp && !c.empty() && c.size() < window)
-                                       return fail(tr("pipeline.error.savgol_short"), fmt::arg("window", window), fmt::arg("n", c.size()));
+                                       return fail(tr("pipeline.error.savgol_short"), fmt::arg("length", window), fmt::arg("n", c.size()));
                                    return filter.apply(c, edge);
                                });
                            }}));

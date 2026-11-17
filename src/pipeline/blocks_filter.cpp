@@ -163,18 +163,18 @@ void register_filter_blocks(std::vector<BlockType>& out) {
                                if (!h) return std::unexpected{h.error()};
                                return fir_apply(in, *h, param_text(p, "compensate") == "yes");
                            }}));
-    out.push_back(checked({"median", kIn, kOut, {{"kernel", Kind::integer, "5", {}, 1, 4095}}, [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
-                               const auto kernel = static_cast<std::size_t>(param_int(p, "kernel"));
+    out.push_back(checked({"median", kIn, kOut, {{"length", Kind::integer, "5", {}, 1, 4095}}, [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
+                               const auto kernel = static_cast<std::size_t>(param_int(p, "length"));
                                if (kernel % 2 == 0) return fail(tr("pipeline.error.median_odd"), fmt::arg("value", kernel));
                                return each_channel(audio(in), [&](const Samples& c) { return median_filter(c, kernel); });
                            }}));
     out.push_back(checked({"moving_average",
                            kIn,
                            kOut,
-                           {{"length", Kind::integer, "5", {}, 1, 65536}, {"centred", Kind::choice, "no", {"no", "yes"}}},
+                           {{"length", Kind::integer, "5", {}, 1, 65536}, {"compensate", Kind::choice, "no", {"no", "yes"}}},
                            [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
                                const auto length = static_cast<std::size_t>(param_int(p, "length"));
-                               return fir_apply(in, Samples(length, 1.0 / static_cast<double>(length)), param_text(p, "centred") == "yes");
+                               return fir_apply(in, Samples(length, 1.0 / static_cast<double>(length)), param_text(p, "compensate") == "yes");
                            }}));
     out.push_back(checked({"preemphasis", kIn, kOut, {{"coeff", Kind::real, "0.97", {}, 0, 1}}, [](const RunContext&, std::span<const Value> in, const Params& p) {
                                const double k = param_real(p, "coeff");

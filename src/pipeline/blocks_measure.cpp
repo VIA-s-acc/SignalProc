@@ -113,10 +113,10 @@ void register_measure_blocks(std::vector<BlockType>& out) {
     out.push_back(checked({"loudness",
                            kIn,
                            kReportOut,
-                           {{"window", Kind::samples, "0.4s"}, {"hop", Kind::samples, "0.1s"}},
+                           {{"frame", Kind::samples, "0.4s"}, {"hop", Kind::samples, "0.1s"}},
                            [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
                                const auto& a = audio(in);
-                               const auto window = param_samples(p, "window", a.sample_rate), hop = param_samples(p, "hop", a.sample_rate);
+                               const auto window = param_samples(p, "frame", a.sample_rate), hop = param_samples(p, "hop", a.sample_rate);
                                if (!window) return std::unexpected{window.error()};
                                if (!hop) return std::unexpected{hop.error()};
                                if (*window == 0 || *hop == 0) return fail(tr("pipeline.error.loudness_window"));
@@ -133,7 +133,7 @@ void register_measure_blocks(std::vector<BlockType>& out) {
                                    total += power;
                                }
                                Report r;
-                               r.fields = {{"windows", static_cast<double>(count)},
+                               r.fields = {{"frames", static_cast<double>(count)},
                                            {"max_dbfs", db_of_power(loudest)},
                                            {"mean_dbfs", db_of_power(count ? total / static_cast<double>(count) : 0)}};
                                return one(std::move(r));

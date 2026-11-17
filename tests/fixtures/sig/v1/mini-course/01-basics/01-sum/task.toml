@@ -1,0 +1,14 @@
+kind = "answer"
+open = "signal"
+theory = ["lti-convolution"]
+
+[[param]]
+name = "a"
+kind = "int"
+min = 1
+max = 9
+
+[answer]
+type = "integer"
+expected = "{{a}} + 1"
+tol = 0

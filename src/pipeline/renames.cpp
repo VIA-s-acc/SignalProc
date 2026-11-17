@@ -12,12 +12,38 @@ namespace signals::pipeline {
 namespace {
 
 const std::vector<Rename>& table() {
-    static const std::vector<Rename> renames{};
+    static const std::vector<Rename> renames{
+        {Rename::Kind::param, "speed", "", "rate", "factor", "rename.reason.rate"},
+        {Rename::Kind::param, "time_stretch", "", "rate", "factor", "rename.reason.rate"},
+        {Rename::Kind::param, "lms", "", "taps", "numtaps", "rename.reason.numtaps"},
+        {Rename::Kind::param, "pitch", "", "fmin", "min_hz", "rename.reason.hz_range"},
+        {Rename::Kind::param, "pitch", "", "fmax", "max_hz", "rename.reason.hz_range"},
+        {Rename::Kind::param, "sst_band", "", "lo", "min_hz", "rename.reason.hz_range"},
+        {Rename::Kind::param, "sst_band", "", "hi", "max_hz", "rename.reason.hz_range"},
+        {Rename::Kind::param, "sst_ridge", "", "lo", "min_hz", "rename.reason.hz_range"},
+        {Rename::Kind::param, "sst_ridge", "", "hi", "max_hz", "rename.reason.hz_range"},
+        {Rename::Kind::param, "loudness", "", "window", "frame", "rename.reason.frame"},
+        {Rename::Kind::param, "spectral_subtract", "", "n", "frame", "rename.reason.frame"},
+        {Rename::Kind::param, "onsets", "", "n", "frame", "rename.reason.frame"},
+        {Rename::Kind::param, "time_stretch", "", "n_fft", "frame", "rename.reason.frame"},
+        {Rename::Kind::param, "pitch_shift", "", "n_fft", "frame", "rename.reason.frame"},
+        {Rename::Kind::param, "savgol", "", "window", "length", "rename.reason.length"},
+        {Rename::Kind::param, "median", "", "kernel", "length", "rename.reason.length"},
+        {Rename::Kind::param, "wiener", "", "size", "length", "rename.reason.length"},
+        {Rename::Kind::param, "moving_average", "", "centred", "compensate", "rename.reason.compensate"},
+        {Rename::Kind::param, "multiply", "", "factor", "scale", "rename.reason.scale"},
+        {Rename::Kind::param, "dc_offset", "", "value", "offset", "rename.reason.offset"},
+        {Rename::Kind::param, "impulse_train", "", "offset", "begin", "rename.reason.begin"},
+        {Rename::Kind::choice, "wav_out", "dither", "tpdf", "yes", "rename.reason.yes_no"},
+        {Rename::Kind::choice, "wav_out", "dither", "none", "no", "rename.reason.yes_no"},
+        {Rename::Kind::field, "loudness", "", "windows", "frames", "rename.reason.frames"},
+    };
     return renames;
 }
 
 std::string note(std::string_view where, std::string_view from, std::string_view to, std::string_view reason) {
-    return fmt::format(fmt::runtime(tr("pipeline.migrate.rename")), fmt::arg("where", where), fmt::arg("from", from), fmt::arg("to", to), fmt::arg("reason", reason));
+    return fmt::format(fmt::runtime(tr("pipeline.migrate.rename")), fmt::arg("where", where), fmt::arg("from", from), fmt::arg("to", to),
+                       fmt::arg("reason", reason.empty() ? std::string{} : "(" + tr(reason) + ")"));
 }
 
 }  // namespace

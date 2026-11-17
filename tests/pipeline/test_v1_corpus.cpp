@@ -17,6 +17,7 @@
 #include "pipeline/graph.hpp"
 #include "pipeline/migrate.hpp"
 #include "pipeline/npz_values.hpp"
+#include "pipeline/renames.hpp"
 
 using namespace signals;
 
@@ -48,7 +49,10 @@ std::vector<std::filesystem::path> samples() {
 
 TEST_CASE("every v1 sample migrates to its expected text and numbers", "[v1-corpus]") {
     const auto list = samples();
-    REQUIRE(list.size() >= 14);
+    REQUIRE(list.size() >= 18);
+    const auto run_dir = std::filesystem::temp_directory_path() / "signals-v1-corpus";
+    std::filesystem::remove_all(run_dir);
+    std::filesystem::copy(list.front().parent_path(), run_dir, std::filesystem::copy_options::recursive);
     for (const auto& file : list) {
         INFO(file.filename().string());
         const auto loaded = pipeline::load_sig(bytes(file));
@@ -57,7 +61,7 @@ TEST_CASE("every v1 sample migrates to its expected text and numbers", "[v1-corp
         auto expected = file;
         expected.replace_extension(".v2.sig");
         CHECK(pipeline::write_sig(loaded->doc) == bytes(expected));
-        const auto graph = pipeline::build_graph(loaded->doc, file.parent_path());
+        const auto graph = pipeline::build_graph(loaded->doc, run_dir);
         REQUIRE(graph);
         pipeline::ResultCache cache{0};
         core::CancelToken cancel;
@@ -77,8 +81,16 @@ TEST_CASE("every v1 sample migrates to its expected text and numbers", "[v1-corp
         for (const auto& [key, array] : *want) {
             INFO(key);
             const auto* mine = io::np_find(got, key);
+            for (const auto& r : pipeline::v1_renames())
+                if (!mine && r.kind == pipeline::Rename::Kind::field && key.ends_with("." + r.from))
+                    mine = io::np_find(got, key.substr(0, key.size() - r.from.size()) + r.to);
             REQUIRE(mine);
-            CHECK(same_bits(*mine, array));
+            auto recorded_array = array;
+            if (auto* names = std::get_if<std::vector<std::string>>(&recorded_array.data); names && key.ends_with(".fields"))
+                for (auto& name : *names)
+                    for (const auto& r : pipeline::v1_renames())
+                        if (r.kind == pipeline::Rename::Kind::field && name == r.from) name = r.to;
+            CHECK(same_bits(*mine, recorded_array));
         }
     }
 }

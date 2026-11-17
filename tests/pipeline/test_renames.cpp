@@ -1,9 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <algorithm>
 #include <array>
 #include <string>
 
+#include "pipeline/block.hpp"
 #include "pipeline/renames.hpp"
 #include "pipeline/sig.hpp"
 
@@ -69,4 +71,29 @@ TEST_CASE("an old name names the new one", "[renames]") {
     CHECK(renamed(kFake, Rename::Kind::param, "amplify", "db") == "level_db");
     CHECK(renamed(kFake, Rename::Kind::field, "check", "snr_db") == "ratio_db");
     CHECK_FALSE(renamed(kFake, Rename::Kind::param, "gain", "other"));
+}
+
+TEST_CASE("an old parameter in --set names the new one", "[renames]") {
+    auto doc = doc_of("pipeline \"s\" v2\nnode x = gen(kind=sine, rate=8000, duration=0.01)\nnode sp = speed(factor=1.25)\nx -> sp\n");
+    const auto r = apply_set(doc, "sp.rate=2");
+    REQUIRE_FALSE(r);
+    CHECK_THAT(r.error().message, ContainsSubstring("factor"));
+}
+
+TEST_CASE("the real table maps every old name to a parameter that exists", "[renames]") {
+    for (const auto& r : v1_renames()) {
+        INFO(r.block << " " << r.from << " → " << r.to);
+        const auto* t = find_block_type(current_block_name(v1_renames(), r.block));
+        REQUIRE(t);
+        if (r.kind == Rename::Kind::param) {
+            CHECK(std::ranges::any_of(t->params, [&](const ParamSpec& p) { return p.name == r.to; }));
+            CHECK(std::ranges::none_of(t->params, [&](const ParamSpec& p) { return p.name == r.from; }));
+        }
+        if (r.kind == Rename::Kind::choice) {
+            const auto p = std::ranges::find_if(t->params, [&](const ParamSpec& s) { return s.name == r.param; });
+            REQUIRE(p != t->params.end());
+            CHECK(std::ranges::find(p->choices, r.to) != p->choices.end());
+            CHECK(std::ranges::find(p->choices, r.from) == p->choices.end());
+        }
+    }
 }

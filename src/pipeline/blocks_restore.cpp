@@ -31,7 +31,7 @@ void register_restore_blocks(std::vector<BlockType>& out) {
     out.push_back({"lms",
                    {{"x", PortType::signal}, {"d", PortType::signal}},
                    {{"e", PortType::signal}, {"y", PortType::signal}},
-                   {{"taps", Kind::integer, "32", {}, 1, 4096}, {"mu", Kind::real, "0.1", {}, 1e-6, 2}, {"rule", Kind::choice, "nlms", {"nlms", "lms"}}},
+                   {{"numtaps", Kind::integer, "32", {}, 1, 4096}, {"mu", Kind::real, "0.1", {}, 1e-6, 2}, {"rule", Kind::choice, "nlms", {"nlms", "lms"}}},
                    [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
                        const auto& x = audio_in(in, 0);
                        const auto& d = audio_in(in, 1);
@@ -42,7 +42,7 @@ void register_restore_blocks(std::vector<BlockType>& out) {
                        core::AudioBuffer e, y;
                        e.sample_rate = y.sample_rate = d.sample_rate;
                        for (std::size_t ch = 0; ch < d.channels.size(); ++ch) {
-                           auto r = core::adaptive_filter(x.channels[std::min(ch, x.channels.size() - 1)], d.channels[ch], static_cast<std::size_t>(param_int(p, "taps")),
+                           auto r = core::adaptive_filter(x.channels[std::min(ch, x.channels.size() - 1)], d.channels[ch], static_cast<std::size_t>(param_int(p, "numtaps")),
                                                           param_real(p, "mu"), rule);
                            if (!r) return std::unexpected{r.error()};
                            e.channels.push_back(std::move(r->e));
@@ -53,14 +53,14 @@ void register_restore_blocks(std::vector<BlockType>& out) {
     out.push_back({"wiener",
                    {{"in", PortType::signal}},
                    {{"out", PortType::signal}},
-                   {{"size", Kind::integer, "5", {}, 1, 1001}, {"noise", Kind::real, "0", {}, 0, 1e6}},
+                   {{"length", Kind::integer, "5", {}, 1, 1001}, {"noise", Kind::real, "0", {}, 0, 1e6}},
                    [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
                        const auto& a = audio_in(in, 0);
                        const double level = param_real(p, "noise");
                        core::AudioBuffer result;
                        result.sample_rate = a.sample_rate;
                        for (const auto& ch : a.channels) {
-                           auto r = core::wiener_local(ch, static_cast<std::size_t>(param_int(p, "size")), level > 0 ? std::optional<double>{level} : std::nullopt);
+                           auto r = core::wiener_local(ch, static_cast<std::size_t>(param_int(p, "length")), level > 0 ? std::optional<double>{level} : std::nullopt);
                            if (!r) return std::unexpected{r.error()};
                            result.channels.push_back(std::move(*r));
                        }
@@ -71,7 +71,7 @@ void register_restore_blocks(std::vector<BlockType>& out) {
                    {{"out", PortType::signal}},
                    {{"alpha", Kind::real, "2", {}, 0, 10},
                     {"beta", Kind::real, "0.01", {}, 0, 1},
-                    {"n", Kind::integer, "512", {}, 16, 16384},
+                    {"frame", Kind::integer, "512", {}, 16, 16384},
                     {"noise_s", Kind::real, "0.25", {}, 0.001, 60}},
                    [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
                        const auto& x = audio_in(in, 0);
@@ -81,7 +81,7 @@ void register_restore_blocks(std::vector<BlockType>& out) {
                        core::SpectralSubtraction o;
                        o.alpha = param_real(p, "alpha");
                        o.beta = param_real(p, "beta");
-                       o.n = static_cast<std::size_t>(param_int(p, "n"));
+                       o.n = static_cast<std::size_t>(param_int(p, "frame"));
                        o.hop = std::max<std::size_t>(1, o.n / 4);
                        const auto lead = static_cast<std::size_t>(std::llround(param_real(p, "noise_s") * x.sample_rate));
                        core::AudioBuffer result;

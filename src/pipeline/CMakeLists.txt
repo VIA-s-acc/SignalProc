@@ -28,6 +28,7 @@ add_library(signals_pipeline STATIC
   sig.cpp
   migrate.cpp
   renames.cpp
+  report_fields.cpp
   graph.cpp
   cache.cpp
   executor.cpp

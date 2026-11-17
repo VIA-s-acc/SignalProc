@@ -1201,6 +1201,9 @@
  },
  {
   "about": "Отчёт: доля энергии каждой полосы разложения по каналам",
+  "fields": [
+   "c{c}.{band}"
+  ],
   "id": "band_energy",
   "inputs": [
    {
@@ -1459,6 +1462,11 @@
  },
  {
   "about": "Отчёт: основная частота и коэффициент гармонических искажений THD",
+  "fields": [
+   "f0_hz_ch{c}",
+   "thd_db_ch{c}",
+   "thd_percent_ch{c}"
+  ],
   "id": "thd",
   "inputs": [
    {
@@ -1490,6 +1498,10 @@
  },
  {
   "about": "Отчёт: моменты атак (онсетов) по спектральному потоку, в секундах",
+  "fields": [
+   "count",
+   "times_s"
+  ],
   "id": "onsets",
   "inputs": [
    {
@@ -1512,7 +1524,7 @@
     "default": "1024",
     "max": 65536.0,
     "min": 64.0,
-    "name": "n",
+    "name": "frame",
     "values": {}
    },
    {
@@ -1530,6 +1542,10 @@
  },
  {
   "about": "Сохраняет отсчёты в CSV, JSON или .npy и выдаёт отчёт о записи",
+  "fields": [
+   "path",
+   "bytes"
+  ],
   "id": "export",
   "inputs": [
    {
@@ -1574,6 +1590,10 @@
  },
  {
   "about": "Сохраняет поля входного отчёта в CSV, JSON или .npz",
+  "fields": [
+   "path",
+   "bytes"
+  ],
   "id": "export_report",
   "inputs": [
    {
@@ -1618,6 +1638,11 @@
  },
  {
   "about": "Сравнивает сигнал с эталоном ref и сообщает, пройдена ли проверка",
+  "fields": [
+   "max_abs",
+   "rms",
+   "snr_db"
+  ],
   "id": "check",
   "inputs": [
    {
@@ -1674,6 +1699,10 @@
  },
  {
   "about": "Записывает сигнал в WAV-файл и сообщает число обрезанных отсчётов",
+  "fields": [
+   "path",
+   "clipped"
+  ],
   "id": "wav_out",
   "inputs": [
    {
@@ -1717,14 +1746,14 @@
    {
     "about": "Дизеринг при округлении до целого формата; для f32 не действует",
     "choices": [
-     "none",
-     "tpdf"
+     "no",
+     "yes"
     ],
-    "default": "tpdf",
+    "default": "yes",
     "name": "dither",
     "values": {
-     "none": "простое округление: ошибка следует за сигналом",
-     "tpdf": "треугольный шум ±1 МЗР перед округлением: ошибка становится ровным шумом"
+     "no": "простое округление: ошибка следует за сигналом",
+     "yes": "треугольный шум ±1 МЗР перед округлением: ошибка становится ровным шумом"
     }
    },
    {
@@ -1844,7 +1873,7 @@
     "default": "1",
     "max": 1000000.0,
     "min": -1000000.0,
-    "name": "factor",
+    "name": "scale",
     "values": {}
    }
   ],
@@ -2119,7 +2148,7 @@
     "default": "0",
     "max": 1000000.0,
     "min": -1000000.0,
-    "name": "value",
+    "name": "offset",
     "values": {}
    }
   ],
@@ -2594,7 +2623,7 @@
     "default": "5",
     "max": 4095.0,
     "min": 1.0,
-    "name": "kernel",
+    "name": "length",
     "values": {}
    }
   ],
@@ -2635,7 +2664,7 @@
      "yes"
     ],
     "default": "no",
-    "name": "centred",
+    "name": "compensate",
     "values": {
      "no": "причинное окно по прошлым отсчётам: выход отстаёт на (length−1)/2",
      "yes": "окно вокруг текущего отсчёта: без задержки"
@@ -3000,6 +3029,10 @@
  },
  {
   "about": "Проверяет выражение над полями отчётов на входах a…d, например a.snr_db >= 30 && b.max_abs < 1e-12; провал меняет код выхода signals run",
+  "fields": [
+   "value",
+   "*"
+  ],
   "id": "assert",
   "inputs": [
    {
@@ -3044,6 +3077,16 @@
  },
  {
   "about": "Отчёт: RMS, пик, пик-фактор, среднее, СКО, переходы через ноль, центроид",
+  "fields": [
+   "mean_ch{c}",
+   "std_ch{c}",
+   "rms_ch{c}",
+   "peak_ch{c}",
+   "crest_db_ch{c}",
+   "zcr_per_s_ch{c}",
+   "centroid_hz_ch{c}",
+   "dominant_hz_ch{c}"
+  ],
   "id": "stats",
   "inputs": [
    {
@@ -3065,6 +3108,11 @@
  },
  {
   "about": "Отчёт: наибольший и средний RMS-уровень по скользящим окнам, дБ полной шкалы",
+  "fields": [
+   "max_dbfs",
+   "mean_dbfs",
+   "frames"
+  ],
   "id": "loudness",
   "inputs": [
    {
@@ -3085,7 +3133,7 @@
     "about": "Длина окна в отсч. или в секундах с суффиксом s (0.01s)",
     "choices": [],
     "default": "0.4s",
-    "name": "window",
+    "name": "frame",
     "values": {}
    },
    {
@@ -3133,7 +3181,7 @@
     "default": "32",
     "max": 4096.0,
     "min": 1.0,
-    "name": "taps",
+    "name": "numtaps",
     "values": {}
    },
    {
@@ -3186,7 +3234,7 @@
     "default": "5",
     "max": 1001.0,
     "min": 1.0,
-    "name": "size",
+    "name": "length",
     "values": {}
    },
    {
@@ -3249,7 +3297,7 @@
     "default": "512",
     "max": 16384.0,
     "min": 16.0,
-    "name": "n",
+    "name": "frame",
     "values": {}
    },
    {
@@ -3789,7 +3837,7 @@
     "about": "Положение первого импульса: отсчёты или секунды с суффиксом s",
     "choices": [],
     "default": "0",
-    "name": "offset",
+    "name": "begin",
     "values": {}
    },
    {
@@ -4278,7 +4326,7 @@
     "default": "11",
     "max": 4095.0,
     "min": 1.0,
-    "name": "window",
+    "name": "length",
     "values": {}
    },
    {
@@ -5314,6 +5362,12 @@
  },
  {
   "about": "Линейное предсказание: автокорреляционный метод и алгоритм Левинсона–Дурбина",
+  "fields": [
+   "order",
+   "a{k}_ch{c}",
+   "k{k}_ch{c}",
+   "gain_db_ch{c}"
+  ],
   "id": "lpc",
   "inputs": [
    {
@@ -5376,6 +5430,11 @@
  },
  {
   "about": "Отчёт: сильнейшие пики спектра Уэлча, Гц и дБ",
+  "fields": [
+   "peaks_ch{c}",
+   "peak{k}_hz_ch{c}",
+   "peak{k}_db_ch{c}"
+  ],
   "id": "spectrum_peaks",
   "inputs": [
    {
@@ -5425,6 +5484,9 @@
  },
  {
   "about": "Отчёт: доля мощности в каждой октавной или третьоктавной полосе",
+  "fields": [
+   "{band}_ch{c}"
+  ],
   "id": "band_power",
   "inputs": [
    {
@@ -5469,6 +5531,11 @@
  },
  {
   "about": "Основная частота по кадрам методом YIN; отчёт с медианой и долей кадров с тоном",
+  "fields": [
+   "f0_median_hz_ch{c}",
+   "voiced_fraction_ch{c}",
+   "frames_ch{c}"
+  ],
   "id": "pitch",
   "inputs": [
    {
@@ -5496,7 +5563,7 @@
     "default": "60",
     "max": 20000.0,
     "min": 1.0,
-    "name": "fmin",
+    "name": "min_hz",
     "values": {}
    },
    {
@@ -5505,7 +5572,7 @@
     "default": "1000",
     "max": 100000.0,
     "min": 1.0,
-    "name": "fmax",
+    "name": "max_hz",
     "values": {}
    },
    {
@@ -5563,7 +5630,7 @@
     "default": "100",
     "max": 400000.0,
     "min": 1.0,
-    "name": "lo",
+    "name": "min_hz",
     "values": {}
    },
    {
@@ -5572,7 +5639,7 @@
     "default": "4000",
     "max": 400000.0,
     "min": 1.0,
-    "name": "hi",
+    "name": "max_hz",
     "values": {}
    },
    {
@@ -5599,6 +5666,18 @@
  },
  {
   "about": "Мгновенная частота и амплитуда самой сильной составляющей в полосе для каждого отсчёта; отчёт с медианой, пределами частоты и долей отсчётов, где составляющая нашлась",
+  "fields": [
+   "freq_min_hz",
+   "freq_median_hz",
+   "freq_max_hz",
+   "amp_peak",
+   "found_fraction",
+   "freq_min_hz_ch{c}",
+   "freq_median_hz_ch{c}",
+   "freq_max_hz_ch{c}",
+   "amp_peak_ch{c}",
+   "found_fraction_ch{c}"
+  ],
   "id": "sst_ridge",
   "inputs": [
    {
@@ -5631,7 +5710,7 @@
     "default": "100",
     "max": 400000.0,
     "min": 1.0,
-    "name": "lo",
+    "name": "min_hz",
     "values": {}
    },
    {
@@ -5640,7 +5719,7 @@
     "default": "4000",
     "max": 400000.0,
     "min": 1.0,
-    "name": "hi",
+    "name": "max_hz",
     "values": {}
    },
    {
@@ -5667,6 +5746,10 @@
  },
  {
   "about": "Средние мел-кепстральные коэффициенты: мел-фильтры HTK, дБ, ортонормированное DCT-II",
+  "fields": [
+   "mfcc{k}_ch{c}",
+   "frames_ch{c}"
+  ],
   "id": "mfcc",
   "inputs": [
    {
@@ -5725,6 +5808,14 @@
  },
  {
   "about": "Средние центроид, разброс, спад, плоскостность и поток спектра по кадрам Ханна",
+  "fields": [
+   "centroid_hz_ch{c}",
+   "spread_hz_ch{c}",
+   "flatness_ch{c}",
+   "rolloff_hz_ch{c}",
+   "flux_ch{c}",
+   "frames_ch{c}"
+  ],
   "id": "spectral_features",
   "inputs": [
    {
@@ -5774,6 +5865,14 @@
  },
  {
   "about": "Счёт отсчётов в равных интервалах, как numpy histogram; последний включает правый край",
+  "fields": [
+   "counts_ch{c}",
+   "lo_ch{c}",
+   "hi_ch{c}",
+   "in_range_ch{c}",
+   "outside_ch{c}",
+   "mode_ch{c}"
+  ],
   "id": "histogram",
   "inputs": [
    {
@@ -5812,6 +5911,12 @@
  },
  {
   "about": "Отставание b от a по пику взаимной корреляции с уточнением между отсчётами",
+  "fields": [
+   "lag_samples_ch{c}",
+   "lag_s_ch{c}",
+   "peak_lag_ch{c}",
+   "peak_corr_ch{c}"
+  ],
   "id": "delay_estimate",
   "inputs": [
    {
@@ -5838,6 +5943,20 @@
  },
  {
   "about": "Коэффициенты Пирсона, Спирмена и косинусная близость a и b на общей длине",
+  "fields": [
+   "pearson_ch{c}",
+   "spearman_ch{c}",
+   "cosine_ch{c}",
+   "n_ch{c}",
+   "mean_ch{c}",
+   "std_ch{c}",
+   "rms_ch{c}",
+   "peak_ch{c}",
+   "crest_db_ch{c}",
+   "zcr_per_s_ch{c}",
+   "centroid_hz_ch{c}",
+   "dominant_hz_ch{c}"
+  ],
   "id": "correlation",
   "inputs": [
    {
@@ -5864,6 +5983,11 @@
  },
  {
   "about": "По полосам: доля энергии, энтропия Шеннона в битах, доля почти нулевых коэффициентов",
+  "fields": [
+   "c{c}.{band}.energy",
+   "c{c}.{band}.entropy",
+   "c{c}.{band}.sparsity"
+  ],
   "id": "coeff_stats",
   "inputs": [
    {
@@ -5917,7 +6041,7 @@
     "default": "1.25",
     "max": 10.0,
     "min": 0.1,
-    "name": "rate",
+    "name": "factor",
     "values": {}
    },
    {
@@ -5941,11 +6065,11 @@
     "default": "2048",
     "max": 65536.0,
     "min": 16.0,
-    "name": "n_fft",
+    "name": "frame",
     "values": {}
    },
    {
-    "about": "Шаг окна, отсч., не больше n_fft/2: меньше — плавнее и дольше; у WSOLA это ещё и предел сдвига куска",
+    "about": "Шаг окна, отсч., не больше frame/2: меньше — плавнее и дольше; у WSOLA это ещё и предел сдвига куска",
     "choices": [],
     "default": "512",
     "max": 32768.0,
@@ -6005,11 +6129,11 @@
     "default": "2048",
     "max": 65536.0,
     "min": 16.0,
-    "name": "n_fft",
+    "name": "frame",
     "values": {}
    },
    {
-    "about": "Шаг окна, отсч., не больше n_fft/2: меньше — плавнее и дольше; у WSOLA это ещё и предел сдвига куска",
+    "about": "Шаг окна, отсч., не больше frame/2: меньше — плавнее и дольше; у WSOLA это ещё и предел сдвига куска",
     "choices": [],
     "default": "512",
     "max": 32768.0,
@@ -6045,7 +6169,7 @@
     "default": "1.25",
     "max": 10.0,
     "min": 0.1,
-    "name": "rate",
+    "name": "factor",
     "values": {}
    }
   ],
