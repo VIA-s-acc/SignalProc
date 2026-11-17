@@ -175,12 +175,14 @@ core::Result<std::string> coeffs_file(const NodeIo& io, Emitter& em) {
                                py_str("re_" + keys[k]), py_str("im_" + keys[k]));
         bands += (k ? ", " : "") + band;
     }
+    const auto file = em.preview() ? core::Result<io::NpzEntries>{io::NpzEntries{}} : io::read_npz(path);
+    const auto in_file = [&](std::string_view key) { return file && io::np_find(*file, key) != nullptr; };
     const auto from_file = [&](std::string_view param, const std::string& value) {
-        if (uses_variable(io, param)) return "(" + em.expr(io, param) + " or " + value + ")";
+        if (uses_variable(io, param) && !in_file(param)) return "(" + em.expr(io, param) + " or " + value + ")";
         return value;
     };
     std::string wavelet = c->transform == "dtcwt" ? py_str(c->wavelet) : em.wavelet(c->wavelet);
-    if (uses_variable(io, "wavelet") && c->transform != "dtcwt") {
+    if (uses_variable(io, "wavelet") && c->transform != "dtcwt" && !in_file("wavelet")) {
         (void)em.wavelet_of(io, "wavelet");
         wavelet = "wavelet(" + em.expr(io, "wavelet") + " or " + py_str(c->wavelet) + ")";
     }

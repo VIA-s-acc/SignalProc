@@ -108,6 +108,10 @@ void prepare_block_files(const std::filesystem::path& dir) {
     const auto entries = pipeline::coeffs_entries(std::get<pipeline::Coeffs>(run->probes.at("c")));
     REQUIRE(entries);
     REQUIRE(io::write_npz(dir / "coeffs.npz", *entries));
+    io::NpzEntries bare;
+    for (const auto& [key, array] : *entries)
+        if (key.starts_with("cA") || key.starts_with("cD")) bare.emplace_back(key, array);
+    REQUIRE(io::write_npz(dir / "coeffs-bare.npz", bare));
     const auto& x = std::get<core::AudioBuffer>(run->probes.at("x"));
     const auto flat = [&](double scale) {
         std::vector<double> out;
@@ -134,6 +138,9 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
         }
     }
     if (t.id == "wav") out.push_back({"wav-npz-only", graph_text(t, "wav-npz-only", {{"path", quoted(dir / "only.npz")}, {"rate", "8000"}})});
+    if (t.id == "coeffs_file")
+        out.push_back({"coeffs_file-bare", "pipeline \"coeffs_file-bare\" v2\nnode c = coeffs_file(path=" + quoted(dir / "coeffs-bare.npz") +
+                                               ", wavelet=db2, mode=symmetric, rate=8000)\nnode y = idwt()\nnode f = fir(cutoff=1000)\nc -> y -> f\nprobe f as \"out\"\n"});
     if (t.id == "wav") out.push_back({"wav-npz-key", graph_text(t, "wav-npz-key", {{"path", quoted(dir / "two.npz")}, {"key", "first"}, {"rate", "8000"}})});
     if (t.id == "wav")
         for (const char* f : {"s16_stereo.wav", "s32_mono.wav", "u8_mono.wav", "f32_stereo.wav", "f64_mono.wav", "alaw_mono.wav", "mulaw_mono.wav", "s16_6ch_extensible.wav"}) {

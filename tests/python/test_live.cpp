@@ -107,9 +107,18 @@ std::vector<std::string> candidates(const pipeline::ParamSpec& s, const std::str
         if (number)
             for (const double c : {v * 1.25, v * 0.8, v + 0.5, v - 0.5, v + 1, 0.25, 1.0, 0.5})
                 if (in_range(c)) add(number_text(c));
+        if (s.name == "rate")
+            for (const double c : {8000.0, 16000.0, 44100.0})
+                if (in_range(c)) add(number_text(c));
         break;
     case Kind::choice:
         for (const auto& c : s.choices) add(c);
+        break;
+    case Kind::range:
+        for (const char* r : {"1..1", "2..2", "1..2", "2..3", "1..3"}) add(r);
+        break;
+    case Kind::sigma:
+        for (const char* value : {"0.1", "0.5", "1", "mad_d1"}) add(value);
         break;
     case Kind::samples:
         if (cur.ends_with('s')) {
@@ -119,13 +128,27 @@ std::vector<std::string> candidates(const pipeline::ParamSpec& s, const std::str
         } else if (number) {
             for (const long long d : {1, -1, 2, 3})
                 if (v + static_cast<double>(d) >= 0) add(std::format("{}", static_cast<long long>(v) + d));
+            if (v >= 2) {
+                add(std::format("{}", static_cast<long long>(v) * 2));
+                add(std::format("{}", static_cast<long long>(v) / 2));
+            }
         }
         break;
     case Kind::text:
         if (s.name == "wavelet")
-            for (const char* w : {"db4", "sym4", "haar", "db2", "coif1", "bior2.2"}) add(w);
+            for (const char* w : {"db4", "haar", "db2", "coif1", "bior2.2", "sym2", "sym4"}) add(w);
         if (s.name == "key")
             for (const char* k : {"second", "first", "arr_0"}) add(k);
+        if (s.name == "component")
+            for (const char* b : {"d1", "a", "d2", "d3", "aa", "ad", "da", "dd"}) add(b);
+        if (s.name == "enabled")
+            for (const char* b : {"d1", "a", "d1, d2", "all"}) add(b);
+        if (s.name == "gains_db")
+            for (const char* g : {"d1=-6", "a=-6", "d1=-3, d2=-6"}) add(g);
+        if (s.name == "mode")
+            for (const char* m : {"zero", "periodization", "symmetric", "reflect"}) add(m);
+        if (s.name == "filter")
+            for (const char* f : {"db2.h0", "haar.h1", "db4.h0", "db3.f0"}) add(f);
         [[fallthrough]];
     default:
         for (const auto& [f, d] : std::initializer_list<std::pair<double, double>>{{1.25, 1}, {0.8, -1}, {1.5, 2}})
@@ -271,8 +294,8 @@ void check_group(std::string_view name) {
 
 }  // namespace
 
-TEST_CASE("every source param is live in the script", "[.][py-live-sources]") { check_group("sources"); }
-TEST_CASE("every wavelet param is live in the script", "[.][py-live-wavelets]") { check_group("wavelets"); }
+TEST_CASE("every source param is live in the script", "[py-live-sources]") { check_group("sources"); }
+TEST_CASE("every wavelet param is live in the script", "[py-live-wavelets]") { check_group("wavelets"); }
 TEST_CASE("every filter param is live in the script", "[.][py-live-filters]") { check_group("filters"); }
 TEST_CASE("every effect param is live in the script", "[.][py-live-effects]") { check_group("effects"); }
 TEST_CASE("every analysis param is live in the script", "[.][py-live-analysis]") { check_group("analysis"); }

@@ -417,7 +417,10 @@ std::string Emitter::wavelet_of(const NodeIo& io, std::string_view param) {
     import_line("import pywt");
     function("wavelet");
     if (std::ranges::find(prelude_, "NO_WAVELET = " + py_str(tr("python.live.no_wavelet"))) == prelude_.end()) prelude_.push_back("NO_WAVELET = " + py_str(tr("python.live.no_wavelet")));
-    if (!preview_) keep_wavelet(value);
+    if (!preview_) {
+        keep_wavelet(value);
+        for (const auto& name : by_filter_bank()) keep_wavelet(name);
+    }
     return "wavelet(" + expr(io, param) + ")";
 }
 
