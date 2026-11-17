@@ -160,3 +160,6 @@ build/
 .cache/
 compile_commands.json
 tools/.venv/
+
+# signals migrate --write backups
+*.v1.sig

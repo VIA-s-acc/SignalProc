@@ -145,6 +145,7 @@ add_executable(signals_tests
   tui/test_prak1_walkthrough.cpp
   cli/test_cli_pipeline.cpp
   cli/test_cli_migrate_notes.cpp
+  cli/test_cli_migrate.cpp
   cli/test_cli_npz.cpp
   cli/test_cli_learn.cpp
   tui/test_learn_state.cpp

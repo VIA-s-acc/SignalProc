@@ -212,6 +212,7 @@ void build_cli(CLI::App& app, CliBindings& b) {
     add_analysis_commands(app, *filter, b.commands);
     add_pipeline_commands(app, b.commands);
     add_learn_commands(app, b.commands);
+    add_migrate_commands(app, b.commands);
     b.completions = app.add_subcommand("completions", tr("cli.completions.description"));
     b.completions->add_option("shell", b.completions_shell, tr("cli.completions.shell"))->required()->check(CLI::IsMember({"bash", "zsh", "fish"}));
     b.man = app.add_subcommand("man", tr("cli.man.command"));
