@@ -13,13 +13,13 @@ using pipeline::param_int;
 using pipeline::param_real;
 using pipeline::param_text;
 
-std::string real(Emitter& em, const NodeIo& io, std::string_view name) { return em.number(param_real(io.node.params, name)); }
+std::string real(Emitter& em, const NodeIo& io, std::string_view name) { return em.expr(io, name); }
 
 
 core::Result<std::string> tremolo(const NodeIo& io, Emitter& em) {
     em.function("lfo");
     return fmt::format("{0} = {1} * (1 - {2} * (1 - lfo({3}, 2 * np.pi * {4} * np.arange({1}.shape[1]) / {5})) / 2)", io.out[0], io.in[0], real(em, io, "depth"),
-                       py_str(param_text(io.node.params, "shape")), real(em, io, "rate_hz"), io.in_fs[0]);
+                       em.expr(io, "shape"), real(em, io, "rate_hz"), io.in_fs[0]);
 }
 
 core::Result<std::string> modulated_delay(const NodeIo& io, Emitter& em) {
@@ -82,7 +82,7 @@ core::Result<std::string> shift(const NodeIo& io, Emitter&) {
 
 core::Result<std::string> biquad(const NodeIo& io, Emitter& em) {
     em.function("biquad");
-    return fmt::format("{} = biquad({}, {}, {}, {}, {}, {})", io.out[0], io.in[0], py_str(param_text(io.node.params, "type")), real(em, io, "f0"), real(em, io, "q"),
+    return fmt::format("{} = biquad({}, {}, {}, {}, {}, {})", io.out[0], io.in[0], em.expr(io, "type"), real(em, io, "f0"), real(em, io, "q"),
                        real(em, io, "gain_db"), io.in_fs[0]);
 }
 
@@ -90,7 +90,7 @@ core::Result<std::string> compressor(const NodeIo& io, Emitter& em) {
     em.function("dynamics");
     return fmt::format("{} = dynamics({}, {}, \"compressor\", {}, ratio={}, knee={}, attack_ms={}, release_ms={}, makeup={}, detector={}, rms_ms={})", io.out[0], io.in[0], io.in_fs[0],
                        real(em, io, "threshold_db"), real(em, io, "ratio"), real(em, io, "knee_db"), real(em, io, "attack_ms"), real(em, io, "release_ms"), real(em, io, "makeup_db"),
-                       py_str(param_text(io.node.params, "detector")), real(em, io, "rms_ms"));
+                       em.expr(io, "detector"), real(em, io, "rms_ms"));
 }
 
 core::Result<std::string> limiter(const NodeIo& io, Emitter& em) {
@@ -121,7 +121,7 @@ core::Result<std::string> comb(const NodeIo& io, Emitter& em) {
     const auto delay = pipeline::param_samples(io.node.params, "delay", input_rate(io));
     if (!delay) return std::unexpected{unsupported(io, "delay")};
     em.function("delay_lines");
-    return fmt::format("{} = delay_lines({}, {}, {}, {})", io.out[0], io.in[0], py_str(param_text(io.node.params, "kind")), *delay, real(em, io, "gain"));
+    return fmt::format("{} = delay_lines({}, {}, {}, {})", io.out[0], io.in[0], em.expr(io, "kind"), *delay, real(em, io, "gain"));
 }
 
 core::Result<std::string> mix(const NodeIo& io, Emitter& em) {
@@ -129,25 +129,25 @@ core::Result<std::string> mix(const NodeIo& io, Emitter& em) {
     const double fs = input_rate(io);
     em.function("mix_signals");
     return fmt::format("{} = mix_signals({}, {}, 10.0 ** ({} / 20), 10.0 ** ({} / 20), {}, {}, {})", io.out[0], io.in[0], io.in[1], real(em, io, "gain_a_db"), real(em, io, "gain_b_db"),
-                       param_text(p, "mode") == "crossfade" ? "True" : "False", em.number(std::floor(param_real(p, "at") * fs + 0.5)),
+                       flag(io, em, "mode", "crossfade"), em.number(std::floor(param_real(p, "at") * fs + 0.5)),
                        em.number(std::floor(param_real(p, "crossfade_ms") / 1000 * fs + 0.5)));
 }
 
 core::Result<std::string> time_stretch(const NodeIo& io, Emitter& em) {
     em.function("time_stretch");
-    return fmt::format("{} = time_stretch({}, {}, {}, {}, {})", io.out[0], io.in[0], em.number(param_real(io.node.params, "factor")), py_str(param_text(io.node.params, "method")),
+    return fmt::format("{} = time_stretch({}, {}, {}, {}, {})", io.out[0], io.in[0], em.expr(io, "factor"), em.expr(io, "method"),
                        param_int(io.node.params, "frame"), param_int(io.node.params, "hop"));
 }
 
 core::Result<std::string> pitch_shift(const NodeIo& io, Emitter& em) {
     em.function("pitch_shift");
-    return fmt::format("{} = pitch_shift({}, {}, {}, {}, {})", io.out[0], io.in[0], em.number(param_real(io.node.params, "semitones")),
-                       py_str(param_text(io.node.params, "method")), param_int(io.node.params, "frame"), param_int(io.node.params, "hop"));
+    return fmt::format("{} = pitch_shift({}, {}, {}, {}, {})", io.out[0], io.in[0], em.expr(io, "semitones"),
+                       em.expr(io, "method"), param_int(io.node.params, "frame"), param_int(io.node.params, "hop"));
 }
 
 core::Result<std::string> speed(const NodeIo& io, Emitter& em) {
     em.function("speed");
-    return fmt::format("{} = speed({}, {})", io.out[0], io.in[0], em.number(param_real(io.node.params, "factor")));
+    return fmt::format("{} = speed({}, {})", io.out[0], io.in[0], em.expr(io, "factor"));
 }
 
 }  // namespace

@@ -43,11 +43,6 @@ core::Result<std::string> number_list(const NodeIo& io, Emitter& em, std::string
     return list(em, std::string{param}, *v);
 }
 
-std::string flag(const NodeIo& io, Emitter& em, std::string_view param, std::string_view yes) {
-    if (uses_variable(io, param)) return "(" + em.expr(io, param) + " == " + py_str(yes) + ")";
-    return param_text(io.node.params, param) == yes ? "True" : "False";
-}
-
 std::string cutoffs(const NodeIo& io, Emitter& em, const std::vector<double>& hz) {
     std::string out = "[";
     for (std::size_t k = 0; k < hz.size(); ++k) out += (k ? ", " : "") + em.number(hz[k]) + " / (" + io.in_fs[0] + " / 2)";

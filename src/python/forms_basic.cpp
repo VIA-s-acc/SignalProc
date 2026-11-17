@@ -113,7 +113,7 @@ core::Result<std::string> add(const NodeIo& io, Emitter& em) {
 
 core::Result<std::string> normalize(const NodeIo& io, Emitter& em) {
     em.function("normalize");
-    return fmt::format("{} = normalize({}, {}, {})", io.out[0], io.in[0], py_str(param_text(io.node.params, "kind")), em.number(param_real(io.node.params, "target_dbfs")));
+    return fmt::format("{} = normalize({}, {}, {})", io.out[0], io.in[0], em.expr(io, "kind"), em.expr(io, "target_dbfs"));
 }
 
 core::Result<std::string> remove_dc(const NodeIo& io, Emitter& em) {
@@ -122,7 +122,7 @@ core::Result<std::string> remove_dc(const NodeIo& io, Emitter& em) {
 }
 
 core::Result<std::string> clip(const NodeIo& io, Emitter& em) {
-    const auto limit = em.number(param_real(io.node.params, "limit"));
+    const auto limit = em.expr(io, "limit");
     return fmt::format("{} = np.clip({}, -{}, {})", io.out[0], io.in[0], limit, limit);
 }
 
@@ -143,7 +143,7 @@ core::Result<std::string> quantize(const NodeIo& io, Emitter& em) {
 }
 
 core::Result<std::string> mulaw(const NodeIo& io, Emitter& em) {
-    const auto mu = em.number(param_real(io.node.params, "mu"));
+    const auto mu = em.expr(io, "mu");
     const auto v = fmt::format("np.clip(np.nan_to_num({}, nan=0.0), -1.0, 1.0)", io.in[0]);
     if (param_text(io.node.params, "direction") == "encode")
         return fmt::format("{0}_v = {1}\n{0} = np.copysign(np.log1p({2} * np.abs({0}_v)) / np.log1p({2}), {0}_v)", io.out[0], v, mu);
@@ -188,7 +188,7 @@ core::Result<std::string> swap(const NodeIo& io, Emitter&) { return fmt::format(
 
 core::Result<std::string> pan(const NodeIo& io, Emitter& em) {
     em.function("mixdown");
-    const auto pos = em.number(param_real(io.node.params, "position"));
+    const auto pos = em.expr(io, "position");
     if (param_text(io.node.params, "law") == "linear")
         return fmt::format("{0}_mono = mixdown({1})[0]\n{0} = np.stack([(1 - {2}) / 2 * {0}_mono, (1 + {2}) / 2 * {0}_mono])", io.out[0], io.in[0], pos);
     return fmt::format("{0}_mono = mixdown({1})[0]\n{0}_angle = ({2} + 1) * np.pi / 4\n{0} = np.stack([np.cos({0}_angle) * {0}_mono, np.sin({0}_angle) * {0}_mono])", io.out[0],
@@ -209,7 +209,7 @@ core::Result<std::string> concat(const NodeIo& io, Emitter& em) {
 }
 
 core::Result<std::string> multiply(const NodeIo& io, Emitter& em) {
-    const auto factor = em.number(param_real(io.node.params, "scale"));
+    const auto factor = em.expr(io, "scale");
     if (io.in.size() < 2 || io.in[1].empty()) return fmt::format("{} = {} * {}", io.out[0], factor, io.in[0]);
     em.function("pairwise");
     em.function("padded");
@@ -219,15 +219,14 @@ core::Result<std::string> multiply(const NodeIo& io, Emitter& em) {
 
 core::Result<std::string> window(const NodeIo& io, Emitter& em) {
     em.function("window_of");
-    const auto& p = io.node.params;
-    return fmt::format("{0} = {1} * window_of({2}, {1}.shape[1], {3}, {4})", io.out[0], io.in[0], py_str(param_text(p, "kind")), em.number(param_real(p, "beta")),
-                       em.number(param_real(p, "alpha")));
+    return fmt::format("{0} = {1} * window_of({2}, {1}.shape[1], {3}, {4})", io.out[0], io.in[0], em.expr(io, "kind"), em.expr(io, "beta"),
+                       em.expr(io, "alpha"));
 }
 
 core::Result<std::string> fade(const NodeIo& io, Emitter& em) {
     em.function("fade");
     return fmt::format("{} = fade({}, {}, {}, {})", io.out[0], io.in[0], samples_param(io, "fade_in"), samples_param(io, "fade_out"),
-                       param_text(io.node.params, "curve") == "cosine" ? "True" : "False");
+                       flag(io, em, "curve", "cosine"));
 }
 
 core::Result<std::string> elementwise(const NodeIo& io, std::string_view expr) { return fmt::format("{} = {}", io.out[0], fmt::format(fmt::runtime(expr), io.in[0])); }
@@ -239,21 +238,20 @@ core::Result<std::string> diff(const NodeIo& io, Emitter&) { return elementwise(
 core::Result<std::string> cumsum(const NodeIo& io, Emitter&) { return elementwise(io, "np.cumsum({}, axis=1)"); }
 
 core::Result<std::string> softclip(const NodeIo& io, Emitter& em) {
-    return fmt::format("{} = np.tanh({} * {})", io.out[0], em.number(param_real(io.node.params, "drive")), io.in[0]);
+    return fmt::format("{} = np.tanh({} * {})", io.out[0], em.expr(io, "drive"), io.in[0]);
 }
 
 core::Result<std::string> dc_offset(const NodeIo& io, Emitter& em) {
-    return fmt::format("{} = {} + {}", io.out[0], io.in[0], em.number(param_real(io.node.params, "offset")));
+    return fmt::format("{} = {} + {}", io.out[0], io.in[0], em.expr(io, "offset"));
 }
 
 core::Result<std::string> trim_silence(const NodeIo& io, Emitter& em) {
     em.function("trim_silence");
-    return fmt::format("{} = trim_silence({}, {})", io.out[0], io.in[0], em.number(param_real(io.node.params, "threshold_db")));
+    return fmt::format("{} = trim_silence({}, {})", io.out[0], io.in[0], em.expr(io, "threshold_db"));
 }
 
 core::Result<std::string> affine(const NodeIo& io, Emitter& em) {
-    const auto& p = io.node.params;
-    return fmt::format("{} = {} * {} + {}", io.out[0], em.number(param_real(p, "scale")), io.in[0], em.number(param_real(p, "offset")));
+    return fmt::format("{} = {} * {} + {}", io.out[0], em.expr(io, "scale"), io.in[0], em.expr(io, "offset"));
 }
 
 core::Result<std::string> math(const NodeIo& io, Emitter& em) {
@@ -264,7 +262,7 @@ core::Result<std::string> math(const NodeIo& io, Emitter& em) {
     else if (op == "log10") e = "np.log10(" + x + ")";
     else if (op == "exp") e = "np.exp(" + x + ")";
     else if (op == "sqrt") e = "np.sqrt(" + x + ")";
-    else if (op == "pow") e = "np.power(" + x + ", " + em.number(param_real(io.node.params, "p")) + ")";
+    else if (op == "pow") e = "np.power(" + x + ", " + em.expr(io, "p") + ")";
     else if (op == "sign") e = "np.sign(" + x + ")";
     else if (op == "reciprocal") e = "1 / " + x;
     else return std::unexpected{unsupported(io, "op")};
@@ -305,11 +303,11 @@ core::Result<std::string> channel_delay(const NodeIo& io, Emitter& em) {
 
 core::Result<std::string> stereo_width(const NodeIo& io, Emitter& em) {
     return fmt::format("{0} = {1}.copy()\n{0}_mid = ({1}[0] + {1}[1]) / 2\n{0}_side = ({1}[0] - {1}[1]) / 2\n{0}[0] = {0}_mid + {2} * {0}_side\n{0}[1] = {0}_mid - {2} * {0}_side",
-                       io.out[0], io.in[0], em.number(param_real(io.node.params, "width")));
+                       io.out[0], io.in[0], em.expr(io, "width"));
 }
 
 core::Result<std::string> balance(const NodeIo& io, Emitter& em) {
-    const auto pos = em.number(param_real(io.node.params, "position"));
+    const auto pos = em.expr(io, "position");
     return fmt::format("{0} = {1}.copy()\n{0}[0] = np.sqrt(1 - {2}) * {1}[0]\n{0}[1] = np.sqrt(1 + {2}) * {1}[1]", io.out[0], io.in[0], pos);
 }
 
@@ -320,7 +318,7 @@ core::Result<std::string> sample_hold(const NodeIo& io, Emitter&) {
 
 core::Result<std::string> dc_block(const NodeIo& io, Emitter& em) {
     em.import_line("from scipy import signal");
-    return fmt::format("{} = signal.lfilter([1.0, -1.0], [1.0, -{}], {}, axis=1)", io.out[0], em.number(param_real(io.node.params, "r")), io.in[0]);
+    return fmt::format("{} = signal.lfilter([1.0, -1.0], [1.0, -{}], {}, axis=1)", io.out[0], em.expr(io, "r"), io.in[0]);
 }
 
 core::Result<std::string> add_noise(const NodeIo& io, Emitter& em) {
@@ -332,13 +330,13 @@ core::Result<std::string> add_noise(const NodeIo& io, Emitter& em) {
     em.function("noise_from_draws");
     const auto& x = io.in[0];
     return fmt::format("{0}_rms = np.sqrt(np.sum({1} * {1}) / {1}.size / 10 ** ({2} / 10))\n{0} = np.stack([noise_from_draws(d, {3}, {0}_rms) for d in {4}]) + {1}", io.out[0], x,
-                       em.number(param_real(p, "snr_db")), py_str(param_text(p, "color")), em.data("draws", io::np_matrix(draws)));
+                       em.expr(io, "snr_db"), em.expr(io, "color"), em.data("draws", io::np_matrix(draws)));
 }
 
 core::Result<std::string> chirp(const NodeIo& io, Emitter& em) {
     em.function("sweep");
     em.function("samples_count");
-    const auto log = uses_variable(io, "method") ? "(" + em.expr(io, "method") + " == \"log\")" : std::string{param_text(io.node.params, "method") == "log" ? "True" : "False"};
+    const auto log = uses_variable(io, "method") ? "(" + em.expr(io, "method") + " == \"log\")" : std::string{flag(io, em, "method", "log")};
     const auto fs = em.expr(io, "rate");
     return fmt::format("{} = (sweep({}, {}, {}, {}, samples_count({}, {})) * {})[np.newaxis, :]", io.out[0], em.expr(io, "f0"), em.expr(io, "f1"), log, fs, em.expr(io, "duration"), fs,
                        em.expr(io, "amplitude"));
@@ -353,7 +351,7 @@ core::Result<std::string> osc(const NodeIo& io, Emitter& em) {
 }
 
 core::Result<std::string> gain(const NodeIo& io, Emitter& em) {
-    return fmt::format("{} = {} * 10 ** ({} / 20)", io.out[0], io.in[0], em.number(param_real(io.node.params, "db")));
+    return fmt::format("{} = {} * 10 ** ({} / 20)", io.out[0], io.in[0], em.expr(io, "db"));
 }
 
 core::Result<std::string> wav_out(const NodeIo& io, Emitter& em) {

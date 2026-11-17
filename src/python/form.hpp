@@ -99,6 +99,7 @@ std::span<const PyForm> py_forms();
 const PyForm* find_py_form(std::string_view block);
 core::Error unsupported(const NodeIo& io, std::string_view param);
 bool uses_variable(const NodeIo& io, std::string_view param);
+std::string flag(const NodeIo& io, Emitter& em, std::string_view param, std::string_view yes);
 std::string python_preview(const pipeline::BlockType& t, const pipeline::Params& params);
 
 void register_basic_forms(std::vector<PyForm>& out);

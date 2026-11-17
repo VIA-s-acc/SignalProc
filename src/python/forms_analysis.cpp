@@ -124,13 +124,13 @@ core::Result<std::string> assert_block(const NodeIo& io, Emitter& em) {
 
 core::Result<std::string> lms(const NodeIo& io, Emitter& em) {
     em.function("lms");
-    return fmt::format("{}, {} = lms({}, {}, {}, {}, {})", io.out[0], io.out[1], io.in[0], io.in[1], param_int(io.node.params, "numtaps"), em.number(param_real(io.node.params, "mu")),
+    return fmt::format("{}, {} = lms({}, {}, {}, {}, {})", io.out[0], io.out[1], io.in[0], io.in[1], param_int(io.node.params, "numtaps"), em.expr(io, "mu"),
                        param_text(io.node.params, "rule") == "lms" ? "False" : "True");
 }
 
 core::Result<std::string> wiener(const NodeIo& io, Emitter& em) {
     em.function("wiener");
-    return fmt::format("{} = wiener({}, {}, {})", io.out[0], io.in[0], param_int(io.node.params, "length"), em.number(param_real(io.node.params, "noise")));
+    return fmt::format("{} = wiener({}, {}, {})", io.out[0], io.in[0], param_int(io.node.params, "length"), em.expr(io, "noise"));
 }
 
 core::Result<std::string> spectral_subtract(const NodeIo& io, Emitter& em) {
@@ -138,12 +138,12 @@ core::Result<std::string> spectral_subtract(const NodeIo& io, Emitter& em) {
     const auto lead = std::llround(param_real(io.node.params, "noise_s") * input_rate(io));
     const auto noise = io.in.size() > 1 && !io.in[1].empty() ? io.in[1] : std::string{"None"};
     return fmt::format("{} = spectral_subtract({}, {}, {}, {}, {}, {})", io.out[0], io.in[0], noise, lead, param_int(io.node.params, "frame"),
-                       em.number(param_real(io.node.params, "alpha")), em.number(param_real(io.node.params, "beta")));
+                       em.expr(io, "alpha"), em.expr(io, "beta"));
 }
 
 core::Result<std::string> deconvolve(const NodeIo& io, Emitter& em) {
     em.function("deconvolve");
-    return fmt::format("{} = deconvolve({}, {}, {})", io.out[0], io.in[0], io.in[1], em.number(param_real(io.node.params, "snr_db")));
+    return fmt::format("{} = deconvolve({}, {}, {})", io.out[0], io.in[0], io.in[1], em.expr(io, "snr_db"));
 }
 
 core::Result<std::string> lpc(const NodeIo& io, Emitter& em) {
@@ -159,16 +159,16 @@ core::Result<std::string> lpc_synth(const NodeIo& io, Emitter& em) {
 core::Result<std::string> spectrum_peaks(const NodeIo& io, Emitter& em) {
     em.function("spectrum_peaks");
     return fmt::format("{0} = spectrum_peaks({1}, {2}, {3}, {4}, {5})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_int(io.node.params, "count"),
-                       param_int(io.node.params, "segment"), em.number(param_real(io.node.params, "prominence_db")));
+                       param_int(io.node.params, "segment"), em.expr(io, "prominence_db"));
 }
 
 core::Result<std::string> band_power(const NodeIo& io, Emitter& em) {
     em.function("band_power");
-    return fmt::format("{0} = band_power({1}, {2}, {3}, {4})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_text(io.node.params, "bands") == "third" ? "True" : "False",
+    return fmt::format("{0} = band_power({1}, {2}, {3}, {4})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], flag(io, em, "bands", "third"),
                        param_int(io.node.params, "segment"));
 }
 
-std::string real_param(const NodeIo& io, Emitter& em, const char* name) { return em.number(param_real(io.node.params, name)); }
+std::string real_param(const NodeIo& io, Emitter& em, const char* name) { return em.expr(io, name); }
 
 core::Result<std::string> pitch(const NodeIo& io, Emitter& em) {
     em.function("pitch");
