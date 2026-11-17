@@ -344,7 +344,7 @@ ftxui::Element DesignerScreen::OnRender() {
     const auto r = model_->result();
     const auto [cols, rows] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
     layout_.resize(cols, rows);
-    const int height = std::max(3, rows - 3);
+    const int height = std::max(3, screen_rows(ui_));
     if (!ui_.jobs) return text("");
     if (breakpoint_ <= Breakpoint::small || maximized_) {
         const auto p = maximized_ ? *maximized_ : static_cast<Panel>(layout_.small_index() % panel_count);

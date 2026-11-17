@@ -496,7 +496,7 @@ ftxui::Element SignalScreen::OnRender() {
     divider_box_ = kNoBox;
     const auto [cols, rows] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
     layout_.resize(cols, rows);
-    const int height = std::max(3, rows - 3);
+    const int height = std::max(3, screen_rows(ui_));
     const auto d = model_->data();
     if (breakpoint_ <= Breakpoint::small || layout_.maximized()) {
         const Panel p = layout_.maximized() ? panel_of(*layout_.maximized()) : static_cast<Panel>(layout_.small_index() % panel_count);

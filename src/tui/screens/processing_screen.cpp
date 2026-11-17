@@ -372,7 +372,7 @@ ftxui::Element ProcessingScreen::OnRender() {
     layout_.resize(cols, rows);
     const bool small = breakpoint_ <= Breakpoint::small || maximized_;
     const bool two_rows = cols < 170;
-    const int total = std::max(8, rows - 3);
+    const int total = std::max(8, screen_rows(ui_));
     const int main_width = small ? cols : cols - kRightWidth - 1;
     if (!r) {
         const auto e = model_->error();

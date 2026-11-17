@@ -1020,7 +1020,7 @@ ftxui::Element FiltersScreen::OnRender() {
     }
     const auto [cols, rows] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
     layout_.resize(cols, rows);
-    const int height = std::max(3, rows - 3);
+    const int height = std::max(3, screen_rows(ui_));
     if (breakpoint_ <= Breakpoint::small || layout_.maximized()) {
         const Panel p = layout_.maximized() ? panel_of(*layout_.maximized()) : static_cast<Panel>(layout_.small_index() % panel_count);
         focus_ = p;

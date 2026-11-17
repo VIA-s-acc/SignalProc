@@ -563,7 +563,7 @@ ftxui::Element SpectrumScreen::OnRender() {
     layout_.resize(cols, rows);
     const bool small = breakpoint_ <= Breakpoint::small || maximized_;
     const bool two_rows = cols < 150;
-    const int total = std::max(8, rows - 3);
+    const int total = std::max(8, screen_rows(ui_));
     const int toolbar_rows = two_rows ? 2 : 1;
     const int main_width = small ? cols : cols - kRightWidth - 1;
     const int spectrum_rows = small ? std::max(4, total / 3) : 7;

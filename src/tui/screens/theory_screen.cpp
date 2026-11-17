@@ -691,8 +691,8 @@ ftxui::Element TheoryScreen::OnRender() {
     doc_box_ = references_box_ = kNoBox;
     blocks_box_ = blocks_up_box_ = blocks_down_box_ = card_link_box_ = source_editor_box_ = kNoBox;
     toc_box_ = toc_up_box_ = toc_down_box_ = kNoBox;
-    const auto [cols, rows] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
-    int height = std::max(3, rows - 3);
+    const int cols = ui_.terminal_size ? ui_.terminal_size().first : 150;
+    int height = std::max(3, screen_rows(ui_));
     const auto current = current_section();
     const bool single = breakpoint_ <= Breakpoint::small || maximized_;
     const bool show_contents = searching_ || small_contents_ || (maximized_ && toc_focus_);
