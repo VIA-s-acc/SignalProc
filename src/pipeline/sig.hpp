@@ -30,6 +30,8 @@ struct NodeDecl {
     Comments comments = {};
     Params source = {};
     std::string instance = {};
+    std::string block = {};
+    int def_line = 0;
 };
 
 struct LetDecl {

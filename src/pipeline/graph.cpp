@@ -70,11 +70,17 @@ private:
         std::vector<std::string> type_ids;
         for (const auto& t : block_types()) type_ids.push_back(t.id);
         for (const auto& decl : doc_.nodes) {
+            const auto where = [&](std::string message) {
+                if (decl.instance.empty()) return message;
+                return say("pipeline.blocks.inside", fmt::arg("instance", decl.instance), fmt::arg("block", decl.block), fmt::arg("line", decl.def_line),
+                           fmt::arg("message", std::move(message)));
+            };
+            const auto id = decl.instance.empty() ? decl.id : decl.id.substr(decl.id.rfind('/') + 1);
             const auto* type = find_block_type(decl.type);
             if (!type) {
                 const auto hint = nearest_name(decl.type, type_ids);
-                fail(decl.line, 0, hint ? say("pipeline.graph.unknown_block_hint", fmt::arg("block", decl.type), fmt::arg("hint", *hint))
-                                        : say("pipeline.graph.unknown_block", fmt::arg("block", decl.type)));
+                fail(decl.line, 0, where(hint ? say("pipeline.graph.unknown_block_hint", fmt::arg("block", decl.type), fmt::arg("hint", *hint))
+                                              : say("pipeline.graph.unknown_block", fmt::arg("block", decl.type))));
             }
             std::vector<std::string> names;
             for (const auto& p : type->params) names.push_back(p.name);
@@ -82,14 +88,14 @@ private:
                 if (std::find(names.begin(), names.end(), key) != names.end()) continue;
                 const auto hint = nearest_name(key, names);
                 fail(decl.line, 0,
-                     decl.id + ": " +
-                         (hint ? say("pipeline.error.unknown_param_hint", fmt::arg("block", type->id), fmt::arg("param", key), fmt::arg("hint", *hint))
-                               : say("pipeline.error.unknown_param", fmt::arg("block", type->id), fmt::arg("param", key))));
+                     where(id + ": " +
+                           (hint ? say("pipeline.error.unknown_param_hint", fmt::arg("block", type->id), fmt::arg("param", key), fmt::arg("hint", *hint))
+                                 : say("pipeline.error.unknown_param", fmt::arg("block", type->id), fmt::arg("param", key)))));
             }
             auto params = resolve_params(*type, decl.params);
-            if (!params) fail(decl.line, 0, decl.id + ": " + params.error().message);
+            if (!params) fail(decl.line, 0, where(id + ": " + params.error().message));
             if (decl.bypass && !bypassable(*type))
-                fail(decl.line, 0, say("pipeline.graph.bypass_types", fmt::arg("node", decl.id), fmt::arg("block", type->id)));
+                fail(decl.line, 0, where(say("pipeline.graph.bypass_types", fmt::arg("node", id), fmt::arg("block", type->id))));
             index_.emplace(decl.id, graph_.nodes.size());
             ids_.push_back(decl.id);
             graph_.nodes.push_back({decl.id, type, std::move(*params), std::vector<std::optional<PortRef>>(type->inputs.size()),

@@ -20,6 +20,7 @@ struct Loaded {
 
 struct LoadOptions {
     std::filesystem::path base_dir = {};
+    std::vector<std::filesystem::path> using_chain = {};
 };
 
 struct MigrationStep {
