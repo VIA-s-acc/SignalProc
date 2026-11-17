@@ -1070,7 +1070,7 @@ void PipelineScreen::choose_sweep_measure(pipeline::SweepAxis axis) {
                                  if (!measures.empty()) start(std::move(measures));
                              });
                          }});
-    ui_.choose(fmt::format(fmt::runtime(tr("tui.pipeline.sweep.choose_measure")), fmt::arg("target", axis.node + "." + axis.param),
+    ui_.choose(fmt::format(fmt::runtime(tr("tui.pipeline.sweep.choose_measure")), fmt::arg("target", pipeline::axis_name(axis)),
                            fmt::arg("count", axis.values.size())),
                std::move(items));
 }
@@ -1087,7 +1087,7 @@ ftxui::Element PipelineScreen::sweep_body(const SweepView& sweep, int width, int
     const std::string missing = ascii ? "-" : "—";
     if (probe_view_ == ProbeView::values) {
         const bool errors = std::any_of(r.rows.begin(), r.rows.end(), [](const pipeline::SweepRow& row) { return !row.error.empty(); });
-        std::vector<std::string> header{r.axis.node + "." + r.axis.param};
+        std::vector<std::string> header{pipeline::axis_name(r.axis)};
         for (const auto& m : r.measures) header.push_back(m.text);
         std::vector<int> widths;
         for (const auto& h : header) widths.push_back(display_width(h));
@@ -1167,7 +1167,7 @@ ftxui::Element PipelineScreen::sweep_body(const SweepView& sweep, int width, int
     }
     const int room = std::max(2, rows - static_cast<int>(out.size()));
     auto drawn = plot(spec, th, ui_.caps.color, ui_.caps.glyphs) | size(HEIGHT, EQUAL, room);
-    const auto param = r.axis.node + "." + r.axis.param;
+    const auto param = pipeline::axis_name(r.axis);
     out.push_back(probe_zoom_.track("probe_sweep", std::move(spec), std::move(drawn),
                                     {tr("tui.pipeline.sweep.chip") + " · " + param, names, numeric_x ? param : param + " (#)", ""}));
     return vbox(std::move(out));
@@ -1417,7 +1417,7 @@ ftxui::Element PipelineScreen::probe_panel(int width, int height) {
         }
         info += tr(sweep.running ? "tui.pipeline.sweep.keys_running" : "tui.pipeline.sweep.keys");
         rows.push_back(text(ellipsize(info, std::max(10, width), ascii)) | fg(th.dim, ui_));
-        const auto title = sweep.result ? tr("tui.pipeline.probe") + " · " + tr("tui.pipeline.sweep.chip") + " · " + sweep.result->axis.node + "." + sweep.result->axis.param
+        const auto title = sweep.result ? tr("tui.pipeline.probe") + " · " + tr("tui.pipeline.sweep.chip") + " · " + pipeline::axis_name(sweep.result->axis)
                                         : tr("tui.pipeline.probe") + " · " + tr("tui.pipeline.sweep.chip");
         return frame_panel(kProbe, vbox(std::move(rows)), {}, title);
     }

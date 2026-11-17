@@ -25,6 +25,14 @@ struct NodeDecl {
     int line = 0;
     bool bypass = false;
     Comments comments = {};
+    Params source = {};
+    std::string instance = {};
+};
+
+struct LetDecl {
+    std::string name, value;
+    int line = 0;
+    Comments comments = {};
 };
 
 struct PortRef {
@@ -46,6 +54,7 @@ struct ProbeDecl {
 struct PipelineDoc {
     std::string name;
     int version = 1;
+    std::vector<LetDecl> lets;
     std::vector<NodeDecl> nodes;
     std::vector<Edge> edges;
     std::vector<ProbeDecl> probes;

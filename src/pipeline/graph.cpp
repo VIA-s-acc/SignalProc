@@ -1,5 +1,7 @@
 #include "pipeline/graph.hpp"
 
+#include "pipeline/flatten.hpp"
+
 #include <algorithm>
 #include <map>
 #include <set>
@@ -84,17 +86,15 @@ private:
                          (hint ? say("pipeline.error.unknown_param_hint", fmt::arg("block", type->id), fmt::arg("param", key), fmt::arg("hint", *hint))
                                : say("pipeline.error.unknown_param", fmt::arg("block", type->id), fmt::arg("param", key))));
             }
-            Params given = decl.params;
-            if (doc_.version >= 2)
-                for (auto& entry : given) entry.second = unescape_dollars(entry.second);
-            auto params = resolve_params(*type, given);
+            auto params = resolve_params(*type, decl.params);
             if (!params) fail(decl.line, 0, decl.id + ": " + params.error().message);
             if (decl.bypass && !bypassable(*type))
                 fail(decl.line, 0, say("pipeline.graph.bypass_types", fmt::arg("node", decl.id), fmt::arg("block", type->id)));
             index_.emplace(decl.id, graph_.nodes.size());
             ids_.push_back(decl.id);
             graph_.nodes.push_back({decl.id, type, std::move(*params), std::vector<std::optional<PortRef>>(type->inputs.size()),
-                                    std::vector<std::optional<Source>>(type->inputs.size()), decl.line, decl.bypass});
+                                    std::vector<std::optional<Source>>(type->inputs.size()), decl.line, decl.bypass, decl.source.empty() ? decl.params : decl.source,
+                                    decl.instance});
         }
     }
 
@@ -275,8 +275,10 @@ private:
 }  // namespace
 
 std::expected<Graph, SigError> build_graph(const PipelineDoc& doc, std::filesystem::path base_dir, BuildOptions options) {
+    auto flat = flatten(doc);
+    if (!flat) return std::unexpected{flat.error()};
     try {
-        return Builder{doc, std::move(base_dir), options}.run();
+        return Builder{*flat, std::move(base_dir), options}.run();
     } catch (const Failure& f) {
         return std::unexpected{f.error};
     }

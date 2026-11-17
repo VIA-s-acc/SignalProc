@@ -131,13 +131,15 @@ std::optional<double> numeric(std::string_view value) {
     return v;
 }
 
+std::string axis_name(const SweepAxis& axis) { return axis.node.empty() ? axis.param : axis.node + "." + axis.param; }
+
 core::Result<SweepAxis> parse_vary(std::string_view text) {
     const auto eq = text.find('=');
     const auto target = text.substr(0, eq);
     const auto dot = target.find('.');
-    if (eq == std::string_view::npos || dot == std::string_view::npos || dot == 0 || dot + 1 == target.size() || eq + 1 == text.size())
+    if (eq == std::string_view::npos || dot == 0 || (dot != std::string_view::npos && dot + 1 == target.size()) || eq + 1 == text.size() || trim(target).empty())
         return std::unexpected{bad("pipeline.sweep.bad_vary", text)};
-    SweepAxis axis{trim(target.substr(0, dot)), trim(target.substr(dot + 1)), {}};
+    SweepAxis axis = dot == std::string_view::npos ? SweepAxis{{}, trim(target), {}} : SweepAxis{trim(target.substr(0, dot)), trim(target.substr(dot + 1)), {}};
     const auto spec = text.substr(eq + 1);
     if (spec.find(',') != std::string_view::npos) {
         for (std::size_t at = 0; at <= spec.size();) {
@@ -182,12 +184,18 @@ core::Result<Measure> parse_measure(std::string_view text) {
 core::Result<SweepResult> run_sweep(const PipelineDoc& doc, const std::filesystem::path& base_dir, SweepAxis axis, std::vector<Measure> measures,
                                     const core::CancelToken& cancel, const SweepProgress& progress) {
     const auto find_node = [&](std::string_view id) { return std::find_if(doc.nodes.begin(), doc.nodes.end(), [&](const NodeDecl& n) { return n.id == id; }); };
-    const auto node = find_node(axis.node);
-    if (node == doc.nodes.end()) return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.set.unknown_node")), fmt::arg("node", axis.node)));
-    const auto* type = find_block_type(node->type);
-    if (!type || std::none_of(type->params.begin(), type->params.end(), [&](const ParamSpec& p) { return p.name == axis.param; }))
-        return core::make_error(core::Errc::invalid_argument,
-                                fmt::format(fmt::runtime(tr("pipeline.sweep.unknown_param")), fmt::arg("node", axis.node), fmt::arg("param", axis.param)));
+    if (axis.node.empty()) {
+        if (std::none_of(doc.lets.begin(), doc.lets.end(), [&](const LetDecl& l) { return l.name == axis.param; }))
+            return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.set.unknown_variable")), fmt::arg("name", axis.param)));
+    } else {
+        const auto node = find_node(axis.node);
+        if (node == doc.nodes.end())
+            return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.set.unknown_node")), fmt::arg("node", axis.node)));
+        const auto* type = find_block_type(node->type);
+        if (!type || std::none_of(type->params.begin(), type->params.end(), [&](const ParamSpec& p) { return p.name == axis.param; }))
+            return core::make_error(core::Errc::invalid_argument,
+                                    fmt::format(fmt::runtime(tr("pipeline.sweep.unknown_param")), fmt::arg("node", axis.node), fmt::arg("param", axis.param)));
+    }
     for (const auto& m : measures) {
         const auto measured = find_node(m.node);
         if (measured == doc.nodes.end())
@@ -205,7 +213,7 @@ core::Result<SweepResult> run_sweep(const PipelineDoc& doc, const std::filesyste
         const auto& value = result.axis.values[k];
         SweepRow row{value, std::vector<std::optional<double>>(result.measures.size()), {}};
         auto copy = doc;
-        if (auto ok = apply_set(copy, result.axis.node + "." + result.axis.param + "=" + value); !ok) {
+        if (auto ok = apply_set(copy, axis_name(result.axis) + "=" + value); !ok) {
             row.error = ok.error().message;
         } else {
             skip_writers(copy, result.measures);
