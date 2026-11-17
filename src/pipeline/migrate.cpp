@@ -41,6 +41,7 @@ std::vector<std::string> migrate_doc(PipelineDoc& doc) {
 }
 
 std::expected<Loaded, SigError> load_sig(std::string_view text, const LoadOptions&) {
+    if (text.starts_with("\xEF\xBB\xBF")) text.remove_prefix(3);
     auto doc = parse_sig(text);
     if (!doc) return std::unexpected{doc.error()};
     Loaded out{std::move(*doc), 0, {}};

@@ -11,6 +11,7 @@ __pycache__/
 *.wav
 !tests/fixtures/wav/*.wav
 !tests/fixtures/audio/*.wav
+!tests/fixtures/sig/v1/*.wav
 .Python
 build/
 develop-eggs/
