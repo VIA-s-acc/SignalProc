@@ -1325,6 +1325,7 @@
   "pipeline.sig.expected_string": "здесь нужна строка в кавычках",
   "pipeline.sig.trailing": "лишнее в конце строки: «{text}»",
   "pipeline.sig.version": "версия {version} не поддерживается: заголовок пишется как v1 или v2",
+  "pipeline.migrate.dollar": "{node}.{param}: знак $ записан как $$, потому что в v2 он начинает подстановку переменной",
   "pipeline.sig.version_newer": "файл формата {found}, эта версия Signals читает до {max}; обновите Signals",
   "pipeline.sig.v2_directive": "«{word}» появился в формате v2: поменяйте заголовок на v2",
   "pipeline.sig.port_in_chain": "в середине цепочки порт не указывается — разбейте цепочку на две строки",

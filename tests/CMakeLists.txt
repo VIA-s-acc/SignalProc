@@ -134,6 +134,7 @@ add_executable(signals_tests
   pipeline/test_docs.cpp
   pipeline/test_sig.cpp
   pipeline/test_sig_version.cpp
+  pipeline/test_migrate.cpp
   pipeline/test_graph.cpp
   pipeline/test_executor.cpp
   pipeline/test_layout.cpp
