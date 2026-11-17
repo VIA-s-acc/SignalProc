@@ -50,12 +50,17 @@ std::string utf8_name(const std::filesystem::path& p) {
 
 std::string python_line(const pipeline::BlockType& t, const pipeline::Params& params) {
     const auto code = python::python_preview(t, params);
+    std::vector<std::string> outputs;
+    if (t.outputs.size() == 1) outputs.emplace_back("y");
+    else
+        for (const auto& o : t.outputs) outputs.push_back("y_" + o.name);
     std::string first;
     for (std::size_t at = 0; at < code.size();) {
         const auto end = std::min(code.find('\n', at), code.size());
         const auto line = code.substr(at, end - at);
-        if (first.empty()) first = line;
-        if (line.find(" = ") != std::string::npos && !line.starts_with("#")) return line;
+        if (first.empty() && line.find(" = ") != std::string::npos && !line.starts_with("#")) first = line;
+        for (const auto& o : outputs)
+            if (line.starts_with(o + " = ") || line.starts_with(o + ", ")) return line;
         at = end + 1;
     }
     return first;

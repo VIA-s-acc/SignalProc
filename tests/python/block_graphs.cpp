@@ -109,11 +109,14 @@ void prepare_block_files(const std::filesystem::path& dir) {
     REQUIRE(entries);
     REQUIRE(io::write_npz(dir / "coeffs.npz", *entries));
     const auto& x = std::get<core::AudioBuffer>(run->probes.at("x"));
-    REQUIRE(io::write_npz(dir / "only.npz", {{"arr_0", io::NpArray{{x.channels.size(), x.frames()}, [&] {
-                                                 std::vector<double> flat;
-                                                 for (const auto& c : x.channels) flat.insert(flat.end(), c.begin(), c.end());
-                                                 return flat;
-                                             }()}}}));
+    const auto flat = [&](double scale) {
+        std::vector<double> out;
+        for (const auto& c : x.channels)
+            for (const double v : c) out.push_back(scale * v);
+        return io::NpArray{{x.channels.size(), x.frames()}, out};
+    };
+    REQUIRE(io::write_npz(dir / "only.npz", {{"arr_0", flat(1.0)}}));
+    REQUIRE(io::write_npz(dir / "two.npz", {{"first", flat(1.0)}, {"second", flat(0.5)}}));
 }
 
 std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::filesystem::path& dir) {
@@ -131,6 +134,7 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
         }
     }
     if (t.id == "wav") out.push_back({"wav-npz-only", graph_text(t, "wav-npz-only", {{"path", quoted(dir / "only.npz")}, {"rate", "8000"}})});
+    if (t.id == "wav") out.push_back({"wav-npz-key", graph_text(t, "wav-npz-key", {{"path", quoted(dir / "two.npz")}, {"key", "first"}, {"rate", "8000"}})});
     if (t.id == "wav")
         for (const char* f : {"s16_stereo.wav", "s32_mono.wav", "u8_mono.wav", "f32_stereo.wav", "f64_mono.wav", "alaw_mono.wav", "mulaw_mono.wav", "s16_6ch_extensible.wav"}) {
             const auto name = std::string{"wav-"} + f;

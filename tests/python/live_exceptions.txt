@@ -1,0 +1,1 @@
+# Parameters that cannot be live in a Signals script, one per line: block.param — reason.

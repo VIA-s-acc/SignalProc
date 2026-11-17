@@ -15,9 +15,6 @@ using pipeline::param_text;
 
 std::string real(Emitter& em, const NodeIo& io, std::string_view name) { return em.number(param_real(io.node.params, name)); }
 
-double rate_param(const NodeIo& io) { return static_cast<double>(param_int(io.node.params, "rate")); }
-
-std::size_t source_length(const NodeIo& io) { return static_cast<std::size_t>(std::llround(param_real(io.node.params, "duration") * rate_param(io))); }
 
 core::Result<std::string> tremolo(const NodeIo& io, Emitter& em) {
     em.function("lfo");
@@ -62,19 +59,19 @@ core::Result<std::string> fm(const NodeIo& io, Emitter& em) {
 }
 
 core::Result<std::string> gausspulse(const NodeIo& io, Emitter& em) {
-    const auto n = source_length(io);
-    const auto fs = em.number(rate_param(io));
-    return fmt::format("{0}_a = -(np.pi * {1} * {2}) * (np.pi * {1} * {2}) / (4.0 * np.log(10.0 ** ({3} / 20.0)))\n{0}_t = (np.arange({4}) - {5}) / {6}\n"
-                       "{0} = (np.exp(-{0}_a * {0}_t * {0}_t) * np.cos(2 * np.pi * {1} * {0}_t) * {7})[np.newaxis, :]",
-                       io.out[0], real(em, io, "fc"), real(em, io, "bw"), real(em, io, "bwr"), n, n == 0 ? std::string{"0.0"} : em.number(static_cast<double>(n - 1) / 2), fs,
-                       real(em, io, "amplitude"));
+    em.function("samples_count");
+    const auto fs = em.expr(io, "rate");
+    return fmt::format("{0}_n = samples_count({1}, {2})\n"
+                       "{0}_a = -(np.pi * {3} * {4}) * (np.pi * {3} * {4}) / (4.0 * np.log(10.0 ** ({5} / 20.0)))\n{0}_t = (np.arange({0}_n) - ({0}_n - 1) / 2) / {2}\n"
+                       "{0} = (np.exp(-{0}_a * {0}_t * {0}_t) * np.cos(2 * np.pi * {3} * {0}_t) * {6})[np.newaxis, :]",
+                       io.out[0], em.expr(io, "duration"), fs, em.expr(io, "fc"), em.expr(io, "bw"), em.expr(io, "bwr"), em.expr(io, "amplitude"));
 }
 
 core::Result<std::string> impulse_train(const NodeIo& io, Emitter& em) {
-    const auto fs = rate_param(io);
-    const auto period = pipeline::param_samples(io.node.params, "period", fs), offset = pipeline::param_samples(io.node.params, "begin", fs);
-    if (!period || !offset || *period == 0) return std::unexpected{unsupported(io, "period")};
-    return fmt::format("{0} = np.zeros((1, {1}))\n{0}[0, {2}::{3}] = 1.0\n{0} = {0} * {4}", io.out[0], source_length(io), *offset, *period, real(em, io, "amplitude"));
+    em.function("as_samples");
+    const auto fs = em.expr(io, "rate");
+    return fmt::format("{0} = np.zeros((1, samples_count({1}, {2})))\n{0}[0, as_samples({3}, {2})::as_samples({4}, {2})] = 1.0\n{0} = {0} * {5}", io.out[0],
+                       em.expr(io, "duration"), fs, em.expr(io, "begin"), em.expr(io, "period"), em.expr(io, "amplitude"));
 }
 
 core::Result<std::string> shift(const NodeIo& io, Emitter&) {
