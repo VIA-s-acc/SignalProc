@@ -11,6 +11,7 @@
 
 #include "i18n/i18n.hpp"
 #include "pipeline/block.hpp"
+#include "pipeline/flatten.hpp"
 #include "tui/widgets/format.hpp"
 #include "tui/monitor/sampler.hpp"
 
@@ -230,6 +231,48 @@ core::Result<void> PipelineModel::set_param(std::string_view node, std::string_v
     auto next = doc_;
     if (auto ok = pipeline::apply_set(next, std::string{node} + "." + std::string{param} + "=" + std::string{value}); !ok) return ok;
     return commit(std::move(next));
+}
+
+core::Result<void> PipelineModel::set_variable(std::string_view name, std::string_view value) {
+    auto next = doc_;
+    if (auto ok = pipeline::apply_set(next, std::string{name} + "=" + std::string{value}); !ok) return ok;
+    return commit(std::move(next));
+}
+
+core::Result<void> PipelineModel::add_variable(std::string_view name, std::string_view value) {
+    const auto valid = !name.empty() && (std::isalpha(static_cast<unsigned char>(name.front())) || name.front() == '_') &&
+                       std::all_of(name.begin(), name.end(), [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; });
+    if (!valid || value.empty()) return core::make_error(core::Errc::invalid_argument, tr("tui.pipeline.vars.bad_add"));
+    if (std::any_of(doc_.lets.begin(), doc_.lets.end(), [&](const auto& l) { return l.name == name; }))
+        return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("tui.pipeline.vars.exists")), fmt::arg("name", name)));
+    auto next = doc_;
+    next.version = pipeline::kSigVersion;
+    next.lets.push_back({std::string{name}, std::string{value}});
+    return commit(std::move(next));
+}
+
+core::Result<void> PipelineModel::remove_variable(std::string_view name) {
+    if (const auto users = uses_of(name); !users.empty()) {
+        std::string list;
+        for (const auto& u : users) list += (list.empty() ? "" : ", ") + u;
+        return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("tui.pipeline.vars.used")), fmt::arg("name", name), fmt::arg("nodes", list)));
+    }
+    auto next = doc_;
+    std::erase_if(next.lets, [&](const auto& l) { return l.name == name; });
+    return commit(std::move(next));
+}
+
+std::vector<std::string> PipelineModel::uses_of(std::string_view name) const {
+    const auto mentions = [&](const std::string& value) {
+        const auto names = pipeline::variables_in(value);
+        return std::ranges::find(names, name) != names.end();
+    };
+    std::vector<std::string> out;
+    for (const auto& n : doc_.nodes)
+        if (std::any_of(n.params.begin(), n.params.end(), [&](const auto& p) { return mentions(p.second); })) out.push_back(n.id);
+    for (const auto& l : doc_.lets)
+        if (l.name != name && mentions(l.value)) out.push_back("$" + l.name);
+    return out;
 }
 
 core::Result<void> PipelineModel::toggle_bypass(std::string_view node) {

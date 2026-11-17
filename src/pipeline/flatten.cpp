@@ -142,6 +142,24 @@ core::Result<std::string> substitute(std::string_view value, const Scope& scope,
     return expander.expand(value, kind, depth);
 }
 
+std::vector<std::string> variables_in(std::string_view value) {
+    std::vector<std::string> out;
+    for (std::size_t at = 0; at < value.size(); ++at) {
+        if (value[at] != '$') continue;
+        if (at + 1 < value.size() && value[at + 1] == '$') {
+            ++at;
+            continue;
+        }
+        if (at + 1 >= value.size() || !name_start(value[at + 1])) continue;
+        auto end = at + 1;
+        while (end < value.size() && name_char(value[end])) ++end;
+        std::string name{value.substr(at + 1, end - at - 1)};
+        if (std::ranges::find(out, name) == out.end()) out.push_back(std::move(name));
+        at = end - 1;
+    }
+    return out;
+}
+
 std::expected<PipelineDoc, SigError> flatten(const PipelineDoc& doc, const FlattenOptions&) {
     PipelineDoc out = doc;
     for (auto& n : out.nodes)

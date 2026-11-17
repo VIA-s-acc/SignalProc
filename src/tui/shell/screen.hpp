@@ -117,10 +117,16 @@ struct Hint {
     std::string label;
 };
 
+struct HintGroup {
+    std::string title;
+    std::vector<Hint> hints;
+};
+
 class TabScreen : public ftxui::ComponentBase {
 public:
     virtual std::string tab_label() const = 0;
     virtual std::vector<Hint> hints() const = 0;
+    virtual std::vector<HintGroup> mode_hints() const { return {}; }
     virtual std::string context() const { return {}; }
     virtual void set_breakpoint(Breakpoint b) = 0;
     virtual bool capturing_text() const { return false; }

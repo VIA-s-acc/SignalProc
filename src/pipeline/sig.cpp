@@ -45,6 +45,7 @@ public:
 
     PipelineDoc run() {
         PipelineDoc doc;
+        doc.version = 1;
         std::map<std::string, int, std::less<>> declared, lets;
         for (;;) {
             if (peek() == '\n') advance();
@@ -418,6 +419,13 @@ std::string unescape_dollars(std::string_view value) {
         out += value[i];
         if (value[i] == '$' && i + 1 < value.size() && value[i + 1] == '$') ++i;
     }
+    return out;
+}
+
+std::string escape_dollars(std::string_view value) {
+    std::string out;
+    out.reserve(value.size());
+    for (const char c : value) out += c == '$' ? std::string_view{"$$"} : std::string_view{&c, 1};
     return out;
 }
 

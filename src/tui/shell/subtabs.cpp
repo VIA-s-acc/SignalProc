@@ -26,6 +26,8 @@ public:
         return out;
     }
 
+    std::vector<HintGroup> mode_hints() const override { return child().mode_hints(); }
+
     std::string context() const override {
         std::string out;
         for (std::size_t i = 0; i < children_.size(); ++i) out += (i ? " " : "") + (i == active_ ? "[" + children_[i].first + "]" : children_[i].first);

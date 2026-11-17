@@ -154,7 +154,10 @@ public:
         if (menu_.is_open()) return paint(dbox({base, menu_.render(ui_, w, h)}));
         if (jump_.is_active()) return paint(dbox({base, jump_.render(ui_)}));
         if (!help_open_) return paint(base);
-        return paint(dbox({base, help_overlay(all, help_filter_, ui_, h, help_scroll_) | clear_under | center}));
+        auto help = all;
+        for (const auto& group : screen.mode_hints())
+            for (const auto& hint : group.hints) help.push_back({hint.key, group.title + " · " + hint.label});
+        return paint(dbox({base, help_overlay(help, help_filter_, ui_, h, help_scroll_) | clear_under | center}));
     }
 
     bool OnEvent(ftxui::Event e) override {

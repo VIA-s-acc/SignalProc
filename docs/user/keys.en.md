@@ -261,6 +261,28 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `drag ● → ○` | connect |
 | `c/C` | connect: c — output, arrows, Enter; C — list of inputs |
 
+### Variables panel
+
+| Key | Action |
+|---|---|
+| `Tab` | panel |
+| `z` | fullscreen |
+| `↑↓` | choose |
+| `Enter` | edit the value |
+| `+` | add a variable |
+| `Del` | remove the variable |
+| `S` | parameter sweep |
+| `Ctrl+Z/Y` | undo and redo |
+| `Esc` | close |
+
+### Adding a block
+
+| Key | Action |
+|---|---|
+| `↑↓` | choose |
+| `Enter` | insert |
+| `Esc` | close |
+
 ## 9 Theory ▸ Explain
 
 | Key | Action |

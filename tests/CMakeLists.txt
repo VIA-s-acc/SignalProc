@@ -161,6 +161,7 @@ add_executable(signals_tests
   tui/test_learn_strip.cpp
   tui/test_strip_rows.cpp
   tui/test_pipeline_migrate.cpp
+  tui/test_pipeline_vars.cpp
   theory/test_latex.cpp
   theory/test_math_layout.cpp
   theory/test_markdown.cpp
