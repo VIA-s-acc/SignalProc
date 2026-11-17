@@ -355,13 +355,13 @@ ftxui::Element DiagramScreen::OnRender() {
         const auto p = maximized_ ? *maximized_ : static_cast<Panel>(layout_.small_index() % panel_count);
         focus_ = p;
         if (p == diagram_panel_id) return diagram_panel(cols) | flex;
-        return probe_panel(cols, std::max(4, rows - 3)) | flex;
+        return probe_panel(cols, std::max(4, screen_rows(ui_))) | flex;
     }
     auto top = diagram_panel(cols);
     const bool compact = cols < (polyphase_ ? 104 : 90);
     const int top_rows = (polyphase_ ? 5 : 7) + (result_ && length() <= kNumbersOverWires && !compact ? 2 : 0) + (result_ ? (compact ? 2 : 1) : 0) +
                          (notice_.empty() ? 0 : static_cast<int>(wrap_words(notice_, std::max(8, cols - 4)).size())) + 4;
-    auto bottom = probe_panel(cols, std::max(4, rows - 3 - top_rows));
+    auto bottom = probe_panel(cols, std::max(4, screen_rows(ui_) - top_rows));
     return vbox({std::move(top), std::move(bottom) | flex});
 }
 

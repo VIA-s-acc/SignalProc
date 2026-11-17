@@ -51,6 +51,7 @@ public:
             palette_.ask_text(std::move(prompt), std::move(initial), std::move(done));
         };
         ui_.notice = [this](std::string text) { notice_ = std::move(text); };
+        ui_.reserved_rows = [this] { return ui_.learn && ui_.learn->active_task() ? 4 : 3; };
     }
 
     ~ShellComponent() override {
@@ -60,6 +61,7 @@ public:
         ui_.choose = nullptr;
         ui_.ask_text = nullptr;
         ui_.notice = nullptr;
+        ui_.reserved_rows = nullptr;
     }
 
     int active() const { return active_; }

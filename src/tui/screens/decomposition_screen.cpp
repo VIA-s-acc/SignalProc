@@ -1024,7 +1024,7 @@ ftxui::Element DecompositionScreen::OnRender() {
     auto bar = toolbar(cols < 150, cols);
     bar->ComputeRequirement();
     const int toolbar_rows = std::max(1, bar->requirement().min_y);
-    const int total = std::max(8, rows - 3);
+    const int total = std::max(8, screen_rows(ui_));
     const int body_rows = small ? total - toolbar_rows - 2 : std::max(6, total - toolbar_rows - 1 - 2 - 1 - 9);
     Element body;
     int used = std::min(body_rows, static_cast<int>(2 * std::min(d->bands.size(), static_cast<std::size_t>(body_rows))) + 3);

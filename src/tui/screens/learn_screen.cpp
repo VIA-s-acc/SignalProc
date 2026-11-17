@@ -351,8 +351,8 @@ ftxui::Element LearnScreen::OnRender() {
     row_boxes_.clear();
     notes_.clear();
     boxes_.fill(kNoBox);
-    const auto [cols, rows_total] = ui_.terminal_size ? ui_.terminal_size() : std::pair{150, 44};
-    const int height = std::max(6, rows_total - 3);
+    const int cols = ui_.terminal_size ? ui_.terminal_size().first : 150;
+    const int height = std::max(6, screen_rows(ui_));
     if (!ui_.learn) return text(tr("tui.learn.unavailable")) | fg(ui_.theme.dim, ui_);
     if (maximized_) {
         focus_ = *maximized_;

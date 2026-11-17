@@ -92,7 +92,13 @@ struct UiContext {
     std::function<void(TheoryPage)> open_theory;
     std::function<void(std::string)> notice;
     std::shared_ptr<LearnState> learn;
+    std::function<int()> reserved_rows;
 };
+
+inline int screen_rows(const UiContext& ui) {
+    const int rows = ui.terminal_size ? ui.terminal_size().second : 44;
+    return rows - (ui.reserved_rows ? ui.reserved_rows() : 3);
+}
 
 struct MenuItem {
     std::string label;
