@@ -94,6 +94,22 @@ std::vector<std::string> candidates(const pipeline::ParamSpec& s, const std::str
     const auto add = [&](std::string v) {
         if (v != cur && std::ranges::find(out, v) == out.end()) out.push_back(std::move(v));
     };
+    if (s.name == "wavelet")
+        for (const char* w : {"db4", "haar", "db2", "coif1", "bior2.2", "sym2", "sym4"}) add(w);
+    if (s.name == "key")
+        for (const char* k : {"second", "first", "arr_0"}) add(k);
+    if (s.name == "component")
+        for (const char* b : {"d1", "a", "d2", "d3", "aa", "ad", "da", "dd"}) add(b);
+    if (s.name == "enabled")
+        for (const char* b : {"d1", "a", "d1, d2", "all"}) add(b);
+    if (s.name == "gains_db")
+        for (const char* g : {"d1=-6", "a=-6", "d1=-3, d2=-6"}) add(g);
+    if (s.name == "mode")
+        for (const char* m : {"zero", "periodization", "symmetric", "reflect"}) add(m);
+    if (s.name == "filter")
+        for (const char* f : {"db2.h0", "haar.h1", "db4.h0", "db3.f0"}) add(f);
+    if (s.name == "weight")
+        for (const char* w : {"1, 2", "2, 1", "1, 10"}) add(w);
     char* stop = nullptr;
     const double v = std::strtod(cur.c_str(), &stop);
     const bool number = !cur.empty() && stop == cur.c_str() + cur.size();
@@ -102,6 +118,9 @@ std::vector<std::string> candidates(const pipeline::ParamSpec& s, const std::str
         if (number)
             for (const long long d : {1, -1, 2, -2, 3, 4})
                 if (in_range(v + static_cast<double>(d))) add(std::format("{}", static_cast<long long>(v) + d));
+        if (number && v >= 2)
+            for (const double c : {v * 2, std::floor(v / 2)})
+                if (in_range(c)) add(std::format("{}", static_cast<long long>(c)));
         break;
     case Kind::real:
         if (number)
@@ -134,22 +153,6 @@ std::vector<std::string> candidates(const pipeline::ParamSpec& s, const std::str
             }
         }
         break;
-    case Kind::text:
-        if (s.name == "wavelet")
-            for (const char* w : {"db4", "haar", "db2", "coif1", "bior2.2", "sym2", "sym4"}) add(w);
-        if (s.name == "key")
-            for (const char* k : {"second", "first", "arr_0"}) add(k);
-        if (s.name == "component")
-            for (const char* b : {"d1", "a", "d2", "d3", "aa", "ad", "da", "dd"}) add(b);
-        if (s.name == "enabled")
-            for (const char* b : {"d1", "a", "d1, d2", "all"}) add(b);
-        if (s.name == "gains_db")
-            for (const char* g : {"d1=-6", "a=-6", "d1=-3, d2=-6"}) add(g);
-        if (s.name == "mode")
-            for (const char* m : {"zero", "periodization", "symmetric", "reflect"}) add(m);
-        if (s.name == "filter")
-            for (const char* f : {"db2.h0", "haar.h1", "db4.h0", "db3.f0"}) add(f);
-        [[fallthrough]];
     default:
         for (const auto& [f, d] : std::initializer_list<std::pair<double, double>>{{1.25, 1}, {0.8, -1}, {1.5, 2}})
             if (auto b = bump_number(cur, f, d)) add(*b);
@@ -165,8 +168,8 @@ std::optional<io::NpzEntries> probes(const pipeline::PipelineDoc& doc, const fs:
     core::CancelToken cancel;
     const auto result = pipeline::run_graph(*graph, cache, {}, cancel);
     if (!result) return std::nullopt;
-    for (const auto& st : result->nodes)
-        if (st.state == pipeline::NodeState::failed) return std::nullopt;
+    for (const auto& p : graph->probes)
+        if (p.name.starts_with("live ") && !result->probes.contains(p.name)) return std::nullopt;
     io::NpzEntries out;
     for (const auto& [name, value] : result->probes) {
         auto entries = pipeline::value_entries(value);
@@ -296,7 +299,7 @@ void check_group(std::string_view name) {
 
 TEST_CASE("every source param is live in the script", "[py-live-sources]") { check_group("sources"); }
 TEST_CASE("every wavelet param is live in the script", "[py-live-wavelets]") { check_group("wavelets"); }
-TEST_CASE("every filter param is live in the script", "[.][py-live-filters]") { check_group("filters"); }
+TEST_CASE("every filter param is live in the script", "[py-live-filters]") { check_group("filters"); }
 TEST_CASE("every effect param is live in the script", "[.][py-live-effects]") { check_group("effects"); }
 TEST_CASE("every analysis param is live in the script", "[.][py-live-analysis]") { check_group("analysis"); }
 TEST_CASE("every other param is live in the script", "[.][py-live-rest]") { check_group("rest"); }

@@ -138,6 +138,11 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
         }
     }
     if (t.id == "wav") out.push_back({"wav-npz-only", graph_text(t, "wav-npz-only", {{"path", quoted(dir / "only.npz")}, {"rate", "8000"}})});
+    if (t.id == "resample") out.push_back({"resample-3-2", graph_text(t, "resample-3-2", {{"l", "3"}, {"m", "2"}})});
+    if (t.id == "fir_taps") out.push_back({"fir_taps-three", graph_text(t, "fir_taps-three", {{"taps", "\"0.25, 0.5, 0.25\""}})});
+    if (t.id == "onsets")
+        out.push_back({"onsets-blocks", "pipeline \"onsets-blocks\" v2\nnode x = gen(kind=blocks, rate=8000, duration=0.5)\nnode o = onsets()\nx -> o\nprobe o as \"o\"\n"});
+    if (t.id == "check") out.push_back({"check-loose", graph_text(t, "check-loose", {{"tol", "2"}})});
     if (t.id == "coeffs_file")
         out.push_back({"coeffs_file-bare", "pipeline \"coeffs_file-bare\" v2\nnode c = coeffs_file(path=" + quoted(dir / "coeffs-bare.npz") +
                                                ", wavelet=db2, mode=symmetric, rate=8000)\nnode y = idwt()\nnode f = fir(cutoff=1000)\nc -> y -> f\nprobe f as \"out\"\n"});

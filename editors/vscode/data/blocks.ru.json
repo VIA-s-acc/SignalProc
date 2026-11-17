@@ -678,7 +678,7 @@
     "values": {}
    }
   ],
-  "python": "y = multirate(x[:, 0:], 1, 2, 80, True)",
+  "python": "y = multirate(x[:, 0:], 1, 2, 80, True)\ny_fs = fs / 2",
   "title": "Прореживание ↓M"
  },
  {
@@ -731,7 +731,7 @@
     }
    }
   ],
-  "python": "y = multirate(x, 2, 1, 80, True)",
+  "python": "y = multirate(x, 2, 1, 80, True)\ny_fs = fs * 2",
   "title": "Растяжение ↑M"
  },
  {
@@ -780,7 +780,7 @@
     "values": {}
    }
   ],
-  "python": "y = multirate(x, 1, 1, 80, True)",
+  "python": "y = multirate(x, 1, 1, 80, True)\ny_fs = fs * 1 / 1",
   "title": "Ресемплинг L/M"
  },
  {
@@ -4484,7 +4484,7 @@
     }
    }
   ],
-  "python": "y_h = signal.remez(63, [0 / fs, 1000 / fs, 1500 / fs, 22050 / fs], [1, 0], weight=None, type=\"bandpass\")\ny = fir_apply(x, y_h, False)",
+  "python": "y_h = signal.remez(63, [f / fs for f in number_list(\"0 1000 1500 nyquist\", fs / 2)], [1, 0], weight=None, type=\"bandpass\")\ny = fir_apply(x, y_h, False)",
   "title": "Равноволновой КИХ-фильтр (Ремез)"
  },
  {
@@ -4549,7 +4549,7 @@
     }
    }
   ],
-  "python": "y_h = signal.firls(63, [0 / (fs / 2), 1000 / (fs / 2), 1500 / (fs / 2), 22050 / (fs / 2)], [1, 1, 0, 0], weight=None)\ny = fir_apply(x, y_h, False)",
+  "python": "y_h = signal.firls(63, [f / (fs / 2) for f in number_list(\"0 1000 1500 nyquist\", fs / 2)], [1, 1, 0, 0], weight=None)\ny = fir_apply(x, y_h, False)",
   "title": "КИХ-фильтр по методу наименьших квадратов"
  },
  {

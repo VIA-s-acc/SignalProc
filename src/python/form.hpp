@@ -64,6 +64,7 @@ public:
     std::string wavelet(std::string_view name);
     std::string wavelet_of(const NodeIo& io, std::string_view param);
     void keep_wavelet(std::string_view name);
+    void need_wavelets(std::string_view current);
     void set_out_dir(std::filesystem::path dir) { out_dir_ = std::move(dir); }
     std::string file(const std::filesystem::path& absolute) const;
 

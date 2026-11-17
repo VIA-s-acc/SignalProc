@@ -33,84 +33,119 @@ core::Result<std::vector<double>> numbers_of(const NodeIo& io, std::string_view 
     return v;
 }
 
+core::Result<std::string> number_list(const NodeIo& io, Emitter& em, std::string_view param) {
+    if (uses_variable(io, param)) {
+        em.function("number_list");
+        return "number_list(" + em.expr(io, param) + ")";
+    }
+    const auto v = numbers_of(io, param, param_text(io.node.params, param));
+    if (!v) return std::unexpected{v.error()};
+    return list(em, std::string{param}, *v);
+}
+
+std::string flag(const NodeIo& io, Emitter& em, std::string_view param, std::string_view yes) {
+    if (uses_variable(io, param)) return "(" + em.expr(io, param) + " == " + py_str(yes) + ")";
+    return param_text(io.node.params, param) == yes ? "True" : "False";
+}
+
 std::string cutoffs(const NodeIo& io, Emitter& em, const std::vector<double>& hz) {
     std::string out = "[";
     for (std::size_t k = 0; k < hz.size(); ++k) out += (k ? ", " : "") + em.number(hz[k]) + " / (" + io.in_fs[0] + " / 2)";
     return out + "]";
 }
 
+core::Result<std::string> cutoff_list(const NodeIo& io, Emitter& em) {
+    if (uses_variable(io, "cutoff")) {
+        em.function("number_list");
+        return fmt::format("[f / ({} / 2) for f in number_list({})]", io.in_fs[0], em.expr(io, "cutoff"));
+    }
+    const auto hz = numbers_of(io, "cutoff", param_text(io.node.params, "cutoff"));
+    if (!hz) return std::unexpected{hz.error()};
+    return cutoffs(io, em, *hz);
+}
+
 core::Result<std::string> iir(const NodeIo& io, Emitter& em) {
     const auto& p = io.node.params;
-    const auto hz = numbers_of(io, "cutoff", param_text(p, "cutoff"));
-    if (!hz) return std::unexpected{hz.error()};
+    const auto cut = cutoff_list(io, em);
+    if (!cut) return std::unexpected{cut.error()};
     const auto& family = param_text(p, "family");
-    const std::string ftype = family == "butterworth" ? "butter" : family;
+    const auto ftype = uses_variable(io, "family") ? fmt::format("{{\"butterworth\": \"butter\"}}.get({0}, {0})", em.expr(io, "family"))
+                                                   : py_str(family == "butterworth" ? std::string{"butter"} : family);
     em.import_line("from scipy import signal");
-    const auto sos = fmt::format("signal.iirfilter({}, {}, rp={}, rs={}, btype={}, ftype={}, output=\"sos\")", param_int(p, "order"), cutoffs(io, em, *hz),
-                                 em.number(param_real(p, "rp")), em.number(param_real(p, "rs")), py_str(param_text(p, "type")), py_str(ftype));
-    const char* apply = param_text(p, "zero_phase") == "yes" ? "sosfiltfilt" : "sosfilt";
-    return fmt::format("{0}_sos = {1}\n{0} = signal.{2}({0}_sos, {3}, axis=1)", io.out[0], sos, apply, io.in[0]);
+    const auto sos = fmt::format("signal.iirfilter({}, {}, rp={}, rs={}, btype={}, ftype={}, output=\"sos\")", em.expr(io, "order"), *cut, em.expr(io, "rp"), em.expr(io, "rs"),
+                                 em.expr(io, "type"), ftype);
+    const auto apply = uses_variable(io, "zero_phase") ? "(signal.sosfiltfilt if " + em.expr(io, "zero_phase") + " == \"yes\" else signal.sosfilt)"
+                                                       : std::string{param_text(p, "zero_phase") == "yes" ? "signal.sosfiltfilt" : "signal.sosfilt"};
+    return fmt::format("{0}_sos = {1}\n{0} = {2}({0}_sos, {3}, axis=1)", io.out[0], sos, apply, io.in[0]);
 }
 
 core::Result<std::string> fir(const NodeIo& io, Emitter& em) {
     const auto& p = io.node.params;
-    const auto hz = numbers_of(io, "cutoff", param_text(p, "cutoff"));
-    if (!hz) return std::unexpected{hz.error()};
+    const auto cut = cutoff_list(io, em);
+    if (!cut) return std::unexpected{cut.error()};
     em.import_line("from scipy import signal");
     em.function("fir_apply");
     const auto& window = param_text(p, "window");
-    const auto w = window == "kaiser" ? fmt::format("(\"kaiser\", {})", em.number(param_real(p, "beta"))) : py_str(window);
-    return fmt::format("{0}_h = signal.firwin({1}, {2}, window={3}, pass_zero={4})\n{0} = fir_apply({5}, {0}_h, {6})", io.out[0], param_int(p, "numtaps"), cutoffs(io, em, *hz), w,
-                       param_text(p, "pass_zero") == "yes" ? "True" : "False", io.in[0], param_text(p, "compensate") == "yes" ? "True" : "False");
+    std::string w;
+    if (uses_variable(io, "window") || uses_variable(io, "beta")) w = fmt::format("((\"kaiser\", {}) if {} == \"kaiser\" else {})", em.expr(io, "beta"), em.expr(io, "window"), em.expr(io, "window"));
+    else w = window == "kaiser" ? fmt::format("(\"kaiser\", {})", em.expr(io, "beta")) : py_str(window);
+    return fmt::format("{0}_h = signal.firwin({1}, {2}, window={3}, pass_zero={4})\n{0} = fir_apply({5}, {0}_h, {6})", io.out[0], em.expr(io, "numtaps"), *cut, w,
+                       flag(io, em, "pass_zero", "yes"), io.in[0], flag(io, em, "compensate", "yes"));
 }
 
 core::Result<std::string> median(const NodeIo& io, Emitter& em) {
     em.function("median_filter");
-    return fmt::format("{} = median_filter({}, {})", io.out[0], io.in[0], param_int(io.node.params, "length"));
+    return fmt::format("{} = median_filter({}, {})", io.out[0], io.in[0], em.expr(io, "length"));
 }
 
 core::Result<std::string> moving_average(const NodeIo& io, Emitter& em) {
     em.function("fir_apply");
-    const auto n = param_int(io.node.params, "length");
-    return fmt::format("{} = fir_apply({}, np.full({}, 1.0 / {}), {})", io.out[0], io.in[0], n, n, param_text(io.node.params, "compensate") == "yes" ? "True" : "False");
+    const auto n = em.expr(io, "length");
+    return fmt::format("{} = fir_apply({}, np.full({}, 1.0 / {}), {})", io.out[0], io.in[0], n, n, flag(io, em, "compensate", "yes"));
 }
 
 core::Result<std::string> preemphasis(const NodeIo& io, Emitter& em) {
-    return fmt::format("{0} = np.concatenate([{1}[:, :1], {1}[:, 1:] - {2} * {1}[:, :-1]], axis=1)", io.out[0], io.in[0], em.number(param_real(io.node.params, "coeff")));
+    return fmt::format("{0} = np.concatenate([{1}[:, :1], {1}[:, 1:] - {2} * {1}[:, :-1]], axis=1)", io.out[0], io.in[0], em.expr(io, "coeff"));
 }
 
 core::Result<std::string> deemphasis(const NodeIo& io, Emitter& em) {
     em.import_line("from scipy import signal");
-    return fmt::format("{} = signal.lfilter([1.0], [1.0, -{}], {}, axis=1)", io.out[0], em.number(param_real(io.node.params, "coeff")), io.in[0]);
+    const auto c = em.expr(io, "coeff");
+    return fmt::format("{} = signal.lfilter([1.0], [1.0, -{}], {}, axis=1)", io.out[0], uses_variable(io, "coeff") ? "(" + c + ")" : c, io.in[0]);
 }
 
 core::Result<std::string> lfilter(const NodeIo& io, Emitter& em) {
-    const auto b = numbers_of(io, "b", param_text(io.node.params, "b"));
-    const auto a = numbers_of(io, "a", param_text(io.node.params, "a"));
+    const auto b = number_list(io, em, "b");
+    const auto a = number_list(io, em, "a");
     if (!b) return std::unexpected{b.error()};
     if (!a) return std::unexpected{a.error()};
     em.import_line("from scipy import signal");
-    return fmt::format("{} = signal.lfilter({}, {}, {}, axis=1)", io.out[0], list(em, "b", *b), list(em, "a", *a), io.in[0]);
+    return fmt::format("{} = signal.lfilter({}, {}, {}, axis=1)", io.out[0], *b, *a, io.in[0]);
 }
 
 core::Result<std::string> fir_taps(const NodeIo& io, Emitter& em) {
-    const auto h = numbers_of(io, "taps", param_text(io.node.params, "taps"));
+    const auto h = number_list(io, em, "taps");
     if (!h) return std::unexpected{h.error()};
     em.function("fir_apply");
-    return fmt::format("{} = fir_apply({}, {}, {})", io.out[0], io.in[0], list(em, "taps", *h), param_text(io.node.params, "compensate") == "yes" ? "True" : "False");
+    return fmt::format("{} = fir_apply({}, {}, {})", io.out[0], io.in[0], *h, flag(io, em, "compensate", "yes"));
 }
 
-core::Result<std::string> savgol(const NodeIo& io, Emitter&) {
+core::Result<std::string> savgol(const NodeIo& io, Emitter& em) {
     const auto& p = io.node.params;
-    const auto deriv = param_int(p, "deriv");
-    return fmt::format("{} = signal.savgol_filter({}, {}, {}, deriv={}, delta={}, mode={}, axis=1)", io.out[0], io.in[0], param_int(p, "length"), param_int(p, "polyorder"), deriv,
-                       deriv > 0 ? "1 / " + io.in_fs[0] : std::string{"1.0"}, py_str(param_text(p, "mode")));
+    const auto deriv = em.expr(io, "deriv");
+    const auto delta = uses_variable(io, "deriv") ? fmt::format("(1 / {} if {} > 0 else 1.0)", io.in_fs[0], deriv) : param_int(p, "deriv") > 0 ? "1 / " + io.in_fs[0] : std::string{"1.0"};
+    return fmt::format("{} = signal.savgol_filter({}, {}, {}, deriv={}, delta={}, mode={}, axis=1)", io.out[0], io.in[0], em.expr(io, "length"), em.expr(io, "polyorder"), deriv, delta,
+                       em.expr(io, "mode"));
 }
 
 core::Result<std::string> hilbert(const NodeIo& io, Emitter& em) {
     em.import_line("from scipy import signal");
-    const auto& output = param_text(io.node.params, "output");
     const auto z = fmt::format("signal.hilbert({}, axis=1)", io.in[0]);
+    if (uses_variable(io, "output")) {
+        const auto o = em.expr(io, "output");
+        return fmt::format("{0}_v = {1}\n{0} = np.imag({0}_v) if {2} == \"imag\" else np.angle({0}_v) if {2} == \"phase\" else np.unwrap(np.angle({0}_v), axis=1)", io.out[0], z, o);
+    }
+    const auto& output = param_text(io.node.params, "output");
     if (output == "imag") return fmt::format("{} = np.imag({})", io.out[0], z);
     if (output == "phase") return fmt::format("{} = np.angle({})", io.out[0], z);
     return fmt::format("{} = np.unwrap(np.angle({}), axis=1)", io.out[0], z);
@@ -123,7 +158,23 @@ core::Result<std::vector<double>> band_edges(const NodeIo& io) {
     return numbers_of(io, "bands", text);
 }
 
+core::Result<std::string> edge_list(const NodeIo& io, Emitter& em, const std::string& scale) {
+    if (uses_variable(io, "bands") || param_text(io.node.params, "bands").find("nyquist") != std::string::npos) {
+        em.function("number_list");
+        return fmt::format("[f / {} for f in number_list({}, {} / 2)]", scale, em.expr(io, "bands"), io.in_fs[0]);
+    }
+    const auto bands = band_edges(io);
+    if (!bands) return std::unexpected{bands.error()};
+    std::string edges = "[";
+    for (std::size_t k = 0; k < bands->size(); ++k) edges += (k ? ", " : "") + em.number((*bands)[k]) + " / " + scale;
+    return edges + "]";
+}
+
 std::string weight_arg(const NodeIo& io, Emitter& em) {
+    if (uses_variable(io, "weight")) {
+        em.function("number_list");
+        return fmt::format("(number_list({0}) if str({0}).strip(\" ,\") else None)", em.expr(io, "weight"));
+    }
     const auto& text = param_text(io.node.params, "weight");
     if (text.find_first_not_of(" ,") == std::string::npos) return "None";
     const auto w = pipeline::blocks::parse_numbers(io.node.type->id, "weight", text);
@@ -131,33 +182,25 @@ std::string weight_arg(const NodeIo& io, Emitter& em) {
 }
 
 core::Result<std::string> remez(const NodeIo& io, Emitter& em) {
-    const auto& p = io.node.params;
-    const auto bands = band_edges(io);
-    const auto desired = numbers_of(io, "desired", param_text(p, "desired"));
-    if (!bands) return std::unexpected{bands.error()};
+    const auto edges = edge_list(io, em, io.in_fs[0]);
+    const auto desired = number_list(io, em, "desired");
+    if (!edges) return std::unexpected{edges.error()};
     if (!desired) return std::unexpected{desired.error()};
     em.import_line("from scipy import signal");
     em.function("fir_apply");
-    std::string edges = "[";
-    for (std::size_t k = 0; k < bands->size(); ++k) edges += (k ? ", " : "") + em.number((*bands)[k]) + " / " + io.in_fs[0];
-    edges += "]";
-    return fmt::format("{0}_h = signal.remez({1}, {2}, {3}, weight={4}, type={5})\n{0} = fir_apply({6}, {0}_h, {7})", io.out[0], param_int(p, "numtaps"), edges,
-                       list(em, "desired", *desired), weight_arg(io, em), py_str(param_text(p, "type")), io.in[0], param_text(p, "compensate") == "yes" ? "True" : "False");
+    return fmt::format("{0}_h = signal.remez({1}, {2}, {3}, weight={4}, type={5})\n{0} = fir_apply({6}, {0}_h, {7})", io.out[0], em.expr(io, "numtaps"), *edges, *desired,
+                       weight_arg(io, em), em.expr(io, "type"), io.in[0], flag(io, em, "compensate", "yes"));
 }
 
 core::Result<std::string> firls(const NodeIo& io, Emitter& em) {
-    const auto& p = io.node.params;
-    const auto bands = band_edges(io);
-    const auto desired = numbers_of(io, "desired", param_text(p, "desired"));
-    if (!bands) return std::unexpected{bands.error()};
+    const auto edges = edge_list(io, em, "(" + io.in_fs[0] + " / 2)");
+    const auto desired = number_list(io, em, "desired");
+    if (!edges) return std::unexpected{edges.error()};
     if (!desired) return std::unexpected{desired.error()};
     em.import_line("from scipy import signal");
     em.function("fir_apply");
-    std::string edges = "[";
-    for (std::size_t k = 0; k < bands->size(); ++k) edges += (k ? ", " : "") + em.number((*bands)[k]) + " / (" + io.in_fs[0] + " / 2)";
-    edges += "]";
-    return fmt::format("{0}_h = signal.firls({1}, {2}, {3}, weight={4})\n{0} = fir_apply({5}, {0}_h, {6})", io.out[0], param_int(p, "numtaps"), edges, list(em, "desired", *desired),
-                       weight_arg(io, em), io.in[0], param_text(p, "compensate") == "yes" ? "True" : "False");
+    return fmt::format("{0}_h = signal.firls({1}, {2}, {3}, weight={4})\n{0} = fir_apply({5}, {0}_h, {6})", io.out[0], em.expr(io, "numtaps"), *edges, *desired, weight_arg(io, em),
+                       io.in[0], flag(io, em, "compensate", "yes"));
 }
 
 const pipeline::Coeffs* coeffs_value(const pipeline::Value* v) { return v ? std::get_if<pipeline::Coeffs>(v) : nullptr; }
@@ -168,24 +211,22 @@ std::size_t levels_of(const NodeIo& io, bool input) {
 }
 
 core::Result<std::string> downsample(const NodeIo& io, Emitter& em) {
-    const auto& p = io.node.params;
-    const auto m = param_int(p, "m"), phase = param_int(p, "phase");
     em.function("multirate");
-    return fmt::format("{} = multirate({}[:, {}:], 1, {}, {}, {})", io.out[0], io.in[0], phase, m, em.number(param_real(p, "attenuation_db")),
-                       param_text(p, "anti_alias") == "yes" ? "True" : "False");
+    const auto m = em.expr(io, "m");
+    return fmt::format("{0} = multirate({1}[:, {2}:], 1, {3}, {4}, {5})\n{0}_fs = {6} / {3}", io.out[0], io.in[0], em.expr(io, "phase"), m, em.expr(io, "attenuation_db"),
+                       flag(io, em, "anti_alias", "yes"), io.in_fs[0]);
 }
 
 core::Result<std::string> upsample(const NodeIo& io, Emitter& em) {
-    const auto& p = io.node.params;
     em.function("multirate");
-    return fmt::format("{} = multirate({}, {}, 1, {}, {})", io.out[0], io.in[0], param_int(p, "m"), em.number(param_real(p, "attenuation_db")),
-                       param_text(p, "anti_image") == "yes" ? "True" : "False");
+    const auto m = em.expr(io, "m");
+    return fmt::format("{0} = multirate({1}, {2}, 1, {3}, {4})\n{0}_fs = {5} * {2}", io.out[0], io.in[0], m, em.expr(io, "attenuation_db"), flag(io, em, "anti_image", "yes"), io.in_fs[0]);
 }
 
 core::Result<std::string> resample(const NodeIo& io, Emitter& em) {
-    const auto& p = io.node.params;
     em.function("multirate");
-    return fmt::format("{} = multirate({}, {}, {}, {}, True)", io.out[0], io.in[0], param_int(p, "l"), param_int(p, "m"), em.number(param_real(p, "attenuation_db")));
+    const auto l = em.expr(io, "l"), m = em.expr(io, "m");
+    return fmt::format("{0} = multirate({1}, {2}, {3}, {4}, True)\n{0}_fs = {5} * {2} / {3}", io.out[0], io.in[0], l, m, em.expr(io, "attenuation_db"), io.in_fs[0]);
 }
 
 core::Result<std::string> convolve(const NodeIo& io, Emitter& em) {
@@ -201,7 +242,13 @@ core::Result<std::string> convolve(const NodeIo& io, Emitter& em) {
     if (h.empty())
         if (const auto mine = core::named_filter(spec)) h = mine->coeffs;
     if (h.empty()) return std::unexpected{unsupported(io, "filter")};
-    return fmt::format("{0}_h = {1}\n{0} = np.stack([np.convolve(row, {0}_h) for row in {2}])", io.out[0], em.numbers("h", h), io.in[0]);
+    auto taps = em.numbers("h", h);
+    if (uses_variable(io, "filter")) {
+        em.need_wavelets(dot == std::string::npos ? spec : spec.substr(0, dot));
+        em.function("filter_taps");
+        taps = "filter_taps(" + em.expr(io, "filter") + ")";
+    }
+    return fmt::format("{0}_h = {1}\n{0} = np.stack([np.convolve(row, {0}_h) for row in {2}])", io.out[0], taps, io.in[0]);
 }
 
 std::string auto_levels(const NodeIo& io, Emitter& em, const std::string& w, std::size_t actual) {
@@ -309,8 +356,7 @@ core::Result<std::string> dct(const NodeIo& io, Emitter& em, int type) {
 
 core::Result<std::string> xcorr(const NodeIo& io, Emitter& em) {
     em.function("xcorr");
-    return fmt::format("{} = xcorr({}, {}, {}, {})", io.out[0], io.in[0], io.in[1], py_str(param_text(io.node.params, "mode")),
-                       param_text(io.node.params, "normalize") == "yes" ? "True" : "False");
+    return fmt::format("{} = xcorr({}, {}, {}, {})", io.out[0], io.in[0], io.in[1], em.expr(io, "mode"), flag(io, em, "normalize", "yes"));
 }
 
 core::Result<std::string> denoise(const NodeIo& io, Emitter& em) {
@@ -324,12 +370,17 @@ core::Result<std::string> denoise(const NodeIo& io, Emitter& em) {
 
 core::Result<std::string> thd(const NodeIo& io, Emitter& em) {
     em.function("thd");
-    return fmt::format("{0} = thd({1}, {2}, {3})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_int(io.node.params, "harmonics"));
+    return fmt::format("{0} = thd({1}, {2}, {3})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], em.expr(io, "harmonics"));
 }
 
 core::Result<std::string> onsets(const NodeIo& io, Emitter& em) {
     em.function("onsets");
-    return fmt::format("{0} = onsets({1}, {2}, {3}, {4})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_int(io.node.params, "frame"), param_int(io.node.params, "hop"));
+    const auto samples = [&](std::string_view param) {
+        if (!uses_variable(io, param)) return std::to_string(param_int(io.node.params, param));
+        em.function("as_samples");
+        return "as_samples(" + em.expr(io, param) + ", " + io.in_fs[0] + ")";
+    };
+    return fmt::format("{0} = onsets({1}, {2}, {3}, {4})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], samples("frame"), samples("hop"));
 }
 
 std::filesystem::path out_file(const NodeIo& io) {
@@ -339,19 +390,17 @@ std::filesystem::path out_file(const NodeIo& io) {
 
 core::Result<std::string> export_signal(const NodeIo& io, Emitter& em) {
     em.function("export_signal");
-    return fmt::format("{0} = export_signal({1}, {2}, {3}, {4})\n{0}_ok = True", io.out[0], em.file(out_file(io)), io.in[0], io.in_fs[0], py_str(param_text(io.node.params, "format")));
+    return fmt::format("{0} = export_signal({1}, {2}, {3}, {4})\n{0}_ok = True", io.out[0], em.file(out_file(io)), io.in[0], io.in_fs[0], em.expr(io, "format"));
 }
 
 core::Result<std::string> export_report(const NodeIo& io, Emitter& em) {
     em.function("export_report_file");
-    return fmt::format("{0} = export_report_file({1}, {2}, {2}_ok, {3})\n{0}_ok = True", io.out[0], em.file(out_file(io)), io.in[0], py_str(param_text(io.node.params, "format")));
+    return fmt::format("{0} = export_report_file({1}, {2}, {2}_ok, {3})\n{0}_ok = True", io.out[0], em.file(out_file(io)), io.in[0], em.expr(io, "format"));
 }
 
 core::Result<std::string> check(const NodeIo& io, Emitter& em) {
     em.function("check_signals");
-    const auto& p = io.node.params;
-    return fmt::format("{0}, {0}_ok = check_signals({1}, {2}, {3}, {4}, {5})", io.out[0], io.in[0], io.in[1], py_str(param_text(p, "kind")), em.number(param_real(p, "tol")),
-                       py_str(param_text(p, "delay")));
+    return fmt::format("{0}, {0}_ok = check_signals({1}, {2}, {3}, {4}, {5})", io.out[0], io.in[0], io.in[1], em.expr(io, "kind"), em.expr(io, "tol"), em.expr(io, "delay"));
 }
 
 core::Result<std::string> listen(const NodeIo& io, Emitter& em) {

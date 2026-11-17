@@ -1,1 +1,4 @@
 # Parameters that cannot be live in a Signals script, one per line: block.param — reason.
+idwt.wavelet — only checks the coefficients: auto or their own wavelet give the same result, any other wavelet is an error in the program and in the script
+iswt.wavelet — only checks the coefficients: auto or their own wavelet give the same result, any other wavelet is an error in the program and in the script
+idwt.ext — the inverse depends on the extension only for periodization, and periodization refuses coefficients made with another extension

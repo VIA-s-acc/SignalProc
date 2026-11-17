@@ -414,14 +414,17 @@ void Emitter::keep_wavelet(std::string_view name) {
 std::string Emitter::wavelet_of(const NodeIo& io, std::string_view param) {
     const auto value = io.node.params.count(std::string{param}) ? io.node.params.at(std::string{param}) : std::string{};
     if (!uses_variable(io, param)) return wavelet(value);
+    need_wavelets(value);
+    return "wavelet(" + expr(io, param) + ")";
+}
+
+void Emitter::need_wavelets(std::string_view current) {
     import_line("import pywt");
     function("wavelet");
     if (std::ranges::find(prelude_, "NO_WAVELET = " + py_str(tr("python.live.no_wavelet"))) == prelude_.end()) prelude_.push_back("NO_WAVELET = " + py_str(tr("python.live.no_wavelet")));
-    if (!preview_) {
-        keep_wavelet(value);
-        for (const auto& name : by_filter_bank()) keep_wavelet(name);
-    }
-    return "wavelet(" + expr(io, param) + ")";
+    if (preview_) return;
+    keep_wavelet(current);
+    for (const auto& name : by_filter_bank()) keep_wavelet(name);
 }
 
 std::string Emitter::wavelet(std::string_view name) {
