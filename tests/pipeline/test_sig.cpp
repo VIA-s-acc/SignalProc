@@ -43,7 +43,7 @@ TEST_CASE("the design example parses into nodes, edges and a probe", "[pipeline]
     const auto doc = parse_sig(kExample);
     REQUIRE(doc);
     CHECK(doc->name == "denoise");
-    CHECK(doc->version == 1);
+    CHECK(doc->version == 2);
     REQUIRE(doc->nodes.size() == 7);
     CHECK(doc->nodes[0].id == "src");
     CHECK(doc->nodes[0].type == "wav");
