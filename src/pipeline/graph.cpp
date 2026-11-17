@@ -84,7 +84,10 @@ private:
                          (hint ? say("pipeline.error.unknown_param_hint", fmt::arg("block", type->id), fmt::arg("param", key), fmt::arg("hint", *hint))
                                : say("pipeline.error.unknown_param", fmt::arg("block", type->id), fmt::arg("param", key))));
             }
-            auto params = resolve_params(*type, decl.params);
+            Params given = decl.params;
+            if (doc_.version >= 2)
+                for (auto& entry : given) entry.second = unescape_dollars(entry.second);
+            auto params = resolve_params(*type, given);
             if (!params) fail(decl.line, 0, decl.id + ": " + params.error().message);
             if (decl.bypass && !bypassable(*type))
                 fail(decl.line, 0, say("pipeline.graph.bypass_types", fmt::arg("node", decl.id), fmt::arg("block", type->id)));

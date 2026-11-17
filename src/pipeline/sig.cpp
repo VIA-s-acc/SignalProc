@@ -1,6 +1,7 @@
 #include "pipeline/sig.hpp"
 
 #include <algorithm>
+#include <charconv>
 #include <map>
 #include <utility>
 
@@ -17,6 +18,22 @@ struct Failure {
 
 bool ident_start(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
 bool ident_char(char c) { return ident_start(c) || (c >= '0' && c <= '9'); }
+bool directive_ahead(std::string_view word, std::string_view rest) {
+    std::size_t i = 0;
+    const auto spaces = [&] {
+        while (i < rest.size() && (rest[i] == ' ' || rest[i] == '\t')) ++i;
+    };
+    spaces();
+    if (word == "use") return i < rest.size() && rest[i] == '"';
+    if (word == "mark") return i < rest.size() && ((rest[i] >= '0' && rest[i] <= '9') || rest[i] == '$' || rest[i] == '.');
+    if (word != "let" && word != "region" && word != "block") return false;
+    if (i == 0 || i >= rest.size() || !ident_start(rest[i])) return false;
+    while (i < rest.size() && ident_char(rest[i])) ++i;
+    spaces();
+    if (i >= rest.size()) return false;
+    return word == "block" ? rest[i] == '(' || rest[i] == '{' : rest[i] == '=';
+}
+
 bool bare_char(char c) {
     return c != ' ' && c != '\t' && c != '\r' && c != '\n' && c != ',' && c != '(' && c != ')' && c != '"' && c != '#' && c != '=';
 }
@@ -40,8 +57,7 @@ public:
                 doc.name = string_value();
                 skip(false);
                 const int vl = line_, vc = column_;
-                const auto version = ident();
-                if (version != "v1") fail(vl, vc, fmt::format(fmt::runtime(tr("pipeline.sig.version")), fmt::arg("version", version)));
+                doc.version = version_ = header_version(ident(), vl, vc);
                 end_of_line();
                 auto notes = take_comments();
                 doc.preamble = std::move(notes.above);
@@ -84,6 +100,8 @@ public:
                 end_of_line();
                 probe.comments = take_comments();
                 doc.probes.push_back(std::move(probe));
+            } else if (directive_ahead(word, rest_of_line())) {
+                fail(line, column, fmt::format(fmt::runtime(tr(version_ < 2 ? "pipeline.sig.v2_directive" : "pipeline.sig.unknown_directive")), fmt::arg("word", word)));
             } else {
                 PortRef prev{word, {}, line, column};
                 if (peek() == '.') {
@@ -190,6 +208,21 @@ private:
         return out;
     }
 
+    std::string_view rest_of_line() const {
+        const auto end = text_.find('\n', pos_);
+        return text_.substr(pos_, end == std::string_view::npos ? std::string_view::npos : end - pos_);
+    }
+
+    int header_version(const std::string& word, int line, int column) {
+        int number = 0;
+        const bool numeric = word.size() > 1 && word.front() == 'v' &&
+                             std::from_chars(word.data() + 1, word.data() + word.size(), number).ptr == word.data() + word.size();
+        if (numeric && number >= 1 && number <= kSigVersion) return number;
+        if (numeric && number > kSigVersion)
+            fail(line, column, fmt::format(fmt::runtime(tr("pipeline.sig.version_newer")), fmt::arg("found", word), fmt::arg("max", "v" + std::to_string(kSigVersion))));
+        fail(line, column, fmt::format(fmt::runtime(tr("pipeline.sig.version")), fmt::arg("version", word)));
+    }
+
     std::string rest_of_word() const {
         std::size_t end = pos_;
         while (end < text_.size() && bare_char(text_[end])) ++end;
@@ -294,6 +327,7 @@ private:
     }
 
     std::string_view text_;
+    int version_ = 1;
     std::size_t pos_ = 0;
     int line_ = 1, column_ = 1;
     std::vector<std::string> pending_;
@@ -357,6 +391,16 @@ std::expected<PipelineDoc, SigError> parse_sig(std::string_view text) {
     } catch (const Failure& f) {
         return std::unexpected{f.error};
     }
+}
+
+std::string unescape_dollars(std::string_view value) {
+    std::string out;
+    out.reserve(value.size());
+    for (std::size_t i = 0; i < value.size(); ++i) {
+        out += value[i];
+        if (value[i] == '$' && i + 1 < value.size() && value[i + 1] == '$') ++i;
+    }
+    return out;
 }
 
 std::string write_sig(const PipelineDoc& doc) {
