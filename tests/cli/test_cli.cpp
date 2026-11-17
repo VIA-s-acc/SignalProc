@@ -7,6 +7,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 
+#include "pipeline/sig.hpp"
+
 #include "commands/cli.hpp"
 #include "i18n/i18n.hpp"
 
@@ -15,6 +17,15 @@ TEST_CASE("version prints localized line", "[cli]") {
     std::array<std::string_view, 2> args{"signals", "--version"};
     CHECK(signals::cli::run_cli(args, out, err) == 0);
     CHECK(out.str() == "signals " SIGNALS_EXPECTED_VERSION "\n");
+}
+
+TEST_CASE("version json names the format versions", "[cli]") {
+    std::ostringstream out, err;
+    std::array<std::string_view, 3> args{"signals", "--version", "--json"};
+    CHECK(signals::cli::run_cli(args, out, err) == 0);
+    const auto j = nlohmann::json::parse(out.str());
+    CHECK(j.at("version") == SIGNALS_EXPECTED_VERSION);
+    CHECK(j.at("formats").at("sig") == signals::pipeline::kSigVersion);
 }
 
 TEST_CASE("check passes and emits json", "[cli]") {

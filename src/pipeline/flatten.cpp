@@ -8,6 +8,7 @@
 
 #include <fmt/format.h>
 
+#include "core/expr.hpp"
 #include "i18n/i18n.hpp"
 
 namespace signals::pipeline {
@@ -156,6 +157,21 @@ std::vector<std::string> variables_in(std::string_view value) {
         std::string name{value.substr(at + 1, end - at - 1)};
         if (std::ranges::find(out, name) == out.end()) out.push_back(std::move(name));
         at = end - 1;
+    }
+    return out;
+}
+
+std::vector<LetValue> let_values(std::span<const LetDecl> lets) {
+    std::vector<LetValue> out;
+    const auto scope = resolve_lets(lets);
+    for (const auto& l : lets) {
+        LetValue v{l.name, l.value, std::nullopt, l.value};
+        if (scope) {
+            if (const auto expr = substitute("$" + l.name, *scope, Kind::real))
+                if (const auto number = core::eval_number(*expr)) v.number = *number;
+            if (auto text = substitute("$" + l.name, *scope, Kind::text)) v.expanded = std::move(*text);
+        }
+        out.push_back(std::move(v));
     }
     return out;
 }

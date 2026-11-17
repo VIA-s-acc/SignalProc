@@ -25,6 +25,7 @@
 #include "io/npy.hpp"
 #include "pipeline/block.hpp"
 #include "pipeline/npz_values.hpp"
+#include "pipeline/sig.hpp"
 
 namespace signals::cli {
 namespace {
@@ -174,6 +175,7 @@ namespace {
 struct CliBindings {
     std::string lang_option;
     bool show_version = false;
+    bool version_json = false;
     bool check_json = false;
     std::string filter_name, filter_output;
     bool filter_json = false;
@@ -194,6 +196,7 @@ struct CliBindings {
 void build_cli(CLI::App& app, CliBindings& b) {
     app.add_option("--lang", b.lang_option, tr("cli.lang"))->check(CLI::IsMember({"ru", "en"}));
     app.add_flag("--version", b.show_version, tr("cli.version.description"));
+    app.add_flag("--json", b.version_json, tr("cli.version.json"));
     b.check = app.add_subcommand("check", tr("cli.check.description"));
     b.check->add_flag("--json", b.check_json, tr("cli.json.description"));
     auto* filter = app.add_subcommand("filter", tr("cli.filter.description"));
@@ -244,7 +247,8 @@ int run_cli_unguarded(std::span<const std::string_view> args, std::ostream& out,
     }
 
     if (b.show_version) {
-        out << fmt::format(fmt::runtime(tr("cli.version")), fmt::arg("version", core::version())) << '\n';
+        if (b.version_json) out << nlohmann::json{{"version", core::version()}, {"formats", {{"sig", pipeline::kSigVersion}}}}.dump() << '\n';
+        else out << fmt::format(fmt::runtime(tr("cli.version")), fmt::arg("version", core::version())) << '\n';
         return 0;
     }
     if (b.check->parsed()) return run_check(b.check_json, out);

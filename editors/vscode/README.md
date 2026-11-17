@@ -2,11 +2,12 @@
 
 Support for Signals pipeline files (`.sig`):
 
-- syntax highlighting: `pipeline`, `node`, `probe`, block types, parameters, values, wires `a -> b.port`, comments `#`;
+- syntax highlighting: `pipeline`, `let`, `node`, `probe`, block types, parameters, values, variables `$name` and the literal `$$`, wires `a -> b.port`, comments `#`;
 - hover over a block, a parameter or a value shows the same explanation as the Signals inspector (Russian when VS Code runs in Russian, English otherwise);
-- completion: after `node id =` the block list (inserted with every parameter at its default), inside the parentheses the parameters, after `param=` the values with their meaning;
-- snippets: `pipeline`, `node`, `probe`, `wire`, `haarbank`.
-- **Signals: Preview** (the button in the editor title or the command palette) runs `signals run --watch --json` on the open file and shows the run beside it: whether the checks passed, a plot of every signal probe, the coefficient bands, the reports and the state of every node. Every save reruns the graph; a graph error goes to «Problems» at its line. It needs Signals 0.9.0 or newer; the `signals.path` user setting points to the program when it is not on `PATH`; a workspace cannot override it, and the program is looked up on `PATH` by an absolute path, never in the graph's folder, so a cloned folder cannot make the preview run another program. In an untrusted folder the preview does not start at all: a graph can write files.
+- hover over `$name` shows its `let` line, or says the variable is not declared;
+- completion: after `node id =` the block list (inserted with every parameter at its default), inside the parentheses the parameters, after `param=` the values with their meaning, after `$` the variables of the file;
+- snippets: `pipeline`, `let`, `node`, `probe`, `wire`, `haarbank`.
+- **Signals: Preview** (the button in the editor title or the command palette) runs `signals run --watch --json` on the open file and shows the run beside it: whether the checks passed, a plot of every signal probe, the coefficient bands, the reports and the state of every node. Every save reruns the graph; a graph error goes to «Problems» at its line. It needs a Signals that reads the `.sig` v2 format (1.0.0 or newer): the extension asks `signals --version --json` and names the version it found when the program is older; the `signals.path` user setting points to the program when it is not on `PATH`; a workspace cannot override it, and the program is looked up on `PATH` by an absolute path, never in the graph's folder, so a cloned folder cannot make the preview run another program. In an untrusted folder the preview does not start at all: a graph can write files.
 
 and filter files (`.flt`), the banks and single filters of «My filters» kept in `~/.config/signals/filters/`:
 

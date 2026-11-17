@@ -9,6 +9,8 @@
 
 #include "core/version.hpp"
 #include "i18n/i18n.hpp"
+#include "pipeline/docs.hpp"
+#include "pipeline/flatten.hpp"
 #include "pipeline/executor.hpp"
 #include "pipeline/npz_values.hpp"
 #include "python/form.hpp"
@@ -270,6 +272,13 @@ private:
         return {};
     }
 
+    std::string let_value_text(const pipeline::LetValue& v) const { return v.number ? em_.number(*v.number) : v.expanded; }
+
+    std::string let_line(const pipeline::LetValue& v) const {
+        const auto value = let_value_text(v);
+        return v.name + " = " + v.text + (value != v.text ? " → " + value : std::string{});
+    }
+
     std::string check_line(const Row& r) const {
         const auto ref = "D[" + py_str(r.ref) + "]";
         switch (r.kind) {
@@ -290,6 +299,10 @@ private:
         out += "# " + py_comment(fmt::format(fmt::runtime(tr("python.header.title")), fmt::arg("graph", doc_.name.empty() ? std::string{"—"} : doc_.name), fmt::arg("file", utf8(o_.sig.filename())))) + "\n";
         out += "# " + py_comment(fmt::format(fmt::runtime(tr("python.header.run")), fmt::arg("script", script), fmt::arg("data", data))) + "\n";
         if (pywt_sign_) out += "# " + tr("python.header.sign") + "\n";
+        if (!doc_.lets.empty()) {
+            out += "#\n# " + tr("python.header.vars") + "\n";
+            for (const auto& v : pipeline::let_values(doc_.lets)) out += "#   " + py_comment(let_line(v)) + "\n";
+        }
         out += "\nimport sys\nfrom pathlib import Path\n\nimport numpy as np\n";
         for (const auto& line : em_.imports()) out += line + "\n";
         const auto functions = em_.functions();
@@ -336,6 +349,13 @@ private:
         head += "\n\n" + fmt::format(fmt::runtime(tr("python.notebook.run")), fmt::arg("data", data));
         if (pywt_sign_) head += "\n\n" + tr("python.header.sign");
         cells.push_back(cell("markdown", head));
+        if (!doc_.lets.empty()) {
+            std::string table = "### " + tr("python.notebook.vars") + "\n\n| " + tr("python.notebook.vars.name") + " | " + tr("python.notebook.vars.text") + " | " +
+                                tr("python.notebook.vars.value") + " |\n|---|---|---|\n";
+            for (const auto& v : pipeline::let_values(doc_.lets))
+                table += "| `" + pipeline::markdown_cell(v.name) + "` | `" + pipeline::markdown_cell(v.text) + "` | " + pipeline::markdown_cell(let_value_text(v)) + " |\n";
+            cells.push_back(cell("markdown", table));
+        }
         std::string imports = "from pathlib import Path\n\nimport numpy as np\n";
         for (const auto& line : em_.imports()) imports += line + "\n";
         cells.push_back(cell("code", imports));

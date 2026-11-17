@@ -4,6 +4,7 @@ const path = require('path');
 const childProcess = require('child_process');
 const flt = require('./flt');
 const preview = require('./preview');
+const sig = require('./sig');
 
 const NODE_LINE = /^\s*node\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)/;
 
@@ -63,7 +64,7 @@ function nodeContext(document, position) {
   for (; start >= 0 && position.line - start <= 50; --start) {
     const text = document.lineAt(start).text;
     if (/^\s*node\s/.test(text)) break;
-    if (start !== position.line && (/^\s*(pipeline|probe)\b/.test(text) || text.includes('->'))) return null;
+    if (start !== position.line && (sig.BOUNDARY.test(text) || text.includes('->'))) return null;
   }
   if (start < 0 || position.line - start > 50) return null;
   const head = document.lineAt(start).text;
@@ -108,6 +109,14 @@ function activate(context) {
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(selector, {
       provideHover(document, position) {
+        const name = sig.variableAt(document.lineAt(position.line).text, position.character);
+        if (name) {
+          const found = sig.letsOf(document.getText()).find((l) => l.name === name);
+          const md = new vscode.MarkdownString();
+          if (found) md.appendCodeblock(`let ${found.name} = ${found.value}`, 'signals-sig');
+          else md.appendMarkdown(preview.say(ru, 'unknownVariable', { name }));
+          return new vscode.Hover(md);
+        }
         const ctx = nodeContext(document, position);
         if (!ctx) return null;
         const block = blocks.get(ctx.type);
@@ -138,6 +147,13 @@ function activate(context) {
       {
         provideCompletionItems(document, position) {
           const text = document.lineAt(position.line).text.slice(0, position.character);
+          if (sig.variablePrefix(text) !== null) {
+            return sig.letsOf(document.getText()).map((l) => {
+              const item = new vscode.CompletionItem(l.name, vscode.CompletionItemKind.Variable);
+              item.detail = l.value;
+              return item;
+            });
+          }
           if (/^\s*node\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*[A-Za-z_0-9]*$/.test(text)) {
             return [...blocks.values()].map((b) => {
               const item = new vscode.CompletionItem(b.id, vscode.CompletionItemKind.Function);
@@ -175,7 +191,7 @@ function activate(context) {
               });
           }
           if (/^\s*[a-z]*$/.test(text)) {
-            return ['node', 'probe', 'pipeline'].map((k) => new vscode.CompletionItem(k, vscode.CompletionItemKind.Keyword));
+            return sig.KEYWORDS.map((k) => new vscode.CompletionItem(k, vscode.CompletionItemKind.Keyword));
           }
           return [];
         },
@@ -184,6 +200,7 @@ function activate(context) {
       '(',
       ',',
       ' ',
+      '$',
     ),
   );
 }
@@ -258,9 +275,10 @@ function activatePreview(context, ru) {
       }
     };
     const exe = preview.resolveProgram(wanted, process.env, path, isFile, process.platform === 'win32' ? ['.EXE', '.COM'] : []);
-    const version = exe && (await new Promise((resolve) => childProcess.execFile(exe, ['--version'], (error, stdout) => resolve(error ? null : stdout))));
+    const ask = (args) => new Promise((resolve) => childProcess.execFile(exe, args, (error, stdout) => resolve(error ? null : stdout)));
+    const version = exe && (await ask(['--version']));
     if (!version) return vscode.window.showErrorMessage(preview.say(ru, 'missing', { path: wanted }));
-    if (!preview.versionOk(version)) return vscode.window.showErrorMessage(preview.say(ru, 'old', { version: version.trim() }));
+    if (!preview.formatOk(await ask(['--version', '--json']))) return vscode.window.showErrorMessage(preview.say(ru, 'old', { version: version.trim() }));
     const file = document.uri.fsPath;
     const panel = vscode.window.createWebviewPanel('signalsPreview', preview.say(ru, 'title', { name: path.basename(file) }), { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, {});
     panel.webview.html = preview.renderNote(preview.say(ru, 'waiting'));

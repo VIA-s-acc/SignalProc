@@ -19,7 +19,6 @@
 #include "i18n/i18n.hpp"
 #include "io/temp_file.hpp"
 #include "io/wav.hpp"
-#include "core/expr.hpp"
 #include "pipeline/examples.hpp"
 #include "pipeline/flatten.hpp"
 #include "pipeline/block.hpp"
@@ -599,20 +598,12 @@ bool PipelineScreen::on_inspector_key(const ftxui::Event& e) {
 
 namespace {
 
-std::optional<double> let_number(const pipeline::Scope& scope, const pipeline::LetDecl& l) {
-    const auto expr = pipeline::substitute("$" + l.name, scope, pipeline::ParamSpec::Kind::real);
-    if (!expr) return std::nullopt;
-    const auto v = core::eval_number(*expr);
-    return v ? std::optional{*v} : std::nullopt;
-}
-
-std::optional<std::string> let_result(const pipeline::Scope& scope, const pipeline::LetDecl& l) {
-    if (const auto v = let_number(scope, l)) {
-        const auto shown = format_number(*v, 6);
-        return shown != l.value ? std::optional{shown} : std::nullopt;
+std::optional<std::string> let_result(const pipeline::LetValue& v) {
+    if (v.number) {
+        const auto shown = format_number(*v.number, 6);
+        return shown != v.text ? std::optional{shown} : std::nullopt;
     }
-    if (const auto t = pipeline::substitute("$" + l.name, scope, pipeline::ParamSpec::Kind::text); t && *t != l.value) return *t;
-    return std::nullopt;
+    return v.expanded != v.text ? std::optional{v.expanded} : std::nullopt;
 }
 
 }  // namespace
@@ -639,13 +630,12 @@ ftxui::Element PipelineScreen::vars_panel(int width, int height) {
         return frame_panel(kVars, vbox(std::move(rows)), {}, title);
     }
     var_ = std::min(var_, lets.size() - 1);
-    const auto scope = pipeline::resolve_lets(lets);
+    const auto values = pipeline::let_values(lets);
     Elements list;
     var_boxes_.assign(lets.size(), kNoBox);
     for (std::size_t k = 0; k < lets.size(); ++k) {
         auto shown = lets[k].name + " = " + lets[k].value;
-        if (scope)
-            if (const auto result = let_result(*scope, lets[k])) shown += (ascii ? " -> " : " → ") + *result;
+        if (const auto result = let_result(values[k])) shown += (ascii ? " -> " : " → ") + *result;
         auto row = hbox({text(ellipsize(shown, std::max(4, width), ascii)) | fg(th.fg, ui_), filler()}) | reflect(var_boxes_[k]);
         if (focus_ == kVars && k == var_) row = row | bg(tint(th.bg, th.accent, 0.3), ui_);
         list.push_back(std::move(row));
@@ -680,8 +670,7 @@ void PipelineScreen::sweep_variable() {
     const auto& lets = model_->doc().lets;
     if (lets.empty()) return void(notice_ = tr("tui.pipeline.vars.empty"));
     const auto& l = lets[std::min(var_, lets.size() - 1)];
-    const auto scope = pipeline::resolve_lets(lets);
-    const auto value = scope ? let_number(*scope, l) : std::nullopt;
+    const auto value = pipeline::let_values(lets)[std::min(var_, lets.size() - 1)].number;
     pipeline::ParamSpec spec;
     spec.name = l.name;
     spec.kind = value && *value == std::round(*value) ? pipeline::ParamSpec::Kind::integer : pipeline::ParamSpec::Kind::real;

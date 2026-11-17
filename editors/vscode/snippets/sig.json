@@ -1,22 +1,39 @@
 {
   "Pipeline header": {
     "prefix": "pipeline",
-    "body": ["pipeline \"${1:name}\" v2", "", "$0"],
+    "body": [
+      "pipeline \"${1:name}\" v2",
+      "",
+      "$0"
+    ],
     "description": "File header: pipeline name and format version"
+  },
+  "Variable": {
+    "prefix": "let",
+    "body": [
+      "let ${1:name} = ${2:value}"
+    ],
+    "description": "Declare a variable; params use it as $name"
   },
   "Node": {
     "prefix": "node",
-    "body": ["node ${1:id} = ${2:block}($3)"],
+    "body": [
+      "node ${1:id} = ${2:block}($3)"
+    ],
     "description": "Declare a node: id = block(parameters)"
   },
   "Probe": {
     "prefix": "probe",
-    "body": ["probe ${1:node} as \"${2:name}\""],
+    "body": [
+      "probe ${1:node} as \"${2:name}\""
+    ],
     "description": "Watch a node output in the probe panel"
   },
   "Wire": {
     "prefix": "wire",
-    "body": ["${1:from} -> ${2:to}"],
+    "body": [
+      "${1:from} -> ${2:to}"
+    ],
     "description": "Connect an output to an input (node.port for a named port)"
   },
   "Haar bank": {
