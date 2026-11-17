@@ -58,7 +58,8 @@ std::vector<Fence> fences(std::string_view text) {
 
 std::string notebook_text(const fs::path& file) {
     std::string out;
-    for (const auto& cell : nlohmann::json::parse(bytes(file)).at("cells"))
+    const auto notebook = nlohmann::json::parse(bytes(file));
+    for (const auto& cell : notebook.at("cells"))
         for (const auto& line : cell.at("source")) out += line.get<std::string>();
     return out;
 }
