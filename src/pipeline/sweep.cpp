@@ -1,5 +1,7 @@
 #include "pipeline/sweep.hpp"
 
+#include "pipeline/renames.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <locale>
@@ -186,9 +188,15 @@ core::Result<SweepResult> run_sweep(const PipelineDoc& doc, const std::filesyste
     if (!type || std::none_of(type->params.begin(), type->params.end(), [&](const ParamSpec& p) { return p.name == axis.param; }))
         return core::make_error(core::Errc::invalid_argument,
                                 fmt::format(fmt::runtime(tr("pipeline.sweep.unknown_param")), fmt::arg("node", axis.node), fmt::arg("param", axis.param)));
-    for (const auto& m : measures)
-        if (find_node(m.node) == doc.nodes.end())
+    for (const auto& m : measures) {
+        const auto measured = find_node(m.node);
+        if (measured == doc.nodes.end())
             return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.set.unknown_node")), fmt::arg("node", m.node)));
+        if (!m.metric)
+            if (auto now = renamed(v1_renames(), Rename::Kind::field, measured->type, m.field))
+                return core::make_error(core::Errc::invalid_argument,
+                                        fmt::format(fmt::runtime(tr("pipeline.measure.renamed")), fmt::arg("node", m.node), fmt::arg("old", m.field), fmt::arg("new", *now)));
+    }
     SweepResult result{std::move(axis), std::move(measures), {}};
     ResultCache cache{kSweepCache};
     const auto total = result.axis.values.size();

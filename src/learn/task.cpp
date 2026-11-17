@@ -9,6 +9,8 @@
 #include <sstream>
 #include <toml++/toml.hpp>
 
+#include "learn/migrate_course.hpp"
+
 #include "i18n/i18n.hpp"
 
 struct SignalsEmbeddedFile {
@@ -287,6 +289,7 @@ core::Result<Course> load_course(const FileMap& files) {
         for (const auto& [task_number, task_dir] : task_dirs) {
             auto task = load_task(files, prefix + task_dir, fmt::format("{}.{}", number, task_number));
             if (!task) return std::unexpected{task.error()};
+            task->old_names = rename_task(*task, pipeline::v1_renames());
             chapter.tasks.push_back(std::move(*task));
         }
         course.chapters.push_back(std::move(chapter));
@@ -302,7 +305,7 @@ core::Result<FileMap> read_course_dir(const std::filesystem::path& dir) {
         if (!it->is_regular_file()) continue;
         const auto ext = it->path().extension().string();
         if (ext != ".toml" && ext != ".md" && ext != ".sig") continue;
-        if (it->path().filename().string().ends_with(".v1.sig")) continue;
+        if (const auto name = it->path().filename().string(); name.ends_with(".v1.sig") || name.ends_with(".v1.toml")) continue;
         std::ifstream in{it->path(), std::ios::binary};
         std::ostringstream text;
         text << in.rdbuf();

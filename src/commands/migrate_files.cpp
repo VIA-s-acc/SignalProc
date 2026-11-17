@@ -8,6 +8,7 @@
 
 #include "i18n/i18n.hpp"
 #include "io/temp_file.hpp"
+#include "learn/migrate_course.hpp"
 #include "pipeline/migrate.hpp"
 
 namespace signals::cli {
@@ -23,7 +24,8 @@ std::vector<std::filesystem::path> sig_files(std::span<const std::filesystem::pa
         }
         std::vector<std::filesystem::path> found;
         for (auto it = std::filesystem::recursive_directory_iterator{p, ec}; !ec && it != std::filesystem::recursive_directory_iterator{}; it.increment(ec))
-            if (it->is_regular_file() && it->path().extension() == ".sig" && !is_migration_backup(it->path())) found.push_back(it->path());
+            if (it->is_regular_file() && !is_migration_backup(it->path()) && (it->path().extension() == ".sig" || it->path().filename() == "task.toml"))
+                found.push_back(it->path());
         std::ranges::sort(found);
         out.insert(out.end(), found.begin(), found.end());
     }
@@ -32,8 +34,44 @@ std::vector<std::filesystem::path> sig_files(std::span<const std::filesystem::pa
 
 std::filesystem::path backup_of(const std::filesystem::path& file) {
     auto backup = file;
-    backup.replace_extension(".v1.sig");
+    backup.replace_extension(file.extension() == ".toml" ? ".v1.toml" : ".v1.sig");
     return backup;
+}
+
+std::string read_text(const std::filesystem::path& file) {
+    std::ifstream in{file, std::ios::binary};
+    return {std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+}
+
+FileReport migrate_task(const std::filesystem::path& file, bool write, bool backup, std::span<const pipeline::Rename> renames) {
+    FileReport r;
+    r.file = file;
+    r.from = pipeline::kSigVersion;
+    const auto original = read_text(file);
+    auto text = original;
+    const auto dir = file.parent_path();
+    auto nodes = learn::node_types_of(read_text(dir / "start.sig"));
+    nodes.merge(learn::node_types_of(read_text(dir / "solution.sig")));
+    auto notes = learn::migrate_task_toml(text, renames, nodes);
+    if (!notes) {
+        r.error = notes.error().message;
+        return r;
+    }
+    if (notes->empty()) return r;
+    r.from = 1;
+    r.notes = std::move(*notes);
+    if (!write) return r;
+    if (backup)
+        if (auto ok = io::write_file_atomic(backup_of(file), original); !ok) {
+            r.error = ok.error().message;
+            return r;
+        }
+    if (auto ok = io::write_file_atomic(file, text); !ok) {
+        r.error = ok.error().message;
+        return r;
+    }
+    r.written = true;
+    return r;
 }
 
 FileReport migrate_one(const std::filesystem::path& file, bool write, bool backup) {
@@ -71,12 +109,14 @@ FileReport migrate_one(const std::filesystem::path& file, bool write, bool backu
 
 bool is_migration_backup(const std::filesystem::path& file) {
     const auto u = file.filename().u8string();
-    return std::string_view{reinterpret_cast<const char*>(u.data()), u.size()}.ends_with(".v1.sig");
+    const std::string_view name{reinterpret_cast<const char*>(u.data()), u.size()};
+    return name.ends_with(".v1.sig") || name.ends_with(".v1.toml");
 }
 
-std::vector<FileReport> migrate_paths(std::span<const std::filesystem::path> paths, bool write, bool backup) {
+std::vector<FileReport> migrate_paths(std::span<const std::filesystem::path> paths, bool write, bool backup, std::span<const pipeline::Rename> renames) {
     std::vector<FileReport> out;
-    for (const auto& file : sig_files(paths)) out.push_back(migrate_one(file, write, backup));
+    for (const auto& file : sig_files(paths))
+        out.push_back(file.filename() == "task.toml" ? migrate_task(file, write, backup, renames) : migrate_one(file, write, backup));
     return out;
 }
 

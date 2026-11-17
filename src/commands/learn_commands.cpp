@@ -374,10 +374,13 @@ private:
         std::vector<int> variants;
         for (int v = 1; v <= lint_variants_; ++v) variants.push_back(v);
         const auto issues = lint_course(*course_, variants);
-        for (const auto& i : issues) out << i.task << ": " << i.message << "\n";
-        out << say(issues.empty() ? "cli.learn.lint_ok" : "cli.learn.lint_bad", fmt::arg("tasks", course_->size()), fmt::arg("issues", issues.size()))
-            << "\n";
-        return issues.empty() ? 0 : 1;
+        std::size_t errors = 0;
+        for (const auto& i : issues) {
+            out << i.task << ": " << (i.warning ? say("learn.lint.warning") + ": " : std::string{}) << i.message << "\n";
+            errors += !i.warning;
+        }
+        out << say(errors == 0 ? "cli.learn.lint_ok" : "cli.learn.lint_bad", fmt::arg("tasks", course_->size()), fmt::arg("issues", errors)) << "\n";
+        return errors == 0 ? 0 : 1;
     }
 
     CLI::App* root_;

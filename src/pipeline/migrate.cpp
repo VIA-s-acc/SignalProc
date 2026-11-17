@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 
 #include "i18n/i18n.hpp"
+#include "pipeline/renames.hpp"
 
 namespace signals::pipeline {
 namespace {
@@ -20,6 +21,8 @@ std::vector<std::string> v1_to_v2(PipelineDoc& doc) {
             value = std::move(escaped);
             notes.push_back(fmt::format(fmt::runtime(tr("pipeline.migrate.dollar")), fmt::arg("node", node.id), fmt::arg("param", param)));
         }
+    auto renames = apply_renames(doc, v1_renames());
+    notes.insert(notes.end(), std::make_move_iterator(renames.begin()), std::make_move_iterator(renames.end()));
     return notes;
 }
 
