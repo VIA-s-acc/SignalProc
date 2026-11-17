@@ -139,6 +139,7 @@ add_executable(signals_tests
   pipeline/test_renames.cpp
   pipeline/test_report_fields.cpp
   pipeline/test_vars.cpp
+  pipeline/test_blocks_parse.cpp
   learn/test_migrate_course.cpp
   docs/test_doc_snippets.cpp
   docs/test_old_names.cpp

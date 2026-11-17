@@ -46,7 +46,8 @@ public:
     PipelineDoc run() {
         PipelineDoc doc;
         doc.version = 1;
-        std::map<std::string, int, std::less<>> declared, lets;
+        Names names;
+        std::map<std::string, int, std::less<>> blocks;
         for (;;) {
             if (peek() == '\n') advance();
             leading();
@@ -64,89 +65,33 @@ public:
                 auto notes = take_comments();
                 doc.preamble = std::move(notes.above);
                 doc.header_comment = std::move(notes.after);
-            } else if (word == "node") {
-                skip(false);
-                NodeDecl node;
-                node.line = line;
-                const int il = line_, ic = column_;
-                node.id = ident();
-                if (const auto it = declared.find(node.id); it != declared.end())
-                    fail(il, ic, fmt::format(fmt::runtime(tr("pipeline.sig.duplicate_node")), fmt::arg("node", node.id), fmt::arg("line", it->second)));
-                declared.emplace(node.id, line);
-                skip(false);
-                expect('=');
-                skip(false);
-                node.type = ident();
-                skip(false);
-                if (peek() == '(') node.params = params();
-                skip(false);
-                if (ident_start(peek())) {
-                    const int bl = line_, bc = column_;
-                    if (ident() != "bypass") fail(bl, bc, fmt::format(fmt::runtime(tr("pipeline.sig.expected_symbol")), fmt::arg("symbol", "bypass")));
-                    node.bypass = true;
-                }
-                end_of_line();
-                node.comments = take_comments();
-                doc.nodes.push_back(std::move(node));
-            } else if (word == "probe") {
-                skip(false);
-                ProbeDecl probe;
-                probe.at = port_ref();
-                skip(false);
-                if (ident_start(peek())) {
-                    const int al = line_, ac = column_;
-                    if (ident() != "as") fail(al, ac, fmt::format(fmt::runtime(tr("pipeline.sig.expected_symbol")), fmt::arg("symbol", "as")));
-                    skip(false);
-                    probe.name = string_value();
-                }
-                end_of_line();
-                probe.comments = take_comments();
-                doc.probes.push_back(std::move(probe));
-            } else if (directive_ahead(word, rest_of_line())) {
+            } else if ((word == "block" || word == "use") && directive_ahead(word, rest_of_line())) {
                 if (version_ < 2) fail(line, column, fmt::format(fmt::runtime(tr("pipeline.sig.v2_directive")), fmt::arg("word", word)));
-                if (word != "let") fail(line, column, fmt::format(fmt::runtime(tr("pipeline.sig.unknown_directive")), fmt::arg("word", word)));
-                skip(false);
-                LetDecl let;
-                let.line = line;
-                const int nl = line_, nc = column_;
-                let.name = ident();
-                if (const auto it = lets.find(let.name); it != lets.end())
-                    fail(nl, nc, fmt::format(fmt::runtime(tr("pipeline.vars.duplicate")), fmt::arg("name", let.name), fmt::arg("line", it->second)));
-                lets.emplace(let.name, line);
-                skip(false);
-                expect('=');
-                skip(false);
-                if (done() || peek() == '\n') fail(line_, column_, tr("pipeline.sig.expected_value"));
-                let.value = peek() == '"' ? string_value() : bare_value();
-                end_of_line();
-                let.comments = take_comments();
-                doc.lets.push_back(std::move(let));
+                if (word == "use") {
+                    skip(false);
+                    UseDecl use;
+                    use.line = line;
+                    use.path = string_value();
+                    end_of_line();
+                    use.comments = take_comments();
+                    doc.uses.push_back(std::move(use));
+                    continue;
+                }
+                auto def = block(line);
+                if (const auto it = blocks.find(def.name); it != blocks.end())
+                    fail(line, column, fmt::format(fmt::runtime(tr("pipeline.blocks.duplicate")), fmt::arg("name", def.name), fmt::arg("line", it->second)));
+                blocks.emplace(def.name, line);
+                doc.blocks.push_back(std::move(def));
             } else {
-                PortRef prev{word, {}, line, column};
-                if (peek() == '.') {
-                    advance();
-                    prev.port = ident();
-                }
-                skip(false);
-                if (!arrow_next()) fail(line, column, fmt::format(fmt::runtime(tr("pipeline.sig.unknown_directive")), fmt::arg("word", word)));
-                const auto first = doc.edges.size();
-                while (arrow_next()) {
-                    const int al = line_, ac = column_;
-                    advance();
-                    advance();
-                    skip(false);
-                    if (done() || peek() == '\n' || !ident_start(peek())) fail(al, ac, tr("pipeline.sig.dangling_arrow"));
-                    auto next = port_ref();
-                    if (!prev.port.empty() && !doc.edges.empty() && doc.edges.back().to.node == prev.node && doc.edges.back().to.line == prev.line &&
-                        doc.edges.back().to.column == prev.column)
-                        fail(prev.line, prev.column, tr("pipeline.sig.port_in_chain"));
-                    doc.edges.push_back({prev, next});
-                    prev = std::move(next);
-                    skip(false);
-                }
-                end_of_line();
-                doc.edges[first].comments = take_comments();
+                statement(doc, names, word, line, column, true);
             }
+        }
+        for (const auto& b : doc.blocks) {
+            const auto node = names.nodes.find(b.name);
+            const auto let = names.lets.find(b.name);
+            if (node != names.nodes.end() || let != names.lets.end())
+                fail(b.line, 1, fmt::format(fmt::runtime(tr("pipeline.blocks.name_taken")), fmt::arg("name", b.name),
+                                            fmt::arg("line", node != names.nodes.end() ? node->second : let->second)));
         }
         doc.tail = take_comments();
         while (!doc.tail.above.empty() && doc.tail.above.back().empty()) doc.tail.above.pop_back();
@@ -155,7 +100,176 @@ public:
     }
 
 private:
+    struct Names {
+        std::map<std::string, int, std::less<>> nodes, lets;
+    };
+
     [[noreturn]] void fail(int line, int column, std::string message) { throw Failure{{line, column, std::move(message)}}; }
+
+    std::string path(std::string head, bool document) {
+        while (peek() == '/') {
+            if (!document) fail(line_, column_, tr("pipeline.blocks.slash_inside"));
+            advance();
+            head += "/" + ident();
+        }
+        return head;
+    }
+
+    template <class Body>
+    void statement(Body& body, Names& names, const std::string& word, int line, int column, bool document) {
+        if (word == "node") {
+            skip(false);
+            NodeDecl node;
+            node.line = line;
+            const int il = line_, ic = column_;
+            node.id = ident();
+            if (peek() == '/') fail(line_, column_, tr("pipeline.blocks.slash_in_name"));
+            if (const auto it = names.nodes.find(node.id); it != names.nodes.end())
+                fail(il, ic, fmt::format(fmt::runtime(tr("pipeline.sig.duplicate_node")), fmt::arg("node", node.id), fmt::arg("line", it->second)));
+            names.nodes.emplace(node.id, line);
+            skip(false);
+            expect('=');
+            skip(false);
+            node.type = ident();
+            skip(false);
+            if (peek() == '(') node.params = params();
+            skip(false);
+            if (ident_start(peek())) {
+                const int bl = line_, bc = column_;
+                if (ident() != "bypass") fail(bl, bc, fmt::format(fmt::runtime(tr("pipeline.sig.expected_symbol")), fmt::arg("symbol", "bypass")));
+                node.bypass = true;
+            }
+            end_of_line();
+            node.comments = take_comments();
+            body.nodes.push_back(std::move(node));
+        } else if (word == "probe") {
+            skip(false);
+            ProbeDecl probe;
+            probe.at = port_ref(document);
+            skip(false);
+            if (ident_start(peek())) {
+                const int al = line_, ac = column_;
+                if (ident() != "as") fail(al, ac, fmt::format(fmt::runtime(tr("pipeline.sig.expected_symbol")), fmt::arg("symbol", "as")));
+                skip(false);
+                probe.name = string_value();
+            }
+            end_of_line();
+            probe.comments = take_comments();
+            body.probes.push_back(std::move(probe));
+        } else if (directive_ahead(word, rest_of_line())) {
+            if (version_ < 2) fail(line, column, fmt::format(fmt::runtime(tr("pipeline.sig.v2_directive")), fmt::arg("word", word)));
+            if (!document && word != "let") fail(line, column, fmt::format(fmt::runtime(tr("pipeline.blocks.nested")), fmt::arg("word", word)));
+            if (word != "let") fail(line, column, fmt::format(fmt::runtime(tr("pipeline.sig.unknown_directive")), fmt::arg("word", word)));
+            skip(false);
+            LetDecl let;
+            let.line = line;
+            const int nl = line_, nc = column_;
+            let.name = ident();
+            if (const auto it = names.lets.find(let.name); it != names.lets.end())
+                fail(nl, nc, fmt::format(fmt::runtime(tr("pipeline.vars.duplicate")), fmt::arg("name", let.name), fmt::arg("line", it->second)));
+            names.lets.emplace(let.name, line);
+            skip(false);
+            expect('=');
+            skip(false);
+            if (done() || peek() == '\n') fail(line_, column_, tr("pipeline.sig.expected_value"));
+            let.value = peek() == '"' ? string_value() : bare_value();
+            end_of_line();
+            let.comments = take_comments();
+            body.lets.push_back(std::move(let));
+        } else {
+            PortRef prev{path(word, document), {}, line, column};
+            if (peek() == '.') {
+                advance();
+                prev.port = ident();
+            }
+            skip(false);
+            if (!arrow_next()) fail(line, column, fmt::format(fmt::runtime(tr("pipeline.sig.unknown_directive")), fmt::arg("word", word)));
+            const auto first = body.edges.size();
+            while (arrow_next()) {
+                const int al = line_, ac = column_;
+                advance();
+                advance();
+                skip(false);
+                if (done() || peek() == '\n' || !ident_start(peek())) fail(al, ac, tr("pipeline.sig.dangling_arrow"));
+                auto next = port_ref(document);
+                if (!prev.port.empty() && !body.edges.empty() && body.edges.back().to.node == prev.node && body.edges.back().to.line == prev.line &&
+                    body.edges.back().to.column == prev.column)
+                    fail(prev.line, prev.column, tr("pipeline.sig.port_in_chain"));
+                body.edges.push_back({prev, next});
+                prev = std::move(next);
+                skip(false);
+            }
+            end_of_line();
+            body.edges[first].comments = take_comments();
+        }
+    }
+
+    BlockDef block(int line) {
+        BlockDef def;
+        def.line = line;
+        skip(false);
+        def.name = ident();
+        skip(false);
+        if (peek() == '(') def.defaults = params(&def.order);
+        skip(false);
+        expect('{');
+        end_of_line();
+        def.comments = take_comments();
+        Names names;
+        std::map<std::string, int, std::less<>> ports;
+        for (;;) {
+            if (peek() == '\n') advance();
+            leading();
+            if (done()) fail(line, 1, fmt::format(fmt::runtime(tr("pipeline.blocks.unclosed")), fmt::arg("name", def.name)));
+            const int sl = line_, sc = column_;
+            if (peek() == '}') {
+                advance();
+                end_of_line();
+                def.closing = take_comments();
+                break;
+            }
+            if (!ident_start(peek())) fail(sl, sc, fmt::format(fmt::runtime(tr("pipeline.sig.unknown_directive")), fmt::arg("word", rest_of_word())));
+            const auto word = ident();
+            if ((word == "block" || word == "use" || word == "region" || word == "mark") && directive_ahead(word, rest_of_line()))
+                fail(sl, sc, fmt::format(fmt::runtime(tr("pipeline.blocks.nested")), fmt::arg("word", word)));
+            const auto after = rest_of_line();
+            const auto first = after.find_first_not_of(" \t");
+            const bool port_line = (word == "in" || word == "out") && first != std::string_view::npos && first > 0 && ident_start(after[first]);
+            if (!port_line) {
+                statement(def, names, word, sl, sc, false);
+                continue;
+            }
+            auto& list = word == "in" ? def.ins : def.outs;
+            const auto at = list.size();
+            for (;;) {
+                skip(false);
+                PortDecl port;
+                port.line = sl;
+                const int pl = line_, pc = column_;
+                port.name = ident();
+                if (const auto it = ports.find(port.name); it != ports.end())
+                    fail(pl, pc, fmt::format(fmt::runtime(tr("pipeline.blocks.duplicate_port")), fmt::arg("name", port.name), fmt::arg("line", it->second)));
+                ports.emplace(port.name, sl);
+                skip(false);
+                if (word == "in" && ident_start(peek())) {
+                    const int ol = line_, oc = column_;
+                    if (ident() != "optional") fail(ol, oc, fmt::format(fmt::runtime(tr("pipeline.sig.expected_symbol")), fmt::arg("symbol", "optional")));
+                    port.optional = true;
+                    skip(false);
+                }
+                list.push_back(std::move(port));
+                if (peek() != ',') break;
+                advance();
+            }
+            end_of_line();
+            list[at].comments = take_comments();
+        }
+        for (const auto& [name, at] : ports)
+            if (const auto it = names.nodes.find(name); it != names.nodes.end())
+                fail(it->second, 1, fmt::format(fmt::runtime(tr("pipeline.blocks.port_clash")), fmt::arg("name", name)));
+        return def;
+    }
+
 
     bool done() const { return pos_ >= text_.size(); }
     char peek(std::size_t ahead = 0) const { return pos_ + ahead < text_.size() ? text_[pos_ + ahead] : '\0'; }
@@ -299,7 +413,7 @@ private:
         return std::string{text_.substr(start, pos_ - start)};
     }
 
-    Params params() {
+    Params params(std::vector<std::string>* order = nullptr) {
         const int pl = line_, pc = column_;
         advance();
         Params out;
@@ -320,6 +434,7 @@ private:
             auto value = peek() == '"' ? string_value() : bare_value();
             if (!out.emplace(key, std::move(value)).second)
                 fail(kl, kc, fmt::format(fmt::runtime(tr("pipeline.sig.duplicate_param")), fmt::arg("param", key)));
+            if (order) order->push_back(key);
             skip(true);
             if (done()) fail(pl, pc, tr("pipeline.sig.unclosed_paren"));
             if (peek() == ',') {
@@ -333,11 +448,11 @@ private:
         }
     }
 
-    PortRef port_ref() {
+    PortRef port_ref(bool document) {
         PortRef r;
         r.line = line_;
         r.column = column_;
-        r.node = ident();
+        r.node = path(ident(), document);
         if (peek() == '.') {
             advance();
             r.port = ident();
@@ -370,9 +485,21 @@ std::string quoted(const std::string& v) {
 
 std::string ref_text(const PortRef& r) { return r.port.empty() ? r.node : r.node + "." + r.port; }
 
-std::string node_line(const NodeDecl& n, std::size_t id_width) {
-    const auto* type = find_block_type(n.type);
+const BlockDef* own_block(const PipelineDoc* doc, std::string_view name) {
+    if (!doc) return nullptr;
+    for (const auto* list : {&doc->blocks, &doc->imported})
+        for (const auto& b : *list)
+            if (b.name == name) return &b;
+    return nullptr;
+}
+
+std::string node_line(const NodeDecl& n, std::size_t id_width, const PipelineDoc* doc = nullptr) {
+    const auto* own = own_block(doc, n.type);
+    const auto* type = own ? nullptr : find_block_type(n.type);
     std::vector<std::pair<std::string, bool>> order;
+    if (own)
+        for (const auto& key : own->order)
+            if (n.params.contains(key)) order.emplace_back(key, false);
     if (type)
         for (const auto& spec : type->params)
             if (n.params.contains(spec.name)) order.emplace_back(spec.name, spec.kind == ParamSpec::Kind::path);
@@ -429,6 +556,95 @@ std::string escape_dollars(std::string_view value) {
     return out;
 }
 
+std::string after_text(const std::string& comment) { return comment.empty() ? std::string{} : "  " + comment; }
+
+void write_wires(std::string& out, const std::vector<Edge>& edges, const std::vector<ProbeDecl>& probes, const std::string& indent,
+                 const std::function<void(const Comments&)>& above) {
+    std::vector<PortRef> chain;
+    std::string chain_comment;
+    const auto flush = [&] {
+        if (chain.empty()) return;
+        std::string line;
+        for (const auto& r : chain) line += (line.empty() ? "" : " -> ") + ref_text(r);
+        out += indent + line + after_text(chain_comment) + "\n";
+        chain.clear();
+    };
+    for (const auto& e : edges) {
+        const bool joins = !chain.empty() && chain.back().port.empty() && e.from.port.empty() && chain.back().node == e.from.node;
+        if (joins && e.comments.empty() && (chain_comment.empty() || e.from.line == chain.back().line)) {
+            chain.push_back(e.to);
+            continue;
+        }
+        flush();
+        above(e.comments);
+        chain = {e.from, e.to};
+        chain_comment = e.comments.after;
+    }
+    flush();
+    for (const auto& p : probes) {
+        above(p.comments);
+        out += indent + "probe " + ref_text(p.at) + (p.name.empty() ? "" : " as " + quoted(p.name)) + after_text(p.comments.after) + "\n";
+    }
+}
+
+void write_block(std::string& out, const BlockDef& b, const PipelineDoc& doc) {
+    const std::string in = "    ";
+    std::string head = "block " + b.name;
+    if (!b.order.empty()) {
+        std::string args;
+        for (const auto& key : b.order) {
+            const auto& value = b.defaults.at(key);
+            args += (args.empty() ? "" : ", ") + key + "=" + (bare_safe(value) ? value : quoted(value));
+        }
+        head += "(" + args + ")";
+    }
+    out += head + " {" + after_text(b.comments.after) + "\n";
+    bool any = false, first = true;
+    const auto line_of = [&](const std::string& text) { out += (text.empty() ? std::string{} : in + text) + "\n"; };
+    const auto above = [&](const Comments& c) {
+        if (c.gap && !first) out += "\n";
+        for (const auto& line : c.above) line_of(line);
+        first = false;
+    };
+    const auto ports = [&](const std::vector<PortDecl>& list, const char* word) {
+        for (std::size_t k = 0; k < list.size();) {
+            above(list[k].comments);
+            std::string line = std::string{word} + " ";
+            auto j = k;
+            for (; j < list.size() && list[j].line == list[k].line; ++j) line += (j > k ? ", " : "") + list[j].name + (list[j].optional ? " optional" : "");
+            line_of(line + after_text(list[k].comments.after));
+            k = j;
+            any = true;
+        }
+    };
+    ports(b.ins, "in");
+    ports(b.outs, "out");
+    for (const auto& l : b.lets) {
+        above(l.comments);
+        line_of("let " + l.name + " = " + (bare_safe(l.value) ? l.value : quoted(l.value)) + after_text(l.comments.after));
+        any = true;
+    }
+    if (!b.nodes.empty()) {
+        if (any) out += "\n";
+        first = true;
+        std::size_t width = 0;
+        for (const auto& n : b.nodes) width = std::max(width, n.id.size());
+        for (const auto& n : b.nodes) {
+            above(n.comments);
+            line_of(node_line(n, width, &doc) + after_text(n.comments.after));
+        }
+        any = true;
+    }
+    if (!b.edges.empty() || !b.probes.empty()) {
+        if (any) out += "\n";
+        first = true;
+        write_wires(out, b.edges, b.probes, in, above);
+    }
+    if (b.closing.gap && !b.closing.above.empty()) out += "\n";
+    for (const auto& line : b.closing.above) line_of(line);
+    out += "}" + after_text(b.closing.after) + "\n";
+}
+
 std::string write_sig(const PipelineDoc& doc) {
     std::string out;
     for (const auto& line : doc.preamble) out += line + "\n";
@@ -440,11 +656,28 @@ std::string write_sig(const PipelineDoc& doc) {
         for (const auto& line : c.above) out += line + "\n";
         first = false;
     };
+    if (!doc.uses.empty()) {
+        out += "\n";
+        first = true;
+        for (const auto& u : doc.uses) {
+            above(u.comments);
+            out += "use " + quoted(u.path) + after(u.comments.after) + "\n";
+        }
+    }
     if (!doc.lets.empty()) {
         out += "\n";
+        first = true;
         for (const auto& l : doc.lets) {
             above(l.comments);
             out += "let " + l.name + " = " + (bare_safe(l.value) ? l.value : quoted(l.value)) + after(l.comments.after) + "\n";
+        }
+    }
+    if (!doc.blocks.empty()) {
+        out += "\n";
+        first = true;
+        for (const auto& b : doc.blocks) {
+            above(b.comments);
+            write_block(out, b, doc);
         }
     }
     if (!doc.nodes.empty()) {
@@ -454,37 +687,13 @@ std::string write_sig(const PipelineDoc& doc) {
         first = true;
         for (const auto& n : doc.nodes) {
             above(n.comments);
-            out += node_line(n, width) + after(n.comments.after) + "\n";
+            out += node_line(n, width, &doc) + after(n.comments.after) + "\n";
         }
     }
     if (!doc.edges.empty() || !doc.probes.empty()) {
         out += "\n";
         first = true;
-        std::vector<PortRef> chain;
-        std::string chain_comment;
-        const auto flush = [&] {
-            if (chain.empty()) return;
-            std::string line;
-            for (const auto& r : chain) line += (line.empty() ? "" : " -> ") + ref_text(r);
-            out += line + after(chain_comment) + "\n";
-            chain.clear();
-        };
-        for (const auto& e : doc.edges) {
-            const bool joins = !chain.empty() && chain.back().port.empty() && e.from.port.empty() && chain.back().node == e.from.node;
-            if (joins && e.comments.empty() && (chain_comment.empty() || e.from.line == chain.back().line)) {
-                chain.push_back(e.to);
-                continue;
-            }
-            flush();
-            above(e.comments);
-            chain = {e.from, e.to};
-            chain_comment = e.comments.after;
-        }
-        flush();
-        for (const auto& p : doc.probes) {
-            above(p.comments);
-            out += "probe " + ref_text(p.at) + (p.name.empty() ? "" : " as " + quoted(p.name)) + after(p.comments.after) + "\n";
-        }
+        write_wires(out, doc.edges, doc.probes, "", above);
     }
     if (!doc.tail.above.empty()) {
         if (doc.tail.gap) out += "\n";

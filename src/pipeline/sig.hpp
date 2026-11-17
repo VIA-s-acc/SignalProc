@@ -1,6 +1,7 @@
 #pragma once
 
 #include <expected>
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <string>
@@ -53,6 +54,34 @@ struct ProbeDecl {
     Comments comments = {};
 };
 
+struct PortDecl {
+    std::string name;
+    bool optional = false;
+    int line = 0;
+    Comments comments = {};
+};
+
+struct BlockDef {
+    std::string name;
+    Params defaults;
+    std::vector<std::string> order = {};
+    std::vector<PortDecl> ins = {}, outs = {};
+    std::vector<LetDecl> lets = {};
+    std::vector<NodeDecl> nodes = {};
+    std::vector<Edge> edges = {};
+    std::vector<ProbeDecl> probes = {};
+    int line = 0;
+    Comments comments = {};
+    Comments closing = {};
+    std::filesystem::path origin = {};
+};
+
+struct UseDecl {
+    std::string path;
+    int line = 0;
+    Comments comments = {};
+};
+
 struct PipelineDoc {
     std::string name;
     int version = kSigVersion;
@@ -60,6 +89,9 @@ struct PipelineDoc {
     std::vector<NodeDecl> nodes;
     std::vector<Edge> edges;
     std::vector<ProbeDecl> probes;
+    std::vector<BlockDef> blocks = {};
+    std::vector<UseDecl> uses = {};
+    std::vector<BlockDef> imported = {};
     std::vector<std::string> preamble = {};
     std::string header_comment = {};
     Comments tail = {};
