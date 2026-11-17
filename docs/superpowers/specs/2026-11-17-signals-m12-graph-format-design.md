@@ -619,9 +619,86 @@ ru.md, en.md       текст книги; одного языка достато
 - Участок — переменная особого вида (`$speech`) с теми же правилами видимости.
 - Метки — только в секундах, от начала каждого нарисованного сигнала; времени начала у сигналов нет.
 - `{{…}}` в заданиях курса остаётся слоем курса вне формата.
+- Перечень мест, где живёт формат (приложение А), держится тестами А.6, а не памятью: фрагменты в текстах, старые имена, лишние ключи i18n, свежесть картинок, поля отчётов в справочнике.
 - Имена файлов щупов очищаются от небезопасных знаков.
 - Перевод пишет файлы на диск только по `migrate --write` или при сохранении; копия `имя.v1.sig` по умолчанию.
 - Два новых задания курса — на блок и на переменные.
 - Свои книги: папка с `book.toml` и Markdown, разделы с приставкой `книга:`, книга может ехать вместе с курсом через `books` в `course.toml`.
 - Свой курс открывается в интерфейсе, его прогресс хранится отдельно.
 - У M12 нет своего выпуска; 1.0.0 выходит после M13.
+
+## Приложение А. Где живёт формат: полный перечень
+
+Перечень собран обходом репозитория (`git ls-files`, `git grep`) на `main` 0.9.0. «Г» — генерируется из кода и обновляется сам (командой или тестом), «Р» — правится руками. Каждый PR M12 проходит по этому перечню и в описании отмечает, что из него затронул; что сознательно не тронуто, сказано там же.
+
+### А.1. Код, который читает, пишет или знает имена (Р)
+
+- **Чтение и запись.** Сейчас все вызывают `parse_sig`/`write_sig` напрямую; в M12 — только через единую загрузку.
+  - `src/commands/pipeline_commands.cpp`: `load()` для `run`, `sweep`, `graph`, `python`; отдельный разбор в `--watch --json`; `python` перечитывает исходный текст ради комментариев.
+  - `src/commands/watch.cpp` (`watched_files`): следить и за файлами из `use`.
+  - `src/commands/learn_commands.cpp` (`learn start`, `learn check`).
+  - Движок курса: `src/learn/checker.cpp`, `variant.cpp` (`{{…}}`), `task.cpp` (чтение `start.sig`, `solution.sig`, фильтр расширений своего курса — учесть файлы `use`), `lint.cpp`, `report.cpp` (граф вставляется в отчёт как есть), `progress.cpp`.
+  - Интерфейс: `pipeline_model.cpp` (`load`, `load_text`, `save`), `pipeline_screen.cpp` (примеры `O`, выгрузка `P`, панель «Текст .sig» ищет строки `node <id>`), `learn_state.cpp`, `start_panel.cpp`.
+  - Встраивание: `src/pipeline/CMakeLists.txt` и `examples.cpp` (примеры встроены без папки, поэтому **примеры не используют `use`**, это проверяет тест), `cmake/EmbedText.cmake` (все `*.sig` курса).
+- **Имена блоков, параметров и портов прямо в коде** — под сверку имён (§8):
+  - `-o` у `run` (`wav_out`, `path`), `listen`;
+  - `graph.cpp` (подсказка `idwt`/`dwt`, `dwt.levels`, грамматика полос);
+  - `executor.cpp` (`check`, `assert`);
+  - `checker.cpp` и `structure.cpp` (`samples`, `values`);
+  - `pipeline_screen.cpp` и `pipeline_model.cpp` (`wav`, `path`, `filter` и суффиксы `.h0` … `.f1`);
+  - `src/theory/pipeline_cards.cpp` и `blocks.cpp` (блок → карточка);
+  - `script.cpp` (`dwt`, `swt`, `export`, `export_report`).
+- **Не имена блоков**, не переименовывать вслепую: метки `transform` в `.npz` (`npz_values.cpp`) — это формат данных.
+- **Мост в Python**: формы `src/python/forms_*.cpp` (около 214 имён параметров и 70 сравнений с вариантами), `registry.cpp` (имена портов → имена переменных), 73 файла `resources/python/*.py` (аргументы и строки вариантов). `script.cpp` копирует строку исходного `.sig` в комментарий скрипта; после перевода брать её из текста v2, а не из исходного v1.
+- **VS Code** (`editors/vscode`): грамматика `sig.tmLanguage.json`, сниппеты (заголовки `v1`, сниппет банка Хаара), `extension.js` (регулярное выражение строки узла, границы контекста, список слов `node`/`probe`/`pipeline`), `preview.js` и `data/preview.json` (новые поля JSON), README и версия расширения. `data/blocks.*.json` — Г.
+- **Прочее**: `tools/gallery`, `bench/bench_pipeline.cpp` и `bench_tui.cpp` (граф текстом), шаги CI с `pinned.sig` и `first_steps.sig`.
+- **Генерируется само (Г)**: `explain`, `blocks --markdown` и `--json`, man-страница и дополнения команд (новая команда `migrate` появится в них сама; строки `cli.*` — Р).
+
+### А.2. Тексты (Р, кроме отмеченных)
+
+- `docs/user/sig-format.md`/`.en.md` (встроены в «Учебник»; пример с `v1`, фраза «есть только `v1`», примеры `--set`/`--vary`/`--measure`).
+- `README.md`/`README.ru.md`: копия `first_steps.sig` с `v1`, «137 блоков», «66 заданий», таблица команд (добавить `migrate`, `book`), имена блоков в тексте.
+- `docs/03-design.md` §9 и §13, `docs/04-backlog.md`, раздел Unreleased в `CHANGELOG.md` (историю не трогать).
+- `docs/user/python*.md` (имена блоков, таблица допусков), `learn*.md` (формат задания, ключи целей, новые цели, свой курс в интерфейсе, книги), `config*.md` (папки `blocks/` и `books/`) — последние два тоже встроены в «Учебник».
+- `docs/02-theory*.md`: несколько имён.
+- Карточки теории `resources/theory/{,en/}blocks/*.md`: около 38 в каждом языке называют блоки, параметры и варианты. Подстановки `{{block.*}}` в них — живые величины, не параметры `.sig`.
+- Курс: 66 заданий × `ru.md`/`en.md` (около 200 фрагментов синтаксиса в строке и 386 упоминаний блоков). В `task.toml` имена стоят в `forbid` (9 файлов), `through` (23), `param` (3), `field` (5), `when` (23) и в `require` (5) — **там имя блока — ключ таблицы** (`require = { dwt = 1 }`), перевод меняет и ключи.
+- i18n `resources/i18n/ru.json`/`en.json`:
+  - ключи по блокам переименовываются вместе с блоками: `pipeline.block.<id>`, `pipeline.about.<id>`, `pipeline.param.<id>.<p>[.<вариант>]` (518);
+  - строки с синтаксисом: `pipeline.sig.version`, `pipeline.sig.unknown_directive`, `pipeline.set.bad`, `pipeline.sweep.bad_vary`, `cli.run.set`, `cli.sweep.vary`, `cli.run.output`, `pipeline.cli.no_output`, `cli.explain.block`, `cli.man.exit.3`, `tui.start.example.about`;
+  - около 30 сообщений `pipeline.error.*` с именами блоков, параметров, портов и вариантов.
+- Тетрадь `examples/prak1/*.ipynb` (ячейки 30, 31, 34) и `examples/prak1/README.md`.
+- **Г**: `docs/user/blocks*.md` (`signals --lang ru|en blocks --markdown`), `docs/user/keys*.md` (`SIGNALS_UPDATE_SNAPSHOTS=1`).
+- **Историческое, не трогать и не проверять на старые имена**: `docs/superpowers/**`, `docs/research/**`, `docs/design/*.dc.html`, `docs/01-review*`.
+
+### А.3. Картинки
+
+- `docs/images/{en,ru}/*.svg` (по 19), рисует `signals-gallery` по команде из README.
+- Формат меняет `pipeline.svg`, `pipeline-run.svg`, `tour.svg`; новые разделы книги — `tutorial.svg` и `under_the_hood.svg` (число разделов); новые задания — `learn.svg` и `learn-check.svg` (0/66).
+- Сейчас их свежесть **никто не проверяет**.
+
+### А.4. Тесты, которые закрепляют текст и имена
+
+- Сверяют документы и данные с кодом: `tests/pipeline/test_docs.cpp`, `tests/tui/test_docs_keys.cpp`, `tests/cli/test_cli_docs.cpp`, `tests/theory/test_sections.cpp` (**закреплено 160 разделов** и идентификаторы `sig-*`), `test_cards.cpp`, `test_pipeline_screen.cpp` (i18n каждого блока, карточка каждого блока), `test_forms_complete.cpp`, `test_blocks_dsp.cpp` (все примеры), `test_sig.cpp` (`denoise.sig` равен выводу писателя), `tests/learn/test_course.cpp`, `test_i18n_keys.cpp`, `test_readme.cpp`.
+- Снимки и эталоны (Г, `SIGNALS_UPDATE_SNAPSHOTS=1`): `tests/snapshots/pipeline_*`, `tutorial_*`, `under_the_hood_*`, `learn_*`, `tests/golden/learn_report_*`, `tests/golden/python/tiny_*`, `tests/fixtures/vscode/first_steps.ndjson`.
+- Графы прямо в тестах: 84 заголовка `v1` в 21 файле и много фрагментов без заголовка; `tests/python/block_graphs.cpp` (особые случаи около 20 блоков). В M12 тесты пишутся в v2; `v1` остаётся только в тестах перевода.
+
+### А.5. Данные рядом с форматом
+
+- `session.toml` (только пути), `learn.toml` (без имён), `terminal.toml` — не затронуты.
+- `.flt` не содержит имён блоков, но `.sig` ссылается на свои фильтры по имени (`filter=имя.h0`).
+- Файлы пользователя в v1, которые переводятся при чтении: `<настройки>/learn/work/v<N>/<номер>.sig` и `<настройки>/learn/<номер>.sig`.
+- JSON и NDJSON прогона читают `preview.js` и CI.
+
+### А.6. Новые проверки, чтобы ничего не забыть
+
+Перечень выше держится не памятью, а тестами. M12 добавляет:
+
+1. **Фрагменты графов в текстах** (`docs/user`, README, `prak1`, условия заданий, карточки) читаются как текущая версия; с заголовком — целиком, без заголовка — как тело графа.
+2. **Нет старых имён**: после сверки имён (§8) тест ищет старые имена блоков, параметров, вариантов и полей отчётов во всех Р-текстах, кроме исторических.
+3. **Нет лишних ключей i18n**: каждый ключ `pipeline.block.*`, `pipeline.about.*`, `pipeline.param.*` соответствует существующему блоку, параметру или варианту.
+4. **Копия `first_steps.sig` в README** совпадает с файлом примера.
+5. **Картинки свежие**: CI рисует галерею заново и сравнивает с `docs/images`; расхождение — ошибка с командой, которая их обновит.
+6. **Поля отчётов попадают в справочник блоков** (`blocks --markdown` и `--json`, Г): у каждого блока, который выдаёт отчёт, перечислены его поля. Тогда переименование поля видно в справочнике, а тест 2 находит его старые упоминания.
+7. **Резервные копии `*.v1.sig`** игнорируются: правило в `.gitignore`, встраивание курса и примеров их пропускает; в репозитории `migrate` запускается с `--no-backup`.
+8. **Примеры не используют `use`**: встроенные примеры не имеют папки.
