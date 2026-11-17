@@ -135,6 +135,7 @@ add_executable(signals_tests
   pipeline/test_sig.cpp
   pipeline/test_sig_version.cpp
   pipeline/test_migrate.cpp
+  pipeline/test_no_raw_parse.cpp
   pipeline/test_graph.cpp
   pipeline/test_executor.cpp
   pipeline/test_layout.cpp
@@ -143,12 +144,14 @@ add_executable(signals_tests
   tui/test_pipeline_python.cpp
   tui/test_prak1_walkthrough.cpp
   cli/test_cli_pipeline.cpp
+  cli/test_cli_migrate_notes.cpp
   cli/test_cli_npz.cpp
   cli/test_cli_learn.cpp
   tui/test_learn_state.cpp
   tui/test_learn_screen.cpp
   tui/test_learn_strip.cpp
   tui/test_strip_rows.cpp
+  tui/test_pipeline_migrate.cpp
   theory/test_latex.cpp
   theory/test_math_layout.cpp
   theory/test_markdown.cpp

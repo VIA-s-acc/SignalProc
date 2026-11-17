@@ -1,4 +1,4 @@
-pipeline "audio_chain" v1
+pipeline "audio_chain" v2
 
 node x     = wav(path="../resources/samples/test.wav")
 node hp    = biquad(type=highpass, f0=80, q=0.7071)

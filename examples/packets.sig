@@ -1,4 +1,4 @@
-pipeline "packets" v1
+pipeline "packets" v2
 
 node x    = wav(path="../resources/samples/test.wav")
 node wpt  = wpt(wavelet=db4, levels=4, basis=best, ext=periodization)

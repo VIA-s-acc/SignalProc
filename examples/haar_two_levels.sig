@@ -1,4 +1,4 @@
-pipeline "haar_two_levels" v1
+pipeline "haar_two_levels" v2
 
 node x    = samples(values="4 6 10 12 8 6 5 5", rate=8)
 node h0   = convolve(filter=haar.h0, method=direct)

@@ -1,4 +1,4 @@
-pipeline "denoise" v1
+pipeline "denoise" v2
 
 node src  = wav(path="../resources/samples/test.wav")
 node dwt  = dwt(wavelet=sym8, levels=0, ext=symmetric)

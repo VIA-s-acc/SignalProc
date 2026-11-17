@@ -1,11 +1,14 @@
 #include "commands/watch.hpp"
 
 #include <atomic>
+#include <chrono>
+#include <thread>
 #include <fstream>
 #include <iterator>
 #include <string>
 
 #include "pipeline/block.hpp"
+#include "pipeline/migrate.hpp"
 #include "pipeline/sig.hpp"
 
 namespace signals::cli {
@@ -34,9 +37,9 @@ std::vector<std::filesystem::path> watched_files(const std::filesystem::path& si
     std::vector<std::filesystem::path> out{absolute};
     std::ifstream in{sig, std::ios::binary};
     const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
-    const auto doc = pipeline::parse_sig(text);
-    if (!doc) return out;
-    for (const auto& n : doc->nodes) {
+    const auto loaded = pipeline::load_sig(text);
+    if (!loaded) return out;
+    for (const auto& n : loaded->doc.nodes) {
         const auto* type = pipeline::find_block_type(n.type);
         if (!type || type->side_effect) continue;
         for (const auto& spec : type->params) {
@@ -48,6 +51,22 @@ std::vector<std::filesystem::path> watched_files(const std::filesystem::path& si
         }
     }
     return out;
+}
+
+std::optional<std::string> read_settled(const std::filesystem::path& file) {
+    const auto read = [&]() -> std::optional<std::string> {
+        std::ifstream in{file, std::ios::binary};
+        if (!in) return std::nullopt;
+        return std::string{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+    };
+    auto text = read();
+    for (int k = 0; k < 10; ++k) {
+        std::this_thread::sleep_for(std::chrono::milliseconds{30});
+        auto again = read();
+        if (again == text) break;
+        text = std::move(again);
+    }
+    return text;
 }
 
 int watch_loop(const std::function<int()>& once, const std::function<std::vector<std::filesystem::path>()>& files, const std::function<bool()>& keep_going,

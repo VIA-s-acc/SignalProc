@@ -465,6 +465,29 @@ TEST_CASE("watch json prints one document per line on stdout", "[cli-watch]") {
     }
 }
 
+TEST_CASE("watch skips a half-written file", "[cli-watch]") {
+    const auto dir = fresh_dir("cli-watch-partial");
+    const auto sig = write_sig(dir, kWatched);
+    const auto npz = dir / "y.npz";
+    const auto out = watch_json({"signals", "run", sig.string(), "--watch", "--json", "--npz", npz.string()}, [&] {
+        wait_for([&] { return std::filesystem::exists(npz); });
+        { std::ofstream truncated{sig, std::ios::binary | std::ios::trunc}; }
+        std::this_thread::sleep_for(std::chrono::milliseconds{900});
+        const auto before = std::filesystem::last_write_time(npz);
+        write_sig(dir, std::string{kWatched}.replace(std::string{kWatched}.find("-6"), 2, "-12"));
+        for (int k = 0; k < 25 && std::filesystem::last_write_time(npz) == before; ++k) std::this_thread::sleep_for(std::chrono::milliseconds{400});
+    });
+    const auto lines = lines_of(out);
+    CHECK(lines.size() == 2);
+    for (const auto& line : lines) {
+        INFO(line);
+        const auto j = nlohmann::json::parse(line);
+        CHECK_FALSE(j.contains("error"));
+        CHECK(j.value("pipeline", std::string{}) == "w");
+        CHECK_FALSE(j.value("nodes", nlohmann::json::array()).empty());
+    }
+}
+
 TEST_CASE("watch json reports a sig error with its line", "[cli-watch]") {
     const auto dir = fresh_dir("cli-watch-error");
     const auto sig = write_sig(dir, std::string{kWatched} + "node bad = nosuchblock()\n");

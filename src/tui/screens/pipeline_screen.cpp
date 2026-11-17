@@ -21,6 +21,7 @@
 #include "io/wav.hpp"
 #include "pipeline/examples.hpp"
 #include "pipeline/block.hpp"
+#include "pipeline/migrate.hpp"
 #include "pipeline/sig.hpp"
 #include "python/form.hpp"
 #include "python/script.hpp"
@@ -168,6 +169,7 @@ std::vector<Command> PipelineScreen::commands() {
     out.push_back({"pipeline.probe_compare", tr("tui.pipeline.cmd.compare"), [this] { toggle_compare(); }});
     out.push_back({"pipeline.probe_save", tr("tui.pipeline.cmd.probe_save"), [this] { save_probe(); }});
     out.push_back({"pipeline.python", tr("tui.pipeline.cmd.python"), [this] { export_python(); }});
+    out.push_back({"pipeline.migration_notes", tr("tui.pipeline.cmd.migration_notes"), [this] { show_migration_notes(); }});
     return out;
 }
 
@@ -193,6 +195,16 @@ const pipeline::GraphNode* PipelineScreen::selected_node() const {
 }
 
 void PipelineScreen::report(const core::Result<void>& r) { notice_ = r ? std::string{} : r.error().message; }
+
+void PipelineScreen::show_migration_notes() {
+    if (model_->migration_notes().empty() || !ui_.choose) {
+        notice_ = tr("tui.pipeline.migration.none");
+        return;
+    }
+    std::vector<Command> items;
+    for (const auto& note : model_->migration_notes()) items.push_back({"pipeline.migration_note", note, [] {}});
+    ui_.choose(tr("tui.pipeline.cmd.migration_notes"), std::move(items));
+}
 
 void PipelineScreen::file_result(const core::Result<void>& r) {
     report(r);
@@ -876,11 +888,12 @@ void PipelineScreen::export_python() {
             return;
         }
         const auto source = pipeline::write_sig(model_->doc());
-        auto doc = pipeline::parse_sig(source);
-        if (!doc) {
-            notice_ = doc.error().message;
+        auto loaded = pipeline::load_sig(source);
+        if (!loaded) {
+            notice_ = loaded.error().message;
             return;
         }
+        auto doc = std::optional<pipeline::PipelineDoc>{std::move(loaded->doc)};
         auto graph = pipeline::build_graph(*doc, model_->base_dir());
         if (!graph) {
             notice_ = graph.error().message;
@@ -1524,6 +1537,7 @@ ftxui::Element PipelineScreen::text_panel(int width, int height) {
 }
 
 ftxui::Element PipelineScreen::OnRender() {
+    if (auto migrated = model_->take_migration_notice()) notice_ = std::move(*migrated);
     using namespace ftxui;
     take_python_result();
     panel_boxes_.fill(kNoBox);

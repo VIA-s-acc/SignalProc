@@ -33,6 +33,7 @@
 #include "pipeline/graph.hpp"
 #include "pipeline/layout.hpp"
 #include "pipeline/docs.hpp"
+#include "pipeline/migrate.hpp"
 #include "pipeline/sig.hpp"
 #include "theory/cards.hpp"
 #include "theory/pipeline_cards.hpp"
@@ -60,19 +61,28 @@ int sig_error(std::ostream& err, const std::filesystem::path& file, const pipeli
     return 1;
 }
 
-std::optional<pipeline::PipelineDoc> load(const std::filesystem::path& file, std::ostream& err) {
+void note_migration(std::ostream& err, const std::filesystem::path& file, const pipeline::Loaded& loaded) {
+    if (loaded.from_version >= pipeline::kSigVersion) return;
+    const auto u = file.filename().u8string();
+    err << fmt::format(fmt::runtime(tr("cli.run.migrated")), fmt::arg("file", std::string{u.begin(), u.end()}), fmt::arg("from", loaded.from_version),
+                       fmt::arg("to", pipeline::kSigVersion), fmt::arg("count", loaded.notes.size()))
+        << '\n';
+}
+
+std::optional<pipeline::Loaded> load(const std::filesystem::path& file, std::ostream& err) {
     std::ifstream in{file, std::ios::binary};
     if (!in) {
         report_error(err, {core::Errc::io_error, fmt::format(fmt::runtime(tr("pipeline.cli.cannot_read")), fmt::arg("path", file.string()))});
         return std::nullopt;
     }
     const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
-    auto doc = pipeline::parse_sig(text);
-    if (!doc) {
-        sig_error(err, file, doc.error());
+    auto loaded = pipeline::load_sig(text);
+    if (!loaded) {
+        sig_error(err, file, loaded.error());
         return std::nullopt;
     }
-    return std::move(*doc);
+    note_migration(err, file, *loaded);
+    return std::move(*loaded);
 }
 
 constexpr std::size_t kListedFrames = 64;
@@ -240,6 +250,9 @@ public:
     }
 
 private:
+    int migrated_from_ = pipeline::kSigVersion;
+    std::vector<std::string> migration_notes_;
+
     int json_error(std::ostream& out, const std::filesystem::path& file, int line, const std::string& message) const {
         const auto u = std::filesystem::absolute(file).u8string();
         out << nlohmann::json{{"error", {{"file", std::string{u.begin(), u.end()}}, {"line", line}, {"message", message}}}}.dump() << std::endl;
@@ -251,15 +264,24 @@ private:
         const bool lines = watch_ && json_;
         std::optional<pipeline::PipelineDoc> doc;
         if (lines) {
-            std::ifstream in{file, std::ios::binary};
-            if (!in) return json_error(out, file, 0, fmt::format(fmt::runtime(tr("pipeline.cli.cannot_read")), fmt::arg("path", file.string())));
-            const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
-            auto parsed = pipeline::parse_sig(text);
+            const auto text = read_settled(file);
+            if (!text) return json_error(out, file, 0, fmt::format(fmt::runtime(tr("pipeline.cli.cannot_read")), fmt::arg("path", file.string())));
+            if (text->find_first_not_of(" \t\r\n") == std::string::npos) {
+                err << tr("cli.watch.partial") << std::endl;
+                return 0;
+            }
+            auto parsed = pipeline::load_sig(*text);
             if (!parsed) return json_error(out, file, parsed.error().line, parsed.error().message);
-            doc = std::move(*parsed);
+            note_migration(err, file, *parsed);
+            migrated_from_ = parsed->from_version;
+            migration_notes_ = std::move(parsed->notes);
+            doc = std::move(parsed->doc);
         } else {
-            doc = load(file, err);
-            if (!doc) return 1;
+            auto loaded = load(file, err);
+            if (!loaded) return 1;
+            migrated_from_ = loaded->from_version;
+            migration_notes_ = std::move(loaded->notes);
+            doc = std::move(loaded->doc);
         }
         for (const auto& s : sets_)
             if (auto ok = pipeline::apply_set(*doc, s); !ok) return lines ? json_error(out, file, 0, ok.error().message) : (report_error(err, ok.error()), 1);
@@ -301,14 +323,18 @@ private:
         }
         if (!report_.empty())
             if (auto ok = write_run_report(report_, *doc, *graph, *result, file); !ok) return report_error(err, ok.error()), 1;
-        if (json_) print_json(*doc, *graph, *result, out, values_, lines);
+        if (json_) print_json(*doc, *graph, *result, out, values_, lines, migrated_from_, migration_notes_);
         else print_text(*doc, *graph, *result, out, values_);
         return result->checks_passed ? 0 : 3;
     }
 
     static void print_json(const pipeline::PipelineDoc& doc, const pipeline::Graph& g, const pipeline::RunResult& r, std::ostream& out, std::optional<std::size_t> listed,
-                           bool one_line) {
+                           bool one_line, int migrated_from, const std::vector<std::string>& notes) {
         nlohmann::json j{{"pipeline", doc.name}, {"checks_passed", r.checks_passed}};
+        if (migrated_from < pipeline::kSigVersion) {
+            j["migrated_from"] = migrated_from;
+            j["migration_notes"] = notes;
+        }
         j["nodes"] = nlohmann::json::array();
         for (std::size_t i = 0; i < r.nodes.size(); ++i) {
             const auto& s = r.nodes[i];
@@ -478,8 +504,9 @@ public:
 
     int run(std::ostream& out, std::ostream& err) override {
         const std::filesystem::path file{file_};
-        auto doc = load(file, err);
-        if (!doc) return 1;
+        auto loaded = load(file, err);
+        if (!loaded) return 1;
+        auto doc = std::optional<pipeline::PipelineDoc>{std::move(loaded->doc)};
         for (const auto& s : sets_)
             if (auto ok = pipeline::apply_set(*doc, s); !ok) return report_error(err, ok.error()), 1;
         auto axis = pipeline::parse_vary(vary_);
@@ -604,8 +631,9 @@ public:
 
     int run(std::ostream& out, std::ostream& err) override {
         const std::filesystem::path file{file_};
-        auto doc = load(file, err);
-        if (!doc) return 1;
+        auto loaded = load(file, err);
+        if (!loaded) return 1;
+        auto doc = std::optional<pipeline::PipelineDoc>{std::move(loaded->doc)};
         auto graph = pipeline::build_graph(*doc, std::filesystem::absolute(file).parent_path());
         if (!graph) return sig_error(err, file, graph.error());
         for (const auto& line : pipeline::draw_graph(*graph, ascii_)) out << line << '\n';
@@ -649,18 +677,28 @@ public:
 
     int run(std::ostream& out, std::ostream& err) override {
         const std::filesystem::path file{file_};
-        auto doc = load(file, err);
-        if (!doc) return 1;
+        auto loaded = load(file, err);
+        if (!loaded) return 1;
+        auto doc = std::optional<pipeline::PipelineDoc>{std::move(loaded->doc)};
         for (const auto& s : sets_)
             if (auto ok = pipeline::apply_set(*doc, s); !ok) return report_error(err, ok.error()), 1;
         auto target = output_.empty() ? std::filesystem::path{file}.replace_extension(".py") : pipeline::utf8_path(output_);
         if (auto ok = python::check_script_name(target); !ok) return report_error(err, ok.error()), err << tr("python.module_name_cli") << '\n', 2;
         if (std::error_code ec; std::filesystem::equivalent(target, file, ec))
             return report_error(err, {core::Errc::invalid_argument, tr("python.same_file")}), 2;
-        auto graph = pipeline::build_graph(*doc, std::filesystem::absolute(file).parent_path());
+        const auto base = std::filesystem::absolute(file).parent_path();
+        auto graph = pipeline::build_graph(*doc, base);
         if (!graph) return sig_error(err, file, graph.error());
-        std::ifstream in{file, std::ios::binary};
-        const std::string source{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+        std::string source;
+        if (loaded->from_version < pipeline::kSigVersion) {
+            source = pipeline::write_sig(*doc);
+            doc = pipeline::load_sig(source)->doc;
+            graph = pipeline::build_graph(*doc, base);
+            if (!graph) return sig_error(err, file, graph.error());
+        } else {
+            std::ifstream in{file, std::ios::binary};
+            source.assign(std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{});
+        }
         core::CancelToken cancel;
         const bool notebook = target.extension() == ".ipynb";
         const python::ScriptOptions options{notebook ? python::ScriptKind::notebook : python::ScriptKind::script, target, file, source};
