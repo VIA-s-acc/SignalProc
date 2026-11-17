@@ -30,7 +30,7 @@ std::string filled(std::string text, const std::string& script, const std::strin
     return text;
 }
 
-constexpr const char* kGraph = "pipeline \"t\" v1\n"
+constexpr const char* kGraph = "pipeline \"t\" v2\n"
                                "node x = samples(values=\"0.125 -0.5 0.25 1\", rate=8)\n"
                                "node g = gain(db=-6)\n"
                                "x -> g\n"

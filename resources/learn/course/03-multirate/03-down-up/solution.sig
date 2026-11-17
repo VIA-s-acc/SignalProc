@@ -1,4 +1,4 @@
-pipeline "down_up" v1
+pipeline "down_up" v2
 
 node x = samples(values="{{x}}", rate=8)
 node d = downsample(m=2, anti_alias=no)

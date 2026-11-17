@@ -5,7 +5,7 @@ A `.sig` file is a text description of a «Pipeline» graph: which blocks to use
 A small example — a one-level Haar bank:
 
 ```
-pipeline "haar_bank" v1
+pipeline "haar_bank" v2
 
 # an eight-sample signal, as in «Explain»
 node x   = samples(values="4 6 10 12 8 6 5 5", rate=8)
@@ -33,7 +33,7 @@ probe sum as "x̂"
 
 One statement per line. The order of lines does not matter: a wire may come before the nodes it connects. Blank lines and indentation are allowed.
 
-- `pipeline "name" v1` — the header: the graph name in quotes and the format version. Only `v1` exists today.
+- `pipeline "name" v2` — the header: the graph name in quotes and the format version. The current version is `v2`. The program reads `v1` files itself and migrates them to `v2` when it opens them (section «Format versions»).
 - `node id = block(param=value, …)` — a node. The id consists of Latin letters, digits and underscores and starts with a letter or `_`; ids are unique. Parameters are comma-separated in any order; omitted ones take their defaults, so `add()` and plain `add` are the same. A line may break inside the parentheses.
 - `node id = block(…) bypass` — the node is bypassed: its input goes straight to its output and the block is not computed. Only blocks whose input and output have the same type can be bypassed.
 - `a -> b -> c` — a chain of wires: the output of `a` into `b`, the output of `b` into `c`. A port follows a dot: `x -> pr.ref`, `sum -> pr.in`, `lms.e -> out`. A port is not allowed in the middle of a chain; split such a chain into two lines.
@@ -124,6 +124,23 @@ Before a run the whole graph is checked, and every error names its line:
 - `signals graph graph.sig` — draw the graph as text (`--ascii` — ASCII only).
 - `signals blocks` — the block list; `--markdown` — the `docs/user/blocks.md` reference; `--json` — block descriptions for editors.
 - `signals explain block` — one block in detail: what it does, its ports, every parameter with its default, range and explanation, the meaning of every choice and the theory card. A typo in the name suggests the nearest block.
+
+### Format versions {#sig-versions}
+
+The number in the header is the version of the format, not of the program. The current version is `v2`. Signals reads files of every earlier version and writes only the current one.
+
+- **Opening an old file.** The «Pipeline» tab, `signals run`, `watch`, `sweep`, `graph`, `python`, course tasks and students' work migrate an old file in memory. The file on disk does not change. The «Pipeline» tab says «graph v1 migrated to v2…» in its notice line, and the palette command «What changed in the migration» lists the changes. `Ctrl+S` saves the graph as `v2`. The CLI prints one line about the migration on stderr, and `--json` and the NDJSON of `watch` gain the fields `migrated_from` and `migration_notes`.
+- **Migrating files on disk** — `signals migrate`:
+  - `signals migrate PATH…` — files and folders (folders are searched recursively). Prints the version of every file and what would change, changing nothing.
+  - `--write` — rewrite old files. A copy `name.v1.sig` is kept next to each; `--no-backup` skips it.
+  - `--check` — exit code 1 if any file is in an old format: CI uses it to check that a repository is migrated.
+  
+  A file that does not parse is reported with its line, and the other files are still migrated. The command skips `*.v1.sig` copies, and an own course does not count them as tasks.
+- **What the `v1` → `v2` migration changes.** In `v2` the `$` sign starts a variable, so a literal `$` in a parameter value is written as `$$`. The migration does it: `path="a$b.wav"` becomes `path="a$$b.wav"`, and the program still reads the file `a$b.wav`.
+- **Encoding and line endings.** A file with a UTF-8 byte order mark (BOM) and with Windows line endings (CRLF) reads like any other. The program writes UTF-8 without a BOM and LF line endings.
+- **A file newer than the program.** This program does not open a `v3` file and asks you to update Signals.
+
+The rule for the future: every change of the format is a new version and a migration step. Old versions are always read, and samples of each are kept in the tests (`tests/fixtures/sig/v1`): the migration must give the same text and the same numbers.
 
 ### Where to look up blocks {#sig-blocks}
 

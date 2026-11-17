@@ -1,4 +1,4 @@
-pipeline "haar_bank" v1
+pipeline "haar_bank" v2
 
 node x   = samples(values="{{x}}", rate=8)
 node w   = dwt(wavelet=haar, levels=1, ext=periodization)

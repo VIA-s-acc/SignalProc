@@ -1,4 +1,4 @@
-pipeline "h0_db2" v1
+pipeline "h0_db2" v2
 
 node imp = samples(values="1 0 0 0", rate=8)
 node h0  = convolve(filter=db2.h0, method=direct)

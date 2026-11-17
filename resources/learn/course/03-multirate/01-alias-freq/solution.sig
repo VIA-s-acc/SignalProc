@@ -1,4 +1,4 @@
-pipeline "alias" v1
+pipeline "alias" v2
 
 node s  = gen(kind=sine, freq={{f0}}, rate=9000, duration=4)
 node d  = downsample(m={{m}}, anti_alias=no)

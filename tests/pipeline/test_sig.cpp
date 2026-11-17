@@ -15,7 +15,7 @@ using Catch::Matchers::ContainsSubstring;
 
 namespace {
 
-constexpr std::string_view kExample = R"(pipeline "denoise" v1
+constexpr std::string_view kExample = R"(pipeline "denoise" v2
 
 node src  = wav(path="test.wav")
 node ch   = split(mode=lr)
@@ -73,7 +73,7 @@ TEST_CASE("writing the design example gives it back unchanged", "[pipeline][sig]
 }
 
 TEST_CASE("writing a parsed document is a fixed point", "[pipeline][sig]") {
-    const auto doc = parse_sig("# a comment\npipeline \"x\" v1\nnode b=gain(db=-6)\n  node a = wav( path = \"in.wav\" )\na->b\nprobe b as \"g\"\n");
+    const auto doc = parse_sig("# a comment\npipeline \"x\" v2\nnode b=gain(db=-6)\n  node a = wav( path = \"in.wav\" )\na->b\nprobe b as \"g\"\n");
     REQUIRE(doc);
     const auto once = write_sig(*doc);
     const auto again = parse_sig(once);
@@ -198,7 +198,7 @@ TEST_CASE("comments and blank-line groups survive a parse and a write", "[pipeli
     constexpr std::string_view text = R"(# Denoise a recording made in the lab.
 # Author's notes are kept.
 
-pipeline "denoise" v1  # version 1 of the format
+pipeline "denoise" v2  # version 2 of the format
 
 # sources
 node src  = wav(path="test.wav")  # the raw take
@@ -229,41 +229,41 @@ probe dwt.d1 as "d1"
 }
 
 TEST_CASE("comments stay with their node when the graph is edited", "[pipeline][sig][comments]") {
-    auto doc = parse_sig("pipeline \"g\" v1\n\n# input\nnode x = samples(values=\"1 2 3\", rate=8)  # three values\nnode g = gain(db=0)  # louder\n\nx -> g\n");
+    auto doc = parse_sig("pipeline \"g\" v2\n\n# input\nnode x = samples(values=\"1 2 3\", rate=8)  # three values\nnode g = gain(db=0)  # louder\n\nx -> g\n");
     REQUIRE(doc);
     REQUIRE(apply_set(*doc, "g.db=6"));
     doc->nodes.insert(doc->nodes.begin() + 1, NodeDecl{"n", "normalize", {}, 0, false});
     const auto out = write_sig(*doc);
-    CHECK(out == "pipeline \"g\" v1\n\n# input\nnode x = samples(values=\"1 2 3\", rate=8)  # three values\nnode n = normalize()\nnode g = gain(db=6)  # louder\n\nx -> g\n");
+    CHECK(out == "pipeline \"g\" v2\n\n# input\nnode x = samples(values=\"1 2 3\", rate=8)  # three values\nnode n = normalize()\nnode g = gain(db=6)  # louder\n\nx -> g\n");
 }
 
 TEST_CASE("a chain line with a comment is not merged with the next line", "[pipeline][sig][comments]") {
-    const auto doc = parse_sig("pipeline \"c\" v1\n\nnode a = gain(db=0)\nnode b = gain(db=0)\nnode c = gain(db=0)\n\na -> b  # first hop\nb -> c\n");
+    const auto doc = parse_sig("pipeline \"c\" v2\n\nnode a = gain(db=0)\nnode b = gain(db=0)\nnode c = gain(db=0)\n\na -> b  # first hop\nb -> c\n");
     REQUIRE(doc);
-    CHECK(write_sig(*doc) == "pipeline \"c\" v1\n\nnode a = gain(db=0)\nnode b = gain(db=0)\nnode c = gain(db=0)\n\na -> b  # first hop\nb -> c\n");
-    const auto plain = parse_sig("pipeline \"c\" v1\n\nnode a = gain(db=0)\nnode b = gain(db=0)\nnode c = gain(db=0)\n\na -> b\nb -> c\n");
+    CHECK(write_sig(*doc) == "pipeline \"c\" v2\n\nnode a = gain(db=0)\nnode b = gain(db=0)\nnode c = gain(db=0)\n\na -> b  # first hop\nb -> c\n");
+    const auto plain = parse_sig("pipeline \"c\" v2\n\nnode a = gain(db=0)\nnode b = gain(db=0)\nnode c = gain(db=0)\n\na -> b\nb -> c\n");
     REQUIRE(plain);
     CHECK(write_sig(*plain).find("a -> b -> c\n") != std::string::npos);
 }
 
 TEST_CASE("comments inside a parameter list move above their node", "[pipeline][sig][comments]") {
-    const auto doc = parse_sig("pipeline \"p\" v1\n\nnode d = dwt(  # transform\n  wavelet=db2,  # short filter\n  levels=6)\n");
+    const auto doc = parse_sig("pipeline \"p\" v2\n\nnode d = dwt(  # transform\n  wavelet=db2,  # short filter\n  levels=6)\n");
     REQUIRE(doc);
-    CHECK(write_sig(*doc) == "pipeline \"p\" v1\n\n# transform\n# short filter\nnode d = dwt(wavelet=db2, levels=6)\n");
+    CHECK(write_sig(*doc) == "pipeline \"p\" v2\n\n# transform\n# short filter\nnode d = dwt(wavelet=db2, levels=6)\n");
 }
 
 TEST_CASE("a hash inside quotes is not a comment", "[pipeline][sig][comments]") {
-    const auto doc = parse_sig("pipeline \"q\" v1\n\nnode x = wav(path=\"take #2.wav\")  # second take\n");
+    const auto doc = parse_sig("pipeline \"q\" v2\n\nnode x = wav(path=\"take #2.wav\")  # second take\n");
     REQUIRE(doc);
     CHECK(doc->nodes[0].params.at("path") == "take #2.wav");
     CHECK(doc->nodes[0].comments.after == "# second take");
 }
 
 TEST_CASE("removing edges and nodes keeps the comments of what stays", "[pipeline][sig][comments]") {
-    auto doc = parse_sig("pipeline \"r\" v1\n\nnode a = gain(db=0)\n\nnode b = gain(db=0)\nnode c = gain(db=0)\n\n# chain\na -> b -> c  # main\n");
+    auto doc = parse_sig("pipeline \"r\" v2\n\nnode a = gain(db=0)\n\nnode b = gain(db=0)\nnode c = gain(db=0)\n\n# chain\na -> b -> c  # main\n");
     REQUIRE(doc);
     remove_edges(*doc, [](const Edge& e) { return e.from.node == "a"; });
-    CHECK(write_sig(*doc) == "pipeline \"r\" v1\n\nnode a = gain(db=0)\n\nnode b = gain(db=0)\nnode c = gain(db=0)\n\n# chain\nb -> c  # main\n");
+    CHECK(write_sig(*doc) == "pipeline \"r\" v2\n\nnode a = gain(db=0)\n\nnode b = gain(db=0)\nnode c = gain(db=0)\n\n# chain\nb -> c  # main\n");
     remove_node(*doc, "b");
-    CHECK(write_sig(*doc) == "pipeline \"r\" v1\n\nnode a = gain(db=0)\n\nnode c = gain(db=0)\n");
+    CHECK(write_sig(*doc) == "pipeline \"r\" v2\n\nnode a = gain(db=0)\n\nnode c = gain(db=0)\n");
 }

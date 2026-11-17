@@ -1,4 +1,4 @@
-pipeline "snr" v1
+pipeline "snr" v2
 
 node x   = gen(kind=sine, freq=440, amplitude={{s}}, rate=8000, duration=0.25)
 node w   = gen(kind=white, amplitude={{a}}, rate=8000, duration=0.25, seed={{seed}})

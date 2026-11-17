@@ -1,4 +1,4 @@
-pipeline "soft_threshold" v1
+pipeline "soft_threshold" v2
 
 node x = gen(kind=doppler, rate=2048, duration=1)
 node n = add_noise(color=white, snr_db={{snr}}, seed={{seed}})

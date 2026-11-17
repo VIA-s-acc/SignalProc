@@ -1,4 +1,4 @@
-pipeline "bior22_bank" v1
+pipeline "bior22_bank" v2
 
 node x   = samples(values="{{x}}", rate=16)
 node h0  = convolve(filter=haar.h0, method=direct)

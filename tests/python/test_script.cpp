@@ -51,7 +51,7 @@ std::filesystem::path write_sig(const std::string& name, const std::string& text
 }
 
 constexpr const char* kTiny =
-    "pipeline \"tiny\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode y = gain(db=-6)\nx -> y\nprobe y as \"y\"\n";
+    "pipeline \"tiny\" v2\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode y = gain(db=-6)\nx -> y\nprobe y as \"y\"\n";
 
 }  // namespace
 
@@ -69,7 +69,7 @@ TEST_CASE("script for a tiny graph matches its golden text", "[py-script]") {
 }
 
 TEST_CASE("the data file holds draws, not noise", "[py-script]") {
-    const auto s = script_for("pipeline \"n\" v1\nnode x = gen(kind=white, rate=8000, duration=0.01, seed=3, channels=2)\nprobe x as \"x\"\n", "n");
+    const auto s = script_for("pipeline \"n\" v2\nnode x = gen(kind=white, rate=8000, duration=0.01, seed=3, channels=2)\nprobe x as \"x\"\n", "n");
     REQUIRE(s);
     const auto* draws = io::np_find(s->data, "x.draws");
     REQUIRE(draws);
@@ -82,7 +82,7 @@ TEST_CASE("the data file holds draws, not noise", "[py-script]") {
 }
 
 TEST_CASE("the check covers probes, reports and side-effect inputs", "[py-script]") {
-    const auto s = script_for("pipeline \"w\" v1\nnode x = gen(kind=sine, rate=8000, duration=0.01)\nnode w = wav_out(path=\"w.wav\", bits=16)\nx -> w\n", "w");
+    const auto s = script_for("pipeline \"w\" v2\nnode x = gen(kind=sine, rate=8000, duration=0.01)\nnode w = wav_out(path=\"w.wav\", bits=16)\nx -> w\n", "w");
     INFO((s ? std::string{} : s.error().message));
     REQUIRE(s);
     std::vector<std::string> what;
@@ -93,13 +93,13 @@ TEST_CASE("the check covers probes, reports and side-effect inputs", "[py-script
 }
 
 TEST_CASE("a graph with nothing to check is refused", "[py-script]") {
-    const auto s = script_for("pipeline \"e\" v1\nnode x = gen(kind=sine, rate=8000, duration=0.01)\n", "e");
+    const auto s = script_for("pipeline \"e\" v2\nnode x = gen(kind=sine, rate=8000, duration=0.01)\n", "e");
     REQUIRE_FALSE(s);
     CHECK(s.error().message == tr("python.nothing_to_check"));
 }
 
 TEST_CASE("signals python reports a graph error like signals run", "[py-script]") {
-    const auto sig = write_sig("broken-py.sig", "pipeline \"b\" v1\nnode x = nosuchblock()\nprobe x as \"x\"\n");
+    const auto sig = write_sig("broken-py.sig", "pipeline \"b\" v2\nnode x = nosuchblock()\nprobe x as \"x\"\n");
     const auto py = signals::test::temp_path("broken-py.py");
     std::filesystem::remove(py);
     auto [rcode, rout, rerr] = signals::test::run_cli({"signals", "run", sig.string()});
@@ -114,7 +114,7 @@ TEST_CASE("signals python names an unsupported node", "[py-script]") {
     for (const auto& t : pipeline::block_types())
         if (!python::find_py_form(t.id) && t.inputs.size() == 1 && t.inputs[0].type == pipeline::PortType::signal && !t.outputs.empty()) missing = &t;
     if (!missing) SKIP("every block has a python form; unsupported() itself is covered in [py-forms]");
-    const auto sig = write_sig("unsupported-py.sig", "pipeline \"u\" v1\nnode x = gen(kind=sine, rate=8000, duration=0.25)\nnode odd = " + missing->id +
+    const auto sig = write_sig("unsupported-py.sig", "pipeline \"u\" v2\nnode x = gen(kind=sine, rate=8000, duration=0.25)\nnode odd = " + missing->id +
                                                          "()\nx -> odd\nprobe odd." + missing->outputs[0].name + " as \"b\"\n");
     auto [code, out, err] = signals::test::run_cli({"signals", "python", sig.string()});
     CHECK(code == 1);
@@ -151,7 +151,7 @@ TEST_CASE("only the blocks of the tolerance table weaken tolerance", "[py-script
 }
 
 TEST_CASE("the first two lines of a script are fixed", "[py-script]") {
-    const auto s = script_for("pipeline \"coding: raw_unicode_escape\" v1\nnode x = gen(kind=sine, rate=8000, duration=0.01)\nprobe x as \"x\"\n", "coding_raw_unicode_escape");
+    const auto s = script_for("pipeline \"coding: raw_unicode_escape\" v2\nnode x = gen(kind=sine, rate=8000, duration=0.01)\nprobe x as \"x\"\n", "coding_raw_unicode_escape");
     REQUIRE(s);
     const auto first = s->text.substr(0, s->text.find('\n'));
     const auto rest = s->text.substr(first.size() + 1);
@@ -162,7 +162,7 @@ TEST_CASE("the first two lines of a script are fixed", "[py-script]") {
 }
 
 TEST_CASE("tolerance follows the weakest block upstream", "[py-script]") {
-    const auto s = script_for("pipeline \"t\" v1\nnode x = gen(kind=sine, rate=8000, duration=0.05)\nnode f = iir(cutoff=1000)\nnode g = gain(db=-3)\nx -> f -> g\nprobe g as \"g\"\nprobe x as \"x\"\n",
+    const auto s = script_for("pipeline \"t\" v2\nnode x = gen(kind=sine, rate=8000, duration=0.05)\nnode f = iir(cutoff=1000)\nnode g = gain(db=-3)\nx -> f -> g\nprobe g as \"g\"\nprobe x as \"x\"\n",
                               "t");
     REQUIRE(s);
     for (const auto& c : s->checks) {
@@ -179,7 +179,7 @@ TEST_CASE("tolerance follows the weakest block upstream", "[py-script]") {
 }
 
 TEST_CASE("a symlet goes to pywt with the filters of Signals", "[py-script]") {
-    const auto s = script_for("pipeline \"s\" v1\nnode x = gen(kind=sine, rate=8000, duration=0.05)\nnode d = dwt(wavelet=sym8, levels=2)\nx -> d\nprobe d as \"d\"\n", "s");
+    const auto s = script_for("pipeline \"s\" v2\nnode x = gen(kind=sine, rate=8000, duration=0.05)\nnode d = dwt(wavelet=sym8, levels=2)\nx -> d\nprobe d as \"d\"\n", "s");
     REQUIRE(s);
     CHECK(s->text.find("pywt.Wavelet(\"sym8\", filter_bank=") != std::string::npos);
     CHECK(io::np_find(s->data, "wavelet.sym8.dec_lo"));
@@ -224,7 +224,7 @@ TEST_CASE("signals python writes only a .py script or an .ipynb notebook", "[py-
 }
 
 TEST_CASE("a bypassed node passes its input through in the script", "[py-script]") {
-    const auto s = script_for("pipeline \"b\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode g = gain(db=-6) bypass\nnode r = stats()\nnode q = assert() bypass\n"
+    const auto s = script_for("pipeline \"b\" v2\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode g = gain(db=-6) bypass\nnode r = stats()\nnode q = assert() bypass\n"
                               "x -> g\ng -> r\nr -> q\nprobe g as \"y\"\n",
                               "bypass");
     REQUIRE(s);
@@ -267,7 +267,7 @@ TEST_CASE("python import bindings never shadow a function", "[py-script]") {
 }
 
 TEST_CASE("node names avoid imports, helpers and form temporaries", "[py-script]") {
-    const auto s = script_for("pipeline \"n\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode s = stats()\nnode s_ok = gain(db=-1)\n"
+    const auto s = script_for("pipeline \"n\" v2\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode s = stats()\nnode s_ok = gain(db=-1)\n"
                               "node io = gain(db=-2)\nnode display = gain(db=-3)\nnode _stats_spectrum = gain(db=-4)\nnode x_v = gain(db=-5)\n"
                               "x -> s\nx -> s_ok\nx -> io\nx -> display\nx -> _stats_spectrum\nx -> x_v\n"
                               "probe s_ok as \"a\"\nprobe io as \"b\"\nprobe display as \"c\"\nprobe _stats_spectrum as \"d\"\nprobe x_v as \"e\"\n",
@@ -303,7 +303,7 @@ TEST_CASE("a wavelet from the user library goes to pywt with its filters", "[py-
         b.name = "my_bank";
         return b;
     }, [] { return std::vector<std::string>{"my_bank"}; });
-    const auto s = script_for("pipeline \"u\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode c = dwt(wavelet=my_bank, levels=2)\nx -> c\nprobe c as \"c\"\n", "user-bank");
+    const auto s = script_for("pipeline \"u\" v2\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode c = dwt(wavelet=my_bank, levels=2)\nx -> c\nprobe c as \"c\"\n", "user-bank");
     core::set_user_wavelets({}, {});
     REQUIRE(s);
     CHECK(s->text.find("pywt.Wavelet(\"my_bank\", filter_bank=") != std::string::npos);
@@ -311,7 +311,7 @@ TEST_CASE("a wavelet from the user library goes to pywt with its filters", "[py-
 }
 
 TEST_CASE("xcorr in a script switches to the FFT like the program", "[py-script]") {
-    const auto s = script_for("pipeline \"c\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode y = gen(kind=sine, freq=330, rate=8000, duration=0.01)\n"
+    const auto s = script_for("pipeline \"c\" v2\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode y = gen(kind=sine, freq=330, rate=8000, duration=0.01)\n"
                               "node c = xcorr()\nx -> c.a\ny -> c.b\nprobe c as \"c\"\n",
                               "xcorr-fft");
     REQUIRE(s);
@@ -323,7 +323,7 @@ TEST_CASE("the wav form reads the array the program picked", "[py-script]") {
     const auto dir = signals::test::temp_path("py-script");
     std::filesystem::create_directories(dir);
     REQUIRE(io::write_npz(dir / "only.npz", {{"arr_0", io::np_vector({0.25, -0.5, 0.125, 1})}}));
-    const auto s = script_for("pipeline \"w\" v1\nnode w = wav(path=\"only.npz\", rate=8000)\nnode g = gain(db=-6)\nw -> g\nprobe g as \"g\"\n", "only-array");
+    const auto s = script_for("pipeline \"w\" v2\nnode w = wav(path=\"only.npz\", rate=8000)\nnode g = gain(db=-6)\nw -> g\nprobe g as \"g\"\n", "only-array");
     REQUIRE(s);
     CHECK(s->text.find("read_audio_array(HERE / \"only.npz\", \"arr_0\")") != std::string::npos);
 }
@@ -351,7 +351,7 @@ TEST_CASE("the size of an exported text file is checked loosely", "[py-script]")
     const auto dir = signals::test::temp_path("py-script");
     for (const char* format : {"csv", "json"}) {
         INFO(format);
-        const auto s = script_for(std::string{"pipeline \"e\" v1\nnode x = gen(kind=white, rate=8000, duration=0.01, seed=3)\nnode r = stats()\nnode b = export_report(format="} + format +
+        const auto s = script_for(std::string{"pipeline \"e\" v2\nnode x = gen(kind=white, rate=8000, duration=0.01, seed=3)\nnode r = stats()\nnode b = export_report(format="} + format +
                                       ", path=\"" + (dir / "r.out").generic_string() + "\")\nnode e = export(format=" + format + ", path=\"" + (dir / "x.out").generic_string() +
                                       "\")\nx -> r\nr -> b.in\nx -> e\nprobe b.report as \"written\"\n",
                                   std::string{"loose-"} + format);

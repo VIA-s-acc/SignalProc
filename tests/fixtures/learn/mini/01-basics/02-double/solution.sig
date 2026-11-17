@@ -1,4 +1,4 @@
-pipeline "double" v1
+pipeline "double" v2
 
 node x = samples(values="{{x}}", rate=8)
 node y = add()

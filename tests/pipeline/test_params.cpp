@@ -39,7 +39,7 @@ TEST_CASE("an integer expression must give an integer and stay in bounds", "[pip
 }
 
 TEST_CASE("an expression parameter changes the run and the original text is kept on save", "[pipeline][params]") {
-    const auto doc = signals::test::sig_doc(R"sig(pipeline "t" v1
+    const auto doc = signals::test::sig_doc(R"sig(pipeline "t" v2
 node x = samples(values="1 2", rate=8)
 node y = gain(db="20*log10(2)")
 x -> y

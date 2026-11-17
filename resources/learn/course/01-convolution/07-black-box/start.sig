@@ -1,4 +1,4 @@
-pipeline "black_box" v1
+pipeline "black_box" v2
 
 node x = samples(values="3 -1 4 1 -5 2 0 0", rate=8)
 node t = fir_taps(taps="1 {{a}}")

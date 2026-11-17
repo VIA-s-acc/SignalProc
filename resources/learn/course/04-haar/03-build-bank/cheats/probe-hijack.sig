@@ -1,4 +1,4 @@
-pipeline "haar_bank" v1
+pipeline "haar_bank" v2
 
 node x   = samples(values="{{x}}", rate=8)
 node d   = downsample(m=2, anti_alias=no, phase=1)

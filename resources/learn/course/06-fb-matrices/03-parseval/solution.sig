@@ -1,4 +1,4 @@
-pipeline "parseval" v1
+pipeline "parseval" v2
 
 node x = samples(values="{{x}}", rate=16)
 node w = dwt(wavelet={{wv}}, levels=1, ext=periodization)

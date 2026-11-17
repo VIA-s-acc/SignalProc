@@ -170,6 +170,7 @@ DWT, SWT, MODWT и DTCWT сигнала: подполосы, MRA, плитки �
 | `signals python <файл.sig>` | скрипт на numpy, scipy и PyWavelets или тетрадь Jupyter, которые повторяют граф и сверяют каждое число с программой |
 | `signals sweep <файл.sig>` | серия прогонов по параметру узла |
 | `signals graph <файл.sig>` | нарисовать граф текстом |
+| `signals migrate <путь…>` | перевести `.sig` старого формата: показать изменения, `--write`, `--check` для CI |
 | `signals blocks`, `signals explain <блок>` | справочник блоков конвейера, описание одного блока с его Python-формой; `--json` |
 | `signals learn …` | учебный путь: `list`, `show`, `start`, `check`, `hint`, `solution`, `variant`, `report`, `lint` |
 | `signals completions bash\|zsh\|fish` | скрипт дополнения команд для оболочки |
@@ -181,7 +182,7 @@ DWT, SWT, MODWT и DTCWT сигнала: подполосы, MRA, плитки �
 Обработку можно собрать из блоков и сохранить в текстовом файле `.sig`. Пример — [examples/first_steps.sig](examples/first_steps.sig), тот же, что открывает стартовая панель:
 
 ```text
-pipeline "first_steps" v1
+pipeline "first_steps" v2
 
 node x       = gen(kind=doppler, rate=8000, duration=0.25)
 node noisy   = add_noise(color=white, snr_db=10, seed=1)

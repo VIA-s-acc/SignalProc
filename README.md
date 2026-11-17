@@ -170,6 +170,7 @@ Messages are in English or Russian: `--lang ru` anywhere in a command, or `SIGNA
 | `signals python <file.sig>` | a numpy, scipy and PyWavelets script or a Jupyter notebook that repeats the graph and checks every number against the program |
 | `signals sweep <file.sig>` | a series of runs over a node parameter |
 | `signals graph <file.sig>` | draw the graph as text |
+| `signals migrate <path…>` | migrate `.sig` files of an older format: show the changes, `--write`, `--check` for CI |
 | `signals blocks`, `signals explain <block>` | the pipeline block reference, one block in detail with its Python form; `--json` |
 | `signals learn …` | the learning path: `list`, `show`, `start`, `check`, `hint`, `solution`, `variant`, `report`, `lint` |
 | `signals completions bash\|zsh\|fish` | the completion script for a shell |
@@ -181,7 +182,7 @@ Messages are in English or Russian: `--lang ru` anywhere in a command, or `SIGNA
 Processing is assembled from blocks and saved as a text `.sig` file. The example is [examples/first_steps.sig](examples/first_steps.sig), the one the start panel opens:
 
 ```text
-pipeline "first_steps" v1
+pipeline "first_steps" v2
 
 node x       = gen(kind=doppler, rate=8000, duration=0.25)
 node noisy   = add_noise(color=white, snr_db=10, seed=1)

@@ -1,4 +1,4 @@
-pipeline "convolution" v1
+pipeline "convolution" v2
 
 node x = samples(values="{{x}}", rate=8)
 node y = fir_taps(taps="{{h}}")

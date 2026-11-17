@@ -24,7 +24,7 @@ double measure(const signals::pipeline::PipelineDoc& base, Measure m, const sign
     return v->scalar();
 }
 
-const char* kDelayed = R"(pipeline "t" v1
+const char* kDelayed = R"(pipeline "t" v2
 node x = samples(values="1 -2 3 4 -5 6 7 -8", rate=8)
 node y = delay(samples=2)
 x -> y
@@ -45,7 +45,7 @@ TEST_CASE("delay finds the lag of the correlation peak", "[learn][measure]") {
 }
 
 TEST_CASE("snr matches the metrics function", "[learn][measure]") {
-    const auto doc = sig_doc(R"(pipeline "t" v1
+    const auto doc = sig_doc(R"(pipeline "t" v2
 node x = samples(values="1 2 3 4 5 6 7 8", rate=8)
 node n = samples(values="0.01 -0.02 0 0.03 0 0 -0.01 0", rate=8)
 node y = add()
@@ -57,7 +57,7 @@ n -> y.b
 }
 
 TEST_CASE("tone level of a half-amplitude sine is -6.02 dB", "[learn][measure]") {
-    const auto doc = sig_doc(R"(pipeline "t" v1
+    const auto doc = sig_doc(R"(pipeline "t" v2
 node s = gen(kind=sine, freq=440, amplitude=0.5, rate=8000, duration=1)
 node g = gain(db=-6)
 s -> g
@@ -76,7 +76,7 @@ TEST_CASE("signal sizes and levels", "[learn][measure]") {
 }
 
 TEST_CASE("kept counts nonzero coefficients", "[learn][measure]") {
-    const auto doc = sig_doc(R"(pipeline "t" v1
+    const auto doc = sig_doc(R"(pipeline "t" v2
 node x = samples(values="1 0 0 0 0 0 0 0", rate=8)
 node w = dwt(wavelet=haar, levels=1, ext=periodization)
 x -> w
@@ -85,7 +85,7 @@ x -> w
 }
 
 TEST_CASE("report fields, samples, counts and params", "[learn][measure]") {
-    const auto doc = sig_doc(R"(pipeline "t" v1
+    const auto doc = sig_doc(R"(pipeline "t" v2
 node x = samples(values="1 2 3", rate=8)
 node y = samples(values="1 2 4", rate=8)
 node c = check(kind=error, tol=10)
@@ -104,7 +104,7 @@ y -> c.in
 }
 
 TEST_CASE("the reference output comes from the solution run", "[learn][measure]") {
-    auto solution = sig_doc(R"(pipeline "t" v1
+    auto solution = sig_doc(R"(pipeline "t" v2
 node x = samples(values="1 2 3", rate=8)
 node y = gain(db=0)
 x -> y
@@ -112,7 +112,7 @@ x -> y
     const Measure m{.name = "e", .kind = "max_error", .a = "y", .ref = "y"};
     add_measure_probes(solution, std::vector<Measure>{m}, true);
     const auto reference = run_doc(solution);
-    auto work = sig_doc(R"(pipeline "t" v1
+    auto work = sig_doc(R"(pipeline "t" v2
 node x = samples(values="1 2 3", rate=8)
 node y = delay(samples=0)
 x -> y
@@ -121,7 +121,7 @@ x -> y
 }
 
 TEST_CASE("a too short output gives infinite error", "[learn][measure]") {
-    const auto doc = sig_doc(R"(pipeline "t" v1
+    const auto doc = sig_doc(R"(pipeline "t" v2
 node x = samples(values="1 2 3 4 5 6 7 8", rate=8)
 node y = cut(begin=0, end=4)
 x -> y
@@ -139,7 +139,7 @@ TEST_CASE("a missing output is an error, not a number", "[learn][measure]") {
 }
 
 TEST_CASE("a block count can be limited to live nodes", "[learn][measure]") {
-    auto doc = sig_doc(R"(pipeline "t" v1
+    auto doc = sig_doc(R"(pipeline "t" v2
 node x = samples(values="1 2 3", rate=8)
 node y = gain(db=0)
 node z = gain(db=0)

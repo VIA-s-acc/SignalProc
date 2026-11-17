@@ -1,4 +1,4 @@
-pipeline "hard_soft" v1
+pipeline "hard_soft" v2
 
 node x   = gen(kind=bumps, rate=2048, duration=1)
 node n   = add_noise(color=white, snr_db={{snr}}, seed={{seed}})

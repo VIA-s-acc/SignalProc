@@ -1,4 +1,4 @@
-pipeline "ellip_order" v1
+pipeline "ellip_order" v2
 
 node sp = gen(kind=sine, freq=1000, rate=8000, duration=1)
 node ss = gen(kind=sine, freq=1500, rate=8000, duration=1)

@@ -1,4 +1,4 @@
-pipeline "mra_sum" v1
+pipeline "mra_sum" v2
 
 node x   = samples(values="{{x}}", rate=16)
 node w   = dwt(wavelet=haar, levels=3, ext=periodization)

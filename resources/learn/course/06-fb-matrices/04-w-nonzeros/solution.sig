@@ -1,4 +1,4 @@
-pipeline "w_nonzeros" v1
+pipeline "w_nonzeros" v2
 
 node e = gen(kind=impulse, rate={{n}}, duration=1)
 node d = delay(samples=3)

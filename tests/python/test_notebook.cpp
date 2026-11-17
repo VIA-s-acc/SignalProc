@@ -18,7 +18,7 @@ namespace {
 using namespace signals;
 
 constexpr const char* kGraph =
-    "pipeline \"nb\" v1\n"
+    "pipeline \"nb\" v2\n"
     "node x = gen(kind=sine, freq=440, rate=8000, duration=0.05)\n"
     "node y = gain(db=-6)\n"
     "node r = stats()\n"

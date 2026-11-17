@@ -1,4 +1,4 @@
-pipeline "vanishing" v1
+pipeline "vanishing" v2
 
 node x   = samples(values="{{x}}", rate=32)
 node w   = dwt(wavelet=haar, levels=1, ext=symmetric)

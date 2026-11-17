@@ -1,4 +1,4 @@
-pipeline "best_wavelet" v1
+pipeline "best_wavelet" v2
 
 node x = gen(kind=blocks, rate={{n}}, duration=1)
 node wh = dwt(wavelet=haar, levels=5, ext=periodization)

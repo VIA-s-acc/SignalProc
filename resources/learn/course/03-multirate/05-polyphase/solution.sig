@@ -1,4 +1,4 @@
-pipeline "poly_conv" v1
+pipeline "poly_conv" v2
 
 node x  = samples(values="{{x}}", rate=8)
 node p  = polyphase
