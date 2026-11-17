@@ -142,6 +142,9 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
     if (t.id == "fir_taps") out.push_back({"fir_taps-three", graph_text(t, "fir_taps-three", {{"taps", "\"0.25, 0.5, 0.25\""}})});
     if (t.id == "onsets")
         out.push_back({"onsets-blocks", "pipeline \"onsets-blocks\" v2\nnode x = gen(kind=blocks, rate=8000, duration=0.5)\nnode o = onsets()\nx -> o\nprobe o as \"o\"\n"});
+    if (t.id == "trim_silence")
+        out.push_back({"trim_silence-fades", "pipeline \"trim_silence-fades\" v2\nnode x = gen(kind=sine, freq=330, rate=8000, duration=0.5)\n"
+                                             "node f = fade(fade_in=0.2s, fade_out=0.2s)\nnode t = trim_silence()\nx -> f -> t\nprobe t as \"t\"\n"});
     if (t.id == "check") out.push_back({"check-loose", graph_text(t, "check-loose", {{"tol", "2"}})});
     if (t.id == "coeffs_file")
         out.push_back({"coeffs_file-bare", "pipeline \"coeffs_file-bare\" v2\nnode c = coeffs_file(path=" + quoted(dir / "coeffs-bare.npz") +

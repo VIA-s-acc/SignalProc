@@ -383,6 +383,19 @@ std::string flag(const NodeIo& io, Emitter& em, std::string_view param, std::str
     return it != io.node.params.end() && it->second == yes ? "True" : "False";
 }
 
+std::string samples_expr(const NodeIo& io, Emitter& em, std::string_view param, const std::string& fs) {
+    if (uses_variable(io, param)) {
+        em.function("as_samples");
+        return "as_samples(" + em.expr(io, param) + ", " + fs + ")";
+    }
+    const auto& value = pipeline::param_text(io.node.params, param);
+    if (value.ends_with('s')) {
+        em.function("as_samples");
+        return "as_samples(" + py_str(value) + ", " + fs + ")";
+    }
+    return std::to_string(pipeline::param_int(io.node.params, param));
+}
+
 std::string Emitter::numbers(std::string key, std::span<const double> v) {
     if (v.size() > 64) return data(std::move(key), io::np_vector({v.begin(), v.end()}));
     std::string out = "[";
