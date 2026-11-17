@@ -383,7 +383,7 @@
     "values": {}
    }
   ],
-  "python": "y_scale = 2.0 ** 15\ny = np.clip(np.rint(np.where(np.isfinite(x), x, 0.0) * y_scale + D[\"y.dither\"]), -y_scale, y_scale - 1) / y_scale",
+  "python": "y_scale = 2.0 ** (16 - 1)\ny = np.clip(np.rint(np.where(np.isfinite(x), x, 0.0) * y_scale + np.stack([portable_random(24301 + c, x.shape[1], \"tpdf\") for c in range(x.shape[0])])), -y_scale, y_scale - 1) / y_scale",
   "title": "Quantize"
  },
  {
@@ -1764,7 +1764,7 @@
     "values": {}
    }
   ],
-  "python": "y_path = Path(\"out.wav\")\ny = {\"path\": str(y_path), \"clipped\": float(write_wav(y_path, x, fs, \"24\", D[\"y.dither\"]))}\ny_ok = True",
+  "python": "y_path = Path(\"out.wav\")\ny = {\"path\": str(y_path), \"clipped\": float(write_wav(y_path, x, fs, \"24\", portable_random(24301, x.size, \"tpdf\")))}\ny_ok = True",
   "title": "Write"
  },
  {
@@ -1985,7 +1985,7 @@
     }
    }
   ],
-  "python": "y = fade(x, 441, 441, False)",
+  "python": "y = fade(x, as_samples(\"0.01s\", fs), as_samples(\"0.01s\", fs), False)",
   "title": "Fade in and out"
  },
  {
@@ -2238,7 +2238,7 @@
     "values": {}
    }
   ],
-  "python": "y_rms = np.sqrt(np.sum(x * x) / x.size / 10 ** (20 / 10))\ny = np.stack([noise_from_draws(d, \"white\", y_rms) for d in D[\"y.draws\"]]) + x",
+  "python": "y_rms = np.sqrt(np.sum(x * x) / x.size / 10 ** (20 / 10))\ny = np.stack([noise_from_draws(portable_random(1 + c, x.shape[1]), \"white\", y_rms) for c in range(x.shape[0])]) + x",
   "title": "Add noise"
  },
  {
@@ -3144,7 +3144,7 @@
     "values": {}
    }
   ],
-  "python": "y = loudness(x, 17640, 4410)\ny_ok = True",
+  "python": "y = loudness(x, as_samples(\"0.4s\", fs), as_samples(\"0.1s\", fs))\ny_ok = True",
   "title": "Loudness (RMS over 400 ms)"
  },
  {
@@ -3310,7 +3310,7 @@
     "values": {}
    }
   ],
-  "python": "y = spectral_subtract(x, noise, 11025, 512, 2, 0.01)",
+  "python": "y = spectral_subtract(x, noise, samples_count(0.25, fs), 512, 2, 0.01)",
   "title": "Spectral subtraction"
  },
  {
@@ -4070,7 +4070,7 @@
     "values": {}
    }
   ],
-  "python": "y = x[0:1]",
+  "python": "y = x[0:0 + 1]",
   "title": "Select channel"
  },
  {
@@ -4902,7 +4902,7 @@
     }
    }
   ],
-  "python": "y = np.zeros_like(x)\ny_n = x.shape[1]\ny[:, max(0, 0):y_n + min(0, 0)] = x[:, max(0, -(0)):y_n - max(0, 0)]",
+  "python": "y_v = np.zeros_like(x)\ny_n = x.shape[1]\ny_v[:, max(0, 0):y_n + min(0, 0)] = x[:, max(0, -(0)):y_n - max(0, 0)]\ny = y_v",
   "title": "Shift"
  },
  {
@@ -5230,7 +5230,7 @@
     "values": {}
    }
   ],
-  "python": "y = delay_lines(x, \"echo\", 11025, 0.4, 0.5)",
+  "python": "y = delay_lines(x, \"echo\", int(np.floor(250 / 1000 * fs + 0.5)), 0.4, 0.5)",
   "title": "Echo"
  },
  {
@@ -5357,7 +5357,7 @@
     "values": {}
    }
   ],
-  "python": "y = mix_signals(a, b, 10.0 ** (0 / 20), 10.0 ** (0 / 20), False, 0, 441)",
+  "python": "y = mix_signals(a, b, 10.0 ** (0 / 20), 10.0 ** (0 / 20), False, np.floor(0 * fs + 0.5), np.floor(10 / 1000 * fs + 0.5))",
   "title": "Mixer"
  },
  {

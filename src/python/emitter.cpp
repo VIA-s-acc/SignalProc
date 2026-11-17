@@ -396,6 +396,13 @@ std::string samples_expr(const NodeIo& io, Emitter& em, std::string_view param, 
     return std::to_string(pipeline::param_int(io.node.params, param));
 }
 
+std::string count_expr(const NodeIo& io, Emitter& em, std::string_view param) {
+    const auto& params = io.node.type->params;
+    const auto spec = std::ranges::find_if(params, [&](const pipeline::ParamSpec& s) { return s.name == param; });
+    if (spec != params.end() && spec->kind == pipeline::ParamSpec::Kind::samples) return samples_expr(io, em, param, io.in_fs.empty() ? std::string{"fs"} : io.in_fs[0]);
+    return em.expr(io, param);
+}
+
 std::string Emitter::numbers(std::string key, std::span<const double> v) {
     if (v.size() > 64) return data(std::move(key), io::np_vector({v.begin(), v.end()}));
     std::string out = "[";

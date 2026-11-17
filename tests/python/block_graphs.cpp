@@ -150,6 +150,9 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
     if (t.id == "gate")
         out.push_back({"gate-fade", "pipeline \"gate-fade\" v2\nnode x = gen(kind=sine, freq=330, rate=8000, duration=0.5)\n"
                                     "node f = fade(fade_in=0.3s)\nnode g = gate(threshold_db=-20)\nx -> f -> g\nprobe g as \"g\"\n"});
+    if (t.id == "loudness")
+        out.push_back({"loudness-long", "pipeline \"loudness-long\" v2\nnode x = gen(kind=sine, freq=440, rate=8000, duration=2)\n"
+                                        "node f = fade(fade_in=1s)\nnode l = loudness()\nx -> f -> l\nprobe l as \"l\"\n"});
     if (t.id == "check") out.push_back({"check-loose", graph_text(t, "check-loose", {{"tol", "2"}})});
     if (t.id == "coeffs_file")
         out.push_back({"coeffs_file-bare", "pipeline \"coeffs_file-bare\" v2\nnode c = coeffs_file(path=" + quoted(dir / "coeffs-bare.npz") +

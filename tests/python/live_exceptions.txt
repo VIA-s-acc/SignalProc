@@ -6,3 +6,4 @@ mid_side.direction — the normalized mid/side matrix is its own inverse, so enc
 wav_out.bits — live in the script, but it changes only the written file, which the check does not read back
 wav_out.dither — live in the script, but it changes only the written file, which the check does not read back
 wav_out.seed — live in the script, but it changes only the written file, which the check does not read back
+assert.expr — the condition is translated into Python code when the script is made; to change it in the script, edit that code line

@@ -108,6 +108,8 @@ std::vector<std::string> candidates(const pipeline::ParamSpec& s, const std::str
         for (const char* m : {"zero", "periodization", "symmetric", "reflect"}) add(m);
     if (s.name == "filter")
         for (const char* f : {"db2.h0", "haar.h1", "db4.h0", "db3.f0"}) add(f);
+    if (s.name == "range")
+        for (const char* r : {"-1, 1", "-0.5, 0.5", "0, 1", "auto"}) add(r);
     if (s.name == "weight")
         for (const char* w : {"1, 2", "2, 1", "1, 10"}) add(w);
     char* stop = nullptr;
@@ -119,12 +121,12 @@ std::vector<std::string> candidates(const pipeline::ParamSpec& s, const std::str
             for (const long long d : {1, -1, 2, -2, 3, 4})
                 if (in_range(v + static_cast<double>(d))) add(std::format("{}", static_cast<long long>(v) + d));
         if (number && v >= 2)
-            for (const double c : {v * 2, std::floor(v / 2)})
+            for (const double c : {v * 2, std::floor(v / 2), std::floor(v / 4), std::floor(v / 8)})
                 if (in_range(c)) add(std::format("{}", static_cast<long long>(c)));
         break;
     case Kind::real:
         if (number)
-            for (const double c : {v * 1.25, v * 0.8, v + 0.5, v - 0.5, v + 1, 0.25, 1.0, 0.5})
+            for (const double c : {v * 1.25, v * 0.8, v + 0.5, v - 0.5, v + 1, 0.25, 1.0, 0.5, v * 0.1, v * 10})
                 if (in_range(c)) add(number_text(c));
         if (s.name == "rate")
             for (const double c : {8000.0, 16000.0, 44100.0})
@@ -300,6 +302,6 @@ void check_group(std::string_view name) {
 TEST_CASE("every source param is live in the script", "[py-live-sources]") { check_group("sources"); }
 TEST_CASE("every wavelet param is live in the script", "[py-live-wavelets]") { check_group("wavelets"); }
 TEST_CASE("every filter param is live in the script", "[py-live-filters]") { check_group("filters"); }
-TEST_CASE("every effect param is live in the script", "[.][py-live-effects]") { check_group("effects"); }
-TEST_CASE("every analysis param is live in the script", "[.][py-live-analysis]") { check_group("analysis"); }
-TEST_CASE("every other param is live in the script", "[.][py-live-rest]") { check_group("rest"); }
+TEST_CASE("every effect param is live in the script", "[py-live-effects]") { check_group("effects"); }
+TEST_CASE("every analysis param is live in the script", "[py-live-analysis]") { check_group("analysis"); }
+TEST_CASE("every other param is live in the script", "[py-live-rest]") { check_group("rest"); }
