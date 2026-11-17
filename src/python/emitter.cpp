@@ -11,6 +11,7 @@
 
 #include "core/design/families.hpp"
 #include "core/expr.hpp"
+#include "i18n/i18n.hpp"
 #include "pipeline/flatten.hpp"
 #include "pipeline/sig.hpp"
 #include "pipeline/npz_values.hpp"
@@ -112,7 +113,7 @@ std::vector<std::string> import_bindings(std::string_view line) {
 
 std::span<const std::string_view> temporary_suffixes() {
     static constexpr std::string_view kSuffixes[] = {"a",    "angle", "block", "delays", "f",    "fs",   "gains", "h",    "integral", "mid", "mono", "n",
-                                                     "ok",   "only",  "path",  "paths",  "rms",  "scale", "side", "size", "sos",      "t",   "v",    "value"};
+                                                     "ok",   "only",  "meta",  "path",  "paths",  "rms",  "scale", "side", "size", "sos",      "t",   "v",    "value"};
     return kSuffixes;
 }
 
@@ -398,6 +399,26 @@ std::string Emitter::file(const std::filesystem::path& absolute) const {
     };
     if (rel.empty()) return "Path(" + py_str(text(target.empty() ? absolute : target)) + ")";
     return "HERE / " + py_str(text(rel));
+}
+
+void Emitter::keep_wavelet(std::string_view name) {
+    const auto builtin = core::wavelet_names();
+    const auto user = core::user_wavelet_names();
+    if (std::ranges::find(builtin, name) != builtin.end() && std::ranges::find(user, name) == user.end() && !by_filter_bank().contains(name)) return;
+    const auto bank = core::wavelet(name);
+    if (!bank) return;
+    for (const auto& [key, array] : pipeline::bank_entries(*bank))
+        if (key != "name") put("wavelet." + std::string{name} + "." + key, array);
+}
+
+std::string Emitter::wavelet_of(const NodeIo& io, std::string_view param) {
+    const auto value = io.node.params.count(std::string{param}) ? io.node.params.at(std::string{param}) : std::string{};
+    if (!uses_variable(io, param)) return wavelet(value);
+    import_line("import pywt");
+    function("wavelet");
+    if (std::ranges::find(prelude_, "NO_WAVELET = " + py_str(tr("python.live.no_wavelet"))) == prelude_.end()) prelude_.push_back("NO_WAVELET = " + py_str(tr("python.live.no_wavelet")));
+    if (!preview_) keep_wavelet(value);
+    return "wavelet(" + expr(io, param) + ")";
 }
 
 std::string Emitter::wavelet(std::string_view name) {

@@ -111,7 +111,7 @@ TEST_CASE("listen becomes an audio widget in the notebook only", "[py-notebook]"
     const auto nb = build(graph, python::ScriptKind::notebook, "nb.ipynb").text;
     CHECK(script.find("IPython") == std::string::npos);
     CHECK(nb.find("from IPython.display import Audio, display") != std::string::npos);
-    CHECK(nb.find("display(Audio(y, rate=8000") != std::string::npos);
+    CHECK(nb.find("display(Audio(y, rate=y_fs") != std::string::npos);
 }
 
 TEST_CASE("signals python writes a notebook for an .ipynb path", "[py-notebook]") {

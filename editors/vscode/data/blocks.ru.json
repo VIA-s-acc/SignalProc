@@ -889,7 +889,7 @@
     }
    }
   ],
-  "python": "y = pywt.wavedec(x, \"db2\", mode=\"symmetric\", level=3, axis=-1)",
+  "python": "y = pywt.wavedec(x, \"db2\", mode=\"symmetric\", level=default_levels(x.shape[1], \"db2\"), axis=-1)\ny_meta = {\"transform\": \"dwt\", \"wavelet\": \"db2\", \"mode\": \"symmetric\", \"length\": x.shape[1], \"rate\": fs, \"norm\": False}",
   "title": "DWT"
  },
  {
@@ -947,7 +947,7 @@
     }
    }
   ],
-  "python": "y = pywt.waverec(x, \"auto\", mode=\"symmetric\", axis=-1)[:, :0]",
+  "python": "y = pywt.waverec(x, x_meta[\"wavelet\"], mode=x_meta[\"mode\"], axis=-1)[:, :x_meta[\"length\"]]\ny_fs = x_meta[\"rate\"]",
   "title": "IDWT"
  },
  {
@@ -998,7 +998,7 @@
     }
    }
   ],
-  "python": "y_block = 2 ** 3\ny_size = -(-x.shape[1] // y_block) * y_block\ny = pywt.swt(x[:, np.arange(y_size) % x.shape[1]], \"db2\", level=3, trim_approx=True, norm=False, axis=-1)",
+  "python": "y_block = 2 ** default_levels(x.shape[1], \"db2\")\ny_size = -(-x.shape[1] // y_block) * y_block\ny = pywt.swt(x[:, np.arange(y_size) % x.shape[1]], \"db2\", level=default_levels(x.shape[1], \"db2\"), trim_approx=True, norm=False, axis=-1)\ny_meta = {\"transform\": \"swt\", \"wavelet\": \"db2\", \"mode\": \"periodization\", \"length\": x.shape[1], \"rate\": fs, \"norm\": False}",
   "title": "SWT"
  },
  {
@@ -1042,7 +1042,7 @@
     }
    }
   ],
-  "python": "y = lift(x, 4, \"lift53\")",
+  "python": "y = lift(x, 4, \"lift53\")\ny_meta = {\"transform\": \"lift53\", \"length\": x.shape[1], \"rate\": fs, \"norm\": False}",
   "title": "Лифтинг 5/3"
  },
  {
@@ -1063,7 +1063,7 @@
    }
   ],
   "params": [],
-  "python": "y = unlift(x, \"lift53\")",
+  "python": "y = unlift(x, x_meta[\"transform\"])\ny_fs = x_meta[\"rate\"]",
   "title": "Обратный лифтинг 5/3"
  },
  {
@@ -1092,7 +1092,7 @@
     "values": {}
    }
   ],
-  "python": "y = pywt.iswt(x, \"db2\", norm=False, axis=-1)[:, :0]",
+  "python": "y = pywt.iswt(x, x_meta[\"wavelet\"], norm=x_meta[\"norm\"], axis=-1)[:, :x_meta[\"length\"]]\ny_fs = x_meta[\"rate\"]",
   "title": "ISWT"
  },
  {
@@ -1160,7 +1160,7 @@
     "values": {}
    }
   ],
-  "python": "y = shrink_coeffs(x, \"bayes\", \"soft\", 1, 64, None, 0, False)",
+  "python": "y = shrink_coeffs(x, \"bayes\", \"soft\", 1, 64, None, x_meta[\"length\"], x_meta[\"transform\"] == \"swt\" and x_meta[\"norm\"])\ny_meta = x_meta",
   "title": "Порог"
  },
  {
@@ -1196,7 +1196,7 @@
     "values": {}
    }
   ],
-  "python": "y = x",
+  "python": "y_gains = band_gains(x, x_meta, \"all\", \"\")\ny = [np.zeros_like(band) if g is None else band * g for band, g in zip(x, y_gains)]\ny_meta = x_meta",
   "title": "Правка полос"
  },
  {
@@ -1220,7 +1220,7 @@
    }
   ],
   "params": [],
-  "python": "y = band_energy(x, [], [])\ny_ok = True",
+  "python": "y = band_energy(x, band_labels(x, x_meta), swt_weights(x, x_meta))\ny_ok = True",
   "title": "Энергия полос"
  },
  {
@@ -1457,7 +1457,7 @@
     "values": {}
    }
   ],
-  "python": "y = denoise(x, \"sym8\", 1, \"bayes\", \"soft\", 1)",
+  "python": "y = denoise(x, \"sym8\", default_levels(x.shape[1], \"sym8\"), \"bayes\", \"soft\", 1)",
   "title": "Шумоподавление"
  },
  {
@@ -2764,7 +2764,7 @@
     "values": {}
    }
   ],
-  "python": "y = lift(x, 4, \"lift97\", [-1.5861343420594243, -0.05298011857337664, 0.8829110755285036, 0.44350685204498297, 1.1496043988602964])",
+  "python": "y = lift(x, 4, \"lift97\", [-1.5861343420594243, -0.05298011857337664, 0.8829110755285036, 0.44350685204498297, 1.1496043988602964])\ny_meta = {\"transform\": \"lift97\", \"length\": x.shape[1], \"rate\": fs, \"norm\": False}",
   "title": "Лифтинг 9/7"
  },
  {
@@ -2831,7 +2831,7 @@
     }
    }
   ],
-  "python": "y = dtcwt(x, 4, \"near_sym_a\", \"qshift_a\", D)",
+  "python": "y = dtcwt(x, 4, \"near_sym_a\", \"qshift_a\", D)\ny_meta = {\"transform\": \"dtcwt\", \"biort\": \"near_sym_a\", \"qshift\": \"qshift_a\", \"length\": x.shape[1], \"rate\": fs, \"norm\": False}",
   "title": "DTCWT"
  },
  {
@@ -2852,7 +2852,7 @@
    }
   ],
   "params": [],
-  "python": "y = idtcwt(x, \"near_sym_a\", \"qshift_a\", D, 0)",
+  "python": "y = idtcwt(x, x_meta[\"biort\"], x_meta[\"qshift\"], D, x_meta[\"length\"])\ny_fs = x_meta[\"rate\"]",
   "title": "Обратное DTCWT"
  },
  {
@@ -2873,7 +2873,7 @@
    }
   ],
   "params": [],
-  "python": "y = unlift(x, \"lift97\", [-1.5861343420594243, -0.05298011857337664, 0.8829110755285036, 0.44350685204498297, 1.1496043988602964])",
+  "python": "y = unlift(x, x_meta[\"transform\"], [-1.5861343420594243, -0.05298011857337664, 0.8829110755285036, 0.44350685204498297, 1.1496043988602964])\ny_fs = x_meta[\"rate\"]",
   "title": "Обратный лифтинг 9/7"
  },
  {
@@ -4595,7 +4595,7 @@
     "values": {}
    }
   ],
-  "python": "y = []",
+  "python": "y = []\ny_meta = None",
   "title": "Коэффициенты из файла"
  },
  {
@@ -4727,7 +4727,7 @@
     }
    }
   ],
-  "python": "y, y_paths = wpt(x, \"db2\", \"symmetric\", 3, \"best\")",
+  "python": "y, y_paths = wpt(x, \"db2\", \"symmetric\", 3, \"best\")\ny_meta = {\"transform\": \"wpt\", \"wavelet\": \"db2\", \"mode\": \"symmetric\", \"length\": x.shape[1], \"rate\": fs, \"norm\": False, \"paths\": y_paths}",
   "title": "Пакеты вейвлетов"
  },
  {
@@ -4748,7 +4748,7 @@
    }
   ],
   "params": [],
-  "python": "y = iwpt(x, x_paths, \"db2\", \"symmetric\", 0)",
+  "python": "y = iwpt(x, x_meta[\"paths\"], x_meta[\"wavelet\"], x_meta[\"mode\"], x_meta[\"length\"])\ny_fs = x_meta[\"rate\"]",
   "title": "Обратные пакеты вейвлетов"
  },
  {
@@ -4805,7 +4805,7 @@
     }
    }
   ],
-  "python": "y = keep_largest(x, True, 10, 1)",
+  "python": "y = keep_largest(x, True, 10, 1)\ny_meta = x_meta",
   "title": "Крупнейшие коэффициенты"
  },
  {
@@ -4858,7 +4858,7 @@
     "values": {}
    }
   ],
-  "python": "y = coeff_quantize(x, True, 8, 0.01)",
+  "python": "y = coeff_quantize(x, True, 8, 0.01)\ny_meta = x_meta",
   "title": "Квантование коэффициентов"
  },
  {

@@ -12,6 +12,7 @@
 #include "core/expr.hpp"
 #include "pipeline/docs.hpp"
 #include "pipeline/flatten.hpp"
+#include "pipeline/sweep.hpp"
 #include "pipeline/executor.hpp"
 #include "pipeline/npz_values.hpp"
 #include "python/form.hpp"
@@ -188,17 +189,21 @@ private:
         Input in;
         in.value = value_of(s.node, s.output);
         in.expr = vars_[s.node][s.output];
+        const auto whole = in.expr;
+        in.fs = in.value ? em_.number(rate_of(*in.value)) : std::string{"fs"};
+        if (in.value && std::holds_alternative<core::AudioBuffer>(*in.value)) in.fs = whole + "_fs";
         if (!s.band.empty() && in.value) {
             const auto& c = std::get<pipeline::Coeffs>(*in.value);
             if (const auto i = pipeline::band_index(c, s.band)) {
                 in.expr = band_expr(c, *i, in.expr);
+                const auto level = *i < c.basis.size() ? c.basis[*i].level : *i == 0 ? c.levels() : c.levels() + 1 - *i;
+                in.fs = c.transform == "swt" ? whole + "_meta[\"rate\"]" : fmt::format("{}_meta[\"rate\"] / {}", whole, std::size_t{1} << level);
                 if (auto band = pipeline::band_port(c, s.band)) {
                     keep_.push_back(std::move(*band));
                     in.value = &keep_.back();
                 }
             }
         }
-        in.fs = in.value ? em_.number(rate_of(*in.value)) : std::string{"fs"};
         return in;
     }
 
@@ -231,6 +236,10 @@ private:
             em_.set_node(n.id);
             auto code = n.bypass ? core::Result<std::string>{bypass_code(n, in)} : form->emit(io, em_);
             if (!code) return std::unexpected{code.error()};
+            for (std::size_t p = 0; p < n.type->outputs.size(); ++p) {
+                if (n.type->outputs[p].type != pipeline::PortType::signal || defines(*code, vars_[i][p] + "_fs")) continue;
+                *code += "\n" + vars_[i][p] + "_fs = " + output_rate(io, p, em_);
+            }
             if (n.type->id == "dwt" || n.type->id == "swt") pywt_sign_ = true;
             Block block{comment_for(n) + "\n" + *code, n.id, n.type->id, {}};
             if (em_.notebook())
@@ -239,12 +248,40 @@ private:
                     const auto* a = value_of(i, p.source.output) ? std::get_if<core::AudioBuffer>(value_of(i, p.source.output)) : nullptr;
                     if (!a) continue;
                     em_.function("plot_signal");
-                    block.plots.push_back(fmt::format("plot_signal({}, {}, {})", vars_[i][p.source.output], em_.number(a->sample_rate), py_str(p.name)));
+                    block.plots.push_back(fmt::format("plot_signal({0}, {0}_fs, {1})", vars_[i][p.source.output], py_str(p.name)));
                 }
             blocks_.push_back(std::move(block));
         }
         em_.set_node("");
         return {};
+    }
+
+    static bool defines(const std::string& code, const std::string& name) {
+        for (const auto& line : lines_of(code)) {
+            const auto eq = line.find(" = ");
+            if (eq == std::string::npos || line.starts_with(" ") || line.starts_with("#")) continue;
+            std::string target = line.substr(0, eq) + ",";
+            for (std::size_t at = 0; at < target.size();) {
+                const auto comma = target.find(',', at);
+                auto item = target.substr(at, comma - at);
+                while (!item.empty() && item.front() == ' ') item.erase(item.begin());
+                while (!item.empty() && item.back() == ' ') item.pop_back();
+                if (item == name) return true;
+                at = comma + 1;
+            }
+        }
+        return false;
+    }
+
+    std::string output_rate(const NodeIo& io, std::size_t port, Emitter& em) const {
+        const auto* out = io.out_values[port] ? std::get_if<core::AudioBuffer>(io.out_values[port]) : nullptr;
+        const double rate = out ? out->sample_rate : 0.0;
+        for (std::size_t k = 0; k < io.in_values.size(); ++k)
+            if (io.in_values[k] && std::holds_alternative<core::AudioBuffer>(*io.in_values[k]) && std::get<core::AudioBuffer>(*io.in_values[k]).sample_rate == rate) return io.in_fs[k];
+        const auto& params = io.node.type->params;
+        if (std::ranges::any_of(params, [](const pipeline::ParamSpec& s) { return s.name == "rate"; }))
+            if (const auto v = pipeline::numeric(io.node.params.count("rate") ? io.node.params.at("rate") : std::string{}); v && *v == rate) return em.expr(io, "rate");
+        return em.number(rate);
     }
 
     std::string bypass_code(const pipeline::GraphNode& n, const std::vector<std::string>& in) const {
@@ -253,6 +290,7 @@ private:
         for (std::size_t p = 0; p < n.type->outputs.size(); ++p) {
             const auto& out = vars_[&n - graph_.nodes.data()][p];
             code += (code.empty() ? "" : "\n") + out + " = " + from;
+            if (n.type->outputs[p].type == pipeline::PortType::coeffs) code += "\n" + out + "_meta = " + (from == "None" ? std::string{"None"} : from + "_meta");
             if (n.type->outputs[p].type == pipeline::PortType::report) code += "\n" + out + "_ok = " + (from == "None" ? std::string{"False"} : from + "_ok");
         }
         return code;

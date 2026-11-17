@@ -89,7 +89,7 @@ void replace_line(const std::filesystem::path& file, const std::string& from, co
 TEST_CASE("a param that uses a variable is written as the variable", "[py-live]") {
     const auto s = script_for(kLevels);
     CHECK(s.text.find("\nlv = 4\n") != std::string::npos);
-    CHECK(s.text.find("level=lv,") != std::string::npos);
+    CHECK(s.text.find("level=(lv or default_levels(x.shape[1], \"db2\")),") != std::string::npos);
     CHECK(s.text.find("level=4") == std::string::npos);
     CHECK(s.text.find("GRAPH = {\"lv\": 4}") != std::string::npos);
     CHECK(s.text.find("graph_changed(") != std::string::npos);
@@ -132,7 +132,7 @@ TEST_CASE("python reserved names are renamed", "[py-live]") {
     CHECK(s.text.find("\nnp_ = 3\n") != std::string::npos);
     CHECK(s.text.find("\nlambda_ = 2\n") != std::string::npos);
     CHECK(s.text.find("\nGRAPH_ = 1\n") != std::string::npos);
-    CHECK(s.text.find("level=np_,") != std::string::npos);
+    CHECK(s.text.find("level=(np_ or default_levels(x.shape[1], \"db2\")),") != std::string::npos);
     if (!python_ready()) SKIP("no python3 with numpy, scipy and PyWavelets");
     const auto ran = run_python(write_script(sig, "reserved"));
     INFO(ran.out);
