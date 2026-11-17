@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <string>
 
@@ -134,4 +135,21 @@ TEST_CASE("a variable declared twice is refused with both lines", "[vars]") {
     const auto doc = load_sig("pipeline \"v\" v2\nlet a = 1\nlet a = 2\n");
     REQUIRE_FALSE(doc);
     CHECK(doc.error().line == 3);
+}
+
+TEST_CASE("a variable that doubles itself on every level is refused quickly", "[vars]") {
+    std::string text = "pipeline \"v\" v2\nlet v0 = 1\n";
+    for (int k = 1; k <= 40; ++k) text += "let v" + std::to_string(k) + " = \"$v" + std::to_string(k - 1) + "+$v" + std::to_string(k - 1) + "\"\n";
+    text += "node g = gain(db=$v40)\n";
+    const auto start = std::chrono::steady_clock::now();
+    const auto graph = build_graph(doc_of(text), ".", {.partial = true});
+    CHECK_FALSE(graph);
+    CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds{2});
+}
+
+TEST_CASE("variables nested deeper than the limit are refused", "[vars]") {
+    std::string text = "pipeline \"v\" v2\nlet v0 = 1\n";
+    for (int k = 1; k <= 100; ++k) text += "let v" + std::to_string(k) + " = $v" + std::to_string(k - 1) + "\n";
+    text += "node g = gain(db=$v100)\n";
+    CHECK_FALSE(build_graph(doc_of(text), ".", {.partial = true}));
 }

@@ -700,6 +700,8 @@
   "pipeline.vars.duplicate": "the variable {name} is already declared on line {line}",
   "pipeline.set.unknown_variable": "the graph has no variable {name}",
   "pipeline.set.unknown_variable_hint": "the graph has no variable {name} — did you mean {hint}?",
+  "pipeline.vars.too_long": "a value with variables expands to more than {limit} characters — check that the variables do not refer to each other many times over",
+  "pipeline.vars.too_deep": "the variables are nested more than {limit} levels deep",
   "pipeline.migrate.dollar": "{node}.{param}: the $ sign is written as $$ because in v2 it starts a variable",
   "pipeline.sig.version_newer": "the file is format {found}, this Signals reads up to {max}; update Signals",
   "pipeline.sig.v2_directive": "“{word}” arrived in format v2: change the header to v2",

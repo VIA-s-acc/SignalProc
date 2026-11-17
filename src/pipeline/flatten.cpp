@@ -15,6 +15,9 @@ namespace {
 
 using Kind = ParamSpec::Kind;
 
+constexpr std::size_t kMaxExpanded = 64 * 1024;
+constexpr std::size_t kMaxDepth = 64;
+
 bool name_start(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
 bool name_char(char c) { return name_start(c) || (c >= '0' && c <= '9'); }
 
@@ -62,6 +65,8 @@ core::Result<std::string> expand(std::string_view value, const Scope& scope, Kin
         const std::string name{value.substr(at + 1, end - at - 1)};
         const auto it = scope.values.find(name);
         if (it == scope.values.end()) return std::unexpected{fault(unknown(name, scope))};
+        if (stack.size() >= kMaxDepth)
+            return std::unexpected{fault(fmt::format(fmt::runtime(tr("pipeline.vars.too_deep")), fmt::arg("limit", kMaxDepth)))};
         if (std::ranges::find(stack, name) != stack.end()) {
             std::string chain;
             for (const auto& s : stack) chain += s + " → ";
@@ -74,6 +79,7 @@ core::Result<std::string> expand(std::string_view value, const Scope& scope, Kin
         ++names;
         only = *inner;
         out += numeric(kind) && !plain_number(*inner) ? "(" + *inner + ")" : *inner;
+        if (out.size() > kMaxExpanded) return std::unexpected{fault(fmt::format(fmt::runtime(tr("pipeline.vars.too_long")), fmt::arg("limit", kMaxExpanded)))};
         at = end;
     }
     if (names == 1 && !other) return only;
