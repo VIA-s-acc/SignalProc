@@ -701,6 +701,7 @@
   "pipeline.set.unknown_variable": "the graph has no variable {name}",
   "pipeline.set.unknown_variable_hint": "the graph has no variable {name} — did you mean {hint}?",
   "pipeline.vars.too_long": "a value with variables expands to more than {limit} characters — check that the variables do not refer to each other many times over",
+  "pipeline.vars.too_much": "the variables expand to more than {limit} characters across the whole graph — check that a long variable is not substituted too many times",
   "pipeline.vars.too_deep": "the variables are nested more than {limit} levels deep",
   "pipeline.migrate.dollar": "{node}.{param}: the $ sign is written as $$ because in v2 it starts a variable",
   "pipeline.sig.version_newer": "the file is format {found}, this Signals reads up to {max}; update Signals",

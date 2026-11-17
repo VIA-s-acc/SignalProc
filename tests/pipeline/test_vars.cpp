@@ -153,3 +153,33 @@ TEST_CASE("variables nested deeper than the limit are refused", "[vars]") {
     text += "node g = gain(db=$v100)\n";
     CHECK_FALSE(build_graph(doc_of(text), ".", {.partial = true}));
 }
+
+TEST_CASE("a long variable substituted many times is refused for the whole graph", "[vars]") {
+    std::string text = "pipeline \"v\" v2\nlet big = \"" + std::string(40000, 'a') + "\"\n";
+    for (int k = 0; k < 300; ++k) text += "node n" + std::to_string(k) + " = wav(path=$big)\n";
+    const auto flat = flatten(doc_of(text));
+    REQUIRE_FALSE(flat);
+    CHECK_THAT(flat.error().message, ContainsSubstring("8388608"));
+}
+
+TEST_CASE("a variable shared by many nodes and variables keeps its value", "[vars]") {
+    std::string text = "pipeline \"v\" v2\nlet c0 = 1\n";
+    for (int k = 1; k <= 12; ++k) text += "let c" + std::to_string(k) + " = \"$c" + std::to_string(k - 1) + "+$c" + std::to_string(k - 1) + "\"\n";
+    for (int k = 0; k < 100; ++k) text += "let d" + std::to_string(k) + " = $c12\n";
+    for (int k = 0; k < 100; ++k) text += "node g" + std::to_string(k) + " = gain(db=$d" + std::to_string(k) + ")\n";
+    const auto start = std::chrono::steady_clock::now();
+    const auto flat = flatten(doc_of(text));
+    INFO((flat ? std::string{} : flat.error().message));
+    REQUIRE(flat);
+    CHECK(flat->nodes.at(99).params.at("db").size() > 15000);
+    CHECK(std::chrono::steady_clock::now() - start < std::chrono::milliseconds{50});
+}
+
+TEST_CASE("a deep chain is refused even when its tail was expanded before", "[vars]") {
+    std::string text = "pipeline \"v\" v2\nlet v0 = 1\n";
+    for (int k = 1; k <= 100; ++k) text += "let v" + std::to_string(k) + " = $v" + std::to_string(k - 1) + "\n";
+    text += "node a = gain(db=$v50)\nnode b = gain(db=$v100)\n";
+    const auto flat = flatten(doc_of(text));
+    REQUIRE_FALSE(flat);
+    CHECK(flat.error().line == 66);
+}
