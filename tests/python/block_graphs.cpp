@@ -145,6 +145,11 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
     if (t.id == "trim_silence")
         out.push_back({"trim_silence-fades", "pipeline \"trim_silence-fades\" v2\nnode x = gen(kind=sine, freq=330, rate=8000, duration=0.5)\n"
                                              "node f = fade(fade_in=0.2s, fade_out=0.2s)\nnode t = trim_silence()\nx -> f -> t\nprobe t as \"t\"\n"});
+    if (t.id == "shift") out.push_back({"shift-three", graph_text(t, "shift-three", {{"samples", "3"}})});
+    if (t.id == "echo") out.push_back({"echo-short", graph_text(t, "echo-short", {{"delay_ms", "20"}})});
+    if (t.id == "gate")
+        out.push_back({"gate-fade", "pipeline \"gate-fade\" v2\nnode x = gen(kind=sine, freq=330, rate=8000, duration=0.5)\n"
+                                    "node f = fade(fade_in=0.3s)\nnode g = gate(threshold_db=-20)\nx -> f -> g\nprobe g as \"g\"\n"});
     if (t.id == "check") out.push_back({"check-loose", graph_text(t, "check-loose", {{"tol", "2"}})});
     if (t.id == "coeffs_file")
         out.push_back({"coeffs_file-bare", "pipeline \"coeffs_file-bare\" v2\nnode c = coeffs_file(path=" + quoted(dir / "coeffs-bare.npz") +
