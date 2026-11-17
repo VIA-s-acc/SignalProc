@@ -362,7 +362,7 @@ TEST_CASE("the size of an exported text file is checked loosely", "[py-script]")
     }
 }
 
-TEST_CASE("variables are listed at the top of the script", "[py-script]") {
+TEST_CASE("variables are assigned at the top of the script", "[py-script]") {
     const std::string text = "pipeline \"v\" v2\n"
                              "let lv = 2\n"
                              "let half = \"$lv/2\"\n"
@@ -373,9 +373,9 @@ TEST_CASE("variables are listed at the top of the script", "[py-script]") {
     const auto s = script_for(text, "vars");
     INFO((s ? std::string{} : s.error().message));
     REQUIRE(s);
-    const auto head = s->text.substr(0, s->text.find("import sys"));
-    CHECK(head.find(tr("python.header.vars")) != std::string::npos);
-    CHECK(head.find("#   lv = 2\n") != std::string::npos);
-    CHECK(head.find("#   half = $lv/2 → 1\n") != std::string::npos);
-    CHECK(script_for(kTiny, "tiny")->text.find(tr("python.header.vars")) == std::string::npos);
+    const auto imports = s->text.find("import numpy as np");
+    const auto vars = s->text.find("# " + tr("python.header.vars") + "\nlv = 2\nhalf = lv / 2\n");
+    CHECK(imports < vars);
+    CHECK(vars < s->text.find("HERE = Path"));
+    CHECK(script_for(kTiny, "tiny")->text.find("GRAPH") == std::string::npos);
 }

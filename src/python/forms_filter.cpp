@@ -211,8 +211,8 @@ core::Result<std::string> convolve(const NodeIo& io, Emitter& em) {
 
 core::Result<std::string> dwt(const NodeIo& io, Emitter& em) {
     const auto& p = io.node.params;
-    return fmt::format("{} = pywt.wavedec({}, {}, mode={}, level={}, axis=-1)", io.out[0], io.in[0], em.wavelet(param_text(p, "wavelet")), py_str(param_text(p, "ext")),
-                       levels_of(io, false));
+    const auto level = uses_variable(io, "levels") ? em.expr(io, "levels") : std::to_string(levels_of(io, false));
+    return fmt::format("{} = pywt.wavedec({}, {}, mode={}, level={}, axis=-1)", io.out[0], io.in[0], em.wavelet(param_text(p, "wavelet")), py_str(param_text(p, "ext")), level);
 }
 
 core::Result<std::string> idwt(const NodeIo& io, Emitter& em) {

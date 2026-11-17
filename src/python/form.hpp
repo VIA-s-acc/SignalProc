@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <functional>
 #include <map>
+#include <optional>
 #include <set>
 #include <span>
 #include <string>
@@ -54,6 +55,11 @@ public:
     void import_line(std::string_view line);
     void function(std::string_view name);
     std::string number(double v) const;
+    std::string variable(std::string_view sig_name, bool integer_literal);
+    std::string py_var(std::string_view sig_name) const;
+    std::optional<std::string> py_expression(std::string_view raw) const;
+    std::string text_expression(std::string_view raw) const;
+    std::string expr(const NodeIo& io, std::string_view param) const;
     std::string numbers(std::string key, std::span<const double> v);
     std::string wavelet(std::string_view name);
     void set_out_dir(std::filesystem::path dir) { out_dir_ = std::move(dir); }
@@ -75,7 +81,8 @@ private:
     std::filesystem::path out_dir_;
     std::set<std::string, std::less<>> taken_;
     std::vector<std::string> imports_, functions_, missing_, prelude_;
-    std::map<std::string, std::string, std::less<>> wavelets_;
+    std::map<std::string, std::string, std::less<>> wavelets_, vars_;
+    std::set<std::string, std::less<>> int_vars_;
     io::NpzEntries entries_;
 };
 
@@ -88,6 +95,7 @@ struct PyForm {
 std::span<const PyForm> py_forms();
 const PyForm* find_py_form(std::string_view block);
 core::Error unsupported(const NodeIo& io, std::string_view param);
+bool uses_variable(const NodeIo& io, std::string_view param);
 std::string python_preview(const pipeline::BlockType& t, const pipeline::Params& params);
 
 void register_basic_forms(std::vector<PyForm>& out);

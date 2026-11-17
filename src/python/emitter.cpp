@@ -2,11 +2,17 @@
 #include <cctype>
 #include <cmath>
 #include <cstddef>
+#include <functional>
+#include <numbers>
+#include <string>
 #include <vector>
 
 #include <fmt/format.h>
 
 #include "core/design/families.hpp"
+#include "core/expr.hpp"
+#include "pipeline/flatten.hpp"
+#include "pipeline/sig.hpp"
 #include "pipeline/npz_values.hpp"
 #include "python/form.hpp"
 
@@ -28,7 +34,7 @@ const std::set<std::string, std::less<>> kReserved{
     "getattr", "globals", "hasattr", "hash", "help", "hex", "id", "input", "int", "isinstance", "issubclass", "iter", "len", "list", "locals", "map",
     "max", "memoryview", "min", "next", "object", "oct", "open", "ord", "pow", "print", "property", "quit", "range", "repr", "reversed", "round",
     "set", "setattr", "slice", "sorted", "staticmethod", "str", "sum", "super", "tuple", "vars", "zip", "np", "pywt", "signal", "scipy", "Path",
-    "sys", "math", "wavfile", "D", "HERE", "verify", "verify_text", "verify_name", "verify_db", "report", "plt", "Audio"};
+    "sys", "math", "wavfile", "D", "HERE", "GRAPH", "verify", "verify_text", "verify_name", "verify_db", "report", "plt", "Audio"};
 
 }  // namespace
 
@@ -236,6 +242,138 @@ std::string Emitter::number(double v) const {
     if (std::isnan(v)) return "np.nan";
     if (std::isinf(v)) return v > 0 ? "np.inf" : "-np.inf";
     return fmt::format("{}", v);
+}
+
+std::string Emitter::variable(std::string_view sig_name, bool integer_literal) {
+    auto name = py_name(sig_name, taken_);
+    taken_.insert(name);
+    vars_.insert_or_assign(std::string{sig_name}, name);
+    if (integer_literal) int_vars_.insert(std::string{sig_name});
+    return name;
+}
+
+std::string Emitter::py_var(std::string_view sig_name) const {
+    if (const auto it = vars_.find(sig_name); it != vars_.end()) return it->second;
+    return py_name(sig_name, {});
+}
+
+namespace {
+
+struct PyText {
+    std::string text;
+    int prec = 9;
+};
+
+std::string wrap(const PyText& t, int at_least) { return t.prec >= at_least ? t.text : "(" + t.text + ")"; }
+
+}  // namespace
+
+std::optional<std::string> Emitter::py_expression(std::string_view raw) const {
+    if (raw.find("$$") != std::string_view::npos) return std::nullopt;
+    std::vector<std::string> names;
+    std::string text;
+    for (std::size_t at = 0; at < raw.size(); ++at) {
+        if (raw[at] != '$') {
+            text += raw[at];
+            continue;
+        }
+        auto end = at + 1;
+        while (end < raw.size() && (std::isalnum(static_cast<unsigned char>(raw[end])) || raw[end] == '_')) ++end;
+        if (end == at + 1) return std::nullopt;
+        text += "_v" + std::to_string(names.size()) + " ";
+        names.emplace_back(raw.substr(at + 1, end - at - 1));
+        at = end - 1;
+    }
+    const auto parsed = core::parse_expr(text);
+    if (!parsed) return std::nullopt;
+    const auto& e = *parsed;
+    using Op = core::Expr::Op;
+    bool ok = true;
+    std::function<PyText(std::size_t)> emit = [&](std::size_t i) -> PyText {
+        const auto& n = e.nodes[i];
+        const auto arg = [&](std::size_t k) { return emit(n.args[k]); };
+        switch (n.op) {
+        case Op::number: return {n.value == std::numbers::pi ? std::string{"np.pi"} : number(n.value)};
+        case Op::name: {
+            if (!n.name.starts_with("_v")) return ok = false, PyText{};
+            const auto k = static_cast<std::size_t>(std::stoul(n.name.substr(2)));
+            return {py_var(names.at(k))};
+        }
+        case Op::neg: return {"-" + wrap(arg(0), 7), 7};
+        case Op::plus: return {"+" + wrap(arg(0), 7), 7};
+        case Op::not_: return {"float(" + wrap(arg(0), 5) + " == 0)"};
+        case Op::add: return {wrap(arg(0), 5) + " + " + wrap(arg(1), 6), 5};
+        case Op::sub: return {wrap(arg(0), 5) + " - " + wrap(arg(1), 6), 5};
+        case Op::mul: return {wrap(arg(0), 6) + " * " + wrap(arg(1), 7), 6};
+        case Op::div: return {wrap(arg(0), 6) + " / " + wrap(arg(1), 7), 6};
+        case Op::pow: return {wrap(arg(0), 9) + " ** " + wrap(arg(1), 7), 8};
+        case Op::lt: return {"float(" + wrap(arg(0), 5) + " < " + wrap(arg(1), 5) + ")"};
+        case Op::le: return {"float(" + wrap(arg(0), 5) + " <= " + wrap(arg(1), 5) + ")"};
+        case Op::gt: return {"float(" + wrap(arg(0), 5) + " > " + wrap(arg(1), 5) + ")"};
+        case Op::ge: return {"float(" + wrap(arg(0), 5) + " >= " + wrap(arg(1), 5) + ")"};
+        case Op::eq: return {"float(" + wrap(arg(0), 5) + " == " + wrap(arg(1), 5) + ")"};
+        case Op::ne: return {"float(" + wrap(arg(0), 5) + " != " + wrap(arg(1), 5) + ")"};
+        case Op::and_: return {"float(" + wrap(arg(0), 5) + " != 0 and " + wrap(arg(1), 5) + " != 0)"};
+        case Op::or_: return {"float(" + wrap(arg(0), 5) + " != 0 or " + wrap(arg(1), 5) + " != 0)"};
+        case Op::call: {
+            std::string args;
+            for (std::size_t k = 0; k < n.args.size(); ++k) args += (k ? ", " : "") + arg(k).text;
+            const auto fn = n.name == "sqrt" ? "np.sqrt" : n.name == "log10" ? "np.log10" : n.name;
+            return {fn + "(" + args + ")"};
+        }
+        }
+        return ok = false, PyText{};
+    };
+    auto out = emit(e.root);
+    if (!ok) return std::nullopt;
+    return std::move(out.text);
+}
+
+std::string Emitter::text_expression(std::string_view raw) const {
+    std::string body;
+    for (std::size_t at = 0; at < raw.size(); ++at) {
+        const char c = raw[at];
+        if (c == '$' && at + 1 < raw.size() && raw[at + 1] == '$') {
+            body += '$';
+            ++at;
+        } else if (c == '$') {
+            auto end = at + 1;
+            while (end < raw.size() && (std::isalnum(static_cast<unsigned char>(raw[end])) || raw[end] == '_')) ++end;
+            body += "{" + py_var(raw.substr(at + 1, end - at - 1)) + "}";
+            at = end - 1;
+        } else if (c == '{' || c == '}') {
+            body += std::string(2, c);
+        } else {
+            body += c;
+        }
+    }
+    return "f" + py_str(body);
+}
+
+std::string Emitter::expr(const NodeIo& io, std::string_view param) const {
+    using Kind = pipeline::ParamSpec::Kind;
+    const auto& n = io.node;
+    const auto spec = std::ranges::find_if(n.type->params, [&](const pipeline::ParamSpec& p) { return p.name == param; });
+    const auto kind = spec == n.type->params.end() ? Kind::text : spec->kind;
+    const auto value = n.params.count(std::string{param}) ? n.params.at(std::string{param}) : spec == n.type->params.end() ? std::string{} : spec->fallback;
+    const bool numeric = kind == Kind::integer || kind == Kind::real;
+    if (const auto raw = n.source.find(std::string{param}); raw != n.source.end()) {
+        const auto names = pipeline::variables_in(raw->second);
+        if (!names.empty()) {
+            const bool whole = names.size() == 1 && raw->second == "$" + names.front();
+            if (numeric)
+                if (auto e = py_expression(raw->second)) return kind == Kind::integer && !(whole && int_vars_.contains(names.front())) ? "int(" + *e + ")" : *e;
+            return whole ? py_var(names.front()) : text_expression(raw->second);
+        }
+    }
+    if (numeric)
+        if (const auto v = core::eval_number(value)) return kind == Kind::integer ? fmt::format("{}", static_cast<long long>(std::llround(*v))) : number(*v);
+    return py_str(value);
+}
+
+bool uses_variable(const NodeIo& io, std::string_view param) {
+    const auto raw = io.node.source.find(std::string{param});
+    return raw != io.node.source.end() && !pipeline::variables_in(raw->second).empty();
 }
 
 std::string Emitter::numbers(std::string key, std::span<const double> v) {
