@@ -274,7 +274,7 @@ void check_group(std::string_view name) {
     }
     const auto log = root / "live.log";
     const auto cmd = python_exe() + " -I \"" + (fs::path{SIGNALS_SOURCE_DIR} / "tools" / "bridge" / "run_live.py").string() + "\" \"" + jobs.string() + "\" > \"" + log.string() + "\" 2>&1";
-    (void)std::system(cmd.c_str());
+    [[maybe_unused]] const int status = std::system(cmd.c_str());
     const auto text = read(log);
     std::istringstream lines{text};
     for (std::string line; std::getline(lines, line);) {
