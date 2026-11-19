@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -94,4 +95,24 @@ TEST_CASE("saving a block writes a library file and warns about relative paths",
     CHECK(std::ranges::count(blocks, std::string{"outer"}, &pipeline::BlockDef::name) == 1);
     CHECK_THAT(read(lib / "outer.sig"), ContainsSubstring("block inner"));
     CHECK_FALSE(m.save_block("missing", lib));
+}
+
+TEST_CASE("library helpers stay fast on blocks that call each other", "[tui][user-blocks][review]") {
+    std::string cyclic = "pipeline \"c\" v2\n";
+    for (const char* name : {"b", "c"}) {
+        cyclic += std::string{"block "} + name + " {\n    in x\n    out y\n";
+        for (int k = 0; k < 10; ++k) cyclic += "    node n" + std::to_string(k) + " = " + (name[0] == 'b' ? "c" : "b") + "()\n";
+        cyclic += "    x -> n0 -> y\n}\n";
+    }
+    const auto lib = fresh("cyclic");
+    std::ofstream{lib / "cyclic.sig"} << cyclic;
+    const auto started = std::chrono::steady_clock::now();
+    PipelineModel m;
+    REQUIRE(m.load_text("c", cyclic + "node s = samples(values=\"1\", rate=8)\n"));
+    (void)m.save_block("b", lib / "out");
+    const auto library = pipeline::load_user_blocks(lib);
+    PipelineModel other;
+    REQUIRE(other.load_text("g", kGraph));
+    if (!library.empty()) (void)other.add_library_block(library.front(), library);
+    CHECK(std::chrono::steady_clock::now() - started < std::chrono::seconds{2});
 }

@@ -77,7 +77,7 @@ struct Binding {
 };
 
 std::string bind_params(std::string_view text, Binding& b, pipeline::ParamSpec::Kind kind) {
-    if (b.exhausted || b.stack.size() > kMaxChain || text.size() > b.budget) {
+    if (b.exhausted || b.stack.size() > kMaxChain || text.size() >= b.budget) {
         b.exhausted = true;
         return {};
     }
@@ -110,6 +110,10 @@ std::string bind_params(std::string_view text, Binding& b, pipeline::ParamSpec::
                 memo = b.memo.emplace(key, std::move(expanded)).first;
             }
             const auto& value = memo->second;
+            if (out.size() + value.size() + 2 > b.budget) {
+                b.exhausted = true;
+                return {};
+            }
             const bool numeric = kind == pipeline::ParamSpec::Kind::integer || kind == pipeline::ParamSpec::Kind::real;
             const bool whole = at == 0 && end == text.size();
             out += numeric && !whole && !plain_value(value) ? "(" + value + ")" : value;
@@ -540,11 +544,12 @@ std::string normal_text(const pipeline::BlockDef& def) {
 
 std::vector<const pipeline::BlockDef*> with_callees(const pipeline::BlockDef& def, const std::function<const pipeline::BlockDef*(std::string_view)>& find) {
     std::vector<const pipeline::BlockDef*> out;
+    std::set<const pipeline::BlockDef*> seen;
     const std::function<void(const pipeline::BlockDef&, std::size_t)> visit = [&](const pipeline::BlockDef& d, std::size_t depth) {
-        if (depth > kMaxNesting || std::ranges::find(out, &d) != out.end()) return;
+        if (depth > kMaxNesting || !seen.insert(&d).second) return;
         for (const auto& n : d.nodes)
-            if (const auto* callee = find(n.type); callee && callee != &d) visit(*callee, depth + 1);
-        if (std::ranges::find(out, &d) == out.end()) out.push_back(&d);
+            if (const auto* callee = find(n.type)) visit(*callee, depth + 1);
+        out.push_back(&d);
     };
     visit(def, 0);
     return out;
