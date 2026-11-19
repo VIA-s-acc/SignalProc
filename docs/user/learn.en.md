@@ -156,7 +156,7 @@ Use your course with `--course folder` on any `signals learn` command.
 
 ### Measures and goals {#learn-measures}
 
-A measure is computed by the check from the graph outputs. The numeric fields `freq` and `delay` may be text with variant parameters: `freq = "{{f}}"`, `freq = "2 * {{f}}"`. `a` and `b` are a node or a band port (`dwt.d1`). Instead of `b` you may give `ref`: then the reference is the same node of the reference solution run on the same input.
+A measure is computed by the check from the graph outputs. The numeric fields `freq` and `delay` may be text with variant parameters: `freq = "{{f}}"`, `freq = "2 * {{f}}"`. `a` and `b` are a node or a band port (`dwt.d1`); a node inside a call of your own block is written with a slash: `a = "lv1/sum"`. Instead of `b` you may give `ref`: then the reference is the same node of the reference solution run on the same input.
 
 | Kind | What it computes |
 |---|---|
@@ -178,7 +178,11 @@ A goal is exactly one of:
 - `through = { from, to, block }` — every path from `from` to `to` goes through a `block` block; a node may be named instead of a block type: `block = "n"`;
 - `forbid = [...]` — blocks that are not allowed;
 - `require = { block = number }` — blocks that must be there; only nodes whose signal reaches a measured output count, so dead branches do not help;
-- `probe = "name"` — the graph has a probe with this name.
+- `probe = "name"` — the graph has a probe with this name;
+- `defines = { calls = N }` — the graph has an own block (`block`) called at least N times; calls inside other own blocks count too;
+- `variable = { uses = N }` — some variable (`let`) is used at least N times: in node params and in other variables.
+
+A student may write the solution with variables and own blocks. `forbid`, `require`, `through`, `count` and `param` look at the flat graph, where every block call is unfolded into its nodes, so a forbidden block inside an own block is found too. Locked nodes (`locked`) stay at the top level with the same param values: a value may come from a variable if it is the same, and moving the node into a block is named as such by the check.
 
 An answer task has no goals but an `[answer]` table: `type` (`number`, `integer`, `vector`, `choice`), `expected` — the name of a measure on the reference solution or an answer with placeholders (`"{{a}} + 1"`), `tol` and `rel` — the tolerance, `options` — the choices (the program shows them in an order shuffled per variant; the answer is a number, the option text or the value after "="), `verify` — a condition on the reference measures that confirms the chosen answer.
 

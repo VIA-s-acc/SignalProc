@@ -48,6 +48,7 @@ add_executable(signals_tests
   learn/test_structure.cpp
   learn/test_answer.cpp
   learn/test_checker.cpp
+  learn/test_blocks_goals.cpp
   learn/test_progress.cpp
   learn/test_report.cpp
   learn/test_course.cpp

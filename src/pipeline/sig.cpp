@@ -8,6 +8,7 @@
 #include <fmt/format.h>
 
 #include "i18n/i18n.hpp"
+#include "pipeline/flatten.hpp"
 #include "pipeline/renames.hpp"
 
 namespace signals::pipeline {
@@ -803,6 +804,12 @@ core::Result<void> apply_set(PipelineDoc& doc, std::string_view assignment) {
         }
         auto trial = node->params;
         trial[param] = value;
+        if (const auto scope = resolve_lets(doc.lets))
+            for (auto& [key, text] : trial) {
+                const auto spec = std::ranges::find(type->params, key, &ParamSpec::name);
+                if (spec == type->params.end() || text.find('$') == std::string::npos) continue;
+                if (auto done = substitute(text, *scope, spec->kind)) text = std::move(*done);
+            }
         if (auto ok = resolve_params(*type, trial); !ok) return std::unexpected{ok.error()};
     }
     node->params[param] = std::move(value);

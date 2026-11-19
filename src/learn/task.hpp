@@ -34,6 +34,8 @@ struct Goal {
     std::vector<std::string> forbid = {};
     std::vector<std::pair<std::string, int>> require = {};
     std::string probe = {};
+    int defines = 0;
+    int variable = 0;
 };
 
 struct Answer {
