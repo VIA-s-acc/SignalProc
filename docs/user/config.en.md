@@ -21,6 +21,7 @@ The folder holds five things:
 | `terminal.toml` | colour, glyphs, language, editor and the terminal-check mark |
 | `session.toml` | the session: theme, last tab, recent audio files and pipelines |
 | `filters/*.flt` | "My filters": your own banks and single filters |
+| `blocks/*.sig` | your block library: files with `block` definitions that `signals explain name` finds ({#sig-own-blocks}) |
 | `learn.toml` | learning path progress: the name, the variant, the solved tasks ({#learn-progress}) |
 | `learn/` | the solved task graphs and the work graphs in `learn/work/` |
 
@@ -192,4 +193,4 @@ To remove the program, delete these files and, if you like, the settings folder.
 
 ### Resetting everything {#settings-reset}
 
-Delete `terminal.toml`: the next start shows the terminal check, the language becomes Russian and the editor falls back to `VISUAL`, `EDITOR` and the system program. Delete `session.toml` to forget the theme, the tab and the recent files; the next start shows the start panel again. Delete the `filters/` folder or single `.flt` files to remove your filters. The program keeps nothing else.
+Delete `terminal.toml`: the next start shows the terminal check, the language becomes Russian and the editor falls back to `VISUAL`, `EDITOR` and the system program. Delete `session.toml` to forget the theme, the tab and the recent files; the next start shows the start panel again. Delete the `filters/` folder or single `.flt` files to remove your filters, and the `blocks/` folder to remove your block library. The program keeps nothing else.

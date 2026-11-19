@@ -15,6 +15,29 @@
     ],
     "description": "Declare a variable; params use it as $name"
   },
+  "Library": {
+    "prefix": "use",
+    "body": [
+      "use \"${1:lib.sig}\""
+    ],
+    "description": "Load block definitions from another .sig file; the path is relative to this file"
+  },
+  "Own block": {
+    "prefix": "block",
+    "body": [
+      "# ${1:What the block does}",
+      "block ${2:name}(${3:db}=${4:0}) {",
+      "    in ${5:x}",
+      "    out ${6:y}",
+      "",
+      "    node ${7:g} = ${8:gain}(${9:db=\\$$3})",
+      "",
+      "    ${5:x} -> ${7:g} -> ${6:y}",
+      "}",
+      "$0"
+    ],
+    "description": "Define your own block: ports, nodes and wires inside; call it with node id = name(param=value)"
+  },
   "Node": {
     "prefix": "node",
     "body": [

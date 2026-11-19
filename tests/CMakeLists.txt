@@ -116,6 +116,7 @@ add_executable(signals_tests
   tui/harness.cpp
   audio/test_player.cpp
   theory/test_sections.cpp
+  theory/test_block_card.cpp
   pipeline/test_npz_values.cpp
   pipeline/test_blocks_npz.cpp
   pipeline/test_blocks_basic.cpp
@@ -181,6 +182,7 @@ add_executable(signals_tests
   python/test_forms_complete.cpp
   python/test_notebook.cpp
   python/test_live_core.cpp
+  python/test_block_functions.cpp
   python/test_portable_random.cpp
   python/test_live.cpp
   python/block_graphs.cpp

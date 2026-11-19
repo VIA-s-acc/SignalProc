@@ -10,7 +10,19 @@
       "include": "#header"
     },
     {
+      "include": "#use"
+    },
+    {
       "include": "#let"
+    },
+    {
+      "include": "#block"
+    },
+    {
+      "include": "#port"
+    },
+    {
+      "include": "#closing"
     },
     {
       "include": "#node"
@@ -181,7 +193,7 @@
       ]
     },
     "probe": {
-      "match": "^\\s*(probe)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:(\\.)([A-Za-z0-9_]+))?(?:\\s+(as)\\s+(\"[^\"]*\"))?",
+      "match": "^\\s*(probe)\\s+([A-Za-z_][A-Za-z0-9_]*(?:/[A-Za-z_][A-Za-z0-9_]*)*)(?:(\\.)([A-Za-z0-9_]+))?(?:\\s+(as)\\s+(\"[^\"]*\"))?",
       "captures": {
         "1": {
           "name": "keyword.control.probe.signals-sig"
@@ -241,6 +253,75 @@
           "name": "variable.other.constant.signals-sig"
         }
       ]
+    },
+    "use": {
+      "match": "^\\s*(use)\\s+(\"[^\"]*\")",
+      "captures": {
+        "1": {
+          "name": "keyword.control.import.use.signals-sig"
+        },
+        "2": {
+          "name": "string.quoted.double.path.signals-sig"
+        }
+      }
+    },
+    "block": {
+      "begin": "^\\s*(block)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.block.signals-sig"
+        },
+        "2": {
+          "name": "entity.name.function.block.definition.signals-sig"
+        }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "include": "#params"
+        },
+        {
+          "match": "\\{",
+          "name": "punctuation.section.block.begin.signals-sig"
+        },
+        {
+          "include": "#comment"
+        }
+      ]
+    },
+    "port": {
+      "begin": "^\\s*(in|out)\\s+(?=[A-Za-z_])",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.port.signals-sig"
+        }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "match": "\\boptional\\b",
+          "name": "keyword.other.optional.signals-sig"
+        },
+        {
+          "match": "[A-Za-z_][A-Za-z0-9_]*",
+          "name": "variable.parameter.port.signals-sig"
+        },
+        {
+          "match": ",",
+          "name": "punctuation.separator.signals-sig"
+        },
+        {
+          "include": "#comment"
+        }
+      ]
+    },
+    "closing": {
+      "match": "^\\s*(\\})",
+      "captures": {
+        "1": {
+          "name": "punctuation.section.block.end.signals-sig"
+        }
+      }
     }
   }
 }

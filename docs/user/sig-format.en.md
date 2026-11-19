@@ -100,6 +100,60 @@ Where else variables show:
 - **Python.** `signals python` writes the variables at the top of the script as Python variables (`lv = 3`), and the notebook in the «Graph parameters» cell; parameters given by a variable refer to it (`level=lv`). Change a value and the script skips the check against the program and computes with the new values.
 - **VS Code.** The extension highlights `let` and `$name`, offers the file's variables after `$` and shows the `let` line on hover.
 
+### Your own blocks {#sig-own-blocks}
+
+A part of the graph that repeats can be described once as your own block and called like a built-in one.
+
+```sig
+# One level of a bank: analysis, synthesis and the sum
+block bank_level(wavelet=haar) {
+    in x
+    out y, a, d
+
+    node h0  = convolve(filter=$wavelet.h0, method=direct)
+    node h1  = convolve(filter=$wavelet.h1, method=direct)
+    node da  = downsample(m=2, anti_alias=no, phase=1)
+    node dd  = downsample(m=2, anti_alias=no, phase=1)
+    node ua  = upsample(m=2, anti_image=no)
+    node ud  = upsample(m=2, anti_image=no)
+    node f0  = convolve(filter=$wavelet.f0, method=direct)
+    node f1  = convolve(filter=$wavelet.f1, method=direct)
+    node sum = add()
+
+    x -> h0 -> da -> ua -> f0 -> sum.a
+    x -> h1 -> dd -> ud -> f1 -> sum.b
+    da -> a
+    dd -> d
+    sum -> y
+    probe sum as "x̂"
+}
+
+node x   = samples(values="4 6 10 12 8 6 5 5", rate=8)
+node lv1 = bank_level()
+node lv2 = bank_level(wavelet=db2)
+x -> lv1.x
+lv1.a -> lv2.x
+probe lv2/h0 as "h0 of the second level"
+```
+
+- **Definition.** `block name(param=value, …) { … }`: the parentheses hold the block's params with their defaults; inside go ports, nodes, wires, probes and `let`. The comment above the `block` line describes the block: `signals explain` and the block card show it.
+- **Params.** Inside the block a param is a variable: `filter=$wavelet.h0`. The graph's variables are not visible inside, so a value is passed through the call: `bank_level(wavelet=$w)`.
+- **Ports.** `in x` is an input, `in noise optional` an optional input, `out y, a` the outputs. Every input is wired to something inside, every output gets exactly one wire. A port has the type of the node behind it: a signal or coefficients.
+- **Call.** `node lv1 = bank_level(wavelet=db2)`; the call's ports are written with a dot: `lv1.x`, `lv1.a`. A single port may go unnamed. A call with one input and one output can be bypassed: `bypass`.
+- **Nodes inside a call** are named with a slash: `lv1/h0`, `lv2/sum`. That is how a probe is put on them from outside: `probe lv2/h0 as "…"`. A probe inside the definition gives a probe in every call: `lv1/x̂`, `lv2/x̂`.
+- **Nesting.** A block may call your other blocks, at most 16 levels deep. A block that calls itself, directly or through others, is an error that names the whole chain.
+- **Errors inside a block** name the call, the definition and its line: "in lv2 (bank_level, line 5): …".
+- **Libraries.** `use "lib/banks.sig"` takes definitions from another file; the path is relative to the graph's folder. A library file holds only the header, definitions and comments. One name in the graph and in a library is an error; your block with a built-in block's name hides the built-in one, and the program warns about it. Paths inside a block (`path=` of `wav`, `coeffs_file`) are relative to the folder of the file where the block is defined.
+- **Your library** is the `*.sig` files in the `blocks` folder next to the settings (`~/.config/signals/blocks`). `signals explain name` finds a block there.
+
+Where your blocks show up too:
+
+- **Command line.** `--set lv1.wavelet=db4` changes a call's param; a node inside a call is not changed this way (`--set lv1/h0.method=fft` is an error with a hint). `signals graph` draws a call as one node, `--expand` with all the nodes inside. `signals run` prints the call's line with the sum of time and memory and the call's nodes under it; with `--json` such nodes get an `instance` field. `signals explain name --graph graph.sig` shows a block from the graph file and its libraries: the description, params, ports with types and the definition. `--watch` follows the `use` files too.
+- **Probe file names.** In `--probe-dir`, `--npz` and `--report` the signs `/ \ : * ? " < > |` in a probe name become `_`, and names that collide get `-2`, `-3`.
+- **Python.** `signals python` writes each definition as one Python function, and the calls call it with their own arguments (the "Your own blocks" section of the Python guide).
+- **Course tasks** see the nodes inside your blocks (the task checks section of the course guide).
+- **VS Code.** The extension highlights `block`, `use`, `in`, `out` and paths like `lv1/h0`, inserts a template with the `block` snippet, completes your blocks' names and params and shows their description and ports on hover.
+
 ### Graph checks {#sig-checks}
 
 Besides `check`, the `assert` block sets conditions on the results of a run. Its inputs `a`, `b`, `c`, `d` take the reports of other blocks, and the parameter `expr` is an expression over their fields:
@@ -153,7 +207,7 @@ Before a run the whole graph is checked, and every error names its line:
   ```
 
   In the «Pipeline» tab `S` on the selected node does the same: it asks for the parameter, the values (it suggests a range around the current one) and the measure, and the «sweep» probe shows the result as a plot or a table (`v`). `Esc` stops the sweep.
-- `signals graph graph.sig` — draw the graph as text (`--ascii` — ASCII only).
+- `signals graph graph.sig` — draw the graph as text (`--ascii` — ASCII only, `--expand` — show the nodes inside calls of your blocks).
 - `signals blocks` — the block list; `--markdown` — the `docs/user/blocks.md` reference; `--json` — block descriptions for editors.
 - `signals explain block` — one block in detail: what it does, its ports, every parameter with its default, range and explanation, the meaning of every choice and the theory card. A typo in the name suggests the nearest block.
 

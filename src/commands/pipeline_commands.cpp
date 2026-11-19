@@ -44,6 +44,7 @@
 #include "theory/cards.hpp"
 #include "theory/pipeline_cards.hpp"
 #include "theory/sections.hpp"
+#include "theory/user_card.hpp"
 
 namespace signals::cli {
 namespace {
@@ -578,22 +579,17 @@ private:
             return 0;
         }
         out << fmt::format(fmt::runtime(tr("cli.explain.own")), fmt::arg("name", def.name), fmt::arg("file", origin.filename().string()), fmt::arg("line", def.line)) << '\n';
-        if (!about.empty()) out << about << '\n';
-        const auto ports = [](const std::vector<pipeline::PortSpec>& list) {
-            std::string text;
-            for (const auto& p : list)
-                text += (text.empty() ? "" : ", ") + p.name + " (" + std::string{pipeline::to_string(p.type)} + (p.optional ? ", " + tr("docs.blocks.optional") : "") + ")";
-            return text.empty() ? std::string{"—"} : text;
-        };
-        out << '\n' << tr("cli.explain.inputs") << ' ' << ports(type->inputs) << '\n' << tr("cli.explain.outputs") << ' ' << ports(type->outputs) << '\n';
-        if (!def.order.empty()) out << tr("cli.explain.params") << '\n';
-        for (const auto& key : def.order) out << "  " << key << " = " << def.defaults.at(key) << '\n';
-        out << '\n' << tr("cli.explain.definition") << '\n';
-        const auto text = pipeline::block_text(def, doc);
-        for (std::size_t at = 0; at < text.size();) {
-            const auto end = std::min(text.find('\n', at), text.size());
-            out << (end == at ? "" : "    ") << text.substr(at, end - at) << '\n';
-            at = end + 1;
+        for (const auto& section : theory::user_block_card(def, doc).sections) {
+            out << '\n' << section.heading << '\n';
+            auto body = std::string_view{section.body};
+            const bool code = body.starts_with("```");
+            if (code) body = body.substr(body.find('\n') + 1, body.rfind("```") - body.find('\n') - 1);
+            for (std::size_t at = 0; at < body.size();) {
+                const auto stop = std::min(body.find('\n', at), body.size());
+                const auto line = body.substr(at, stop - at);
+                out << (code && !line.empty() ? "    " : "") << line << '\n';
+                at = stop + 1;
+            }
         }
         return 0;
     }

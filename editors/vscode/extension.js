@@ -59,6 +59,16 @@ function valueSnippet(value, index) {
   return sigValue(value) === null ? placeholder : `"${placeholder}"`;
 }
 
+function ownBlockDoc(b, ru) {
+  const md = new vscode.MarkdownString();
+  const args = b.params.map((p) => `${p.name}=${p.default}`).join(', ');
+  md.appendCodeblock(`block ${b.name}${args ? `(${args})` : ''}`, 'signals-sig');
+  if (b.about) md.appendMarkdown(`${b.about}\n\n`);
+  md.appendMarkdown(preview.say(ru, 'ownPorts', { ins: b.ins.join(', ') || '—', outs: b.outs.join(', ') || '—' }));
+  md.appendMarkdown(`\n\n_${preview.say(ru, 'ownBlock', { line: b.line + 1 })}_`);
+  return md;
+}
+
 function nodeContext(document, position) {
   let start = position.line;
   for (; start >= 0 && position.line - start <= 50; --start) {
@@ -119,6 +129,11 @@ function activate(context) {
         }
         const ctx = nodeContext(document, position);
         if (!ctx) return null;
+        const own = sig.blocksOf(document.getText()).find((b) => b.name === ctx.type);
+        if (own) {
+          const range = document.getWordRangeAtPosition(position, /[A-Za-z_][A-Za-z0-9_]*/);
+          return range && range.start.character === ctx.typeStart ? new vscode.Hover(ownBlockDoc(own, ru), range) : null;
+        }
         const block = blocks.get(ctx.type);
         if (!block) return null;
         const range = document.getWordRangeAtPosition(position, /[A-Za-z_][A-Za-z0-9_.\-]*/);
@@ -155,17 +170,38 @@ function activate(context) {
             });
           }
           if (/^\s*node\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*[A-Za-z_0-9]*$/.test(text)) {
-            return [...blocks.values()].map((b) => {
+            const own = sig.blocksOf(document.getText()).map((b) => {
+              const item = new vscode.CompletionItem(b.name, vscode.CompletionItemKind.Module);
+              item.detail = preview.say(ru, 'ownBlock', { line: b.line + 1 });
+              item.documentation = ownBlockDoc(b, ru);
+              item.insertText = new vscode.SnippetString(`${b.name}($1)`);
+              item.sortText = `0${b.name}`;
+              return item;
+            });
+            return own.concat([...blocks.values()].map((b) => {
               const item = new vscode.CompletionItem(b.id, vscode.CompletionItemKind.Function);
               item.detail = b.title;
               item.documentation = blockDoc(b, ru);
               const args = b.params.map((p, i) => `${p.name}=${valueSnippet(p.default, i + 1)}`).join(', ');
               item.insertText = new vscode.SnippetString(`${b.id}(${args})`);
               return item;
-            });
+            }));
           }
           const ctx = nodeContext(document, position);
           if (ctx && ctx.insideParens) {
+            const own = sig.blocksOf(document.getText()).find((b) => b.name === ctx.type);
+            if (own) {
+              if (ctx.inQuote || /=\s*[^,]*$/.test(text.slice(text.lastIndexOf('(') + 1))) return [];
+              const used = new Set([...ctx.whole.matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*=/g)].map((m) => m[1]));
+              return own.params
+                .filter((p) => !used.has(p.name))
+                .map((p) => {
+                  const item = new vscode.CompletionItem(p.name, vscode.CompletionItemKind.Property);
+                  item.detail = p.default;
+                  item.insertText = new vscode.SnippetString(`${p.name}=\${1:${escapeSnippet(p.default)}}`);
+                  return item;
+                });
+            }
             const block = blocks.get(ctx.type);
             if (!block) return [];
             const value = /([A-Za-z_][A-Za-z0-9_]*)\s*=\s*[A-Za-z0-9_.\-]*$/.exec(text);

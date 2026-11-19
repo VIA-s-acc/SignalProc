@@ -253,6 +253,20 @@ std::string Emitter::variable(std::string_view sig_name, bool integer_literal) {
     return name;
 }
 
+NameScope Emitter::enter_scope(std::set<std::string, std::less<>> taken) {
+    NameScope outer{std::move(taken_), std::move(vars_), std::move(int_vars_)};
+    taken_ = std::move(taken);
+    vars_.clear();
+    int_vars_.clear();
+    return outer;
+}
+
+void Emitter::leave_scope(NameScope outer) {
+    taken_ = std::move(outer.taken);
+    vars_ = std::move(outer.vars);
+    int_vars_ = std::move(outer.int_vars);
+}
+
 std::string Emitter::py_var(std::string_view sig_name) const {
     if (const auto it = vars_.find(sig_name); it != vars_.end()) return it->second;
     return py_name(sig_name, {});

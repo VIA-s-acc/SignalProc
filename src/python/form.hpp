@@ -44,6 +44,12 @@ std::string py_name(std::string_view id, const std::set<std::string, std::less<>
 std::string py_str(std::string_view text);
 std::string py_comment(std::string_view text);
 
+struct NameScope {
+    std::set<std::string, std::less<>> taken;
+    std::map<std::string, std::string, std::less<>> vars;
+    std::set<std::string, std::less<>> int_vars;
+};
+
 class Emitter {
 public:
     explicit Emitter(bool preview = false) : preview_{preview} {}
@@ -56,6 +62,8 @@ public:
     void function(std::string_view name);
     std::string number(double v) const;
     std::string variable(std::string_view sig_name, bool integer_literal);
+    NameScope enter_scope(std::set<std::string, std::less<>> taken);
+    void leave_scope(NameScope outer);
     std::string py_var(std::string_view sig_name) const;
     std::optional<std::string> py_expression(std::string_view raw) const;
     std::string text_expression(std::string_view raw) const;

@@ -115,7 +115,7 @@ jobs:
       - name: Python sources compile
         run: python -m py_compile resources/python/*.py tools/bridge/*.py
       - name: Bridge
-        run: ctest --preset release -R "bridge|live in the script|numpy draws|changed variable|reserved names" --output-on-failure
+        run: ctest --preset release -R "bridge|live in the script|numpy draws|changed variable|reserved names|block function" --output-on-failure
 
   gallery:
     runs-on: ubuntu-24.04

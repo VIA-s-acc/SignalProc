@@ -34,6 +34,7 @@ add_library(signals_theory STATIC
   text.cpp
   sources.cpp
   pipeline_cards.cpp
+  user_card.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theory_book.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theory_cards.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/theory_book_en.cpp
@@ -47,5 +48,5 @@ add_library(signals_theory STATIC
   ${CMAKE_CURRENT_BINARY_DIR}/card_sources.cpp
 )
 target_include_directories(signals_theory PUBLIC ${PROJECT_SOURCE_DIR}/src)
-target_link_libraries(signals_theory PUBLIC signals_core PRIVATE signals_i18n tomlplusplus::tomlplusplus fmt::fmt)
+target_link_libraries(signals_theory PUBLIC signals_core signals_pipeline PRIVATE signals_i18n tomlplusplus::tomlplusplus fmt::fmt)
 signals_configure_target(signals_theory)

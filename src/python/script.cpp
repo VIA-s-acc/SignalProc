@@ -2,7 +2,12 @@
 
 #include <algorithm>
 #include <deque>
+#include <fstream>
+#include <iterator>
+#include <map>
+#include <set>
 #include <sstream>
+#include <tuple>
 
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
@@ -60,7 +65,8 @@ double rate_of(const Value& v) {
 bool detail_sign_differs(const pipeline::Coeffs& c) { return c.transform == "dwt" || c.transform == "swt"; }
 
 std::string band_expr(const pipeline::Coeffs& c, std::size_t band, const std::string& var) {
-    const auto item = var + "[" + std::to_string(band) + "]";
+    const auto at = band < c.basis.size() || band == 0 ? std::to_string(band) : "-" + std::to_string(c.levels() + 1 - band);
+    const auto item = var + "[" + at + "]";
     return detail_sign_differs(c) && band > 0 ? "(-" + item + ")" : item;
 }
 
@@ -84,6 +90,7 @@ public:
         result_ = std::move(*result);
         em_.set_out_dir(std::filesystem::absolute(o_.out).parent_path());
         em_.set_notebook(o_.kind == ScriptKind::notebook);
+        prepare();
         declare_variables();
         name_nodes();
         if (auto ok = emit_nodes(); !ok) return std::unexpected{ok.error()};
@@ -104,24 +111,25 @@ private:
         return it == result_.probes.end() ? nullptr : &it->second;
     }
 
-    std::string let_rhs(const pipeline::LetDecl& l) const {
-        if (pipeline::variables_in(l.value).empty()) {
-            if (core::eval_number(l.value))
-                if (auto e = em_.py_expression(l.value)) return *e;
-            return py_str(pipeline::unescape_dollars(l.value));
+    std::string rhs(const std::string& value) const {
+        if (pipeline::variables_in(value).empty()) {
+            if (core::eval_number(value))
+                if (auto e = em_.py_expression(value)) return *e;
+            return py_str(pipeline::unescape_dollars(value));
         }
-        if (auto e = em_.py_expression(l.value)) return *e;
-        return em_.text_expression(l.value);
+        if (auto e = em_.py_expression(value)) return *e;
+        return em_.text_expression(value);
+    }
+
+    static bool integer_literal(const std::string& v) {
+        const auto digits = v.starts_with('-') ? v.substr(1) : v;
+        return !digits.empty() && std::ranges::all_of(digits, [](char c) { return c >= '0' && c <= '9'; });
     }
 
     void declare_variables() {
         const auto& lets = doc_.lets;
         if (lets.empty()) return;
-        const auto integer = [](const std::string& v) {
-            const auto digits = v.starts_with('-') ? v.substr(1) : v;
-            return !digits.empty() && std::ranges::all_of(digits, [](char c) { return c >= '0' && c <= '9'; });
-        };
-        for (const auto& l : lets) em_.variable(l.name, integer(l.value));
+        for (const auto& l : lets) em_.variable(l.name, integer_literal(l.value));
         std::vector<bool> placed(lets.size(), false);
         std::vector<std::size_t> order;
         const auto ready = [&](std::size_t k) {
@@ -140,7 +148,7 @@ private:
                 }
             if (order.size() == before) break;
         }
-        for (const auto k : order) var_lines_.push_back(em_.py_var(lets[k].name) + " = " + let_rhs(lets[k]));
+        for (const auto k : order) var_lines_.push_back(em_.py_var(lets[k].name) + " = " + rhs(lets[k].value));
         const auto values = pipeline::let_values(lets);
         std::string graph, now;
         for (const auto& v : values) {
@@ -164,6 +172,10 @@ private:
         vars_.resize(graph_.nodes.size());
         for (const auto i : graph_.order) {
             const auto& n = graph_.nodes[i];
+            if (!n.instance.empty()) {
+                vars_[i].assign(n.type->outputs.size(), std::string{});
+                continue;
+            }
             if (n.type->outputs.size() == 1) vars_[i] = {em_.name_for(n.id)};
             else
                 for (const auto& p : n.type->outputs) vars_[i].push_back(em_.name_for(n.id + "_" + p.name));
@@ -185,74 +197,130 @@ private:
         const Value* value = nullptr;
     };
 
-    Input input_of(const pipeline::Source& s) {
-        Input in;
-        in.value = value_of(s.node, s.output);
-        in.expr = vars_[s.node][s.output];
-        const auto whole = in.expr;
-        in.fs = in.value ? em_.number(rate_of(*in.value)) : std::string{"fs"};
-        if (in.value && std::holds_alternative<core::AudioBuffer>(*in.value)) in.fs = whole + "_fs";
-        if (!s.band.empty() && in.value) {
-            const auto& c = std::get<pipeline::Coeffs>(*in.value);
-            if (const auto i = pipeline::band_index(c, s.band)) {
-                in.expr = band_expr(c, *i, in.expr);
-                const auto level = *i < c.basis.size() ? c.basis[*i].level : *i == 0 ? c.levels() : c.levels() + 1 - *i;
-                in.fs = c.transform == "swt" ? whole + "_meta[\"rate\"]" : fmt::format("{}_meta[\"rate\"] / {}", whole, std::size_t{1} << level);
-                if (auto band = pipeline::band_port(c, s.band)) {
-                    keep_.push_back(std::move(*band));
-                    in.value = &keep_.back();
-                }
+    struct Block {
+        std::string code, node, type;
+        std::vector<std::string> plots;
+        bool own = false;
+    };
+
+    Input named(const std::string& var, const Value* v) const {
+        Input in{var, v ? em_.number(rate_of(*v)) : std::string{"fs"}, v};
+        if (v && std::holds_alternative<core::AudioBuffer>(*v)) in.fs = var + "_fs";
+        return in;
+    }
+
+    Input with_band(Input whole, const std::string& band) {
+        const auto* c = whole.value ? std::get_if<pipeline::Coeffs>(whole.value) : nullptr;
+        if (!c) return whole;
+        Input in = whole;
+        if (const auto i = pipeline::band_index(*c, band)) {
+            in.expr = band_expr(*c, *i, whole.expr);
+            const auto level = *i < c->basis.size() ? c->basis[*i].level : *i == 0 ? c->levels() : c->levels() + 1 - *i;
+            if (c->transform == "swt") in.fs = whole.expr + "_meta[\"rate\"]";
+            else if (*i == 0 && c->basis.empty()) in.fs = fmt::format("{0}_meta[\"rate\"] / 2 ** (len({0}) - 1)", whole.expr);
+            else in.fs = fmt::format("{}_meta[\"rate\"] / {}", whole.expr, std::size_t{1} << level);
+            if (auto b = pipeline::band_port(*c, band)) {
+                keep_.push_back(std::move(*b));
+                in.value = &keep_.back();
             }
         }
         return in;
     }
 
+    Input input_of(const pipeline::Source& s) {
+        if (const auto it = outer_.find(key_of(s)); it != outer_.end()) return it->second;
+        if (const auto it = outer_.find(SourceKey{s.node, s.output, std::string{}}); it != outer_.end()) return s.band.empty() ? it->second : with_band(it->second, s.band);
+        auto whole = named(vars_[s.node][s.output], value_of(s.node, s.output));
+        return s.band.empty() ? whole : with_band(std::move(whole), s.band);
+    }
+
+    core::Result<std::string> node_code(std::size_t i, const std::vector<Input>& inputs, const std::vector<std::string>& outs) {
+        const auto& n = graph_.nodes[i];
+        const auto* form = find_py_form(n.type->id);
+        std::vector<std::string> in, fs;
+        std::vector<const Value*> in_values;
+        for (const auto& input : inputs) {
+            in.push_back(input.expr);
+            fs.push_back(input.expr.empty() ? std::string{} : input.fs);
+            in_values.push_back(input.value);
+        }
+        std::vector<const Value*> out_values;
+        for (std::size_t p = 0; p < n.type->outputs.size(); ++p) out_values.push_back(value_of(i, p));
+        const NodeIo io{n, in, outs, fs, in_values, out_values, graph_.base_dir};
+        if (!form) return std::unexpected{unsupported(io, "")};
+        auto code = n.bypass ? core::Result<std::string>{bypass_code(n, in, outs)} : form->emit(io, em_);
+        if (!code) return std::unexpected{code.error()};
+        for (std::size_t p = 0; p < n.type->outputs.size(); ++p) {
+            if (n.type->outputs[p].type != pipeline::PortType::signal || defines(*code, outs[p] + "_fs")) continue;
+            *code += "\n" + outs[p] + "_fs = " + output_rate(io, p, em_);
+        }
+        return code;
+    }
+
+    void add_plots(Block& block, const std::function<bool(const pipeline::Probe&)>& mine) {
+        if (!em_.notebook()) return;
+        for (const auto& p : graph_.probes) {
+            if (!p.source.band.empty() || !mine(p)) continue;
+            const auto in = input_of(p.source);
+            if (in.expr.empty() || !in.value || !std::holds_alternative<core::AudioBuffer>(*in.value)) continue;
+            em_.function("plot_signal");
+            block.plots.push_back(fmt::format("plot_signal({}, {}, {})", in.expr, in.fs, py_str(p.name)));
+        }
+    }
+
+    core::Result<void> emit_top_node(std::size_t i) {
+        const auto& n = graph_.nodes[i];
+        std::vector<Input> inputs;
+        for (const auto& s : n.sources) inputs.push_back(s ? input_of(*s) : Input{});
+        em_.set_node(n.id);
+        auto code = node_code(i, inputs, vars_[i]);
+        if (!code) return std::unexpected{code.error()};
+        Block block{comment_for(n) + "\n" + *code, n.id, n.type->id, {}};
+        add_plots(block, [&](const pipeline::Probe& p) { return p.source.node == i; });
+        blocks_.push_back(std::move(block));
+        return {};
+    }
+
     core::Result<void> emit_nodes() {
-        chain_.resize(graph_.nodes.size());
+        if (defs_.empty()) {
+            for (const auto i : graph_.order)
+                if (auto ok = emit_top_node(i); !ok) return ok;
+            em_.set_node("");
+            return {};
+        }
+        std::vector<std::string> items;
+        std::map<std::string, std::size_t, std::less<>> item_index;
+        std::vector<std::size_t> item_of(graph_.nodes.size(), 0);
         for (const auto i : graph_.order) {
-            const auto& n = graph_.nodes[i];
-            const auto* form = find_py_form(n.type->id);
-            std::vector<std::string> in, fs;
-            std::vector<const Value*> in_values;
-            Chain c{form ? form->tol : 1e-12, form && form->tol > 1e-12 ? n.id : std::string{}};
-            for (const auto& s : n.sources) {
-                if (!s) {
-                    in.emplace_back();
-                    fs.emplace_back();
-                    in_values.push_back(nullptr);
-                    continue;
-                }
-                const auto input = input_of(*s);
-                in.push_back(input.expr);
-                fs.push_back(input.fs);
-                in_values.push_back(input.value);
-                if (chain_[s->node].tol > c.tol) c = chain_[s->node];
-            }
-            chain_[i] = c;
-            std::vector<const Value*> outs;
-            for (std::size_t p = 0; p < n.type->outputs.size(); ++p) outs.push_back(value_of(i, p));
-            const NodeIo io{n, in, vars_[i], fs, in_values, outs, graph_.base_dir};
-            if (!form) return std::unexpected{unsupported(io, "")};
-            em_.set_node(n.id);
-            auto code = n.bypass ? core::Result<std::string>{bypass_code(n, in)} : form->emit(io, em_);
-            if (!code) return std::unexpected{code.error()};
-            for (std::size_t p = 0; p < n.type->outputs.size(); ++p) {
-                if (n.type->outputs[p].type != pipeline::PortType::signal || defines(*code, vars_[i][p] + "_fs")) continue;
-                *code += "\n" + vars_[i][p] + "_fs = " + output_rate(io, p, em_);
-            }
-            if (n.type->id == "dwt" || n.type->id == "swt") pywt_sign_ = true;
-            Block block{comment_for(n) + "\n" + *code, n.id, n.type->id, {}};
-            if (em_.notebook())
-                for (const auto& p : graph_.probes) {
-                    if (p.source.node != i || !p.source.band.empty()) continue;
-                    const auto* a = value_of(i, p.source.output) ? std::get_if<core::AudioBuffer>(value_of(i, p.source.output)) : nullptr;
-                    if (!a) continue;
-                    em_.function("plot_signal");
-                    block.plots.push_back(fmt::format("plot_signal({0}, {0}_fs, {1})", vars_[i][p.source.output], py_str(p.name)));
-                }
-            blocks_.push_back(std::move(block));
+            const auto& instance = graph_.nodes[i].instance;
+            const auto name = instance.empty() ? "\x1f" + std::to_string(i) : instance.substr(0, instance.find('/'));
+            const auto [it, fresh] = item_index.emplace(name, items.size());
+            if (fresh) items.push_back(name);
+            item_of[i] = it->second;
+        }
+        std::vector<std::set<std::size_t>> next(items.size());
+        std::vector<std::size_t> pending(items.size(), 0);
+        for (std::size_t i = 0; i < graph_.nodes.size(); ++i)
+            for (const auto& s : graph_.nodes[i].sources)
+                if (s && item_of[s->node] != item_of[i] && next[item_of[s->node]].insert(item_of[i]).second) ++pending[item_of[i]];
+        std::set<std::size_t> ready;
+        for (std::size_t k = 0; k < items.size(); ++k)
+            if (pending[k] == 0) ready.insert(k);
+        std::size_t done = 0;
+        while (!ready.empty()) {
+            const auto k = *ready.begin();
+            ready.erase(ready.begin());
+            ++done;
+            const auto& name = items[k];
+            auto ok = name.starts_with('\x1f') ? emit_top_node(std::stoul(name.substr(1))) : emit_top_call(*decl_in(doc_.nodes, name));
+            if (!ok) return ok;
+            for (const auto m : next[k])
+                if (--pending[m] == 0) ready.insert(m);
         }
         em_.set_node("");
+        for (std::size_t k = 0; k < items.size() && done < items.size(); ++k)
+            if (pending[k] > 0 && !items[k].starts_with('\x1f'))
+                return core::make_error(core::Errc::unsupported, fmt::format(fmt::runtime(tr("python.block_loop")), fmt::arg("call", items[k])));
         return {};
     }
 
@@ -284,11 +352,11 @@ private:
         return em.number(rate);
     }
 
-    std::string bypass_code(const pipeline::GraphNode& n, const std::vector<std::string>& in) const {
+    std::string bypass_code(const pipeline::GraphNode& n, const std::vector<std::string>& in, const std::vector<std::string>& outs) const {
         const auto from = in.empty() || in.front().empty() ? std::string{"None"} : in.front();
         std::string code;
         for (std::size_t p = 0; p < n.type->outputs.size(); ++p) {
-            const auto& out = vars_[&n - graph_.nodes.data()][p];
+            const auto& out = outs[p];
             code += (code.empty() ? "" : "\n") + out + " = " + from;
             if (n.type->outputs[p].type == pipeline::PortType::coeffs) code += "\n" + out + "_meta = " + (from == "None" ? std::string{"None"} : from + "_meta");
             if (n.type->outputs[p].type == pipeline::PortType::report) code += "\n" + out + "_ok = " + (from == "None" ? std::string{"False"} : from + "_ok");
@@ -338,10 +406,7 @@ private:
         for (const auto& p : graph_.probes) {
             const auto it = result_.probes.find(p.name);
             if (it == result_.probes.end()) continue;
-            auto expr = vars_[p.source.node][p.source.output];
-            if (!p.source.band.empty())
-                if (const auto* v = value_of(p.source.node, p.source.output))
-                    if (const auto i = pipeline::band_index(std::get<pipeline::Coeffs>(*v), p.source.band)) expr = band_expr(std::get<pipeline::Coeffs>(*v), *i, expr);
+            const auto expr = input_of(p.source).expr;
             const auto from = rows_.size();
             if (auto ok = add_value(p.name, expr, it->second, "ref." + p.name, chain_[p.source.node]); !ok) return ok;
             loosen_text_size(from, p.source.node);
@@ -353,7 +418,7 @@ private:
                 if (!v || !std::holds_alternative<pipeline::Report>(*v)) continue;
                 const auto what = n.type->outputs.size() == 1 ? n.id : n.id + "." + n.type->outputs[p].name;
                 const auto from = rows_.size();
-                if (auto ok = add_value(what, vars_[i][p], *v, "ref." + what, chain_[i]); !ok) return ok;
+                if (auto ok = add_value(what, input_of({i, p, {}}).expr, *v, "ref." + what, chain_[i]); !ok) return ok;
                 loosen_text_size(from, i);
             }
             if (!n.type->side_effect) continue;
@@ -394,6 +459,7 @@ private:
         const auto functions = em_.functions();
         if (!functions.empty()) out += "\n";
         for (const auto& f : functions) out += "\n" + f + (f.ends_with('\n') ? "" : "\n");
+        for (const auto& f : block_functions_) out += "\n\n" + f;
         out += "\n\nHERE = Path(__file__).resolve().parent\n";
         out += "D = np.load(HERE / " + py_str(data) + ", allow_pickle=False)\n";
         for (const auto& line : em_.prelude()) out += line + "\n";
@@ -446,12 +512,14 @@ private:
         }
         std::string functions;
         for (const auto& f : em_.functions()) functions += (functions.empty() ? "" : "\n\n") + f;
+        for (const auto& f : block_functions_) functions += (functions.empty() ? "" : "\n\n") + f;
         if (!functions.empty()) cells.push_back(cell("code", functions));
         std::string load = "HERE = Path.cwd()\nD = np.load(HERE / " + py_str(data) + ", allow_pickle=False)\n";
         for (const auto& line : em_.prelude()) load += line + "\n";
         cells.push_back(cell("code", load));
         for (const auto& b : blocks_) {
-            cells.push_back(cell("markdown", "**" + b.node + "** · `" + b.type + "` · " + tr("pipeline.block." + b.type) + "\n\n" + tr("pipeline.about." + b.type)));
+            cells.push_back(cell("markdown", b.own ? "**" + b.node + "** · `" + b.type + "` · " + tr("python.notebook.own_block")
+                                                   : "**" + b.node + "** · `" + b.type + "` · " + tr("pipeline.block." + b.type) + "\n\n" + tr("pipeline.about." + b.type)));
             cells.push_back(cell("code", b.code));
             for (const auto& plot : b.plots) cells.push_back(cell("code", plot));
         }
@@ -470,6 +538,441 @@ private:
         return nb.dump(1) + "\n";
     }
 
+    using SourceKey = std::tuple<std::size_t, std::size_t, std::string>;
+
+    struct Resolved {
+        std::optional<pipeline::Source> source;
+        std::string through;
+    };
+
+    struct Frame {
+        const pipeline::BlockDef* def = nullptr;
+        std::string prefix;
+        std::map<std::string, Input, std::less<>> args;
+        std::map<std::string, std::vector<std::string>, std::less<>> vars;
+        std::map<std::string, std::pair<const pipeline::BlockDef*, std::vector<Input>>, std::less<>> calls;
+    };
+
+    static SourceKey key_of(const pipeline::Source& s) { return {s.node, s.output, s.band}; }
+
+    static std::string sanitized(std::string key) {
+        for (auto& c : key)
+            if (c == '/' || c == '.') c = '_';
+        return key;
+    }
+
+    static std::string companion_suffix(const Value* v) {
+        if (!v) return "_fs";
+        if (std::holds_alternative<pipeline::Coeffs>(*v)) return "_meta";
+        if (std::holds_alternative<pipeline::Report>(*v)) return "_ok";
+        return "_fs";
+    }
+
+    static std::string companion(const Input& in) {
+        if (in.expr.empty() || !in.value) return "None";
+        if (std::holds_alternative<core::AudioBuffer>(*in.value)) return in.fs;
+        if (std::holds_alternative<pipeline::Coeffs>(*in.value)) return in.expr + "_meta";
+        if (std::holds_alternative<pipeline::Report>(*in.value)) return in.expr + "_ok";
+        return "None";
+    }
+
+    static bool typed(const Value* v) {
+        return v && (std::holds_alternative<core::AudioBuffer>(*v) || std::holds_alternative<pipeline::Coeffs>(*v) || std::holds_alternative<pipeline::Report>(*v));
+    }
+
+    static const pipeline::NodeDecl* decl_in(const std::vector<pipeline::NodeDecl>& nodes, std::string_view id) {
+        const auto it = std::ranges::find(nodes, id, &pipeline::NodeDecl::id);
+        return it == nodes.end() ? nullptr : &*it;
+    }
+
+    static std::optional<std::size_t> input_index(const pipeline::BlockType& t, std::string_view port) {
+        const auto& ins = t.inputs;
+        if (port.empty()) {
+            if (ins.size() == 1) return 0;
+            if (std::ranges::count_if(ins, [](const pipeline::PortSpec& p) { return !p.optional; }) == 1)
+                return static_cast<std::size_t>(std::ranges::find_if(ins, [](const pipeline::PortSpec& p) { return !p.optional; }) - ins.begin());
+            return std::nullopt;
+        }
+        for (std::size_t k = 0; k < ins.size(); ++k)
+            if (ins[k].name == port) return k;
+        return std::nullopt;
+    }
+
+    void prepare() {
+        for (std::size_t i = 0; i < graph_.nodes.size(); ++i) index_.emplace(graph_.nodes[i].id, i);
+        for (const auto* list : {&doc_.imported, &doc_.blocks})
+            for (const auto& b : *list) defs_.insert_or_assign(b.name, &b);
+        chain_.resize(graph_.nodes.size());
+        for (const auto i : graph_.order) {
+            const auto& n = graph_.nodes[i];
+            const auto* form = find_py_form(n.type->id);
+            Chain c{form ? form->tol : 1e-12, form && form->tol > 1e-12 ? n.id : std::string{}};
+            for (const auto& s : n.sources)
+                if (s && chain_[s->node].tol > c.tol) c = chain_[s->node];
+            chain_[i] = c;
+            if (n.type->id == "dwt" || n.type->id == "swt") pywt_sign_ = true;
+        }
+        if (defs_.empty()) return;
+        map_instances("", doc_.nodes);
+        std::set<std::string, std::less<>> used;
+        for (const auto& [instance, def] : instance_def_) used.insert(def->name);
+        for (const auto& name : used) fn_names_.emplace(name, em_.name_for(name));
+        trace_name_ = em_.name_for("trace");
+        find_traced();
+    }
+
+    void map_instances(const std::string& prefix, const std::vector<pipeline::NodeDecl>& nodes) {
+        for (const auto& n : nodes) {
+            const auto it = defs_.find(n.type);
+            if (it == defs_.end() || n.bypass) continue;
+            instance_def_.emplace(prefix + n.id, it->second);
+            map_instances(prefix + n.id + "/", it->second->nodes);
+        }
+    }
+
+    std::string trace_key(std::size_t i, std::size_t o) const {
+        const auto& n = graph_.nodes[i];
+        return n.type->outputs.size() == 1 ? n.id : n.id + "." + n.type->outputs[o].name;
+    }
+
+    void find_traced() {
+        std::set<SourceKey> covered;
+        for (const auto& n : doc_.nodes) {
+            const auto it = defs_.find(n.type);
+            if (it == defs_.end() || n.bypass) continue;
+            for (const auto& q : it->second->outs)
+                if (const auto r = resolve_out(*it->second, n.id + "/", q.name); r.source) covered.insert(key_of(*r.source));
+        }
+        const auto need = [&](std::size_t i, std::size_t o, const std::string& band) {
+            const auto& instance = graph_.nodes[i].instance;
+            if (instance.empty() || covered.contains({i, o, band}) || covered.contains({i, o, std::string{}})) return;
+            needed_.insert({i, o});
+            traced_[instance_def_.at(instance)->name].insert(trace_key(i, o).substr(instance.size() + 1));
+            for (auto at = instance.find('/');; at = instance.find('/', at + 1)) {
+                trace_defs_.insert(instance_def_.at(instance.substr(0, at))->name);
+                if (at == std::string::npos) break;
+            }
+        };
+        for (const auto& p : graph_.probes) need(p.source.node, p.source.output, p.source.band);
+        for (std::size_t i = 0; i < graph_.nodes.size(); ++i) {
+            const auto& n = graph_.nodes[i];
+            for (std::size_t o = 0; o < n.type->outputs.size(); ++o)
+                if (n.type->outputs[o].type == pipeline::PortType::report) need(i, o, {});
+            if (n.type->side_effect)
+                for (const auto& s : n.sources)
+                    if (s) need(s->node, s->output, s->band);
+        }
+    }
+
+    pipeline::Source source_of(std::size_t i, std::string_view port) const {
+        const auto& outs = graph_.nodes[i].type->outputs;
+        if (port.empty()) return {i, 0, {}};
+        for (std::size_t k = 0; k < outs.size(); ++k)
+            if (outs[k].name == port) return {i, k, {}};
+        const auto coeffs = std::ranges::find_if(outs, [](const pipeline::PortSpec& p) { return p.type == pipeline::PortType::coeffs; });
+        return {i, coeffs == outs.end() ? 0 : static_cast<std::size_t>(coeffs - outs.begin()), std::string{port}};
+    }
+
+    Resolved resolve_ref(const pipeline::BlockDef& def, const std::string& prefix, const pipeline::PortRef& from, int depth) const {
+        if (depth > 64) return {};
+        if (std::ranges::any_of(def.ins, [&](const pipeline::PortDecl& p) { return p.name == from.node; })) return {std::nullopt, from.node};
+        if (const auto* call = decl_in(def.nodes, from.node))
+            if (const auto it = defs_.find(call->type); it != defs_.end()) {
+                const auto& callee = *it->second;
+                if (call->bypass) return callee.ins.empty() ? Resolved{} : resolve_into(def, prefix, call->id, callee.ins.front().name, depth + 1);
+                auto r = resolve_out(callee, prefix + call->id + "/", from.port.empty() ? callee.outs.front().name : from.port, depth + 1);
+                if (r.source || r.through.empty()) return r;
+                return resolve_into(def, prefix, call->id, r.through, depth + 1);
+            }
+        const auto it = index_.find(prefix + from.node);
+        if (it == index_.end()) return {};
+        return {source_of(it->second, from.port), {}};
+    }
+
+    Resolved resolve_out(const pipeline::BlockDef& def, const std::string& prefix, std::string_view port, int depth = 0) const {
+        for (const auto& e : def.edges)
+            if (e.to.node == port) return resolve_ref(def, prefix, e.from, depth);
+        return {};
+    }
+
+    Resolved resolve_into(const pipeline::BlockDef& def, const std::string& prefix, std::string_view call, std::string_view port, int depth) const {
+        const auto& callee = *defs_.at(decl_in(def.nodes, call)->type);
+        for (const auto& e : def.edges)
+            if (e.to.node == call && (e.to.port == port || (e.to.port.empty() && callee.ins.size() == 1))) return resolve_ref(def, prefix, e.from, depth);
+        return {};
+    }
+
+    Input local_input(const Frame& f, const pipeline::PortRef& ref) {
+        if (f.def && ref.port.empty())
+            if (const auto a = f.args.find(ref.node); a != f.args.end()) return a->second;
+        if (const auto c = f.calls.find(ref.node); c != f.calls.end()) {
+            const auto& [callee, outs] = c->second;
+            std::size_t k = 0;
+            if (!ref.port.empty()) {
+                while (k < callee->outs.size() && callee->outs[k].name != ref.port) ++k;
+                if (k == callee->outs.size()) return {};
+            }
+            return k < outs.size() ? outs[k] : Input{};
+        }
+        const auto& nodes = f.def ? f.def->nodes : doc_.nodes;
+        const auto& edges = f.def ? f.def->edges : doc_.edges;
+        if (const auto* d = decl_in(nodes, ref.node); d && d->bypass && defs_.contains(d->type)) {
+            for (const auto& e : edges)
+                if (e.to.node == d->id) return local_input(f, e.from);
+            return {};
+        }
+        const auto it = index_.find(f.prefix + ref.node);
+        if (it == index_.end()) return {};
+        const auto s = source_of(it->second, ref.port);
+        if (!f.def) return input_of(s);
+        const auto v = f.vars.find(ref.node);
+        if (v == f.vars.end() || s.output >= v->second.size()) return {};
+        auto whole = named(v->second[s.output], value_of(s.node, s.output));
+        return s.band.empty() ? whole : with_band(std::move(whole), s.band);
+    }
+
+    std::vector<Input> call_args(const Frame& f, const pipeline::NodeDecl& call, const pipeline::BlockDef& callee) {
+        std::vector<Input> out;
+        const auto& edges = f.def ? f.def->edges : doc_.edges;
+        for (const auto& q : callee.ins) {
+            Input in;
+            for (const auto& e : edges)
+                if (e.to.node == call.id && (e.to.port == q.name || (e.to.port.empty() && callee.ins.size() == 1))) {
+                    in = local_input(f, e.from);
+                    break;
+                }
+            out.push_back(std::move(in));
+        }
+        return out;
+    }
+
+    Input out_input(const pipeline::BlockDef& callee, const std::string& prefix, std::string_view port, const std::vector<Input>& args, const std::string& var) {
+        const Value* v = nullptr;
+        if (const auto r = resolve_out(callee, prefix, port); r.source) {
+            auto whole = named(var, value_of(r.source->node, r.source->output));
+            v = r.source->band.empty() ? whole.value : with_band(std::move(whole), r.source->band).value;
+        } else if (!r.through.empty()) {
+            for (std::size_t k = 0; k < callee.ins.size() && k < args.size(); ++k)
+                if (callee.ins[k].name == r.through) v = args[k].value;
+        }
+        return named(var, v);
+    }
+
+    static std::string targets(const std::vector<Input>& outs) {
+        std::string out;
+        for (const auto& o : outs) out += (out.empty() ? "" : ", ") + o.expr + ", " + o.expr + companion_suffix(o.value);
+        return out;
+    }
+
+    std::string call_text(const pipeline::BlockDef& callee, const pipeline::NodeDecl& call, const std::vector<Input>& args, bool inside) const {
+        std::vector<std::string> a;
+        for (const auto& in : args) {
+            a.push_back(in.expr.empty() ? "None" : in.expr);
+            a.push_back(companion(in));
+        }
+        for (const auto& key : callee.order)
+            if (const auto it = call.params.find(key); it != call.params.end()) a.push_back(param_names_.at(callee.name).at(key) + "=" + rhs(it->second));
+        if (trace_defs_.contains(callee.name)) {
+            a.push_back("trace=" + (inside ? std::string{"trace"} : trace_name_));
+            a.push_back("at=" + (inside ? "at + " + py_str(call.id + "/") : py_str(call.id + "/")));
+        }
+        std::string out = fn_names_.at(callee.name) + "(";
+        for (std::size_t k = 0; k < a.size(); ++k) out += (k ? ", " : "") + a[k];
+        return out + ")";
+    }
+
+    const std::vector<std::string>& source_lines(const std::filesystem::path& origin) {
+        const auto key = origin.empty() ? std::string{} : utf8(origin);
+        auto it = files_.find(key);
+        if (it == files_.end()) {
+            std::string text = o_.source;
+            if (!origin.empty()) {
+                std::ifstream in{origin, std::ios::binary};
+                text.assign(std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{});
+            }
+            it = files_.emplace(key, lines_of(text)).first;
+        }
+        return it->second;
+    }
+
+    std::string line_comment(const std::filesystem::path& origin, const pipeline::NodeDecl& n) {
+        const auto& lines = source_lines(origin);
+        if (n.line > 0 && static_cast<std::size_t>(n.line) <= lines.size()) {
+            const auto& line = lines[static_cast<std::size_t>(n.line) - 1];
+            const auto start = line.find_first_not_of(' ');
+            return "# " + py_comment(start == std::string::npos ? line : line.substr(start));
+        }
+        return "# " + py_comment(n.id + " = " + n.type + "(…)");
+    }
+
+    std::string default_literal(const std::string& value) const {
+        if (pipeline::variables_in(value).empty()) return rhs(value);
+        return py_str(pipeline::unescape_dollars(value));
+    }
+
+    core::Result<void> emit_top_call(const pipeline::NodeDecl& call) {
+        const auto& def = *defs_.at(call.type);
+        const auto prefix = call.id + "/";
+        const auto args = call_args(top_, call, def);
+        if (auto ok = emit_function(def, prefix, args); !ok) return ok;
+        std::string code;
+        if (trace_defs_.contains(def.name) && !trace_declared_) {
+            code += trace_name_ + " = {}\n";
+            trace_declared_ = true;
+        }
+        std::vector<Input> outs;
+        for (const auto& q : def.outs) outs.push_back(out_input(def, prefix, q.name, args, em_.name_for(call.id + "_" + q.name)));
+        code += outs.empty() ? call_text(def, call, args, false) : targets(outs) + " = " + call_text(def, call, args, false);
+        for (std::size_t k = 0; k < def.outs.size(); ++k)
+            if (const auto r = resolve_out(def, prefix, def.outs[k].name); r.source) outer_.emplace(key_of(*r.source), outs[k]);
+        top_.calls[call.id] = {&def, outs};
+        for (const auto& [i, o] : needed_) {
+            const auto& instance = graph_.nodes[i].instance;
+            if (instance.substr(0, instance.find('/')) != call.id) continue;
+            const auto key = trace_key(i, o);
+            const auto name = em_.name_for(sanitized(key));
+            vars_[i][o] = name;
+            code += "\n" + name + " = " + trace_name_ + "[" + py_str(key) + "]";
+            if (typed(value_of(i, o))) {
+                const auto suffix = companion_suffix(value_of(i, o));
+                code += "\n" + name + suffix + " = " + trace_name_ + "[" + py_str(key + suffix) + "]";
+            }
+        }
+        Block block{line_comment({}, call) + "\n" + code, call.id, def.name, {}, true};
+        add_plots(block, [&](const pipeline::Probe& p) {
+            const auto& instance = graph_.nodes[p.source.node].instance;
+            return instance.substr(0, instance.find('/')) == call.id;
+        });
+        blocks_.push_back(std::move(block));
+        return {};
+    }
+
+    core::Result<void> emit_function(const pipeline::BlockDef& def, const std::string& prefix, const std::vector<Input>& args) {
+        if (!functions_done_.insert(def.name).second) return {};
+        std::set<std::string, std::less<>> taken{"trace", "at"};
+        for (const auto& [name, fn] : fn_names_) taken.insert(fn);
+        auto outer = em_.enter_scope(std::move(taken));
+        auto text = function_text(def, prefix, args);
+        em_.leave_scope(std::move(outer));
+        if (!text) return std::unexpected{text.error()};
+        block_functions_.push_back(std::move(*text));
+        return {};
+    }
+
+    core::Result<std::string> function_text(const pipeline::BlockDef& def, const std::string& prefix, const std::vector<Input>& args) {
+        Frame f{&def, prefix, {}, {}, {}};
+        std::vector<std::string> params;
+        for (std::size_t k = 0; k < def.ins.size(); ++k) {
+            const auto name = em_.name_for(def.ins[k].name);
+            const auto* v = k < args.size() ? args[k].value : nullptr;
+            f.args[def.ins[k].name] = named(name, v);
+            params.push_back(name);
+            params.push_back(name + companion_suffix(v));
+        }
+        auto& names = param_names_[def.name];
+        for (const auto& key : def.order) {
+            const auto& value = def.defaults.at(key);
+            const auto var = em_.variable(key, integer_literal(value));
+            names[key] = var;
+            params.push_back(var + "=" + default_literal(value));
+        }
+        const bool traced = trace_defs_.contains(def.name);
+        if (traced) {
+            params.emplace_back("trace=None");
+            params.emplace_back("at=\"\"");
+        }
+        std::map<std::string, std::size_t, std::less<>> at;
+        for (std::size_t k = 0; k < def.nodes.size(); ++k) at.emplace(def.nodes[k].id, k);
+        std::vector<std::set<std::size_t>> next(def.nodes.size());
+        std::vector<std::size_t> pending(def.nodes.size(), 0);
+        for (const auto& e : def.edges) {
+            const auto a = at.find(e.from.node), b = at.find(e.to.node);
+            if (a == at.end() || b == at.end() || a->second == b->second) continue;
+            if (next[a->second].insert(b->second).second) ++pending[b->second];
+        }
+        std::set<std::size_t> ready;
+        for (std::size_t k = 0; k < def.nodes.size(); ++k)
+            if (pending[k] == 0) ready.insert(k);
+        std::string body;
+        const auto add = [&](const std::string& code) {
+            for (const auto& line : lines_of(code)) body += (line.empty() ? std::string{} : "    " + line) + "\n";
+        };
+        std::size_t emitted = 0;
+        while (!ready.empty()) {
+            const auto k = *ready.begin();
+            ready.erase(ready.begin());
+            ++emitted;
+            for (const auto m : next[k])
+                if (--pending[m] == 0) ready.insert(m);
+            const auto& n = def.nodes[k];
+            if (const auto it = defs_.find(n.type); it != defs_.end()) {
+                const auto& callee = *it->second;
+                const auto inputs = call_args(f, n, callee);
+                std::vector<Input> outs;
+                std::string code;
+                if (n.bypass) {
+                    const auto in = inputs.empty() ? Input{} : inputs.front();
+                    const auto var = em_.name_for(n.id + "_" + callee.outs.front().name);
+                    outs.push_back(named(var, in.value));
+                    code = var + " = " + (in.expr.empty() ? "None" : in.expr) + "\n" + var + companion_suffix(in.value) + " = " + companion(in);
+                } else {
+                    if (auto ok = emit_function(callee, prefix + n.id + "/", inputs); !ok) return std::unexpected{ok.error()};
+                    for (const auto& q : callee.outs) outs.push_back(out_input(callee, prefix + n.id + "/", q.name, inputs, em_.name_for(n.id + "_" + q.name)));
+                    code = outs.empty() ? call_text(callee, n, inputs, true) : targets(outs) + " = " + call_text(callee, n, inputs, true);
+                }
+                add(line_comment(def.origin, n) + "\n" + code);
+                f.calls[n.id] = {&callee, std::move(outs)};
+                continue;
+            }
+            const auto found = index_.find(prefix + n.id);
+            if (found == index_.end()) return core::make_error(core::Errc::unsupported, "missing node " + prefix + n.id);
+            const auto i = found->second;
+            const auto& g = graph_.nodes[i];
+            auto& vars = f.vars[n.id];
+            if (g.type->outputs.size() == 1) vars = {em_.name_for(n.id)};
+            else
+                for (const auto& p : g.type->outputs) vars.push_back(em_.name_for(n.id + "_" + p.name));
+            std::vector<Input> inputs(g.type->inputs.size());
+            for (const auto& e : def.edges)
+                if (e.to.node == n.id)
+                    if (const auto q = input_index(*g.type, e.to.port); q && g.sources[*q]) inputs[*q] = local_input(f, e.from);
+            em_.set_node(def.name + "/" + n.id);
+            auto code = node_code(i, inputs, vars);
+            if (!code) return std::unexpected{code.error()};
+            std::string traces;
+            if (const auto t = traced_.find(def.name); t != traced_.end())
+                for (std::size_t o = 0; o < vars.size(); ++o) {
+                    const auto local = g.type->outputs.size() == 1 ? n.id : n.id + "." + g.type->outputs[o].name;
+                    if (!t->second.contains(local)) continue;
+                    traces += "\n    trace[at + " + py_str(local) + "] = " + vars[o];
+                    if (typed(value_of(i, o))) {
+                        const auto suffix = companion_suffix(value_of(i, o));
+                        traces += "\n    trace[at + " + py_str(local + suffix) + "] = " + vars[o] + suffix;
+                    }
+                }
+            if (!traces.empty()) *code += "\nif trace is not None:" + traces;
+            add(line_comment(def.origin, n) + "\n" + *code);
+        }
+        if (emitted < def.nodes.size()) return core::make_error(core::Errc::unsupported, fmt::format(fmt::runtime(tr("python.block_loop")), fmt::arg("call", def.name)));
+        std::string returns;
+        for (const auto& q : def.outs) {
+            Input r;
+            for (const auto& e : def.edges)
+                if (e.to.node == q.name) {
+                    r = local_input(f, e.from);
+                    break;
+                }
+            returns += (returns.empty() ? "" : ", ") + (r.expr.empty() ? std::string{"None"} : r.expr) + ", " + companion(r);
+        }
+        if (!returns.empty()) body += "    return " + returns + "\n";
+        if (body.empty()) body = "    pass\n";
+        std::string head;
+        for (const auto& line : def.comments.above) head += (line.starts_with('#') ? py_comment(line) : "# " + py_comment(line)) + "\n";
+        std::string list;
+        for (const auto& param : params) list += (list.empty() ? "" : ", ") + param;
+        return head + "def " + fn_names_.at(def.name) + "(" + list + "):\n" + body;
+    }
+
     const pipeline::PipelineDoc& doc_;
     const pipeline::Graph& graph_;
     const ScriptOptions& o_;
@@ -477,16 +980,25 @@ private:
     Emitter em_;
     std::vector<std::vector<std::string>> vars_;
     std::vector<Chain> chain_;
-    struct Block {
-        std::string code, node, type;
-        std::vector<std::string> plots;
-    };
     std::vector<Block> blocks_;
     std::vector<Row> rows_;
     std::deque<Value> keep_;
     bool pywt_sign_ = false;
     std::vector<std::string> var_lines_;
     std::string graph_line_, now_;
+    std::map<std::string, std::size_t, std::less<>> index_;
+    std::map<std::string, const pipeline::BlockDef*, std::less<>> defs_, instance_def_;
+    std::map<std::string, std::string, std::less<>> fn_names_;
+    std::map<std::string, std::map<std::string, std::string, std::less<>>, std::less<>> param_names_;
+    std::map<std::string, std::set<std::string, std::less<>>, std::less<>> traced_;
+    std::set<std::string, std::less<>> trace_defs_, functions_done_;
+    std::set<std::pair<std::size_t, std::size_t>> needed_;
+    std::map<SourceKey, Input> outer_;
+    std::map<std::string, std::vector<std::string>, std::less<>> files_;
+    std::vector<std::string> block_functions_;
+    Frame top_;
+    std::string trace_name_;
+    bool trace_declared_ = false;
 };
 
 }  // namespace
