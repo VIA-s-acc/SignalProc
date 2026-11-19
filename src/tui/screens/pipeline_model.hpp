@@ -106,7 +106,7 @@ public:
 
     core::Result<std::string> add_library_block(const pipeline::BlockDef& def, const std::vector<pipeline::BlockDef>& library);
     core::Result<std::string> save_block(std::string_view name, const std::filesystem::path& dir) const;
-    core::Result<void> update_block(const pipeline::BlockDef& def);
+    core::Result<void> update_block(const pipeline::BlockDef& def, const std::vector<pipeline::BlockDef>& library);
     std::vector<std::string> differs_from(const std::vector<pipeline::BlockDef>& library) const;
     core::Result<std::string> collapse(std::string name);
     core::Result<void> expand(std::string_view call);
@@ -129,6 +129,7 @@ private:
     core::Result<void> commit(pipeline::PipelineDoc next);
     core::Result<void> change(const std::function<core::Result<void>(pipeline::PipelineDoc& body, pipeline::PipelineDoc& doc)>& edit);
     std::string scoped(std::string_view id) const { return inside_.empty() ? std::string{id} : inside_ + "/" + std::string{id}; }
+    bool taken_in_scope(const pipeline::PipelineDoc& body, const pipeline::PipelineDoc& doc, std::string_view id) const;
     void rebuild();
 
     pipeline::PipelineDoc doc_;

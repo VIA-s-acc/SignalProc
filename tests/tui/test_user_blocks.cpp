@@ -75,7 +75,7 @@ TEST_CASE("a copy that differs from the library is reported and updated", "[tui]
     std::ofstream{lib / "halve.sig"} << changed;
     const auto library = pipeline::load_user_blocks(lib);
     CHECK(m.differs_from(library) == std::vector<std::string>{"halve"});
-    REQUIRE(m.update_block(library.front()));
+    REQUIRE(m.update_block(library.front(), library));
     CHECK(m.doc().blocks.front().defaults.at("db") == "-9");
     CHECK(m.differs_from(library).empty());
 }

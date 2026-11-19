@@ -2,11 +2,14 @@
 #include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <map>
 #include <string>
 
 #include "i18n/i18n.hpp"
 #include "pipeline/graph.hpp"
+#include "pipeline/migrate.hpp"
 #include "pipeline/npz_values.hpp"
 #include "pipeline/sig.hpp"
 #include "tui/jobs/jobs.hpp"
@@ -195,3 +198,143 @@ TEST_CASE("counting calls and unfolding stay bounded on a hostile graph", "[tui]
     REQUIRE(dp.load_text("deep", deep));
     CHECK(dp.calls_of("b0") == 0);
 }
+
+namespace {
+
+PipelineModel loaded(const std::string& text, const std::filesystem::path& dir = {}) {
+    PipelineModel m;
+    if (dir.empty()) {
+        REQUIRE(m.load_text("t", text));
+    } else {
+        std::ofstream{dir / "g.sig", std::ios::binary} << text;
+        REQUIRE(m.load(dir / "g.sig"));
+    }
+    INFO((m.problem() ? m.problem()->message : std::string{}));
+    REQUIRE_FALSE(m.problem());
+    return m;
+}
+
+constexpr const char* kSrc = "node s = samples(values=\"1 2 3 4 5 6 7 8\", rate=8)\n";
+
+}  // namespace
+
+TEST_CASE("review 7: expand follows ports used by edges and probes inside the definition", "[tui][pipeline-blocks][review7]") {
+    auto m = loaded(std::string{"pipeline \"p\" v2\nblock X {\n    in x\n    out y\n    node g1 = gain(db=-3)\n    node g2 = gain(db=-1)\n    x -> g1 -> y\n    y -> g2\n"
+                                "    probe x\n    probe y as \"out\"\n    probe g2 as \"tail\"\n}\n"} + kSrc + "node c = X()\nnode t = gain(db=-2)\ns -> c -> t\nprobe c as \"call\"\nprobe t as \"t\"\n");
+    const auto before = numbers(m);
+    const auto done = m.expand("c");
+    INFO((done ? std::string{} : done.error().message));
+    REQUIRE(done);
+    CHECK_FALSE(m.problem());
+    CHECK(numbers(m) == before);
+}
+
+TEST_CASE("review 7: collapse inside a block writes a file that reopens", "[tui][pipeline-blocks][review7]") {
+    const auto dir = std::filesystem::temp_directory_path() / "signals-review7-reopen";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    auto m = loaded(std::string{"pipeline \"p\" v2\nblock X {\n    in x\n    out y\n    node g1 = gain(db=-3)\n    node g2 = gain(db=-1)\n    x -> g1 -> g2 -> y\n    probe g2\n}\n"} + kSrc +
+                    "node c = X()\ns -> c\nprobe c as \"c\"\n");
+    REQUIRE(m.enter("c"));
+    m.marked = {"g2"};
+    REQUIRE(m.collapse("inner"));
+    REQUIRE(m.save(dir / "out.sig"));
+    PipelineModel again;
+    const auto ok = again.load(dir / "out.sig");
+    INFO((ok ? std::string{} : ok.error().message));
+    CHECK(ok);
+}
+
+TEST_CASE("review 7: expand keeps the numbers of expressions and outer names", "[tui][pipeline-blocks][review7]") {
+    auto nested = loaded(std::string{"pipeline \"p\" v2\nblock inner(g=0) {\n    in x\n    out y\n    node a = gain(db=$g)\n    x -> a -> y\n}\n"
+                                     "block outer(a=0) {\n    in x\n    out y\n    node c = inner(g=\"$a*2\")\n    x -> c -> y\n}\n"} + kSrc + "node o = outer(a=\"1+1\")\ns -> o\nprobe o as \"o\"\n");
+    const auto first = numbers(nested);
+    REQUIRE(nested.expand("o"));
+    CHECK(numbers(nested) == first);
+    auto scoped = loaded(std::string{"pipeline \"p\" v2\nlet b = 2\nblock X(a=0, b=0) {\n    in x\n    out y\n    node g1 = gain(db=$a)\n    node g2 = gain(db=$b)\n    x -> g1 -> g2 -> y\n}\n"} + kSrc +
+                         "node c = X(a=$b, b=5)\ns -> c\nprobe c as \"c\"\n");
+    const auto second = numbers(scoped);
+    REQUIRE(scoped.expand("c"));
+    CHECK(numbers(scoped) == second);
+}
+
+TEST_CASE("review 7: edits next to ports inside a block are applied", "[tui][pipeline-blocks][review7]") {
+    auto m = loaded(std::string{"pipeline \"p\" v2\nblock X {\n    in x\n    out y\n    node g1 = gain(db=-3)\n    node g2 = gain(db=-1)\n    x -> g1 -> g2 -> y\n}\n"} + kSrc + "node c = X()\ns -> c\n");
+    REQUIRE(m.enter("c"));
+    m.remove_node("g2");
+    CHECK(m.doc().blocks.front().nodes.size() == 1);
+    m.disconnect({{"x", {}, 0, 0}, {"g1", {}, 0, 0}});
+    CHECK(m.doc().blocks.front().edges.empty());
+}
+
+TEST_CASE("review 7: a collapsed call with probes can be bypassed, deleted and unfolded", "[tui][pipeline-blocks][review7]") {
+    auto m = loaded(std::string{"pipeline \"p\" v2\n"} + kSrc + "node a = gain(db=-3)\nnode b = gain(db=-1)\nnode t = gain()\ns -> a -> b -> t\nprobe b as \"b\"\nprobe t as \"t\"\n");
+    m.marked = {"a", "b"};
+    const auto call = m.collapse("pair");
+    REQUIRE(call);
+    m.toggle_probe({*call, {}, 0, 0});
+    REQUIRE(m.toggle_bypass(*call));
+    CHECK_FALSE(m.problem());
+    REQUIRE(m.toggle_bypass(*call));
+    const auto before = numbers(m);
+    REQUIRE(m.expand(*call));
+    CHECK(numbers(m) == before);
+    m.marked = {"a", "b"};
+    const auto again = m.collapse("pair2");
+    REQUIRE(again);
+    m.remove_node(*again);
+    CHECK(std::ranges::none_of(m.doc().nodes, [&](const pipeline::NodeDecl& n) { return n.id == *again; }));
+    CHECK(std::ranges::none_of(m.doc().probes, [&](const pipeline::ProbeDecl& p) { return p.at.node.starts_with(*again); }));
+}
+
+TEST_CASE("review 7: collapse refuses a selection a path leaves and re-enters", "[tui][pipeline-blocks][review7]") {
+    auto m = loaded(std::string{"pipeline \"p\" v2\n"} + kSrc + "node a = gain()\nnode b = gain()\nnode c = gain()\ns -> a -> b -> c\n");
+    m.marked = {"a", "c"};
+    CHECK_FALSE(m.collapse("ac"));
+    CHECK(m.doc().blocks.empty());
+}
+
+TEST_CASE("review 7: expand of a bypassed call is refused and ids avoid port names", "[tui][pipeline-blocks][review7]") {
+    auto m = loaded(std::string{"pipeline \"p\" v2\nblock X {\n    in x\n    out y\n    node y2 = gain()\n    x -> y2 -> y\n}\nblock W {\n    in x\n    out y\n    node c = X()\n    x -> c -> y\n}\n"} + kSrc +
+                    "node w = W()\nnode b = X() bypass\ns -> w\ns -> b\n");
+    CHECK_FALSE(m.expand("b"));
+    auto n = loaded(std::string{"pipeline \"p\" v2\nblock X {\n    in x\n    out o\n    node y = gain()\n    x -> y -> o\n}\nblock W {\n    in x\n    out y\n    node c = X()\n    x -> c -> y\n}\n"} + kSrc + "node w = W()\ns -> w\n");
+    REQUIRE(n.enter("w"));
+    const auto done = n.expand("c");
+    INFO((done ? std::string{} : done.error().message));
+    CHECK(done);
+    CHECK_FALSE(n.problem());
+}
+
+TEST_CASE("review 7: a probe inside a block toggles the definition's probe", "[tui][pipeline-blocks][review7]") {
+    auto m = loaded(std::string{"pipeline \"p\" v2\nblock X {\n    in x\n    out y\n    node g = gain()\n    x -> g -> y\n    probe g\n}\n"} + kSrc + "node c = X()\ns -> c\n");
+    REQUIRE(m.enter("c"));
+    REQUIRE(m.graph());
+    CHECK_FALSE(m.graph()->probes.empty());
+    m.toggle_probe({"g", {}, 0, 0});
+    CHECK(m.doc().blocks.front().probes.empty());
+}
+
+TEST_CASE("review 7: unfolding a used block rebases its relative paths", "[tui][pipeline-blocks][review7]") {
+    const auto dir = std::filesystem::temp_directory_path() / "signals-review7-paths";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir / "lib");
+    std::ofstream{dir / "lib" / "lib.sig"} << "pipeline \"l\" v2\nblock src {\n    out y\n    node w = samples(values=\"1 2 3\", rate=8)\n    node c = coeffs_file(path=\"none.npz\")\n    w -> y\n}\n";
+    auto m = loaded("pipeline \"p\" v2\nuse \"lib/lib.sig\"\nnode a = src()\nprobe a as \"a\"\n", dir);
+    REQUIRE(m.expand("a"));
+    const auto c = std::ranges::find(m.doc().nodes, std::string{"c"}, &pipeline::NodeDecl::id);
+    REQUIRE(c != m.doc().nodes.end());
+    CHECK(c->params.at("path") == "lib/none.npz");
+}
+
+TEST_CASE("review 7: updating from the library brings new callees", "[tui][pipeline-blocks][review7]") {
+    auto m = loaded(std::string{"pipeline \"p\" v2\nblock X {\n    in x\n    out y\n    node g = gain()\n    x -> g -> y\n}\n"} + kSrc + "node c = X()\ns -> c\n");
+    const auto lib = pipeline::load_sig("pipeline \"l\" v2\nblock helper {\n    in x\n    out y\n    node h = gain(db=-1)\n    x -> h -> y\n}\nblock X {\n    in x\n    out y\n    node k = helper()\n    x -> k -> y\n}\n");
+    REQUIRE(lib);
+    const auto done = m.update_block(lib->doc.blocks.back(), lib->doc.blocks);
+    INFO((done ? std::string{} : done.error().message));
+    REQUIRE(done);
+    CHECK_FALSE(m.problem());
+    CHECK(pipeline::find_own_block(m.doc(), "helper"));
+}
+

@@ -562,7 +562,7 @@ void PipelineScreen::update_from_library() {
     }
     for (const auto& name : names) {
         const auto it = std::ranges::find(library_, name, &pipeline::BlockDef::name);
-        if (auto ok = model_->update_block(*it); !ok) return report(ok);
+        if (auto ok = model_->update_block(*it, library_); !ok) return report(ok);
     }
     std::string list;
     for (const auto& n : names) list += (list.empty() ? "" : ", ") + n;
@@ -1243,6 +1243,10 @@ bool PipelineScreen::has_sweep() const {
 }
 
 void PipelineScreen::start_sweep() {
+    if (!model_->inside().empty()) {
+        notice_ = tr("tui.pipeline.sweep_inside");
+        return;
+    }
     if (focus_ == kVars) return sweep_variable();
     const auto* n = selected_node();
     if (!n) {

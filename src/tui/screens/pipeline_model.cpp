@@ -36,9 +36,7 @@ const pipeline::NodeDecl* node_in(const std::vector<pipeline::NodeDecl>& nodes, 
 }
 
 constexpr std::size_t kMaxVisits = 100000;
-constexpr std::size_t kMaxBound = 1 << 20;
 constexpr std::size_t kMaxNesting = 16;
-constexpr std::size_t kMaxChain = 64;
 
 std::vector<std::string> instances_of(const pipeline::PipelineDoc& doc, std::string_view name) {
     std::vector<std::string> out;
@@ -60,28 +58,7 @@ std::vector<std::string> instances_of(const pipeline::PipelineDoc& doc, std::str
     return out;
 }
 
-bool plain_value(std::string_view v) {
-    if (v.empty()) return false;
-    char* end = nullptr;
-    const std::string text{v};
-    std::strtod(text.c_str(), &end);
-    return end == text.c_str() + text.size() || identifier(v);
-}
-
-struct Binding {
-    const std::map<std::string, std::string, std::less<>>& values;
-    std::size_t budget = kMaxBound;
-    std::vector<std::string> stack = {};
-    std::map<std::pair<std::string, pipeline::ParamSpec::Kind>, std::string> memo = {};
-    bool exhausted = false;
-};
-
-std::string bind_params(std::string_view text, Binding& b, pipeline::ParamSpec::Kind kind) {
-    if (b.exhausted || b.stack.size() > kMaxChain || text.size() >= b.budget) {
-        b.exhausted = true;
-        return {};
-    }
-    b.budget -= text.size() + 1;
+std::string rename_refs(std::string_view text, const std::map<std::string, std::string, std::less<>>& names) {
     std::string out;
     for (std::size_t at = 0; at < text.size();) {
         if (text[at] != '$') {
@@ -95,43 +72,11 @@ std::string bind_params(std::string_view text, Binding& b, pipeline::ParamSpec::
         }
         auto end = at + 1;
         while (end < text.size() && (std::isalnum(static_cast<unsigned char>(text[end])) || text[end] == '_')) ++end;
-        const std::string name{text.substr(at, end - at).substr(1)};
-        const auto it = b.values.find(name);
-        if (it == b.values.end() || std::ranges::find(b.stack, name) != b.stack.end()) {
-            out += text.substr(at, end - at);
-        } else {
-            const auto key = std::pair{name, kind};
-            auto memo = b.memo.find(key);
-            if (memo == b.memo.end()) {
-                b.stack.push_back(name);
-                auto expanded = bind_params(it->second, b, kind);
-                b.stack.pop_back();
-                if (b.exhausted) return {};
-                memo = b.memo.emplace(key, std::move(expanded)).first;
-            }
-            const auto& value = memo->second;
-            if (out.size() + value.size() + 2 > b.budget) {
-                b.exhausted = true;
-                return {};
-            }
-            const bool numeric = kind == pipeline::ParamSpec::Kind::integer || kind == pipeline::ParamSpec::Kind::real;
-            const bool whole = at == 0 && end == text.size();
-            out += numeric && !whole && !plain_value(value) ? "(" + value + ")" : value;
-        }
+        const auto it = names.find(text.substr(at + 1, end - at - 1));
+        out += it == names.end() ? std::string{text.substr(at, end - at)} : "$" + it->second;
         at = end;
-        if (out.size() > b.budget) {
-            b.exhausted = true;
-            return {};
-        }
     }
-    b.budget -= std::min(b.budget, out.size());
     return out;
-}
-
-pipeline::ParamSpec::Kind kind_of(const pipeline::NodeDecl& n, std::string_view param) {
-    if (const auto* type = pipeline::find_block_type(n.type))
-        if (const auto spec = std::ranges::find(type->params, param, &pipeline::ParamSpec::name); spec != type->params.end()) return spec->kind;
-    return pipeline::ParamSpec::Kind::text;
 }
 
 core::Error sig_failure(const std::filesystem::path& file, const pipeline::SigError& e) {
@@ -179,7 +124,12 @@ void PipelineModel::rebuild() {
         view_doc_.edges = def->edges;
         if (auto body = pipeline::build_block_graph(doc_, def->name, base_dir())) {
             const auto prefix = inside_ + "/";
-            for (const auto& p : doc_.probes) {
+            auto probes = doc_.probes;
+            for (auto probe : def->probes) {
+                probe.at.node = prefix + probe.at.node;
+                probes.push_back(std::move(probe));
+            }
+            for (const auto& p : probes) {
                 if (!p.at.node.starts_with(prefix)) continue;
                 const auto local = p.at.node.substr(prefix.size());
                 const auto it = std::ranges::find(body->nodes, local, &pipeline::GraphNode::id);
@@ -216,6 +166,12 @@ const pipeline::BlockDef* PipelineModel::inside_block() const {
 
 std::size_t PipelineModel::calls_of(std::string_view block) const { return instances_of(doc_, block).size(); }
 
+bool PipelineModel::taken_in_scope(const pipeline::PipelineDoc& body, const pipeline::PipelineDoc& doc, std::string_view id) const {
+    if (node_in(body.nodes, id) || pipeline::find_own_block(doc, id)) return true;
+    const auto* def = inside_block();
+    return def && (std::ranges::any_of(def->ins, [&](const auto& p) { return p.name == id; }) || std::ranges::any_of(def->outs, [&](const auto& p) { return p.name == id; }));
+}
+
 core::Result<void> PipelineModel::change(const std::function<core::Result<void>(pipeline::PipelineDoc& body, pipeline::PipelineDoc& doc)>& edit) {
     auto next = doc_;
     if (inside_.empty()) {
@@ -242,6 +198,7 @@ core::Result<void> PipelineModel::change(const std::function<core::Result<void>(
     again->nodes = std::move(body.nodes);
     again->edges = std::move(body.edges);
     again->probes = std::move(body.probes);
+    again->lets.assign(body.lets.begin() + static_cast<std::ptrdiff_t>(std::min(again->order.size(), body.lets.size())), body.lets.end());
     return commit(std::move(next));
 }
 
@@ -350,15 +307,9 @@ core::Result<void> PipelineModel::save(const std::filesystem::path& file) {
 
 std::string PipelineModel::add_node(std::string_view type) {
     std::string id;
-    const auto* def = inside_block();
-    const auto taken = [&](const pipeline::PipelineDoc& body, const std::string& name) {
-        if (std::ranges::any_of(body.nodes, [&](const auto& n) { return n.id == name; })) return true;
-        if (!def) return pipeline::find_own_block(body, name) != nullptr;
-        return std::ranges::any_of(def->ins, [&](const auto& p) { return p.name == name; }) || std::ranges::any_of(def->outs, [&](const auto& p) { return p.name == name; });
-    };
-    const auto done = change([&](pipeline::PipelineDoc& body, pipeline::PipelineDoc&) -> core::Result<void> {
+    const auto done = change([&](pipeline::PipelineDoc& body, pipeline::PipelineDoc& doc) -> core::Result<void> {
         id = std::string{type};
-        for (int k = 2; taken(body, id); ++k) id = std::string{type} + std::to_string(k);
+        for (int k = 2; taken_in_scope(body, doc, id); ++k) id = std::string{type} + std::to_string(k);
         body.nodes.push_back({id, std::string{type}, {}, 0, false});
         return {};
     });
@@ -367,12 +318,11 @@ std::string PipelineModel::add_node(std::string_view type) {
 
 std::string PipelineModel::duplicate_node(std::string_view source) {
     std::string id;
-    const auto done = change([&](pipeline::PipelineDoc& body, pipeline::PipelineDoc&) -> core::Result<void> {
+    const auto done = change([&](pipeline::PipelineDoc& body, pipeline::PipelineDoc& doc) -> core::Result<void> {
         const auto it = std::find_if(body.nodes.begin(), body.nodes.end(), [&](const auto& n) { return n.id == source; });
         if (it == body.nodes.end()) return core::make_error(core::Errc::invalid_argument, tr("tui.pipeline.no_node"));
         id = it->type;
-        for (int k = 2; std::any_of(body.nodes.begin(), body.nodes.end(), [&](const auto& n) { return n.id == id; }) || pipeline::find_own_block(body, id); ++k)
-            id = it->type + std::to_string(k);
+        for (int k = 2; taken_in_scope(body, doc, id); ++k) id = it->type + std::to_string(k);
         auto copy = *it;
         copy.id = id;
         copy.line = 0;
@@ -387,10 +337,9 @@ std::string PipelineModel::duplicate_node(std::string_view source) {
 
 core::Result<void> PipelineModel::insert_into_wire(const pipeline::Edge& wire, std::string_view type) {
     std::string id;
-    auto done = change([&](pipeline::PipelineDoc& next, pipeline::PipelineDoc&) -> core::Result<void> {
+    auto done = change([&](pipeline::PipelineDoc& next, pipeline::PipelineDoc& doc) -> core::Result<void> {
     id = std::string{type};
-    for (int k = 2; std::any_of(next.nodes.begin(), next.nodes.end(), [&](const auto& n) { return n.id == id; }) || pipeline::find_own_block(next, id); ++k)
-        id = std::string{type} + std::to_string(k);
+    for (int k = 2; taken_in_scope(next, doc, id); ++k) id = std::string{type} + std::to_string(k);
     const auto it = std::find_if(next.edges.begin(), next.edges.end(), [&](const auto& e) { return same_wire(e, wire); });
     if (it == next.edges.end()) return core::make_error(core::Errc::invalid_argument, tr("tui.pipeline.no_wire"));
     const auto position = it - next.edges.begin();
@@ -433,6 +382,7 @@ void PipelineModel::remove_node(std::string_view id) {
     const auto paths = def ? instances_of(doc_, def->name) : std::vector<std::string>{};
     (void)change([&](pipeline::PipelineDoc& body, pipeline::PipelineDoc& doc) -> core::Result<void> {
         pipeline::remove_node(body, id);
+        if (!def) std::erase_if(doc.probes, [&](const pipeline::ProbeDecl& p) { return p.at.node.starts_with(std::string{id} + "/"); });
         for (const auto& at : paths)
             std::erase_if(doc.probes, [&](const pipeline::ProbeDecl& p) { return p.at.node == at + "/" + std::string{id} || p.at.node.starts_with(at + "/" + std::string{id} + "/"); });
         return {};
@@ -499,6 +449,13 @@ core::Result<void> PipelineModel::toggle_bypass(std::string_view node) {
 }
 
 void PipelineModel::toggle_probe(const pipeline::PortRef& local) {
+    if (const auto* def = inside_block(); def && std::ranges::any_of(def->probes, [&](const pipeline::ProbeDecl& p) { return same_port(p.at, local); })) {
+        (void)change([&](pipeline::PipelineDoc& body, pipeline::PipelineDoc&) -> core::Result<void> {
+            std::erase_if(body.probes, [&](const pipeline::ProbeDecl& p) { return same_port(p.at, local); });
+            return {};
+        });
+        return;
+    }
     auto at = local;
     at.node = scoped(local.node);
     auto next = doc_;
@@ -578,7 +535,7 @@ core::Result<std::string> PipelineModel::add_library_block(const pipeline::Block
             if (&body != &doc) body.blocks = doc.blocks;
         }
         call = def.name + "1";
-        for (int k = 2; node_in(body.nodes, call) || pipeline::find_own_block(doc, call); ++k) call = def.name + std::to_string(k);
+        for (int k = 2; taken_in_scope(body, doc, call); ++k) call = def.name + std::to_string(k);
         body.nodes.push_back({call, def.name, {}, 0, false});
         return {};
     });
@@ -613,12 +570,22 @@ core::Result<std::string> PipelineModel::save_block(std::string_view name, const
     return relative ? fmt::format(fmt::runtime(tr("tui.pipeline.block.relative_paths")), fmt::arg("name", def->name)) : std::string{};
 }
 
-core::Result<void> PipelineModel::update_block(const pipeline::BlockDef& def) {
+core::Result<void> PipelineModel::update_block(const pipeline::BlockDef& def, const std::vector<pipeline::BlockDef>& library) {
     auto next = doc_;
     const auto it = std::ranges::find(next.blocks, def.name, &pipeline::BlockDef::name);
     if (it == next.blocks.end()) return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("tui.pipeline.block.not_block")), fmt::arg("name", def.name)));
     *it = def;
     it->origin.clear();
+    const auto from_library = [&](std::string_view name) -> const pipeline::BlockDef* {
+        const auto found = std::ranges::find(library, name, &pipeline::BlockDef::name);
+        return found == library.end() ? nullptr : &*found;
+    };
+    for (const auto* needed : with_callees(def, from_library)) {
+        if (pipeline::find_own_block(next, needed->name)) continue;
+        auto copy = *needed;
+        copy.origin.clear();
+        next.blocks.push_back(std::move(copy));
+    }
     return commit(std::move(next));
 }
 
@@ -644,6 +611,21 @@ core::Result<std::string> PipelineModel::collapse(std::string name) {
     auto done = change([&](pipeline::PipelineDoc& body, pipeline::PipelineDoc& doc) -> core::Result<void> {
         for (const auto& id : marked)
             if (!node_in(body.nodes, id)) return core::make_error(core::Errc::invalid_argument, tr("tui.pipeline.no_node"));
+        std::set<std::string, std::less<>> seen;
+        std::vector<std::string> todo;
+        for (const auto& e : body.edges)
+            if (marked.contains(e.from.node) && !marked.contains(e.to.node)) todo.push_back(e.to.node);
+        while (!todo.empty()) {
+            auto n = std::move(todo.back());
+            todo.pop_back();
+            if (!seen.insert(n).second) continue;
+            for (const auto& e : body.edges) {
+                if (e.from.node != n) continue;
+                if (marked.contains(e.to.node))
+                    return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("tui.pipeline.block.not_convex")), fmt::arg("node", n)));
+                todo.push_back(e.to.node);
+            }
+        }
         pipeline::BlockDef def;
         def.name = name;
         const auto values = pipeline::let_values(body.lets);
@@ -685,7 +667,7 @@ core::Result<std::string> PipelineModel::collapse(std::string name) {
             return std::string{"y"};
         };
         call = name + "1";
-        for (int k = 2; node_in(body.nodes, call) || pipeline::find_own_block(doc, call); ++k) call = name + std::to_string(k);
+        for (int k = 2; taken_in_scope(body, doc, call) || call == name; ++k) call = name + std::to_string(k);
         std::map<std::string, std::string, std::less<>> ins, outs;
         std::vector<pipeline::Edge> kept;
         for (const auto& e : body.edges) {
@@ -732,13 +714,20 @@ core::Result<std::string> PipelineModel::collapse(std::string name) {
         }
         body.nodes = std::move(nodes);
         body.edges = std::move(kept);
-        for (auto& probe : body.probes)
-            if (marked.contains(probe.at.node)) {
-                if (probe.name.empty()) probe.name = ref_text(probe.at);
-                probe.at.node = call + "/" + probe.at.node;
-            }
+        if (scope_def) {
+            for (const auto& probe : body.probes)
+                if (marked.contains(probe.at.node)) def.probes.push_back(probe);
+            std::erase_if(body.probes, [&](const pipeline::ProbeDecl& probe) { return marked.contains(probe.at.node); });
+        } else {
+            for (auto& probe : body.probes)
+                if (marked.contains(probe.at.node.substr(0, probe.at.node.find('/')))) {
+                    if (probe.name.empty()) probe.name = ref_text(probe.at);
+                    probe.at.node = call + "/" + probe.at.node;
+                }
+        }
         for (const auto& prefix : prefixes) {
-            const auto scope = prefix.empty() ? std::string{} : prefix + "/";
+            if (!scope_def) break;
+            const auto scope = prefix + "/";
             for (auto& probe : doc.probes) {
                 if (!probe.at.node.starts_with(scope)) continue;
                 const auto rest = probe.at.node.substr(scope.size());
@@ -759,86 +748,142 @@ core::Result<std::string> PipelineModel::collapse(std::string name) {
 core::Result<void> PipelineModel::expand(std::string_view call) {
     const auto* scope_def = inside_block();
     const auto prefixes = scope_def ? instances_of(doc_, scope_def->name) : std::vector<std::string>{std::string{}};
+    std::error_code ec;
+    const auto home = std::filesystem::weakly_canonical(std::filesystem::absolute(base_dir()), ec);
     std::string first;
     auto done = change([&](pipeline::PipelineDoc& body, pipeline::PipelineDoc& doc) -> core::Result<void> {
         const auto at = std::ranges::find(body.nodes, call, &pipeline::NodeDecl::id);
         if (at == body.nodes.end()) return core::make_error(core::Errc::invalid_argument, tr("tui.pipeline.no_node"));
         const auto* found = pipeline::find_own_block(body, at->type);
         if (!found) return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("tui.pipeline.block.not_call")), fmt::arg("node", call)));
+        if (at->bypass) return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("tui.pipeline.block.bypassed_expand")), fmt::arg("node", call)));
         const auto def = *found;
         const auto c = *at;
-        std::map<std::string, std::string, std::less<>> values;
+        const auto is_in = [&](std::string_view n) { return std::ranges::any_of(def.ins, [&](const auto& p) { return p.name == n; }); };
+        const auto is_out = [&](std::string_view n) { return std::ranges::any_of(def.outs, [&](const auto& p) { return p.name == n; }); };
+        std::set<std::string, std::less<>> names;
+        for (const auto& l : body.lets) names.insert(l.name);
+        for (const auto* list : {&doc.blocks, &doc.imported})
+            for (const auto& b : *list) names.insert(b.name);
+        std::map<std::string, std::string, std::less<>> scope_names, values;
         for (const auto& key : def.order) values[key] = c.params.contains(key) ? c.params.at(key) : def.defaults.at(key);
         for (const auto& l : def.lets) values[l.name] = l.value;
+        std::vector<std::string> todo;
+        for (const auto& n : def.nodes)
+            for (const auto& [key, value] : n.params)
+                for (auto& v : pipeline::variables_in(value)) todo.push_back(std::move(v));
+        std::vector<std::string> used;
+        while (!todo.empty()) {
+            auto name = std::move(todo.back());
+            todo.pop_back();
+            if (!values.contains(name) || scope_names.contains(name)) continue;
+            auto fresh = c.id + "_" + name;
+            for (int k = 2; names.contains(fresh); ++k) fresh = c.id + "_" + name + std::to_string(k);
+            names.insert(fresh);
+            scope_names[name] = fresh;
+            used.push_back(name);
+            if (!c.params.contains(name))
+                for (auto& v : pipeline::variables_in(values.at(name))) todo.push_back(std::move(v));
+        }
+        for (const auto& key : def.order)
+            if (std::ranges::find(used, key) != used.end())
+                body.lets.push_back({scope_names.at(key), c.params.contains(key) ? c.params.at(key) : rename_refs(def.defaults.at(key), scope_names)});
+        for (const auto& l : def.lets)
+            if (std::ranges::find(used, l.name) != used.end()) body.lets.push_back({scope_names.at(l.name), rename_refs(l.value, scope_names)});
         std::map<std::string, std::string, std::less<>> renamed;
         for (const auto& n : def.nodes) {
             auto id = n.id;
-            for (int k = 2; (id != c.id && node_in(body.nodes, id)) || std::ranges::any_of(renamed, [&](const auto& r) { return r.second == id; }) || pipeline::find_own_block(doc, id);
-                 ++k)
-                id = c.id + "_" + n.id + (k > 2 ? std::to_string(k - 1) : std::string{});
+            const auto clash = [&](const std::string& v) {
+                return (v != c.id && taken_in_scope(body, doc, v)) || std::ranges::any_of(renamed, [&](const auto& r) { return r.second == v; });
+            };
+            for (int k = 2; clash(id); ++k) id = c.id + "_" + n.id + (k > 2 ? std::to_string(k - 1) : std::string{});
             renamed[n.id] = id;
         }
         std::vector<pipeline::NodeDecl> inner;
-        Binding binding{values};
         for (const auto& n : def.nodes) {
             auto copy = n;
             copy.id = renamed.at(n.id);
             copy.line = 0;
             copy.comments = {};
-            for (auto& [key, value] : copy.params) value = bind_params(value, binding, kind_of(n, key));
-            if (binding.exhausted)
-                return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.vars.too_much")), fmt::arg("limit", kMaxBound)));
+            for (auto& [key, value] : copy.params) value = rename_refs(value, scope_names);
+            if (const auto* type = pipeline::find_block_type(n.type); type && !def.origin.empty())
+                for (const auto& spec : type->params) {
+                    if (spec.kind != pipeline::ParamSpec::Kind::path) continue;
+                    const auto it = copy.params.find(spec.name);
+                    if (it == copy.params.end() || it->second.empty() || it->second.find('$') != std::string::npos || pipeline::utf8_path(it->second).is_absolute()) continue;
+                    const auto full = std::filesystem::weakly_canonical(def.origin.parent_path() / pipeline::utf8_path(it->second), ec);
+                    auto moved = full.lexically_relative(home);
+                    if (moved.empty()) moved = full;
+                    const auto text = moved.generic_u8string();
+                    it->second.assign(text.begin(), text.end());
+                }
             inner.push_back(std::move(copy));
         }
         if (!inner.empty()) first = inner.front().id;
-        const auto is_in = [&](const std::string& n) { return std::ranges::any_of(def.ins, [&](const auto& p) { return p.name == n; }); };
-        const auto is_out = [&](const std::string& n) { return std::ranges::any_of(def.outs, [&](const auto& p) { return p.name == n; }); };
-        const auto source_of = [&](const std::string& port) -> std::optional<pipeline::PortRef> {
-            for (const auto& e : body.edges)
+        const auto original = body.edges;
+        const auto source_of = [&](std::string_view port) -> std::optional<pipeline::PortRef> {
+            for (const auto& e : original)
                 if (e.to.node == c.id && (e.to.port == port || (e.to.port.empty() && def.ins.size() == 1))) return e.from;
             return std::nullopt;
         };
-        const auto targets_of = [&](const std::string& port) {
+        const auto targets_of = [&](std::string_view port) {
             std::vector<pipeline::PortRef> out;
-            for (const auto& e : body.edges)
+            for (const auto& e : original)
                 if (e.from.node == c.id && (e.from.port == port || (e.from.port.empty() && def.outs.size() == 1))) out.push_back(e.to);
             return out;
+        };
+        const std::function<std::optional<pipeline::PortRef>(const pipeline::PortRef&, int)> resolve = [&](const pipeline::PortRef& r, int depth) -> std::optional<pipeline::PortRef> {
+            if (depth > 64) return std::nullopt;
+            if (is_in(r.node)) return source_of(r.node);
+            if (is_out(r.node)) {
+                for (const auto& e : def.edges)
+                    if (e.to.node == r.node) return resolve(e.from, depth + 1);
+                return std::nullopt;
+            }
+            const auto it = renamed.find(r.node);
+            if (it == renamed.end()) return std::nullopt;
+            return pipeline::PortRef{it->second, r.port, 0, 0};
         };
         std::vector<pipeline::Edge> edges;
         for (const auto& e : body.edges)
             if (e.from.node != c.id && e.to.node != c.id) edges.push_back(e);
         for (const auto& e : def.edges) {
-            std::optional<pipeline::PortRef> from = e.from;
-            if (is_in(e.from.node)) from = source_of(e.from.node);
-            else from->node = renamed.at(e.from.node);
+            if (is_in(e.to.node)) continue;
+            const auto from = resolve(e.from, 0);
             if (!from) continue;
             if (is_out(e.to.node)) {
                 for (const auto& t : targets_of(e.to.node)) edges.push_back({*from, t});
-            } else {
-                auto to = e.to;
-                to.node = renamed.at(e.to.node);
-                edges.push_back({*from, to});
+            } else if (const auto to = renamed.find(e.to.node); to != renamed.end()) {
+                edges.push_back({*from, {to->second, e.to.port, 0, 0}});
             }
         }
         const auto position = at - body.nodes.begin();
-        body.nodes.erase(at);
+        body.nodes.erase(body.nodes.begin() + position);
         body.nodes.insert(body.nodes.begin() + position, inner.begin(), inner.end());
         body.edges = std::move(edges);
-        for (const auto& probe : def.probes) {
-            auto moved = probe;
-            moved.name = c.id + "/" + (probe.name.empty() ? ref_text(probe.at) : probe.name);
-            moved.at.node = renamed.at(probe.at.node);
-            body.probes.push_back(std::move(moved));
-        }
+        for (const auto& probe : def.probes)
+            if (const auto where = resolve(probe.at, 0))
+                body.probes.push_back({*where, c.id + "/" + (probe.name.empty() ? ref_text(probe.at) : probe.name)});
+        const auto out_port = [&](const std::string& port) { return port.empty() && !def.outs.empty() ? def.outs.front().name : port; };
         for (const auto& prefix : prefixes) {
-            const auto scope = (prefix.empty() ? std::string{} : prefix + "/") + c.id + "/";
+            const auto scope = prefix.empty() ? std::string{} : prefix + "/";
             for (auto& probe : doc.probes) {
                 if (!probe.at.node.starts_with(scope)) continue;
-                auto rest = probe.at.node.substr(scope.size());
-                const auto head = rest.substr(0, rest.find('/'));
-                if (!renamed.contains(head)) continue;
+                const auto rest = probe.at.node.substr(scope.size());
+                std::optional<pipeline::PortRef> moved;
+                if (rest == c.id) {
+                    moved = resolve({out_port(probe.at.port), {}, 0, 0}, 0);
+                } else if (rest.starts_with(c.id + "/")) {
+                    const auto tail = rest.substr(c.id.size() + 1);
+                    const auto head = tail.substr(0, tail.find('/'));
+                    if (is_in(head) || is_out(head)) moved = resolve({head, probe.at.port, 0, 0}, 0);
+                    else if (renamed.contains(head)) moved = pipeline::PortRef{renamed.at(head) + tail.substr(head.size()), probe.at.port, 0, 0};
+                } else {
+                    continue;
+                }
+                if (!moved) continue;
                 if (probe.name.empty()) probe.name = ref_text(probe.at);
-                probe.at.node = scope.substr(0, scope.size() - c.id.size() - 1) + renamed.at(head) + rest.substr(head.size());
+                probe.at = {scope + moved->node, moved->port, 0, 0};
             }
         }
         return {};
