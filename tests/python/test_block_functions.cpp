@@ -8,6 +8,8 @@
 #include <nlohmann/json.hpp>
 
 #include "core/progress.hpp"
+#include "io/generators.hpp"
+#include "io/wav.hpp"
 #include "pipeline/graph.hpp"
 #include "pipeline/migrate.hpp"
 #include "python/script.hpp"
@@ -196,4 +198,63 @@ TEST_CASE("the notebook gets the block functions in one cell", "[py-blocks]") {
     }
     CHECK(functions == 1);
     CHECK(calls == 2);
+}
+
+namespace {
+
+void check_runs(const std::string& sig, const std::string& name) {
+    if (!python_ready()) SKIP("no python3 with numpy, scipy and PyWavelets");
+    const auto [code, out] = run_python(write_script(sig, name));
+    INFO(out);
+    CHECK(code == 0);
+}
+
+}  // namespace
+
+TEST_CASE("block functions follow optional inputs wired differently", "[py-blocks][review]") {
+    const std::string sig = std::string{"pipeline \"o\" v2\n"} +
+                            "block mod {\n    in a\n    in b optional\n    out y\n    node m = multiply()\n    a -> m.a\n    b -> m.b\n    m -> y\n}\n" + kSource +
+                            "node g = gain(db=-6)\nnode first = mod()\nnode second = mod()\nx -> g\nx -> first.a\nx -> second.a\ng -> second.b\n"
+                            "probe first as \"first\"\nprobe second as \"second\"\n";
+    const auto s = script_for(sig);
+    INFO(s.text);
+    CHECK(count(s.text, "def mod") == 2);
+    check_runs(sig, "optional");
+}
+
+TEST_CASE("block functions read the file each call names", "[py-blocks][review]") {
+    const auto dir = signals::test::temp_path("py-blocks-run") / "files";
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    for (const auto& [file, freq] : {std::pair{"a.wav", 440.0}, std::pair{"b.wav", 880.0}}) {
+        core::AudioBuffer tone;
+        tone.sample_rate = 8000;
+        tone.channels = {io::sine(freq, 0.5, 0.0, 8000, 400)};
+        REQUIRE(io::write_wav(dir / file, tone, {}));
+    }
+    check_runs("pipeline \"f\" v2\nblock player(file=\"a.wav\") {\n    out y\n    node s = wav(path=$file)\n    node g = gain(db=-6)\n    s -> g -> y\n}\n"
+               "node p1 = player()\nnode p2 = player(file=\"b.wav\")\nprobe p1 as \"p1\"\nprobe p2 as \"p2\"\n",
+               "files");
+}
+
+TEST_CASE("block functions compute block variables and defaults from other params", "[py-blocks][review]") {
+    check_runs(std::string{"pipeline \"l\" v2\n"} +
+                   "block amp(base=2, db=\"$base*3\") {\n    in x\n    out y\n    let twice = \"$db*2\"\n    node g = gain(db=$twice)\n    x -> g -> y\n}\n" + kSource +
+                   "node a = amp()\nnode b = amp(base=1)\nnode c = amp(db=-1)\nx -> a\nx -> b\nx -> c\nprobe a as \"a\"\nprobe b as \"b\"\nprobe c as \"c\"\n",
+               "lets");
+}
+
+TEST_CASE("a traced block function called from an untraced one runs", "[py-blocks][review]") {
+    const std::string blocks = "block inner {\n    in x\n    out y\n    node g1 = gain(db=-3)\n    node g2 = gain(db=-3)\n    x -> g1 -> g2 -> y\n}\n"
+                               "block wrap {\n    in x\n    out y\n    node i = inner()\n    x -> i -> y\n}\n";
+    check_runs("pipeline \"t\" v2\n" + blocks + kSource + "node a = inner()\nnode w = wrap()\nx -> a\nx -> w\nprobe a/g1 as \"g1\"\nprobe w as \"w\"\n", "untraced");
+    check_runs("pipeline \"t\" v2\nblock at {\n    in x\n    out y\n    node g1 = gain(db=-3)\n    x -> g1 -> y\n}\n" + std::string{kSource} +
+                   "node a = at()\nx -> a\nprobe a/g1 as \"g1\"\nprobe a as \"a\"\n",
+               "named-at");
+}
+
+TEST_CASE("a block function gets an expression argument in brackets", "[py-blocks][review]") {
+    check_runs(std::string{"pipeline \"p\" v2\nlet g = \"1+1\"\n"} + "block amp(db=0) {\n    in x\n    out y\n    node a = gain(db=$db)\n    x -> a -> y\n}\n" + kSource +
+                   "node c = amp(db=\"$g*2\")\nx -> c\nprobe c as \"c\"\n",
+               "brackets");
 }

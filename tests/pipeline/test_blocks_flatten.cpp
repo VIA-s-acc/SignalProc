@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -246,4 +247,94 @@ TEST_CASE("port types of a block follow its inner nodes", "[blocks-flatten]") {
     const auto broken = load_sig("pipeline \"b\" v2\n" + defs + kSource + "node sy = synth()\nx -> sy\n");
     REQUIRE(broken);
     CHECK_FALSE(build_graph(broken->doc, fs::temp_directory_path(), {.collapse = true}));
+}
+
+TEST_CASE("a call param keeps the brackets of an expression variable", "[blocks-flatten][review]") {
+    const std::string amp = "block amp(db=0) {\n    in x\n    out y\n    node g = gain(db=$db)\n    x -> g -> y\n}\n"
+                            "block outer(db=1) {\n    in x\n    out y\n    node i = amp(db=\"$db+1\")\n    x -> i -> y\n}\n"
+                            "block player(dir=snd) {\n    out y\n    node s = wav(path=\"$dir/a.wav\")\n    s -> y\n}\n";
+    const auto p = probes_of("pipeline \"p\" v2\nlet g = \"10+10\"\nlet base = my-sounds\n" + amp +
+                             "node s = samples(values=\"1 2\", rate=8)\nnode c = amp(db=\"$g*2\")\nnode d = gain(db=\"$g*2\")\n"
+                             "node o = outer(db=\"$g*2\")\nnode e = gain(db=\"$g*2+1\")\n"
+                             "s -> c\ns -> d\ns -> o\ns -> e\nprobe c as \"c\"\nprobe d as \"d\"\nprobe o as \"o\"\nprobe e as \"e\"\n");
+    CHECK(same(p.at("c"), p.at("d")));
+    CHECK(same(p.at("o"), p.at("e")));
+    const auto loaded = load_sig("pipeline \"p\" v2\nlet base = my-sounds\n" + amp + "node w = player(dir=$base)\n");
+    REQUIRE(loaded);
+    const auto flat = flatten(loaded->doc);
+    REQUIRE(flat);
+    const auto s = std::ranges::find(flat->nodes, "w/s", &NodeDecl::id);
+    REQUIRE(s != flat->nodes.end());
+    CHECK(s->params.at("path") == "my-sounds/a.wav");
+}
+
+TEST_CASE("a required input of a call must be wired", "[blocks-flatten][review]") {
+    const auto doc = load_sig(std::string{"pipeline \"p\" v2\n"} +
+                              "block mix {\n    in a\n    in b\n    out y\n    node m = multiply()\n    a -> m.a\n    b -> m.b\n    m -> y\n}\n" + kSource +
+                              "node c = mix()\nx -> c.a\nprobe c as \"c\"\n");
+    REQUIRE(doc);
+    const auto flat = flatten(doc->doc);
+    REQUIRE_FALSE(flat);
+    CHECK_THAT(flat.error().message, ContainsSubstring("c"));
+    CHECK_THAT(flat.error().message, ContainsSubstring("b"));
+}
+
+TEST_CASE("default probe names keep the port and the call's own name", "[blocks-flatten][review]") {
+    const auto p = probes_of(std::string{"pipeline \"p\" v2\n"} +
+                             "block split {\n    in x\n    out y\n    node p = polyphase()\n    node s = add()\n    x -> p\n    p.even -> s.a\n    p.odd -> s.b\n"
+                             "    s -> y\n    probe p.even\n    probe p.odd\n}\n"
+                             "block pass {\n    in x\n    out y\n    x -> y\n}\n" +
+                             kSource + "node c = split()\nnode t = pass()\nx -> c\nx -> t\nprobe t\nprobe x\n");
+    CHECK(p.contains("c/p.even"));
+    CHECK(p.contains("c/p.odd"));
+    CHECK(p.contains("t"));
+    CHECK(p.contains("x"));
+}
+
+TEST_CASE("a large expansion is refused quickly and a deep one is fast", "[blocks-flatten][review]") {
+    const auto chain = [](int levels, int width) {
+        std::string text = "pipeline \"p\" v2\nblock b0 {\n    in x\n    out y\n    node g = gain()\n    x -> g -> y\n}\n";
+        for (int k = 1; k <= levels; ++k) {
+            text += "block b" + std::to_string(k) + " {\n    in x\n    out y\n";
+            for (int c = 0; c < width; ++c) text += "    node c" + std::to_string(c) + " = b" + std::to_string(k - 1) + "()\n";
+            text += "    x";
+            for (int c = 0; c < width; ++c) text += " -> c" + std::to_string(c);
+            text += " -> y\n}\n";
+        }
+        return text + "node s = samples(values=\"1\", rate=8)\nnode top = b" + std::to_string(levels) + "()\ns -> top\n";
+    };
+    const auto started = std::chrono::steady_clock::now();
+    const auto big = load_sig(chain(6, 10));
+    REQUIRE(big);
+    const auto refused = flatten(big->doc);
+    REQUIRE_FALSE(refused);
+    CHECK_THAT(refused.error().message, ContainsSubstring("100000"));
+    const auto deep = load_sig(chain(12, 2));
+    REQUIRE(deep);
+    const auto ok = flatten(deep->doc);
+    INFO((ok ? std::string{} : ok.error().message));
+    REQUIRE(ok);
+    CHECK(ok->nodes.size() == 4097);
+    CHECK(std::chrono::steady_clock::now() - started < std::chrono::seconds{3});
+}
+
+TEST_CASE("one library reached twice is loaded once", "[blocks-flatten][review]") {
+    const auto dir = signals::test::temp_path("blocks-diamond");
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    std::ofstream{dir / "d.sig"} << "pipeline \"d\" v2\nblock amp(db=0) {\n    in x\n    out y\n    node g = gain(db=$db)\n    x -> g -> y\n}\n";
+    std::ofstream{dir / "b.sig"} << "pipeline \"b\" v2\nuse \"d.sig\"\n";
+    const auto both = load_sig("pipeline \"m\" v2\nuse \"d.sig\"\nuse \"b.sig\"\nuse \"d.sig\"\nnode s = samples(values=\"1\", rate=8)\nnode c = amp()\ns -> c\n", {dir});
+    INFO((both ? std::string{} : both.error().message));
+    REQUIRE(both);
+    CHECK(std::ranges::count(both->doc.imported, std::string{"amp"}, &BlockDef::name) == 1);
+    for (int k = 0; k < 24; ++k)
+        std::ofstream{dir / ("l" + std::to_string(k) + ".sig")} << "pipeline \"l\" v2\nuse \"l" << k + 1 << ".sig\"\nuse \"m" << k << ".sig\"\n";
+    for (int k = 0; k < 24; ++k) std::ofstream{dir / ("m" + std::to_string(k) + ".sig")} << "pipeline \"m\" v2\nuse \"l" << k + 1 << ".sig\"\n";
+    std::ofstream{dir / "l24.sig"} << "pipeline \"l\" v2\nuse \"d.sig\"\n";
+    const auto started = std::chrono::steady_clock::now();
+    const auto deep = load_sig("pipeline \"m\" v2\nuse \"l0.sig\"\n", {dir});
+    INFO((deep ? std::string{} : deep.error().message));
+    REQUIRE(deep);
+    CHECK(std::chrono::steady_clock::now() - started < std::chrono::seconds{2});
 }

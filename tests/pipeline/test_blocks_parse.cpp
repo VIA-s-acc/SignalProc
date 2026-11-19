@@ -129,3 +129,13 @@ TEST_CASE("blocks and use need the v2 header", "[blocks-parse]") {
     REQUIRE_FALSE(doc);
     CHECK_THAT(doc.error().message, ContainsSubstring("v2"));
 }
+
+TEST_CASE("a wire cannot start or end inside a call", "[blocks-parse][review]") {
+    for (const char* wires : {"c/a -> t\n", "s -> c/a\n", "s -> c -> t/g\n"}) {
+        INFO(wires);
+        const auto doc = parse_sig(with_header(std::string{"node s = gain()\nnode c = gain()\nnode t = gain()\n"} + wires));
+        REQUIRE_FALSE(doc);
+        CHECK_THAT(doc.error().message, ContainsSubstring("/"));
+    }
+    CHECK(parse_sig(with_header("node c = gain()\nprobe c/a as \"inner\"\n")));
+}

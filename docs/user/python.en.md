@@ -100,7 +100,9 @@ lv2_y, lv2_y_fs, lv2_a, lv2_a_fs, lv2_d, lv2_d_fs = bank_level(lv1_a, lv1_a_fs, 
 - **The function body** computes everything from its arguments, like the live script: one function serves both `bank_level()` and `bank_level(wavelet=db2)`. Nested blocks are calls of their functions; the called block's function comes earlier in the script.
 - **Inner probes.** If the graph has probes inside calls (`probe lv2/h0` or a probe in the definition), the function gets an optional `trace` dictionary and puts those values in it under `call/node` names; after the call the script takes them out (`lv2_h0 = trace["lv2/h0"]`), and the check compares them like the other probes. Without such probes there is no dictionary.
 - **The notebook** keeps the block functions in one cell with the other functions, and each call is a cell of its own.
-- **Limits.** A function is written from the first call, so every call must have ports of the same types. A graph where a call's output comes back to its own input through other nodes cannot be written as a function; the command says so.
+- **Variants.** A function is written from the first call. A call with another set of wired optional inputs, other input types or other files (`path=` inside the block) gets a variant of its own: `mod_2`.
+- **Block variables** (`let` inside the definition) and defaults that refer to other params (`db="$base*3"`) are computed at the start of the function.
+- **Limit.** A graph where a call's output comes back to its own input through other nodes cannot be written as a function; the command says so.
 
 ### A Jupyter notebook
 

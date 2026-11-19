@@ -616,8 +616,9 @@ private:
         map_instances("", doc_.nodes);
         std::set<std::string, std::less<>> used;
         for (const auto& [instance, def] : instance_def_) used.insert(def->name);
-        for (const auto& name : used) fn_names_.emplace(name, em_.name_for(name));
         trace_name_ = em_.name_for("trace");
+        em_.name_for("at");
+        for (const auto& name : used) fn_names_.emplace(name, em_.name_for(name));
         find_traced();
     }
 
@@ -764,7 +765,9 @@ private:
         return out;
     }
 
-    std::string call_text(const pipeline::BlockDef& callee, const pipeline::NodeDecl& call, const std::vector<Input>& args, bool inside) const {
+    std::string call_text(const pipeline::BlockDef& callee, const std::string& function, const pipeline::NodeDecl& call, const std::vector<Input>& args,
+                          const pipeline::BlockDef* caller) const {
+        const bool inside = caller != nullptr;
         std::vector<std::string> a;
         for (const auto& in : args) {
             a.push_back(in.expr.empty() ? "None" : in.expr);
@@ -772,11 +775,11 @@ private:
         }
         for (const auto& key : callee.order)
             if (const auto it = call.params.find(key); it != call.params.end()) a.push_back(param_names_.at(callee.name).at(key) + "=" + rhs(it->second));
-        if (trace_defs_.contains(callee.name)) {
+        if (trace_defs_.contains(callee.name) && (!inside || trace_defs_.contains(caller->name))) {
             a.push_back("trace=" + (inside ? std::string{"trace"} : trace_name_));
             a.push_back("at=" + (inside ? "at + " + py_str(call.id + "/") : py_str(call.id + "/")));
         }
-        std::string out = fn_names_.at(callee.name) + "(";
+        std::string out = function + "(";
         for (std::size_t k = 0; k < a.size(); ++k) out += (k ? ", " : "") + a[k];
         return out + ")";
     }
@@ -805,6 +808,22 @@ private:
         return "# " + py_comment(n.id + " = " + n.type + "(…)");
     }
 
+    static std::vector<std::pair<std::string, std::string>> ordered(std::vector<std::pair<std::string, std::string>> items) {
+        std::vector<std::pair<std::string, std::string>> out;
+        std::set<std::string, std::less<>> pending;
+        for (const auto& [name, value] : items) pending.insert(name);
+        while (!items.empty()) {
+            const auto ready = std::ranges::find_if(items, [&](const auto& item) {
+                return std::ranges::none_of(pipeline::variables_in(item.second), [&](const std::string& v) { return v != item.first && pending.contains(v); });
+            });
+            const auto next = ready == items.end() ? items.begin() : ready;
+            pending.erase(next->first);
+            out.push_back(std::move(*next));
+            items.erase(next);
+        }
+        return out;
+    }
+
     std::string default_literal(const std::string& value) const {
         if (pipeline::variables_in(value).empty()) return rhs(value);
         return py_str(pipeline::unescape_dollars(value));
@@ -814,7 +833,8 @@ private:
         const auto& def = *defs_.at(call.type);
         const auto prefix = call.id + "/";
         const auto args = call_args(top_, call, def);
-        if (auto ok = emit_function(def, prefix, args); !ok) return ok;
+        const auto function = emit_function(def, prefix, args);
+        if (!function) return std::unexpected{function.error()};
         std::string code;
         if (trace_defs_.contains(def.name) && !trace_declared_) {
             code += trace_name_ + " = {}\n";
@@ -822,7 +842,7 @@ private:
         }
         std::vector<Input> outs;
         for (const auto& q : def.outs) outs.push_back(out_input(def, prefix, q.name, args, em_.name_for(call.id + "_" + q.name)));
-        code += outs.empty() ? call_text(def, call, args, false) : targets(outs) + " = " + call_text(def, call, args, false);
+        code += outs.empty() ? call_text(def, *function, call, args, nullptr) : targets(outs) + " = " + call_text(def, *function, call, args, nullptr);
         for (std::size_t k = 0; k < def.outs.size(); ++k)
             if (const auto r = resolve_out(def, prefix, def.outs[k].name); r.source) outer_.emplace(key_of(*r.source), outs[k]);
         top_.calls[call.id] = {&def, outs};
@@ -847,34 +867,78 @@ private:
         return {};
     }
 
-    core::Result<void> emit_function(const pipeline::BlockDef& def, const std::string& prefix, const std::vector<Input>& args) {
-        if (!functions_done_.insert(def.name).second) return {};
-        std::set<std::string, std::less<>> taken{"trace", "at"};
-        for (const auto& [name, fn] : fn_names_) taken.insert(fn);
-        auto outer = em_.enter_scope(std::move(taken));
-        auto text = function_text(def, prefix, args);
-        em_.leave_scope(std::move(outer));
-        if (!text) return std::unexpected{text.error()};
-        block_functions_.push_back(std::move(*text));
-        return {};
+    std::string variant_key(const pipeline::BlockDef& def, const std::string& prefix, const std::vector<Input>& args) const {
+        std::string key = def.name + "|";
+        for (const auto& a : args) {
+            if (a.expr.empty() || !a.value) key += '-';
+            else if (std::holds_alternative<core::AudioBuffer>(*a.value)) key += 's';
+            else if (std::holds_alternative<pipeline::Coeffs>(*a.value)) key += 'c';
+            else if (std::holds_alternative<pipeline::Report>(*a.value)) key += 'r';
+            else key += 'o';
+        }
+        for (auto it = index_.lower_bound(prefix); it != index_.end() && it->first.starts_with(prefix); ++it) {
+            const auto& n = graph_.nodes[it->second];
+            for (const auto& spec : n.type->params)
+                if (spec.kind == pipeline::ParamSpec::Kind::path || (n.type->id == "assert" && spec.name == "expr"))
+                    if (const auto v = n.params.find(spec.name); v != n.params.end()) key += "|" + it->first.substr(prefix.size()) + "." + spec.name + "=" + v->second;
+        }
+        return key;
     }
 
-    core::Result<std::string> function_text(const pipeline::BlockDef& def, const std::string& prefix, const std::vector<Input>& args) {
+    core::Result<std::string> emit_function(const pipeline::BlockDef& def, const std::string& prefix, const std::vector<Input>& args) {
+        const auto key = variant_key(def, prefix, args);
+        if (const auto it = variants_.find(key); it != variants_.end()) return it->second;
+        auto name = fn_names_.at(def.name);
+        if (!function_names_.insert(name).second) {
+            const auto made = std::ranges::count_if(variants_, [&](const auto& v) { return v.first.starts_with(def.name + "|"); });
+            name = em_.global_name(name + "_" + std::to_string(made + 1));
+            function_names_.insert(name);
+        }
+        variants_.emplace(key, name);
+        std::set<std::string, std::less<>> taken{"trace", "at"};
+        for (const auto& [base, fn] : fn_names_) taken.insert(fn);
+        taken.insert(function_names_.begin(), function_names_.end());
+        em_.enter_scope(std::move(taken));
+        auto text = function_text(def, name, prefix, args);
+        em_.leave_scope();
+        if (!text) return std::unexpected{text.error()};
+        block_functions_.push_back(std::move(*text));
+        return name;
+    }
+
+    core::Result<std::string> function_text(const pipeline::BlockDef& def, const std::string& function, const std::string& prefix, const std::vector<Input>& args) {
         Frame f{&def, prefix, {}, {}, {}};
         std::vector<std::string> params;
         for (std::size_t k = 0; k < def.ins.size(); ++k) {
             const auto name = em_.name_for(def.ins[k].name);
-            const auto* v = k < args.size() ? args[k].value : nullptr;
-            f.args[def.ins[k].name] = named(name, v);
+            const bool wired = k < args.size() && !args[k].expr.empty() && args[k].value;
+            const auto* v = wired ? args[k].value : nullptr;
+            f.args[def.ins[k].name] = wired ? named(name, v) : Input{};
             params.push_back(name);
             params.push_back(name + companion_suffix(v));
         }
         auto& names = param_names_[def.name];
+        std::vector<std::pair<std::string, std::string>> derived;
+        std::set<std::string, std::less<>> defaulted;
         for (const auto& key : def.order) {
             const auto& value = def.defaults.at(key);
-            const auto var = em_.variable(key, integer_literal(value));
+            const bool computed = !pipeline::variables_in(value).empty();
+            const auto var = em_.variable(key, !computed && integer_literal(value));
             names[key] = var;
-            params.push_back(var + "=" + default_literal(value));
+            params.push_back(var + "=" + (computed ? std::string{"None"} : default_literal(value)));
+            if (computed) {
+                derived.emplace_back(key, value);
+                defaulted.insert(key);
+            }
+        }
+        for (const auto& l : def.lets) {
+            em_.variable(l.name, integer_literal(l.value));
+            derived.emplace_back(l.name, l.value);
+        }
+        std::string body;
+        for (const auto& [name, value] : ordered(derived)) {
+            const auto var = em_.py_var(name);
+            body += "    " + var + " = " + rhs(value) + (defaulted.contains(name) ? " if " + var + " is None else " + var : std::string{}) + "\n";
         }
         const bool traced = trace_defs_.contains(def.name);
         if (traced) {
@@ -893,7 +957,6 @@ private:
         std::set<std::size_t> ready;
         for (std::size_t k = 0; k < def.nodes.size(); ++k)
             if (pending[k] == 0) ready.insert(k);
-        std::string body;
         const auto add = [&](const std::string& code) {
             for (const auto& line : lines_of(code)) body += (line.empty() ? std::string{} : "    " + line) + "\n";
         };
@@ -916,9 +979,10 @@ private:
                     outs.push_back(named(var, in.value));
                     code = var + " = " + (in.expr.empty() ? "None" : in.expr) + "\n" + var + companion_suffix(in.value) + " = " + companion(in);
                 } else {
-                    if (auto ok = emit_function(callee, prefix + n.id + "/", inputs); !ok) return std::unexpected{ok.error()};
+                    const auto called = emit_function(callee, prefix + n.id + "/", inputs);
+                    if (!called) return std::unexpected{called.error()};
                     for (const auto& q : callee.outs) outs.push_back(out_input(callee, prefix + n.id + "/", q.name, inputs, em_.name_for(n.id + "_" + q.name)));
-                    code = outs.empty() ? call_text(callee, n, inputs, true) : targets(outs) + " = " + call_text(callee, n, inputs, true);
+                    code = outs.empty() ? call_text(callee, *called, n, inputs, &def) : targets(outs) + " = " + call_text(callee, *called, n, inputs, &def);
                 }
                 add(line_comment(def.origin, n) + "\n" + code);
                 f.calls[n.id] = {&callee, std::move(outs)};
@@ -935,8 +999,9 @@ private:
             std::vector<Input> inputs(g.type->inputs.size());
             for (const auto& e : def.edges)
                 if (e.to.node == n.id)
-                    if (const auto q = input_index(*g.type, e.to.port); q && g.sources[*q]) inputs[*q] = local_input(f, e.from);
-            em_.set_node(def.name + "/" + n.id);
+                    if (const auto q = input_index(*g.type, e.to.port))
+                        if (auto in = local_input(f, e.from); !in.expr.empty()) inputs[*q] = std::move(in);
+            em_.set_node(function + "/" + n.id);
             auto code = node_code(i, inputs, vars);
             if (!code) return std::unexpected{code.error()};
             std::string traces;
@@ -970,7 +1035,7 @@ private:
         for (const auto& line : def.comments.above) head += (line.starts_with('#') ? py_comment(line) : "# " + py_comment(line)) + "\n";
         std::string list;
         for (const auto& param : params) list += (list.empty() ? "" : ", ") + param;
-        return head + "def " + fn_names_.at(def.name) + "(" + list + "):\n" + body;
+        return head + "def " + function + "(" + list + "):\n" + body;
     }
 
     const pipeline::PipelineDoc& doc_;
@@ -991,7 +1056,8 @@ private:
     std::map<std::string, std::string, std::less<>> fn_names_;
     std::map<std::string, std::map<std::string, std::string, std::less<>>, std::less<>> param_names_;
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> traced_;
-    std::set<std::string, std::less<>> trace_defs_, functions_done_;
+    std::set<std::string, std::less<>> trace_defs_, function_names_;
+    std::map<std::string, std::string, std::less<>> variants_;
     std::set<std::pair<std::size_t, std::size_t>> needed_;
     std::map<SourceKey, Input> outer_;
     std::map<std::string, std::vector<std::string>, std::less<>> files_;

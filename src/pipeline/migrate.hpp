@@ -3,6 +3,8 @@
 #include <expected>
 #include <filesystem>
 #include <functional>
+#include <map>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -18,9 +20,12 @@ struct Loaded {
     std::vector<std::string> notes;
 };
 
+using LibraryCache = std::map<std::filesystem::path, std::vector<BlockDef>>;
+
 struct LoadOptions {
     std::filesystem::path base_dir = {};
     std::vector<std::filesystem::path> using_chain = {};
+    std::shared_ptr<LibraryCache> cache = {};
 };
 
 struct MigrationStep {

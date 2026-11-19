@@ -107,6 +107,10 @@ private:
 
     [[noreturn]] void fail(int line, int column, std::string message) { throw Failure{{line, column, std::move(message)}}; }
 
+    void no_slash(const PortRef& r) {
+        if (r.node.find('/') != std::string::npos) fail(r.line, r.column, fmt::format(fmt::runtime(tr("pipeline.blocks.slash_wire")), fmt::arg("node", r.node)));
+    }
+
     std::string path(std::string head, bool document) {
         while (peek() == '/') {
             if (!document) fail(line_, column_, tr("pipeline.blocks.slash_inside"));
@@ -179,6 +183,7 @@ private:
             body.lets.push_back(std::move(let));
         } else {
             PortRef prev{path(word, document), {}, line, column};
+            no_slash(prev);
             if (peek() == '.') {
                 advance();
                 prev.port = ident();
@@ -193,6 +198,7 @@ private:
                 skip(false);
                 if (done() || peek() == '\n' || !ident_start(peek())) fail(al, ac, tr("pipeline.sig.dangling_arrow"));
                 auto next = port_ref(document);
+                no_slash(next);
                 if (!prev.port.empty() && !body.edges.empty() && body.edges.back().to.node == prev.node && body.edges.back().to.line == prev.line &&
                     body.edges.back().to.column == prev.column)
                     fail(prev.line, prev.column, tr("pipeline.sig.port_in_chain"));

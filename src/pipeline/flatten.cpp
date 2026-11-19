@@ -52,10 +52,12 @@ struct Memo {
 };
 
 struct Expander {
-    explicit Expander(const Scope& s) : scope{s} {}
+    explicit Expander(const Scope& s) : scope{s}, budget{own_budget} {}
+    Expander(const Scope& s, std::size_t& shared) : scope{s}, budget{shared} {}
 
     const Scope& scope;
-    std::size_t budget = kMaxTotal;
+    std::size_t own_budget = kMaxTotal;
+    std::size_t& budget;
     std::map<Kind, std::map<std::string, Memo, std::less<>>> memo;
     std::vector<std::string> stack;
 
@@ -181,9 +183,13 @@ std::vector<LetValue> let_values(std::span<const LetDecl> lets) {
 namespace {
 
 constexpr std::size_t kMaxBlockDepth = 16;
+constexpr std::size_t kMaxExpansion = 100000;
+constexpr std::string_view kOuter = "__outer_";
 
 struct CallPorts {
     std::vector<std::string> ins, outs;
+    const BlockDef* def = nullptr;
+    int line = 0;
 };
 
 struct Expansion {
@@ -194,6 +200,8 @@ struct Expansion {
     std::set<std::string, std::less<>> pseudo;
     std::vector<std::string> stack;
     bool calls = true;
+    std::size_t budget = kMaxTotal;
+    std::size_t items = 0;
 };
 
 struct Frame {
@@ -204,6 +212,35 @@ struct Frame {
 };
 
 [[noreturn]] void stop(int line, std::string message) { throw SigError{line, 0, std::move(message)}; }
+
+void grow(Expansion& x, int line) {
+    if (++x.items > kMaxExpansion) stop(line, fmt::format(fmt::runtime(tr("pipeline.blocks.too_big")), fmt::arg("limit", kMaxExpansion)));
+}
+
+std::string ref_name(const PortRef& r) { return r.port.empty() ? r.node : r.node + "." + r.port; }
+
+core::Result<std::string> outer_names(std::string_view text, const Scope& scope) {
+    std::string out;
+    for (std::size_t at = 0; at < text.size();) {
+        if (text[at] != '$') {
+            out += text[at++];
+            continue;
+        }
+        if (at + 1 < text.size() && text[at + 1] == '$') {
+            out += "$$";
+            at += 2;
+            continue;
+        }
+        auto end = at + 1;
+        if (end >= text.size() || !name_start(text[end])) return std::unexpected{fault(tr("pipeline.vars.bad_dollar"))};
+        while (end < text.size() && name_char(text[end])) ++end;
+        const auto name = text.substr(at + 1, end - at - 1);
+        if (!scope.values.contains(name)) return std::unexpected{fault(unknown(name, scope))};
+        out += "$" + std::string{kOuter} + std::string{name};
+        at = end;
+    }
+    return out;
+}
 
 std::string inside(const Frame& f, int line, const std::string& message) {
     if (!f.def) return message;
@@ -240,7 +277,7 @@ std::string port_of(const std::vector<std::string>& ports, const std::string& as
 template <class Body>
 void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame& f) {
     std::map<std::string, CallPorts, std::less<>> calls;
-    Expander expander{scope};
+    Expander expander{scope, x.budget};
     const auto own_port = [&](const std::vector<PortDecl>& ports, const std::string& name) {
         return f.def && std::ranges::any_of(ports, [&](const PortDecl& p) { return p.name == name; });
     };
@@ -273,6 +310,7 @@ void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame
                     }
                 }
             }
+            grow(x, line);
             x.nodes.push_back(std::move(out));
             continue;
         }
@@ -285,6 +323,8 @@ void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame
         if (f.depth + 1 > kMaxBlockDepth) stop(line, inside(f, n.line, fmt::format(fmt::runtime(tr("pipeline.blocks.too_deep")), fmt::arg("limit", kMaxBlockDepth))));
         check_ports(def);
         Scope inner;
+        std::set<std::string, std::less<>> reached;
+        std::vector<std::string> todo;
         for (const auto& [key, value] : n.params) {
             if (!def.defaults.contains(key)) {
                 std::vector<std::string> names{def.order.begin(), def.order.end()};
@@ -292,16 +332,25 @@ void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame
                 stop(line, inside(f, n.line, hint ? fmt::format(fmt::runtime(tr("pipeline.blocks.unknown_param_hint")), fmt::arg("block", def.name), fmt::arg("param", key), fmt::arg("hint", *hint))
                                                   : fmt::format(fmt::runtime(tr("pipeline.blocks.unknown_param")), fmt::arg("block", def.name), fmt::arg("param", key))));
             }
-            std::size_t depth = 0;
-            auto done = expander.expand(value, Kind::text, depth);
-            if (!done) stop(line, inside(f, n.line, n.id + "." + key + ": " + done.error().message));
-            inner.values.emplace(key, escape_dollars(*done));
+            auto renamed = outer_names(value, scope);
+            if (!renamed) stop(line, inside(f, n.line, n.id + "." + key + ": " + renamed.error().message));
+            inner.values.emplace(key, std::move(*renamed));
+            for (auto& name : variables_in(value)) todo.push_back(std::move(name));
+        }
+        while (!todo.empty()) {
+            auto name = std::move(todo.back());
+            todo.pop_back();
+            const auto it = scope.values.find(name);
+            if (it == scope.values.end() || !reached.insert(name).second) continue;
+            for (auto& more : variables_in(it->second)) todo.push_back(std::move(more));
         }
         for (const auto& [key, value] : def.defaults) inner.values.emplace(key, value);
         for (const auto& l : def.lets)
             if (!inner.values.emplace(l.name, l.value).second)
                 stop(l.line, fmt::format(fmt::runtime(tr("pipeline.blocks.let_param")), fmt::arg("block", def.name), fmt::arg("name", l.name)));
-        CallPorts ports;
+        for (const auto& name : reached)
+            if (auto renamed = outer_names(scope.values.at(name), scope)) inner.values.emplace(std::string{kOuter} + name, std::move(*renamed));
+        CallPorts ports{{}, {}, &def, n.line};
         for (const auto& p : def.ins) ports.ins.push_back(p.name);
         for (const auto& p : def.outs) ports.outs.push_back(p.name);
         const auto base = f.prefix + n.id + "/";
@@ -311,6 +360,7 @@ void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame
         if (n.bypass) {
             if (ports.ins.size() != 1 || ports.outs.size() != 1)
                 stop(line, inside(f, n.line, fmt::format(fmt::runtime(tr("pipeline.blocks.bypass")), fmt::arg("node", n.id), fmt::arg("block", def.name))));
+            grow(x, line);
             x.edges.push_back({{base + ports.ins.front(), {}, n.line, 0}, {base + ports.outs.front(), {}, n.line, 0}});
             continue;
         }
@@ -330,33 +380,64 @@ void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame
             return {f.prefix + r.node + "/" + port_of(c->second.ins, r.port, r.node, f.def ? f.call_line : r.line), {}, r.line, r.column};
         return {f.prefix + r.node, r.port, r.line, r.column};
     };
-    for (const auto& e : body.edges) x.edges.push_back({from_ref(e.from), to_ref(e.to), e.comments});
+    for (const auto& [id, call] : calls)
+        for (const auto& port : call.def->ins) {
+            if (port.optional) continue;
+            const bool wired = std::ranges::any_of(body.edges, [&](const Edge& e) {
+                return e.to.node == id && (e.to.port == port.name || e.to.port.empty());
+            });
+            if (!wired)
+                stop(f.def ? f.call_line : call.line,
+                     inside(f, call.line, fmt::format(fmt::runtime(tr("pipeline.blocks.missing_input")), fmt::arg("call", id), fmt::arg("port", port.name))));
+        }
+    for (const auto& e : body.edges) {
+        grow(x, f.def ? f.call_line : e.from.line);
+        x.edges.push_back({from_ref(e.from), to_ref(e.to), e.comments});
+    }
     for (const auto& p : body.probes) {
         ProbeDecl out = p;
         out.at = from_ref(p.at);
-        if (f.def) out.name = f.instance + "/" + (p.name.empty() ? p.at.node : p.name);
+        const auto name = p.name.empty() ? ref_name(p.at) : p.name;
+        out.name = f.def ? f.instance + "/" + name : name;
+        grow(x, f.def ? f.call_line : p.at.line);
         x.probes.push_back(std::move(out));
     }
 }
 
 void contract(Expansion& x) {
-    const auto pending = [&] {
-        return std::ranges::any_of(x.edges, [&](const Edge& e) { return x.pseudo.contains(e.from.node) || x.pseudo.contains(e.to.node); });
+    auto edges = std::move(x.edges);
+    std::vector<bool> alive(edges.size(), true);
+    std::map<std::string, std::vector<std::size_t>, std::less<>> into, from, probed;
+    const auto index = [&](std::size_t k) {
+        into[edges[k].to.node].push_back(k);
+        from[edges[k].from.node].push_back(k);
     };
-    for (std::size_t pass = 0; pass <= x.pseudo.size() && pending(); ++pass)
-        for (const auto& id : x.pseudo) {
-        std::vector<Edge> in, out, kept;
-        for (auto& e : x.edges) {
-            if (e.to.node == id) in.push_back(std::move(e));
-            else if (e.from.node == id) out.push_back(std::move(e));
-            else kept.push_back(std::move(e));
+    for (std::size_t k = 0; k < edges.size(); ++k) index(k);
+    for (std::size_t k = 0; k < x.probes.size(); ++k) probed[x.probes[k].at.node].push_back(k);
+    for (const auto& id : x.pseudo) {
+        std::vector<std::size_t> ins, outs;
+        for (const auto k : into[id])
+            if (alive[k]) ins.push_back(k);
+        for (const auto k : from[id])
+            if (alive[k] && std::ranges::find(ins, k) == ins.end()) outs.push_back(k);
+        for (const auto k : ins) alive[k] = false;
+        for (const auto k : outs) alive[k] = false;
+        for (const auto a : ins)
+            for (const auto b : outs) {
+                Edge joined{edges[a].from, edges[b].to, edges[b].comments};
+                edges.push_back(std::move(joined));
+                alive.push_back(true);
+                index(edges.size() - 1);
+            }
+        if (ins.size() != 1) continue;
+        const auto source = edges[ins.front()].from;
+        for (const auto k : probed[id]) {
+            x.probes[k].at = source;
+            probed[source.node].push_back(k);
         }
-        for (const auto& a : in)
-            for (const auto& b : out) kept.push_back({a.from, b.to, b.comments});
-        x.edges = std::move(kept);
-        for (auto& p : x.probes)
-            if (p.at.node == id && in.size() == 1) p.at = in.front().from;
     }
+    for (std::size_t k = 0; k < edges.size(); ++k)
+        if (alive[k]) x.edges.push_back(std::move(edges[k]));
 }
 
 }  // namespace

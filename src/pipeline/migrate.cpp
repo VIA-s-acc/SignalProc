@@ -60,6 +60,7 @@ std::expected<Loaded, SigError> load_sig(std::string_view text, const LoadOption
         const auto u = p.filename().u8string();
         return std::string{u.begin(), u.end()};
     };
+    const auto cache = options.cache ? options.cache : std::make_shared<LibraryCache>();
     for (const auto& use : out.doc.uses) {
         auto path = utf8_path(use.path);
         if (path.is_relative()) path = options.base_dir / path;
@@ -69,23 +70,32 @@ std::expected<Loaded, SigError> load_sig(std::string_view text, const LoadOption
             for (const auto& p : options.using_chain) chain += shown(p) + " → ";
             return std::unexpected{SigError{use.line, 0, say("pipeline.blocks.use_cycle", fmt::arg("chain", chain + shown(path)))}};
         }
-        std::ifstream in{path, std::ios::binary};
-        if (!in) return std::unexpected{SigError{use.line, 0, say("pipeline.blocks.use_missing", fmt::arg("path", use.path))}};
-        const std::string lib_text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
-        auto chain = options.using_chain;
-        chain.push_back(path);
-        auto lib = load_sig(lib_text, {path.parent_path(), chain});
-        if (!lib) return std::unexpected{SigError{use.line, 0, shown(path) + ":" + std::to_string(lib.error().line) + ": " + lib.error().message}};
-        if (!lib->doc.nodes.empty() || !lib->doc.edges.empty() || !lib->doc.probes.empty())
-            return std::unexpected{SigError{use.line, 0, say("pipeline.blocks.library_nodes", fmt::arg("file", shown(path)))}};
-        for (auto* list : {&lib->doc.imported, &lib->doc.blocks})
-            for (auto& b : *list) {
-                if (b.origin.empty()) b.origin = path;
-                const auto taken = [&](const std::vector<BlockDef>& defs) { return std::ranges::any_of(defs, [&](const BlockDef& d) { return d.name == b.name; }); };
-                if (taken(out.doc.blocks) || taken(out.doc.imported))
-                    return std::unexpected{SigError{use.line, 0, say("pipeline.blocks.use_clash", fmt::arg("name", b.name), fmt::arg("file", shown(path)))}};
-                out.doc.imported.push_back(std::move(b));
-            }
+        auto found = cache->find(path);
+        if (found == cache->end()) {
+            std::ifstream in{path, std::ios::binary};
+            if (!in) return std::unexpected{SigError{use.line, 0, say("pipeline.blocks.use_missing", fmt::arg("path", use.path))}};
+            const std::string lib_text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+            auto chain = options.using_chain;
+            chain.push_back(path);
+            auto lib = load_sig(lib_text, {path.parent_path(), chain, cache});
+            if (!lib) return std::unexpected{SigError{use.line, 0, shown(path) + ":" + std::to_string(lib.error().line) + ": " + lib.error().message}};
+            if (!lib->doc.nodes.empty() || !lib->doc.edges.empty() || !lib->doc.probes.empty())
+                return std::unexpected{SigError{use.line, 0, say("pipeline.blocks.library_nodes", fmt::arg("file", shown(path)))}};
+            std::vector<BlockDef> defs;
+            for (auto* list : {&lib->doc.imported, &lib->doc.blocks})
+                for (auto& b : *list) {
+                    if (b.origin.empty()) b.origin = path;
+                    defs.push_back(std::move(b));
+                }
+            found = cache->emplace(path, std::move(defs)).first;
+        }
+        for (const auto& b : found->second) {
+            if (std::ranges::any_of(out.doc.imported, [&](const BlockDef& d) { return d.name == b.name && d.origin == b.origin; })) continue;
+            const auto taken = [&](const std::vector<BlockDef>& defs) { return std::ranges::any_of(defs, [&](const BlockDef& d) { return d.name == b.name; }); };
+            if (taken(out.doc.blocks) || taken(out.doc.imported))
+                return std::unexpected{SigError{use.line, 0, say("pipeline.blocks.use_clash", fmt::arg("name", b.name), fmt::arg("file", shown(path)))}};
+            out.doc.imported.push_back(b);
+        }
     }
     for (const auto& b : out.doc.blocks)
         if (find_block_type(b.name)) out.notes.push_back(say("pipeline.blocks.shadows", fmt::arg("name", b.name)));
