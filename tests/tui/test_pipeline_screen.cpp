@@ -1569,7 +1569,7 @@ TEST_CASE("x saves a signal probe to npy and any probe to npz", "[tui][pipeline_
 TEST_CASE("m, b, i, Esc and u collapse, enter, leave and unfold a block on the screen", "[tui][pipeline_screen][blocks]") {
     const std::string text = "pipeline \"chain\" v2\nnode s = samples(values=\"1 2 3 4 5 6 7 8\", rate=8)\nnode g1 = gain(db=-6)\nnode g2 = gain(db=-6)\n"
                              "node g3 = gain(db=-6)\ns -> g1 -> g2 -> g3\nprobe g3 as \"out\"\n";
-    for (const auto [w, hgt] : {std::pair{150, 44}, std::pair{80, 24}}) {
+    for (const auto& [w, hgt] : {std::pair{150, 44}, std::pair{80, 24}}) {
         INFO(w << "x" << hgt);
         PipelineFixture f{w, hgt, false};
         REQUIRE(f.model->load_text("chain", text));
