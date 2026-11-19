@@ -177,6 +177,10 @@ std::vector<Command> PipelineScreen::commands() {
     out.push_back({"pipeline.python", tr("tui.pipeline.cmd.python"), [this] { export_python(); }});
     out.push_back({"pipeline.migration_notes", tr("tui.pipeline.cmd.migration_notes"), [this] { show_migration_notes(); }});
     out.push_back({"pipeline.add_variable", tr("tui.pipeline.cmd.add_variable"), [this] { ask_new_variable(); }});
+    out.push_back({"pipeline.collapse", tr("tui.pipeline.cmd.collapse"), [this] { ask_collapse(); }});
+    out.push_back({"pipeline.expand", tr("tui.pipeline.cmd.expand"), [this] { expand_selected(); }});
+    out.push_back({"pipeline.enter", tr("tui.pipeline.cmd.enter"), [this] { enter_selected(); }});
+    if (!model_->inside().empty()) out.push_back({"pipeline.leave", tr("tui.pipeline.cmd.leave"), [this] { model_->leave(); }});
     return out;
 }
 
@@ -209,7 +213,8 @@ std::vector<Hint> PipelineScreen::hints() const {
             {"r", tr("tui.pipeline.hint.run")},           {"A/B", tr("tui.pipeline.hint.ab")},      {"Space", tr("tui.pipeline.hint.listen")},
             {"+ − 0", tr("tui.pipeline.hint.zoom")},       {"O", tr("tui.pipeline.hint.examples")},  {"PgUp/PgDn", tr("tui.hint.page")},
             {"v", tr("tui.pipeline.hint.view")},          {"n", tr("tui.pipeline.hint.name")},     {"k", tr("tui.pipeline.hint.channels")},     {"S", tr("tui.pipeline.hint.sweep")},     {"D", tr("tui.pipeline.hint.duplicate")},  {"y", tr("tui.pipeline.hint.copy_probe")},  {"x", tr("tui.pipeline.hint.save_probe")},  {"P", tr("tui.pipeline.hint.python")},  {"w", tr("tui.pipeline.hint.compare")},  {"+ − E", tr("tui.pipeline.hint.digits")},     {"L", tr("tui.pipeline.hint.layout")},   {tr("tui.pipeline.key.drag"), tr("tui.pipeline.hint.connect")},
-            {"c/C", tr("tui.pipeline.hint.connect_keys")}};
+            {"c/C", tr("tui.pipeline.hint.connect_keys")}, {"m", tr("tui.pipeline.hint.mark")}, {"b", tr("tui.pipeline.hint.collapse")},
+            {"u", tr("tui.pipeline.hint.expand")},         {"i", tr("tui.pipeline.hint.enter")},       {"Esc", tr("tui.pipeline.hint.leave")}};
 }
 
 const pipeline::GraphNode* PipelineScreen::selected_node() const {
@@ -286,13 +291,15 @@ ftxui::Element PipelineScreen::graph_panel(int width, int height) {
     const auto* g = model_->graph();
     view_w_ = std::max(10, width);
     view_h_ = std::max(3, height - 1);
-    picture_ = g ? draw_pipeline(*g, model_->doc(), model_->run_view(), model_->selection, ui_.caps.glyphs, graph_zoom_, marked_nodes()) : GraphPicture{};
+    auto marked = marked_nodes();
+    marked.insert(marked.end(), model_->marked.begin(), model_->marked.end());
+    picture_ = g ? draw_pipeline(*g, model_->view_doc(), model_->run_view(), model_->selection, ui_.caps.glyphs, graph_zoom_, marked) : GraphPicture{};
     if (follow_) follow_selection();
     follow_ = false;
     clamp_view();
     if (picture_.nodes.empty())
         return frame_panel(kGraph, vbox({filler(), text(tr("tui.pipeline.empty")) | center | fg(th.dim, ui_), filler()}) | reflect(graph_box_), {},
-                           tr("tui.pipeline.graph"));
+                           graph_title());
     const auto color = [&](CellStyle s) {
         switch (s) {
         case CellStyle::dim: return th.dim;
@@ -368,7 +375,55 @@ ftxui::Element PipelineScreen::graph_panel(int width, int height) {
     add(above, ascii ? "^" : "▴");
     add(below, ascii ? "v" : "▾");
     auto body = vbox({vbox(std::move(rows)) | reflect(graph_box_), wire_note.empty() ? text(more) | fg(th.dim, ui_) : text(wire_note) | fg(th.accent, ui_)});
-    return frame_panel(kGraph, std::move(body), {{fmt::format(fmt::runtime(tr("tui.pipeline.zoom_chip")), fmt::arg("level", tr("tui.pipeline.zoom." + std::to_string(graph_zoom_)))), false}}, tr("tui.pipeline.graph"));
+    std::vector<Chip> chips{{fmt::format(fmt::runtime(tr("tui.pipeline.zoom_chip")), fmt::arg("level", tr("tui.pipeline.zoom." + std::to_string(graph_zoom_)))), false}};
+    if (const auto* def = model_->inside_block())
+        if (const auto calls = model_->calls_of(def->name); calls > 1) chips.insert(chips.begin(), {tr_count("tui.pipeline.block.affects", calls), true});
+    if (!model_->marked.empty()) chips.insert(chips.begin(), {tr_count("tui.pipeline.block.marked", model_->marked.size()), true});
+    return frame_panel(kGraph, std::move(body), std::move(chips), graph_title());
+}
+
+std::string PipelineScreen::graph_title() const {
+    const auto* def = model_->inside_block();
+    if (!def) return tr("tui.pipeline.graph");
+    const bool ascii = ui_.caps.glyphs == GlyphMode::ascii;
+    return tr("tui.pipeline.graph") + (ascii ? " > " : " ▸ ") + model_->inside() + (ascii ? " - " : " · ") + def->name;
+}
+
+void PipelineScreen::toggle_mark() {
+    const auto* n = selected_node();
+    if (!n) return;
+    if (!model_->marked.erase(n->id)) model_->marked.insert(n->id);
+}
+
+void PipelineScreen::ask_collapse() {
+    if (model_->marked.empty()) {
+        if (const auto* n = selected_node()) model_->marked.insert(n->id);
+    }
+    if (model_->marked.empty()) {
+        notice_ = tr("tui.pipeline.block.nothing_marked");
+        return;
+    }
+    if (!ui_.ask_text) return;
+    ui_.ask_text(tr("tui.pipeline.block.name_prompt"), "", [this](std::string name) {
+        const auto call = model_->collapse(std::move(name));
+        notice_ = call ? fmt::format(fmt::runtime(tr("tui.pipeline.block.collapsed")), fmt::arg("call", *call)) : call.error().message;
+        follow_ = true;
+    });
+}
+
+void PipelineScreen::expand_selected() {
+    const auto* n = selected_node();
+    if (!n) return;
+    report(model_->expand(n->id));
+    follow_ = true;
+}
+
+void PipelineScreen::enter_selected() {
+    const auto* n = selected_node();
+    if (!n) return;
+    report(model_->enter(n->id));
+    ox_ = oy_ = 0;
+    follow_ = true;
 }
 
 ftxui::Element PipelineScreen::inspector_panel(int width, int height) {
@@ -2103,7 +2158,9 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
             if (breakpoint_ <= Breakpoint::small) layout_.show_panel(kGraph);
         }
         else if (maximized_) maximized_.reset();
+        else if (!model_->marked.empty()) model_->marked.clear();
         else if (model_->selection.kind != Selection::Kind::none) model_->selection = {};
+        else if (model_->leave()) follow_ = true;
         else return false;
         notice_.clear();
         return true;
@@ -2118,6 +2175,10 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
     if (e == Event::ArrowDown) return move_selection(0, 1), true;
     if (e == Event::ArrowUp) return move_selection(0, -1), true;
     if (e == Event::Character('e')) return cycle_wires(), true;
+    if (e == Event::Character('m')) return toggle_mark(), true;
+    if (e == Event::Character('b')) return ask_collapse(), true;
+    if (e == Event::Character('u')) return expand_selected(), true;
+    if (e == Event::Character('i')) return enter_selected(), true;
     if (e == Event::Character('L')) {
         ox_ = oy_ = 0;
         follow_ = true;

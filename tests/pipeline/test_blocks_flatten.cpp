@@ -355,3 +355,30 @@ TEST_CASE("a call input takes one wire and a port wired to itself is an error", 
     REQUIRE(loop);
     CHECK_FALSE(build_graph(loop->doc, fs::temp_directory_path()));
 }
+
+TEST_CASE("a block body builds as a graph with its ports as nodes", "[blocks-flatten][block-view]") {
+    const auto loaded = load_sig(std::string{"pipeline \"b\" v2\n"} + kLevel +
+                                 "block analyze(w=db2) {\n    in x\n    out c\n    node t = dwt(wavelet=$w, levels=1)\n    x -> t -> c\n}\n"
+                                 "block outer {\n    in x\n    out y, c\n    node lv = bank_level()\n    node an = analyze()\n    x -> lv.x\n    lv.y -> y\n    x -> an -> c\n}\n");
+    REQUIRE(loaded);
+    const auto g = build_block_graph(loaded->doc, "bank_level", fs::temp_directory_path());
+    INFO((g ? std::string{} : g.error().message));
+    REQUIRE(g);
+    const auto node = [&](std::string_view id) { return std::ranges::find(g->nodes, id, &GraphNode::id); };
+    REQUIRE(node("x") != g->nodes.end());
+    CHECK(node("x")->type->id == "in");
+    CHECK(node("d")->type->id == "out");
+    CHECK(node("h0")->type->id == "convolve");
+    CHECK(node("h0")->params.at("filter") == "haar.h0");
+    REQUIRE(node("sum")->sources.at(0));
+    const auto o = build_block_graph(loaded->doc, "outer", fs::temp_directory_path());
+    INFO((o ? std::string{} : o.error().message));
+    REQUIRE(o);
+    const auto an = std::ranges::find(o->nodes, "an", &GraphNode::id);
+    REQUIRE(an != o->nodes.end());
+    CHECK(an->type->id == "analyze");
+    const auto c = std::ranges::find(o->nodes, "c", &GraphNode::id);
+    REQUIRE(c != o->nodes.end());
+    CHECK(c->type->inputs.at(0).type == PortType::coeffs);
+    CHECK_FALSE(build_block_graph(loaded->doc, "missing", fs::temp_directory_path()));
+}

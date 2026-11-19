@@ -200,6 +200,7 @@ struct Expansion {
     std::set<std::string, std::less<>> pseudo;
     std::vector<std::string> stack;
     bool calls = true;
+    bool partial = false;
     std::size_t budget = kMaxTotal;
     std::size_t items = 0;
 };
@@ -389,7 +390,7 @@ void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame
             if (wires > 1)
                 stop(f.def ? f.call_line : call.line,
                      inside(f, call.line, fmt::format(fmt::runtime(tr("pipeline.blocks.second_wire")), fmt::arg("call", id), fmt::arg("port", port.name))));
-            if (wires == 0 && !port.optional && !unnamed)
+            if (wires == 0 && !port.optional && !unnamed && !x.partial)
                 stop(f.def ? f.call_line : call.line,
                      inside(f, call.line, fmt::format(fmt::runtime(tr("pipeline.blocks.missing_input")), fmt::arg("call", id), fmt::arg("port", port.name))));
         }
@@ -458,6 +459,7 @@ std::expected<PipelineDoc, SigError> flatten(const PipelineDoc& doc, const Flatt
     if (!scope) return std::unexpected{scope.error()};
     Expansion x;
     x.calls = options.calls;
+    x.partial = options.partial;
     for (const auto* list : {&doc.imported, &doc.blocks})
         for (const auto& b : *list) x.defs.insert_or_assign(b.name, &b);
     try {

@@ -76,6 +76,11 @@ private:
     void ask_new_variable();
     void sweep_variable();
     std::vector<std::string> marked_nodes() const;
+    std::string graph_title() const;
+    void toggle_mark();
+    void ask_collapse();
+    void expand_selected();
+    void enter_selected();
     void edit_param(int step);
     void report(const core::Result<void>& r);
     void file_result(const core::Result<void>& r);

@@ -1565,3 +1565,44 @@ TEST_CASE("x saves a signal probe to npy and any probe to npz", "[tui][pipeline_
     CHECK_FALSE(std::filesystem::exists(dir / "d.csv"));
     CHECK(f.screen->notice().find(".npz") != std::string::npos);
 }
+
+TEST_CASE("m, b, i, Esc and u collapse, enter, leave and unfold a block on the screen", "[tui][pipeline_screen][blocks]") {
+    const std::string text = "pipeline \"chain\" v2\nnode s = samples(values=\"1 2 3 4 5 6 7 8\", rate=8)\nnode g1 = gain(db=-6)\nnode g2 = gain(db=-6)\n"
+                             "node g3 = gain(db=-6)\ns -> g1 -> g2 -> g3\nprobe g3 as \"out\"\n";
+    for (const auto [w, hgt] : {std::pair{150, 44}, std::pair{80, 24}}) {
+        INFO(w << "x" << hgt);
+        PipelineFixture f{w, hgt, false};
+        REQUIRE(f.model->load_text("chain", text));
+        f.ui->ask_text = [](std::string, std::string, std::function<void(std::string)> done) { done("twice"); };
+        for (const char* id : {"g1", "g2"}) {
+            f.model->selection = {Selection::Kind::node, id, {}};
+            f.h.send(ftxui::Event::Character('m'));
+        }
+        CHECK(f.model->marked.size() == 2);
+        CHECK_THAT(f.h.frame(), ContainsSubstring(signals::tr("tui.pipeline.block.marked.few").substr(0, 8)));
+        f.h.send(ftxui::Event::Character('b'));
+        REQUIRE(f.model->doc().blocks.size() == 1);
+        REQUIRE(f.model->selection.node == "twice1");
+        f.h.send(ftxui::Event::Character('i'));
+        CHECK(f.model->inside() == "twice1");
+        CHECK_THAT(f.h.frame(), ContainsSubstring("twice1"));
+        f.h.send(ftxui::Event::Character('z'));
+        CHECK_THAT(f.h.frame(), ContainsSubstring("twice"));
+        f.h.send(ftxui::Event::Character('z'));
+        f.h.send(ftxui::Event::Escape);
+        CHECK(f.model->inside().empty());
+        const auto second = f.model->add_node("twice");
+        REQUIRE_FALSE(second.empty());
+        f.model->selection = {Selection::Kind::node, "twice1", {}};
+        f.h.send(ftxui::Event::Character('i'));
+        CHECK_THAT(f.h.frame(), ContainsSubstring(signals::tr("tui.pipeline.block.affects.few").substr(0, 10)));
+        f.h.send(ftxui::Event::Escape);
+        f.h.send(ftxui::Event::Escape);
+        f.model->remove_node(second);
+        f.model->selection = {Selection::Kind::node, "twice1", {}};
+        f.h.send(ftxui::Event::Character('u'));
+        CHECK(std::ranges::any_of(f.model->doc().nodes, [](const pipeline::NodeDecl& n) { return n.id == "g1"; }));
+        f.h.send(ftxui::Event::Tab);
+        f.h.frame();
+    }
+}

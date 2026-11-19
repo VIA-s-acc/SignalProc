@@ -51,8 +51,9 @@ struct Wire {
 
 class Builder {
 public:
-    Builder(const PipelineDoc& doc, std::filesystem::path base_dir, BuildOptions options, std::shared_ptr<const std::vector<BlockType>> own)
-        : doc_{doc}, options_{options}, own_{std::move(own)} {
+    Builder(const PipelineDoc& doc, std::filesystem::path base_dir, BuildOptions options, std::shared_ptr<const std::vector<BlockType>> own,
+            std::map<std::string, const BlockType*, std::less<>> aliases = {})
+        : doc_{doc}, options_{options}, own_{std::move(own)}, aliases_{std::move(aliases)} {
         graph_.own_types = own_;
         graph_.base_dir = std::move(base_dir);
     }
@@ -79,7 +80,8 @@ private:
             };
             const auto id = decl.instance.empty() ? decl.id : decl.id.substr(decl.id.rfind('/') + 1);
             const BlockType* type = nullptr;
-            if (own_)
+            if (const auto alias = aliases_.find(decl.type); alias != aliases_.end()) type = alias->second;
+            if (own_ && !type)
                 if (const auto it = std::ranges::find(*own_, decl.type, &BlockType::id); it != own_->end()) type = &*it;
             const bool own = type != nullptr;
             if (!type) type = find_block_type(decl.type);
@@ -283,6 +285,7 @@ private:
     const PipelineDoc& doc_;
     BuildOptions options_;
     std::shared_ptr<const std::vector<BlockType>> own_;
+    std::map<std::string, const BlockType*, std::less<>> aliases_;
     Graph graph_;
     std::map<std::string, std::size_t, std::less<>> index_;
     std::vector<std::string> ids_;
@@ -292,14 +295,52 @@ private:
 }  // namespace
 
 std::expected<Graph, SigError> build_graph(const PipelineDoc& doc, std::filesystem::path base_dir, BuildOptions options) {
-    auto flat = flatten(doc);
+    auto flat = flatten(doc, {.calls = true, .partial = options.partial});
     if (!flat) return std::unexpected{flat.error()};
     try {
         if (!options.collapse || (doc.blocks.empty() && doc.imported.empty())) return Builder{*flat, std::move(base_dir), options, nullptr}.run();
         Builder{*flat, base_dir, options, nullptr}.run();
-        const auto calls = flatten(doc, {.calls = false});
+        const auto calls = flatten(doc, {.calls = false, .partial = options.partial});
         if (!calls) return std::unexpected{calls.error()};
         return Builder{*calls, std::move(base_dir), options, std::make_shared<const std::vector<BlockType>>(own_block_types(doc))}.run();
+    } catch (const Failure& f) {
+        return std::unexpected{f.error};
+    }
+}
+
+std::expected<Graph, SigError> build_block_graph(const PipelineDoc& doc, std::string_view block, std::filesystem::path base_dir) {
+    const auto* def = find_own_block(doc, block);
+    if (!def) return std::unexpected{SigError{0, 0, say("pipeline.graph.unknown_block", fmt::arg("block", block))}};
+    auto types = own_block_types(doc);
+    const auto own = *std::ranges::find(types, block, &BlockType::id);
+    PipelineDoc body;
+    body.version = kSigVersion;
+    body.name = def->name;
+    body.blocks = doc.blocks;
+    body.imported = doc.imported;
+    for (const auto& key : def->order) body.lets.push_back({key, def->defaults.at(key)});
+    body.lets.insert(body.lets.end(), def->lets.begin(), def->lets.end());
+    std::vector<std::string> keys;
+    for (const auto& p : own.inputs) {
+        keys.push_back("\x1fin:" + p.name);
+        types.push_back({"in", {}, {{p.name, p.type}}, {}, {}});
+        body.nodes.push_back({p.name, keys.back(), {}, def->line, false});
+    }
+    for (const auto& p : own.outputs) {
+        keys.push_back("\x1fout:" + p.name);
+        types.push_back({"out", {{p.name, p.type, false}}, {}, {}, {}});
+        body.nodes.push_back({p.name, keys.back(), {}, def->line, false});
+    }
+    const auto ports = keys.size();
+    body.nodes.insert(body.nodes.end(), def->nodes.begin(), def->nodes.end());
+    body.edges = def->edges;
+    auto flat = flatten(body, {.calls = false});
+    if (!flat) return std::unexpected{flat.error()};
+    auto all = std::make_shared<const std::vector<BlockType>>(std::move(types));
+    std::map<std::string, const BlockType*, std::less<>> aliases;
+    for (std::size_t k = 0; k < ports; ++k) aliases.emplace(keys[k], &(*all)[all->size() - ports + k]);
+    try {
+        return Builder{*flat, std::move(base_dir), {.partial = true, .collapse = true}, std::move(all), std::move(aliases)}.run();
     } catch (const Failure& f) {
         return std::unexpected{f.error};
     }

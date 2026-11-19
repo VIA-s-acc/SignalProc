@@ -51,5 +51,6 @@ struct BuildOptions {
 };
 
 std::expected<Graph, SigError> build_graph(const PipelineDoc& doc, std::filesystem::path base_dir, BuildOptions options = {});
+std::expected<Graph, SigError> build_block_graph(const PipelineDoc& doc, std::string_view block, std::filesystem::path base_dir);
 
 }  // namespace signals::pipeline

@@ -20,6 +20,7 @@ struct Scope {
 
 struct FlattenOptions {
     bool calls = true;
+    bool partial = false;
 };
 
 struct LetValue {
