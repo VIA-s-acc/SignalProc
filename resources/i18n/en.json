@@ -736,6 +736,7 @@
   "pipeline.blocks.too_big": "the blocks unfold into more than {limit} nodes, wires and probes",
   "pipeline.blocks.missing_input": "the input {port} of the call {call} is not wired",
   "pipeline.blocks.slash_wire": "a wire cannot start or end at a node inside a call ({node}): bring the value out through an out port of the block",
+  "pipeline.blocks.second_wire": "the input {port} of the call {call} gets two wires; an input takes one",
   "pipeline.blocks.shadows": "your block {name} hides the built-in block of the same name",
   "pipeline.vars.unknown": "unknown variable ${name}",
   "pipeline.vars.unknown_hint": "unknown variable ${name} — did you mean ${hint}?",

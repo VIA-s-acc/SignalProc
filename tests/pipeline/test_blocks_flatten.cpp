@@ -338,3 +338,20 @@ TEST_CASE("one library reached twice is loaded once", "[blocks-flatten][review]"
     REQUIRE(deep);
     CHECK(std::chrono::steady_clock::now() - started < std::chrono::seconds{2});
 }
+
+TEST_CASE("a call input takes one wire and a port wired to itself is an error", "[blocks-flatten][review]") {
+    const std::string pass = "block pass {\n    in x\n    out y\n    x -> y\n}\n";
+    std::string many = "pipeline \"p\" v2\n" + pass;
+    for (int k = 0; k < 50; ++k) many += "node s" + std::to_string(k) + " = samples(values=\"1\", rate=8)\n";
+    many += "node c = pass()\n";
+    for (int k = 0; k < 50; ++k) many += "s" + std::to_string(k) + " -> c\n";
+    for (int k = 0; k < 50; ++k) many += "node t" + std::to_string(k) + " = gain()\nc -> t" + std::to_string(k) + "\n";
+    const auto doc = load_sig(many);
+    REQUIRE(doc);
+    const auto flat = flatten(doc->doc);
+    REQUIRE_FALSE(flat);
+    CHECK_THAT(flat.error().message, ContainsSubstring("c"));
+    const auto loop = load_sig("pipeline \"p\" v2\n" + pass + "node c = pass()\nc.y -> c.x\nprobe c.x as \"in\"\nprobe c as \"out\"\n");
+    REQUIRE(loop);
+    CHECK_FALSE(build_graph(loop->doc, fs::temp_directory_path()));
+}

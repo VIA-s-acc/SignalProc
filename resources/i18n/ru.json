@@ -1409,6 +1409,7 @@
   "pipeline.blocks.too_big": "блоки раскрываются больше чем в {limit} узлов, проводов и щупов",
   "pipeline.blocks.missing_input": "у вызова {call} не подключён вход {port}",
   "pipeline.blocks.slash_wire": "провод не может идти из узла внутри вызова или в него ({node}): выведите значение через порт out блока",
+  "pipeline.blocks.second_wire": "на вход {port} вызова {call} идут два провода; у входа может быть только один",
   "pipeline.blocks.shadows": "свой блок {name} закрывает встроенный блок с тем же именем",
   "pipeline.vars.unknown": "неизвестная переменная ${name}",
   "pipeline.vars.unknown_hint": "неизвестная переменная ${name} — может быть ${hint}?",

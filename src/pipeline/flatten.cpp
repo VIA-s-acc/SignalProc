@@ -382,11 +382,14 @@ void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame
     };
     for (const auto& [id, call] : calls)
         for (const auto& port : call.def->ins) {
-            if (port.optional) continue;
-            const bool wired = std::ranges::any_of(body.edges, [&](const Edge& e) {
-                return e.to.node == id && (e.to.port == port.name || e.to.port.empty());
+            const auto wires = std::ranges::count_if(body.edges, [&](const Edge& e) {
+                return e.to.node == id && (e.to.port == port.name || (e.to.port.empty() && call.ins.size() == 1));
             });
-            if (!wired)
+            const bool unnamed = std::ranges::any_of(body.edges, [&](const Edge& e) { return e.to.node == id && e.to.port.empty(); });
+            if (wires > 1)
+                stop(f.def ? f.call_line : call.line,
+                     inside(f, call.line, fmt::format(fmt::runtime(tr("pipeline.blocks.second_wire")), fmt::arg("call", id), fmt::arg("port", port.name))));
+            if (wires == 0 && !port.optional && !unnamed)
                 stop(f.def ? f.call_line : call.line,
                      inside(f, call.line, fmt::format(fmt::runtime(tr("pipeline.blocks.missing_input")), fmt::arg("call", id), fmt::arg("port", port.name))));
         }
@@ -422,6 +425,8 @@ void contract(Expansion& x) {
             if (alive[k] && std::ranges::find(ins, k) == ins.end()) outs.push_back(k);
         for (const auto k : ins) alive[k] = false;
         for (const auto k : outs) alive[k] = false;
+        if (!outs.empty() && ins.size() > (kMaxExpansion - std::min(kMaxExpansion, edges.size())) / outs.size())
+            stop(0, fmt::format(fmt::runtime(tr("pipeline.blocks.too_big")), fmt::arg("limit", kMaxExpansion)));
         for (const auto a : ins)
             for (const auto b : outs) {
                 Edge joined{edges[a].from, edges[b].to, edges[b].comments};
@@ -431,7 +436,9 @@ void contract(Expansion& x) {
             }
         if (ins.size() != 1) continue;
         const auto source = edges[ins.front()].from;
-        for (const auto k : probed[id]) {
+        if (source.node == id) continue;
+        const auto moved = std::move(probed[id]);
+        for (const auto k : moved) {
             x.probes[k].at = source;
             probed[source.node].push_back(k);
         }
