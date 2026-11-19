@@ -35,18 +35,25 @@ const pipeline::NodeDecl* node_in(const std::vector<pipeline::NodeDecl>& nodes, 
     return it == nodes.end() ? nullptr : &*it;
 }
 
+constexpr std::size_t kMaxVisits = 100000;
+constexpr std::size_t kMaxBound = 1 << 20;
+
 std::vector<std::string> instances_of(const pipeline::PipelineDoc& doc, std::string_view name) {
     std::vector<std::string> out;
-    const std::function<void(const std::string&, const std::vector<pipeline::NodeDecl>&, int)> walk = [&](const std::string& prefix, const auto& nodes, int depth) {
-        if (depth > 16) return;
+    std::vector<std::string_view> stack;
+    std::size_t visits = 0;
+    const std::function<void(const std::string&, const std::vector<pipeline::NodeDecl>&)> walk = [&](const std::string& prefix, const auto& nodes) {
         for (const auto& n : nodes) {
+            if (++visits > kMaxVisits) return;
             const auto* def = pipeline::find_own_block(doc, n.type);
-            if (!def || n.bypass) continue;
+            if (!def || n.bypass || std::ranges::find(stack, def->name) != stack.end()) continue;
             if (def->name == name) out.push_back(prefix + n.id);
-            walk(prefix + n.id + "/", def->nodes, depth + 1);
+            stack.push_back(def->name);
+            walk(prefix + n.id + "/", def->nodes);
+            stack.pop_back();
         }
     };
-    walk("", doc.nodes, 0);
+    walk("", doc.nodes);
     return out;
 }
 
@@ -58,7 +65,14 @@ bool plain_value(std::string_view v) {
     return end == text.c_str() + text.size() || identifier(v);
 }
 
-std::string bind_params(std::string_view text, const std::map<std::string, std::string, std::less<>>& values, pipeline::ParamSpec::Kind kind, int depth = 0) {
+struct Binding {
+    const std::map<std::string, std::string, std::less<>>& values;
+    std::size_t budget = kMaxBound;
+    std::vector<std::string> stack = {};
+    bool exhausted = false;
+};
+
+std::string bind_params(std::string_view text, Binding& b, pipeline::ParamSpec::Kind kind) {
     std::string out;
     for (std::size_t at = 0; at < text.size();) {
         if (text[at] != '$') {
@@ -72,18 +86,25 @@ std::string bind_params(std::string_view text, const std::map<std::string, std::
         }
         auto end = at + 1;
         while (end < text.size() && (std::isalnum(static_cast<unsigned char>(text[end])) || text[end] == '_')) ++end;
-        const auto name = text.substr(at + 1, end - at - 1);
-        const auto it = values.find(name);
-        if (it == values.end() || depth > 16) {
+        const std::string name{text.substr(at, end - at).substr(1)};
+        const auto it = b.values.find(name);
+        if (it == b.values.end() || std::ranges::find(b.stack, name) != b.stack.end()) {
             out += text.substr(at, end - at);
         } else {
-            const auto value = bind_params(it->second, values, kind, depth + 1);
+            b.stack.push_back(name);
+            const auto value = bind_params(it->second, b, kind);
+            b.stack.pop_back();
             const bool numeric = kind == pipeline::ParamSpec::Kind::integer || kind == pipeline::ParamSpec::Kind::real;
             const bool whole = at == 0 && end == text.size();
             out += numeric && !whole && !plain_value(value) ? "(" + value + ")" : value;
         }
         at = end;
+        if (out.size() > b.budget) {
+            b.exhausted = true;
+            return {};
+        }
     }
+    b.budget -= std::min(b.budget, out.size());
     return out;
 }
 
@@ -643,12 +664,15 @@ core::Result<void> PipelineModel::expand(std::string_view call) {
             renamed[n.id] = id;
         }
         std::vector<pipeline::NodeDecl> inner;
+        Binding binding{values};
         for (const auto& n : def.nodes) {
             auto copy = n;
             copy.id = renamed.at(n.id);
             copy.line = 0;
             copy.comments = {};
-            for (auto& [key, value] : copy.params) value = bind_params(value, values, kind_of(n, key));
+            for (auto& [key, value] : copy.params) value = bind_params(value, binding, kind_of(n, key));
+            if (binding.exhausted)
+                return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("pipeline.vars.too_much")), fmt::arg("limit", kMaxBound)));
             inner.push_back(std::move(copy));
         }
         if (!inner.empty()) first = inner.front().id;

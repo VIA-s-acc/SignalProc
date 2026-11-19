@@ -149,3 +149,28 @@ TEST_CASE("collapse needs a fresh name and marked nodes", "[tui][pipeline-blocks
     CHECK(m.collapse("one"));
 }
 
+
+TEST_CASE("counting calls and unfolding stay bounded on a hostile graph", "[tui][pipeline-blocks][review]") {
+    std::string wide = "pipeline \"w\" v2\nblock b0 {\n    in x\n    out y\n    node g = gain()\n    x -> g -> y\n}\n";
+    for (int k = 1; k <= 8; ++k) {
+        wide += "block b" + std::to_string(k) + " {\n    in x\n    out y\n";
+        for (int c = 0; c < 10; ++c) wide += "    node c" + std::to_string(c) + " = b" + std::to_string(k - 1) + "()\n";
+        wide += "    x";
+        for (int c = 0; c < 10; ++c) wide += " -> c" + std::to_string(c);
+        wide += " -> y\n}\n";
+    }
+    wide += "node s = samples(values=\"1\", rate=8)\nnode top = b8()\ns -> top\n";
+    const auto started = std::chrono::steady_clock::now();
+    PipelineModel m;
+    REQUIRE(m.load_text("wide", wide));
+    CHECK(m.calls_of("b0") <= 100000);
+    CHECK(std::chrono::steady_clock::now() - started < std::chrono::seconds{3});
+    std::string doubling = "pipeline \"d\" v2\nblock big {\n    in x\n    out y\n    let a0 = \"0123456789\"\n";
+    for (int k = 1; k <= 24; ++k) doubling += "    let a" + std::to_string(k) + " = \"$a" + std::to_string(k - 1) + "$a" + std::to_string(k - 1) + "\"\n";
+    doubling += "    node g = gain(db=$a24)\n    x -> g -> y\n}\nnode s = samples(values=\"1\", rate=8)\nnode c = big()\ns -> c\n";
+    PipelineModel d;
+    REQUIRE(d.load_text("doubling", doubling));
+    const auto again = std::chrono::steady_clock::now();
+    CHECK_FALSE(d.expand("c"));
+    CHECK(std::chrono::steady_clock::now() - again < std::chrono::seconds{2});
+}
