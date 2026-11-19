@@ -84,7 +84,7 @@ FileReport migrate_one(const std::filesystem::path& file, bool write, bool backu
     }
     const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
     in.close();
-    auto loaded = pipeline::load_sig(text);
+    auto loaded = pipeline::load_sig(text, {std::filesystem::absolute(file).parent_path()});
     if (!loaded) {
         r.error = fmt::format("{}: {}", loaded.error().line, loaded.error().message);
         return r;

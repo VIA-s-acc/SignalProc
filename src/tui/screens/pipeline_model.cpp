@@ -100,7 +100,7 @@ core::Result<void> PipelineModel::load(const std::filesystem::path& file) {
     std::ifstream in{file, std::ios::binary};
     if (!in) return core::make_error(core::Errc::io_error, fmt::format(fmt::runtime(tr("pipeline.cli.cannot_read")), fmt::arg("path", file.string())));
     const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
-    auto loaded = pipeline::load_sig(text);
+    auto loaded = pipeline::load_sig(text, {std::filesystem::absolute(file).parent_path()});
     if (!loaded) return std::unexpected{sig_failure(file, loaded.error())};
     accept(std::move(*loaded));
     saved_ = doc_;
@@ -112,7 +112,7 @@ core::Result<void> PipelineModel::load(const std::filesystem::path& file) {
 }
 
 core::Result<void> PipelineModel::load_text(std::string_view name, std::string_view text) {
-    auto loaded = pipeline::load_sig(text);
+    auto loaded = pipeline::load_sig(text, {base_dir()});
     if (!loaded) return std::unexpected{sig_failure(std::filesystem::path{std::string{name} + ".sig"}, loaded.error())};
     accept(std::move(*loaded));
     saved_ = {};

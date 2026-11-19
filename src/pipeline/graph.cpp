@@ -51,7 +51,9 @@ struct Wire {
 
 class Builder {
 public:
-    Builder(const PipelineDoc& doc, std::filesystem::path base_dir, BuildOptions options) : doc_{doc}, options_{options} {
+    Builder(const PipelineDoc& doc, std::filesystem::path base_dir, BuildOptions options, std::shared_ptr<const std::vector<BlockType>> own)
+        : doc_{doc}, options_{options}, own_{std::move(own)} {
+        graph_.own_types = own_;
         graph_.base_dir = std::move(base_dir);
     }
 
@@ -76,7 +78,11 @@ private:
                            fmt::arg("message", std::move(message)));
             };
             const auto id = decl.instance.empty() ? decl.id : decl.id.substr(decl.id.rfind('/') + 1);
-            const auto* type = find_block_type(decl.type);
+            const BlockType* type = nullptr;
+            if (own_)
+                if (const auto it = std::ranges::find(*own_, decl.type, &BlockType::id); it != own_->end()) type = &*it;
+            const bool own = type != nullptr;
+            if (!type) type = find_block_type(decl.type);
             if (!type) {
                 const auto hint = nearest_name(decl.type, type_ids);
                 fail(decl.line, 0, where(hint ? say("pipeline.graph.unknown_block_hint", fmt::arg("block", decl.type), fmt::arg("hint", *hint))
@@ -94,7 +100,7 @@ private:
             }
             auto params = resolve_params(*type, decl.params);
             if (!params) fail(decl.line, 0, where(id + ": " + params.error().message));
-            if (decl.bypass && !bypassable(*type))
+            if (decl.bypass && !own && !bypassable(*type))
                 fail(decl.line, 0, where(say("pipeline.graph.bypass_types", fmt::arg("node", id), fmt::arg("block", type->id))));
             index_.emplace(decl.id, graph_.nodes.size());
             ids_.push_back(decl.id);
@@ -164,7 +170,7 @@ private:
             const auto k = input(edge.to, to);
             auto& n = graph_.nodes[to];
             const auto& want = n.type->inputs[k];
-            if (want.type != type) {
+            if (want.type != type && !own_type(n.type) && !own_type(graph_.nodes[source.node].type)) {
                 std::string message = say("pipeline.graph.type_mismatch", fmt::arg("from", ref_text(edge.from)), fmt::arg("from_type", type_name(type)),
                                           fmt::arg("to", n.id + "." + want.name), fmt::arg("to_type", type_name(want.type)));
                 if (type == PortType::coeffs && want.type == PortType::signal) message += say("pipeline.graph.insert", fmt::arg("block", "idwt"));
@@ -179,6 +185,10 @@ private:
             n.sources[k] = source;
             wires_.push_back({source.node, to, edge.from.line});
         }
+    }
+
+    bool own_type(const BlockType* type) const {
+        return own_ && std::ranges::any_of(*own_, [&](const BlockType& t) { return &t == type; });
     }
 
     void check_inputs() const {
@@ -272,6 +282,7 @@ private:
 
     const PipelineDoc& doc_;
     BuildOptions options_;
+    std::shared_ptr<const std::vector<BlockType>> own_;
     Graph graph_;
     std::map<std::string, std::size_t, std::less<>> index_;
     std::vector<std::string> ids_;
@@ -284,7 +295,11 @@ std::expected<Graph, SigError> build_graph(const PipelineDoc& doc, std::filesyst
     auto flat = flatten(doc);
     if (!flat) return std::unexpected{flat.error()};
     try {
-        return Builder{*flat, std::move(base_dir), options}.run();
+        if (!options.collapse || (doc.blocks.empty() && doc.imported.empty())) return Builder{*flat, std::move(base_dir), options, nullptr}.run();
+        Builder{*flat, base_dir, options, nullptr}.run();
+        const auto calls = flatten(doc, {.calls = false});
+        if (!calls) return std::unexpected{calls.error()};
+        return Builder{*calls, std::move(base_dir), options, std::make_shared<const std::vector<BlockType>>(own_block_types(doc))}.run();
     } catch (const Failure& f) {
         return std::unexpected{f.error};
     }

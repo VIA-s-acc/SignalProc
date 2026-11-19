@@ -1,5 +1,6 @@
 #include "commands/watch.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <functional>
@@ -10,6 +11,7 @@
 #include <string>
 
 #include "pipeline/block.hpp"
+#include "pipeline/flatten.hpp"
 #include "pipeline/migrate.hpp"
 #include "pipeline/sig.hpp"
 
@@ -55,20 +57,26 @@ void restart_watching() { g_stopped.store(false); }
 
 std::vector<std::filesystem::path> watched_files(const std::filesystem::path& sig) {
     const auto absolute = std::filesystem::absolute(sig);
+    const auto dir = absolute.parent_path();
     std::vector<std::filesystem::path> out{absolute};
+    const auto add = [&](const std::filesystem::path& p) {
+        auto full = (p.is_relative() ? dir / p : p).lexically_normal();
+        if (std::ranges::find(out, full) == out.end()) out.push_back(std::move(full));
+    };
     std::ifstream in{sig, std::ios::binary};
     const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
-    const auto loaded = pipeline::load_sig(text);
+    for (const auto& file : pipeline::used_files(text, dir)) add(file);
+    const auto loaded = pipeline::load_sig(text, {dir});
     if (!loaded) return out;
-    for (const auto& n : loaded->doc.nodes) {
+    const auto flat = pipeline::flatten(loaded->doc);
+    for (const auto& n : flat ? flat->nodes : loaded->doc.nodes) {
         const auto* type = pipeline::find_block_type(n.type);
         if (!type || type->side_effect) continue;
         for (const auto& spec : type->params) {
             if (spec.kind != pipeline::ParamSpec::Kind::path) continue;
             const auto it = n.params.find(spec.name);
             if (it == n.params.end() || it->second.empty()) continue;
-            auto path = pipeline::utf8_path(it->second);
-            out.push_back(path.is_relative() ? (absolute.parent_path() / path).lexically_normal() : path);
+            add(pipeline::utf8_path(it->second));
         }
     }
     return out;

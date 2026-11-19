@@ -645,6 +645,14 @@ void write_block(std::string& out, const BlockDef& b, const PipelineDoc& doc) {
     out += "}" + after_text(b.closing.after) + "\n";
 }
 
+std::string block_text(const BlockDef& block, const PipelineDoc& doc) {
+    std::string out;
+    write_block(out, block, doc);
+    return out;
+}
+
+const BlockDef* find_own_block(const PipelineDoc& doc, std::string_view name) { return own_block(&doc, name); }
+
 std::string write_sig(const PipelineDoc& doc) {
     std::string out;
     for (const auto& line : doc.preamble) out += line + "\n";
@@ -762,6 +770,8 @@ core::Result<void> apply_set(PipelineDoc& doc, std::string_view assignment) {
     const std::string node_id{target.substr(0, dot)}, param{target.substr(dot + 1)};
     std::string value{assignment.substr(eq + 1)};
     if (value.size() >= 2 && value.front() == '"' && value.back() == '"') value = value.substr(1, value.size() - 2);
+    if (const auto slash = node_id.find('/'); slash != std::string::npos)
+        return std::unexpected{set_error(fmt::format(fmt::runtime(tr("pipeline.blocks.inner_set")), fmt::arg("node", node_id), fmt::arg("call", node_id.substr(0, slash))))};
     auto node = std::find_if(doc.nodes.begin(), doc.nodes.end(), [&](const NodeDecl& n) { return n.id == node_id; });
     if (node == doc.nodes.end()) {
         std::vector<std::string> ids;
@@ -769,6 +779,16 @@ core::Result<void> apply_set(PipelineDoc& doc, std::string_view assignment) {
         const auto hint = nearest_name(node_id, ids);
         return std::unexpected{set_error(hint ? fmt::format(fmt::runtime(tr("pipeline.set.unknown_node_hint")), fmt::arg("node", node_id), fmt::arg("hint", *hint))
                                               : fmt::format(fmt::runtime(tr("pipeline.set.unknown_node")), fmt::arg("node", node_id)))};
+    }
+    if (const auto* def = own_block(&doc, node->type)) {
+        if (!def->defaults.contains(param)) {
+            const auto hint = nearest_name(param, def->order);
+            return std::unexpected{set_error(
+                hint ? fmt::format(fmt::runtime(tr("pipeline.blocks.unknown_param_hint")), fmt::arg("block", def->name), fmt::arg("param", param), fmt::arg("hint", *hint))
+                     : fmt::format(fmt::runtime(tr("pipeline.blocks.unknown_param")), fmt::arg("block", def->name), fmt::arg("param", param)))};
+        }
+        node->params[param] = std::move(value);
+        return {};
     }
     if (const auto* type = find_block_type(node->type)) {
         std::vector<std::string> names;

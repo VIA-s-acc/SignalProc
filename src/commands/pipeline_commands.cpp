@@ -9,6 +9,8 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -34,7 +36,10 @@
 #include "pipeline/layout.hpp"
 #include "pipeline/docs.hpp"
 #include "pipeline/migrate.hpp"
+#include "pipeline/flatten.hpp"
+#include "pipeline/probe_files.hpp"
 #include "pipeline/report_fields.hpp"
+#include "pipeline/user_blocks.hpp"
 #include "pipeline/sig.hpp"
 #include "theory/cards.hpp"
 #include "theory/pipeline_cards.hpp"
@@ -77,7 +82,7 @@ std::optional<pipeline::Loaded> load(const std::filesystem::path& file, std::ost
         return std::nullopt;
     }
     const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
-    auto loaded = pipeline::load_sig(text);
+    auto loaded = pipeline::load_sig(text, {std::filesystem::absolute(file).parent_path()});
     if (!loaded) {
         sig_error(err, file, loaded.error());
         return std::nullopt;
@@ -271,7 +276,7 @@ private:
                 err << tr("cli.watch.partial") << std::endl;
                 return 0;
             }
-            auto parsed = pipeline::load_sig(*text);
+            auto parsed = pipeline::load_sig(*text, {std::filesystem::absolute(file).parent_path()});
             if (!parsed) return json_error(out, file, parsed.error().line, parsed.error().message);
             note_migration(err, file, *parsed);
             migrated_from_ = parsed->from_version;
@@ -310,15 +315,19 @@ private:
             }
             return lines ? json_error(out, file, 0, result.error().message) : (report_error(err, result.error()), 1);
         }
+        std::vector<std::string> probe_names;
+        for (const auto& p : graph->probes) probe_names.push_back(p.name);
+        for (const auto& [name, value] : result->probes) probe_names.push_back(name);
+        const auto files = pipeline::probe_file_names(probe_names);
         if (!probe_dir_.empty())
             for (const auto& [name, value] : result->probes)
-                if (auto ok = save_probe(probe_dir_, name, value, probe_format_); !ok) return report_error(err, ok.error()), 1;
+                if (auto ok = save_probe(probe_dir_, files.at(name), value, probe_format_); !ok) return report_error(err, ok.error()), 1;
         if (!npz_.empty()) {
             io::NpzEntries all;
             for (const auto& [name, value] : result->probes) {
                 auto entries = pipeline::value_entries(value);
                 if (!entries) return report_error(err, entries.error()), 1;
-                for (auto& e : pipeline::prefixed(name, std::move(*entries))) all.push_back(std::move(e));
+                for (auto& e : pipeline::prefixed(files.at(name), std::move(*entries))) all.push_back(std::move(e));
             }
             if (auto ok = io::write_npz(pipeline::utf8_path(npz_), all); !ok) return report_error(err, ok.error()), 1;
         }
@@ -347,6 +356,7 @@ private:
                                   {"bytes", s.bytes},
                                   {"shape", shape_json(s.shapes)},
                                   {"message", s.message}});
+            if (!g.nodes[i].instance.empty()) j["nodes"].back()["instance"] = g.nodes[i].instance;
         }
         j["probes"] = nlohmann::json::object();
         for (const auto& [name, value] : r.probes) j["probes"][name] = summary(value, listed);
@@ -365,18 +375,56 @@ private:
         out << fmt::format(fmt::runtime(tr("pipeline.cli.header")), fmt::arg("name", doc.name.empty() ? std::string{"—"} : doc.name),
                            fmt::arg("nodes", g.nodes.size()))
             << '\n';
+        const auto call_of = [&](std::size_t i) {
+            const auto& instance = g.nodes[i].instance;
+            return instance.substr(0, instance.find('/'));
+        };
+        const auto inner_id = [&](std::size_t i) { return "  " + g.nodes[i].id.substr(call_of(i).size() + 1); };
+        const auto block_of = [&](std::string_view call) {
+            const auto it = std::ranges::find(doc.nodes, call, &pipeline::NodeDecl::id);
+            return it == doc.nodes.end() ? std::string{} : it->type;
+        };
+        std::map<std::string, std::vector<std::size_t>, std::less<>> calls;
+        for (const auto i : g.order)
+            if (!g.nodes[i].instance.empty()) calls[call_of(i)].push_back(i);
         std::size_t id_width = 0, type_width = 0, shape_width = 0;
-        for (const auto& n : g.nodes) {
-            id_width = std::max(id_width, n.id.size());
-            type_width = std::max(type_width, n.type->id.size());
+        for (std::size_t i = 0; i < g.nodes.size(); ++i) {
+            id_width = std::max(id_width, g.nodes[i].instance.empty() ? g.nodes[i].id.size() : inner_id(i).size());
+            type_width = std::max(type_width, g.nodes[i].type->id.size());
+        }
+        for (const auto& [call, members] : calls) {
+            id_width = std::max(id_width, call.size());
+            type_width = std::max(type_width, block_of(call).size());
         }
         for (const auto& s : r.nodes) shape_width = std::max(shape_width, columns(shape_text(s.shapes)));
-        for (const auto i : g.order) {
-            const auto& s = r.nodes[i];
-            const auto shape = shape_text(s.shapes);
-            out << fmt::format("  {} {:<{}}  {:<{}}  {}{}  {:>9.1f} ms  {:>10}", state_mark(s.state), s.id, id_width, g.nodes[i].type->id, type_width, shape,
-                               std::string(shape_width - columns(shape), ' '), s.wall_seconds * 1e3, size_text(s.bytes))
+        const auto row = [&](const std::string& mark, const std::string& id, const std::string& type, const std::string& shape, double ms, std::size_t bytes) {
+            out << fmt::format("  {} {:<{}}  {:<{}}  {}{}  {:>9.1f} ms  {:>10}", mark, id, id_width, type, type_width, shape, std::string(shape_width - columns(shape), ' '), ms,
+                               size_text(bytes))
                 << '\n';
+        };
+        const auto node_row = [&](std::size_t i, const std::string& id) {
+            const auto& s = r.nodes[i];
+            row(state_mark(s.state), id, g.nodes[i].type->id, shape_text(s.shapes), s.wall_seconds * 1e3, s.bytes);
+        };
+        std::set<std::string, std::less<>> shown;
+        for (const auto i : g.order) {
+            if (g.nodes[i].instance.empty()) {
+                node_row(i, g.nodes[i].id);
+                continue;
+            }
+            const auto call = call_of(i);
+            if (!shown.insert(call).second) continue;
+            const auto& members = calls.at(call);
+            double ms = 0;
+            std::size_t bytes = 0;
+            const auto all = [&](pipeline::NodeState state) { return std::ranges::all_of(members, [&](std::size_t m) { return r.nodes[m].state == state; }); };
+            for (const auto m : members) ms += r.nodes[m].wall_seconds * 1e3, bytes += r.nodes[m].bytes;
+            auto state = pipeline::NodeState::done;
+            if (std::ranges::any_of(members, [&](std::size_t m) { return r.nodes[m].state == pipeline::NodeState::failed; })) state = pipeline::NodeState::failed;
+            else if (all(pipeline::NodeState::cached)) state = pipeline::NodeState::cached;
+            else if (all(pipeline::NodeState::bypassed)) state = pipeline::NodeState::bypassed;
+            row(state_mark(state), call, block_of(call), "", ms, bytes);
+            for (const auto m : members) node_row(m, inner_id(m));
         }
         if (!r.probes.empty()) out << tr("pipeline.cli.probes") << '\n';
         for (const auto& [name, value] : r.probes) {
@@ -387,10 +435,10 @@ private:
             out << line << '\n';
             if (j.contains("values"))
                 for (std::size_t c = 0; c < j["values"].size(); ++c) {
-                    std::string row = fmt::format("    ch{}:", c);
-                    for (const auto& x : j["values"][c]) row += fmt::format(" {:.6g}", x.get<double>());
-                    if (j.value("values_cut", false)) row += " …";
-                    out << row << '\n';
+                    std::string values = fmt::format("    ch{}:", c);
+                    for (const auto& x : j["values"][c]) values += fmt::format(" {:.6g}", x.get<double>());
+                    if (j.value("values_cut", false)) values += " …";
+                    out << values << '\n';
                 }
         }
         if (!r.reports.empty()) out << tr("pipeline.cli.reports") << '\n';
@@ -421,13 +469,25 @@ public:
     explicit ExplainCommand(CLI::App& app) : sub_{app.add_subcommand("explain", tr("cli.explain.description"))} {
         sub_->add_option("block", block_, tr("cli.explain.block"))->required();
         sub_->add_flag("--json", json_, tr("cli.explain.json"));
+        sub_->add_option("--graph", graph_, tr("cli.explain.graph"));
     }
     bool parsed() const override { return sub_->parsed(); }
 
     int run(std::ostream& out, std::ostream& err) override {
+        std::vector<std::string> own_names;
+        if (!graph_.empty()) {
+            const std::filesystem::path file{graph_};
+            auto loaded = load(file, err);
+            if (!loaded) return 1;
+            if (const auto* def = pipeline::find_own_block(loaded->doc, block_)) return explain_own(*def, loaded->doc, file, out);
+            for (const auto* list : {&loaded->doc.blocks, &loaded->doc.imported})
+                for (const auto& b : *list) own_names.push_back(b.name);
+        }
         const auto* type = pipeline::find_block_type(block_);
+        if (!type)
+            if (const auto found = pipeline::find_user_block(block_, io::process_env())) return explain_own(*pipeline::find_own_block(found->doc, block_), found->doc, found->file, out);
         if (!type) {
-            std::vector<std::string> names;
+            std::vector<std::string> names = own_names;
             for (const auto& b : pipeline::block_types()) names.push_back(b.id);
             const auto closest = pipeline::nearest_name(block_, names);
             return report_error(err, {core::Errc::invalid_argument, fmt::format(fmt::runtime(tr(closest ? "cli.explain.unknown_near" : "cli.explain.unknown")),
@@ -491,7 +551,54 @@ public:
 
 private:
     CLI::App* sub_;
-    std::string block_;
+    int explain_own(const pipeline::BlockDef& def, const pipeline::PipelineDoc& doc, const std::filesystem::path& file, std::ostream& out) const {
+        const auto types = pipeline::own_block_types(doc);
+        const auto type = std::ranges::find(types, def.name, &pipeline::BlockType::id);
+        const auto origin = def.origin.empty() ? file : def.origin;
+        std::string about;
+        for (const auto& line : def.comments.above) {
+            auto text = std::string_view{line};
+            if (text.starts_with('#')) text.remove_prefix(1);
+            if (text.starts_with(' ')) text.remove_prefix(1);
+            about += (about.empty() ? "" : "\n") + std::string{text};
+        }
+        const auto ports_json = [](const std::vector<pipeline::PortSpec>& list) {
+            auto j = nlohmann::json::array();
+            for (const auto& p : list) j.push_back({{"name", p.name}, {"type", std::string{pipeline::to_string(p.type)}}, {"optional", p.optional}});
+            return j;
+        };
+        if (json_) {
+            nlohmann::json j{{"id", def.name},       {"own", true},
+                             {"file", origin.string()}, {"line", def.line},
+                             {"description", about}, {"inputs", ports_json(type->inputs)},
+                             {"outputs", ports_json(type->outputs)}, {"params", nlohmann::json::array()},
+                             {"definition", pipeline::block_text(def, doc)}};
+            for (const auto& key : def.order) j["params"].push_back({{"name", key}, {"default", def.defaults.at(key)}});
+            out << j.dump(1) << '\n';
+            return 0;
+        }
+        out << fmt::format(fmt::runtime(tr("cli.explain.own")), fmt::arg("name", def.name), fmt::arg("file", origin.filename().string()), fmt::arg("line", def.line)) << '\n';
+        if (!about.empty()) out << about << '\n';
+        const auto ports = [](const std::vector<pipeline::PortSpec>& list) {
+            std::string text;
+            for (const auto& p : list)
+                text += (text.empty() ? "" : ", ") + p.name + " (" + std::string{pipeline::to_string(p.type)} + (p.optional ? ", " + tr("docs.blocks.optional") : "") + ")";
+            return text.empty() ? std::string{"—"} : text;
+        };
+        out << '\n' << tr("cli.explain.inputs") << ' ' << ports(type->inputs) << '\n' << tr("cli.explain.outputs") << ' ' << ports(type->outputs) << '\n';
+        if (!def.order.empty()) out << tr("cli.explain.params") << '\n';
+        for (const auto& key : def.order) out << "  " << key << " = " << def.defaults.at(key) << '\n';
+        out << '\n' << tr("cli.explain.definition") << '\n';
+        const auto text = pipeline::block_text(def, doc);
+        for (std::size_t at = 0; at < text.size();) {
+            const auto end = std::min(text.find('\n', at), text.size());
+            out << (end == at ? "" : "    ") << text.substr(at, end - at) << '\n';
+            at = end + 1;
+        }
+        return 0;
+    }
+
+    std::string block_, graph_;
     bool json_ = false;
 };
 
@@ -632,6 +739,7 @@ public:
     explicit GraphCommand(CLI::App& app) : sub_{app.add_subcommand("graph", tr("cli.graph.description"))} {
         sub_->add_option("file", file_, tr("cli.run.file"))->required();
         sub_->add_flag("--ascii", ascii_, tr("cli.graph.ascii"));
+        sub_->add_flag("--expand", expand_, tr("cli.graph.expand"));
     }
     bool parsed() const override { return sub_->parsed(); }
 
@@ -640,7 +748,7 @@ public:
         auto loaded = load(file, err);
         if (!loaded) return 1;
         auto doc = std::optional<pipeline::PipelineDoc>{std::move(loaded->doc)};
-        auto graph = pipeline::build_graph(*doc, std::filesystem::absolute(file).parent_path());
+        auto graph = pipeline::build_graph(*doc, std::filesystem::absolute(file).parent_path(), {.collapse = !expand_});
         if (!graph) return sig_error(err, file, graph.error());
         for (const auto& line : pipeline::draw_graph(*graph, ascii_)) out << line << '\n';
         return 0;
@@ -649,7 +757,7 @@ public:
 private:
     CLI::App* sub_;
     std::string file_;
-    bool ascii_ = false;
+    bool ascii_ = false, expand_ = false;
 };
 
 class BlocksCommand final : public Command {
@@ -698,7 +806,7 @@ public:
         std::string source;
         if (loaded->from_version < pipeline::kSigVersion) {
             source = pipeline::write_sig(*doc);
-            doc = pipeline::load_sig(source)->doc;
+            doc = pipeline::load_sig(source, {base})->doc;
             graph = pipeline::build_graph(*doc, base);
             if (!graph) return sig_error(err, file, graph.error());
         } else {

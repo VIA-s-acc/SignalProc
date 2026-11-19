@@ -13,6 +13,7 @@
 #include "pipeline/cache.hpp"
 #include "pipeline/examples.hpp"
 #include "pipeline/executor.hpp"
+#include "pipeline/flatten.hpp"
 #include "pipeline/graph.hpp"
 #include "pipeline/migrate.hpp"
 #include "pipeline/npz_values.hpp"
@@ -215,4 +216,34 @@ TEST_CASE("an error inside a block names the call and the definition line", "[bl
     REQUIRE_FALSE(graph);
     CHECK(graph.error().line == 10);
     CHECK_THAT(graph.error().message, ContainsSubstring("c (f, ") && ContainsSubstring(" 5): "));
+}
+
+TEST_CASE("port types of a block follow its inner nodes", "[blocks-flatten]") {
+    const std::string defs = "block analyze(w=db2) {\n    in x\n    out c, lo\n    node t = dwt(wavelet=$w, levels=1)\n    x -> t -> c\n    t.a -> lo\n}\n"
+                             "block synth {\n    in c\n    out y\n    node i = idwt()\n    c -> i -> y\n}\n"
+                             "block pass {\n    in c\n    out o\n    c -> o\n}\n"
+                             "block both {\n    in x\n    out y\n    node an = analyze()\n    node sy = synth()\n    x -> an.x\n    an.c -> sy -> y\n}\n";
+    const std::string text = "pipeline \"b\" v2\n" + defs + kSource + "node an = analyze()\nnode p = pass()\nnode sy = synth()\nnode bo = both()\nx -> an.x\nan.c -> p -> sy\nx -> bo\n";
+    const auto loaded = load_sig(text);
+    REQUIRE(loaded);
+    const auto types = own_block_types(loaded->doc);
+    const auto type = [&](std::string_view id) { return *std::ranges::find(types, id, &BlockType::id); };
+    CHECK(type("analyze").inputs.at(0).type == PortType::signal);
+    CHECK(type("analyze").outputs.at(0).type == PortType::coeffs);
+    CHECK(type("analyze").outputs.at(1).type == PortType::signal);
+    CHECK(type("synth").inputs.at(0).type == PortType::coeffs);
+    CHECK(type("synth").outputs.at(0).type == PortType::signal);
+    CHECK(type("both").inputs.at(0).type == PortType::signal);
+    CHECK(type("both").outputs.at(0).type == PortType::signal);
+    CHECK(type("analyze").params.at(0).fallback == "db2");
+    const auto collapsed = build_graph(loaded->doc, fs::temp_directory_path(), {.collapse = true});
+    INFO((collapsed ? std::string{} : collapsed.error().message));
+    REQUIRE(collapsed);
+    CHECK(collapsed->nodes.size() == 5);
+    const auto p = std::ranges::find(collapsed->nodes, "p", &GraphNode::id);
+    REQUIRE(p != collapsed->nodes.end());
+    CHECK(p->type->id == "pass");
+    const auto broken = load_sig("pipeline \"b\" v2\n" + defs + kSource + "node sy = synth()\nx -> sy\n");
+    REQUIRE(broken);
+    CHECK_FALSE(build_graph(broken->doc, fs::temp_directory_path(), {.collapse = true}));
 }

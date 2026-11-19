@@ -1,7 +1,9 @@
 #include "pipeline/migrate.hpp"
 
+#include <algorithm>
 #include <array>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <utility>
 
@@ -87,6 +89,27 @@ std::expected<Loaded, SigError> load_sig(std::string_view text, const LoadOption
     }
     for (const auto& b : out.doc.blocks)
         if (find_block_type(b.name)) out.notes.push_back(say("pipeline.blocks.shadows", fmt::arg("name", b.name)));
+    return out;
+}
+
+std::vector<std::filesystem::path> used_files(std::string_view text, const std::filesystem::path& base_dir) {
+    std::vector<std::filesystem::path> out;
+    const std::function<void(std::string_view, const std::filesystem::path&)> walk = [&](std::string_view source, const std::filesystem::path& dir) {
+        const auto doc = parse_sig(source);
+        if (!doc) return;
+        for (const auto& use : doc->uses) {
+            auto path = utf8_path(use.path);
+            if (path.is_relative()) path = dir / path;
+            path = std::filesystem::absolute(path).lexically_normal();
+            if (std::ranges::find(out, path) != out.end()) continue;
+            out.push_back(path);
+            std::ifstream in{path, std::ios::binary};
+            if (!in) continue;
+            const std::string lib{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+            walk(lib, path.parent_path());
+        }
+    };
+    walk(text, base_dir);
     return out;
 }
 

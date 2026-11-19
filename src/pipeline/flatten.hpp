@@ -18,7 +18,9 @@ struct Scope {
     std::map<std::string, std::string, std::less<>> values;
 };
 
-struct FlattenOptions {};
+struct FlattenOptions {
+    bool calls = true;
+};
 
 struct LetValue {
     std::string name, text;
@@ -31,5 +33,6 @@ core::Result<std::string> substitute(std::string_view value, const Scope& scope,
 std::vector<std::string> variables_in(std::string_view value);
 std::vector<LetValue> let_values(std::span<const LetDecl> lets);
 std::expected<PipelineDoc, SigError> flatten(const PipelineDoc& doc, const FlattenOptions& options = {});
+std::vector<BlockType> own_block_types(const PipelineDoc& doc);
 
 }  // namespace signals::pipeline

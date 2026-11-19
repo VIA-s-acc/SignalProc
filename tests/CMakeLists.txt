@@ -63,6 +63,7 @@ add_executable(signals_tests
   cli/test_cli_docs.cpp
   cli/test_cli_audio.cpp
   cli/test_cli_tui.cpp
+  cli/test_cli_blocks.cpp
   tui/test_npz_exports.cpp
   tui/test_harness.cpp
   tui/test_format.cpp

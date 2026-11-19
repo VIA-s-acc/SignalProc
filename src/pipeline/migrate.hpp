@@ -31,5 +31,6 @@ struct MigrationStep {
 std::span<const MigrationStep> migration_steps();
 std::vector<std::string> migrate_doc(PipelineDoc& doc);
 std::expected<Loaded, SigError> load_sig(std::string_view text, const LoadOptions& options = {});
+std::vector<std::filesystem::path> used_files(std::string_view text, const std::filesystem::path& base_dir);
 
 }  // namespace signals::pipeline

@@ -193,6 +193,7 @@ struct Expansion {
     std::vector<ProbeDecl> probes;
     std::set<std::string, std::less<>> pseudo;
     std::vector<std::string> stack;
+    bool calls = true;
 };
 
 struct Frame {
@@ -245,7 +246,8 @@ void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame
     };
     for (const auto& n : body.nodes) {
         const int line = f.def ? f.call_line : n.line;
-        const auto call = x.defs.find(n.type);
+        const bool own = x.defs.contains(n.type);
+        const auto call = x.calls ? x.defs.find(n.type) : x.defs.end();
         if (call == x.defs.end()) {
             NodeDecl out = n;
             out.id = f.prefix + n.id;
@@ -254,7 +256,7 @@ void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame
             out.block = f.def ? f.def->name : std::string{};
             out.def_line = f.def ? n.line : 0;
             out.line = line;
-            const auto* type = find_block_type(n.type);
+            const auto* type = own ? nullptr : find_block_type(n.type);
             for (auto& [param, value] : out.params) {
                 Kind kind = Kind::text;
                 if (type)
@@ -359,7 +361,7 @@ void contract(Expansion& x) {
 
 }  // namespace
 
-std::expected<PipelineDoc, SigError> flatten(const PipelineDoc& doc, const FlattenOptions&) {
+std::expected<PipelineDoc, SigError> flatten(const PipelineDoc& doc, const FlattenOptions& options) {
     PipelineDoc out = doc;
     for (auto& n : out.nodes)
         if (n.source.empty()) n.source = n.params;
@@ -367,6 +369,7 @@ std::expected<PipelineDoc, SigError> flatten(const PipelineDoc& doc, const Flatt
     const auto scope = resolve_lets(doc.lets);
     if (!scope) return std::unexpected{scope.error()};
     Expansion x;
+    x.calls = options.calls;
     for (const auto* list : {&doc.imported, &doc.blocks})
         for (const auto& b : *list) x.defs.insert_or_assign(b.name, &b);
     try {
@@ -382,6 +385,90 @@ std::expected<PipelineDoc, SigError> flatten(const PipelineDoc& doc, const Flatt
     out.nodes = std::move(x.nodes);
     out.edges = std::move(x.edges);
     out.probes = std::move(x.probes);
+    if (!options.calls) std::erase_if(out.probes, [](const ProbeDecl& p) { return p.at.node.find('/') != std::string::npos; });
+    return out;
+}
+
+namespace {
+
+class PortTyper {
+public:
+    explicit PortTyper(const PipelineDoc& doc) {
+        for (const auto* list : {&doc.imported, &doc.blocks})
+            for (const auto& b : *list) defs_.insert_or_assign(b.name, &b);
+    }
+
+    PortType in_type(const BlockDef& d, std::string_view port, std::size_t depth) const {
+        if (depth > kMaxBlockDepth) return PortType::signal;
+        for (const auto& e : d.edges) {
+            if (e.from.node != port) continue;
+            const auto* n = inner(d, e.to.node);
+            if (!n) continue;
+            if (const auto def = defs_.find(n->type); def != defs_.end()) {
+                const auto& ins = def->second->ins;
+                const std::string_view name = e.to.port.empty() && ins.size() == 1 ? std::string_view{ins.front().name} : std::string_view{e.to.port};
+                if (!name.empty()) return in_type(*def->second, name, depth + 1);
+                continue;
+            }
+            const auto* t = find_block_type(n->type);
+            if (!t) continue;
+            const auto& ins = t->inputs;
+            if (e.to.port.empty()) {
+                if (ins.size() == 1) return ins.front().type;
+                if (std::ranges::count_if(ins, [](const PortSpec& p) { return !p.optional; }) == 1)
+                    return std::ranges::find_if(ins, [](const PortSpec& p) { return !p.optional; })->type;
+                continue;
+            }
+            if (const auto it = std::ranges::find(ins, e.to.port, &PortSpec::name); it != ins.end()) return it->type;
+        }
+        return PortType::signal;
+    }
+
+    PortType out_type(const BlockDef& d, std::string_view port, std::size_t depth) const {
+        if (depth > kMaxBlockDepth) return PortType::signal;
+        for (const auto& e : d.edges) {
+            if (e.to.node != port) continue;
+            if (std::ranges::any_of(d.ins, [&](const PortDecl& p) { return p.name == e.from.node; })) return in_type(d, e.from.node, depth + 1);
+            const auto* n = inner(d, e.from.node);
+            if (!n) continue;
+            if (const auto def = defs_.find(n->type); def != defs_.end()) {
+                const auto& outs = def->second->outs;
+                const std::string_view name = e.from.port.empty() && outs.size() == 1 ? std::string_view{outs.front().name} : std::string_view{e.from.port};
+                if (!name.empty()) return out_type(*def->second, name, depth + 1);
+                continue;
+            }
+            const auto* t = find_block_type(n->type);
+            if (!t || t->outputs.empty()) continue;
+            if (e.from.port.empty()) return t->outputs.front().type;
+            const auto it = std::ranges::find(t->outputs, e.from.port, &PortSpec::name);
+            return it != t->outputs.end() ? it->type : PortType::signal;
+        }
+        return PortType::signal;
+    }
+
+private:
+    static const NodeDecl* inner(const BlockDef& d, std::string_view id) {
+        const auto it = std::ranges::find(d.nodes, id, &NodeDecl::id);
+        return it == d.nodes.end() ? nullptr : &*it;
+    }
+
+    std::map<std::string, const BlockDef*, std::less<>> defs_;
+};
+
+}  // namespace
+
+std::vector<BlockType> own_block_types(const PipelineDoc& doc) {
+    const PortTyper typer{doc};
+    std::vector<BlockType> out;
+    for (const auto* list : {&doc.imported, &doc.blocks})
+        for (const auto& def : *list) {
+            BlockType t;
+            t.id = def.name;
+            for (const auto& p : def.ins) t.inputs.push_back({p.name, typer.in_type(def, p.name, 0), p.optional});
+            for (const auto& p : def.outs) t.outputs.push_back({p.name, typer.out_type(def, p.name, 0)});
+            for (const auto& key : def.order) t.params.push_back({key, Kind::text, def.defaults.at(key)});
+            out.push_back(std::move(t));
+        }
     return out;
 }
 
