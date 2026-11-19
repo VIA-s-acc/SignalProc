@@ -18,6 +18,7 @@
 #include "learn/task.hpp"
 #include "tui/data/learn_state.hpp"
 #include "tui/data/session.hpp"
+#include "pipeline/user_blocks.hpp"
 #include "tui/data/user_filters.hpp"
 #include "tui/shell/shell.hpp"
 #include "tui/term/caps.hpp"
@@ -49,6 +50,7 @@ int run(std::optional<std::filesystem::path> file, std::string_view theme, std::
         return std::pair{d.dimx, d.dimy};
     };
     ui.user_filters = user_filters_dir(env);
+    ui.user_blocks = pipeline::user_blocks_dir(env).value_or(std::filesystem::path{"signals-blocks"});
     ui.repo_root = SIGNALS_SOURCE_DIR;
     ui.editor = prefs && prefs->editor ? *prefs->editor : std::string{};
     ui.open_in_editor = [&app, &ui, env](std::filesystem::path path) {

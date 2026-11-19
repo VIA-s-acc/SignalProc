@@ -14,6 +14,7 @@
 
 #include <ftxui/component/event.hpp>
 #include <ftxui/component/mouse.hpp>
+#include <ftxui/dom/elements.hpp>
 #include <ftxui/screen/box.hpp>
 
 #include "tui/data/pyramid.hpp"
@@ -77,6 +78,14 @@ private:
     void sweep_variable();
     std::vector<std::string> marked_nodes() const;
     std::string graph_title() const;
+    std::vector<Command> add_entries() const;
+    void own_block_about(const pipeline::BlockDef& def, const pipeline::PipelineDoc& doc, int width, ftxui::Elements& out) const;
+    void load_library();
+    void check_library();
+    void save_to_library();
+    void update_from_library();
+    static constexpr std::string_view kLibraryPrefix = "\x1flib:";
+    std::vector<pipeline::BlockDef> library_;
     void toggle_mark();
     void ask_collapse();
     void expand_selected();

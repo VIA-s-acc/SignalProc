@@ -159,3 +159,16 @@ TEST_CASE("defines and variable goals are read from task.toml", "[learn][blocks-
     (*files)[dir + "task.toml"] += "\n[[goal]]\ndefines = { calls = 2 }\nprobe = \"a\"\n";
     CHECK_FALSE(load_course(*files));
 }
+
+TEST_CASE("require counts the nodes behind a measured call", "[learn][blocks-goals]") {
+    Task t = calls_task();
+    t.measures = {Measure{.name = "e", .kind = "energy", .a = "lv2"}};
+    t.goals = {Goal{.when = "e > 0"}, Goal{.require = {{"gain", 2}}}};
+    const auto r = check_graph(t, std::string{"pipeline \"t\" v2\nlet level = -6\n"} + kAmp +
+                                      "node x = samples(values=\"1 2 3 4 5 6 7 8\", rate=8)\nnode lv1 = amp(db=$level)\nnode lv2 = amp(db=$level)\nx -> lv1 -> lv2\n");
+    INFO(r.error.value_or(""));
+    REQUIRE(r.goals.size() == 2);
+    CHECK(r.goals[0].passed);
+    INFO(r.goals[1].detail);
+    CHECK(r.goals[1].passed);
+}

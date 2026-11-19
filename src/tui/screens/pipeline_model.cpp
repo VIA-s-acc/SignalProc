@@ -37,12 +37,15 @@ const pipeline::NodeDecl* node_in(const std::vector<pipeline::NodeDecl>& nodes, 
 
 constexpr std::size_t kMaxVisits = 100000;
 constexpr std::size_t kMaxBound = 1 << 20;
+constexpr std::size_t kMaxNesting = 16;
+constexpr std::size_t kMaxChain = 64;
 
 std::vector<std::string> instances_of(const pipeline::PipelineDoc& doc, std::string_view name) {
     std::vector<std::string> out;
     std::vector<std::string_view> stack;
     std::size_t visits = 0;
     const std::function<void(const std::string&, const std::vector<pipeline::NodeDecl>&)> walk = [&](const std::string& prefix, const auto& nodes) {
+        if (stack.size() > kMaxNesting) return;
         for (const auto& n : nodes) {
             if (++visits > kMaxVisits) return;
             const auto* def = pipeline::find_own_block(doc, n.type);
@@ -69,10 +72,16 @@ struct Binding {
     const std::map<std::string, std::string, std::less<>>& values;
     std::size_t budget = kMaxBound;
     std::vector<std::string> stack = {};
+    std::map<std::pair<std::string, pipeline::ParamSpec::Kind>, std::string> memo = {};
     bool exhausted = false;
 };
 
 std::string bind_params(std::string_view text, Binding& b, pipeline::ParamSpec::Kind kind) {
+    if (b.exhausted || b.stack.size() > kMaxChain || text.size() > b.budget) {
+        b.exhausted = true;
+        return {};
+    }
+    b.budget -= text.size() + 1;
     std::string out;
     for (std::size_t at = 0; at < text.size();) {
         if (text[at] != '$') {
@@ -91,9 +100,16 @@ std::string bind_params(std::string_view text, Binding& b, pipeline::ParamSpec::
         if (it == b.values.end() || std::ranges::find(b.stack, name) != b.stack.end()) {
             out += text.substr(at, end - at);
         } else {
-            b.stack.push_back(name);
-            const auto value = bind_params(it->second, b, kind);
-            b.stack.pop_back();
+            const auto key = std::pair{name, kind};
+            auto memo = b.memo.find(key);
+            if (memo == b.memo.end()) {
+                b.stack.push_back(name);
+                auto expanded = bind_params(it->second, b, kind);
+                b.stack.pop_back();
+                if (b.exhausted) return {};
+                memo = b.memo.emplace(key, std::move(expanded)).first;
+            }
+            const auto& value = memo->second;
             const bool numeric = kind == pipeline::ParamSpec::Kind::integer || kind == pipeline::ParamSpec::Kind::real;
             const bool whole = at == 0 && end == text.size();
             out += numeric && !whole && !plain_value(value) ? "(" + value + ")" : value;
@@ -512,6 +528,100 @@ core::Result<void> PipelineModel::rename_probe(const pipeline::PortRef& local, s
         probes.insert_or_assign(after, std::move(value));
     }
     return {};
+}
+
+namespace {
+
+std::string normal_text(const pipeline::BlockDef& def) {
+    auto copy = def;
+    copy.origin.clear();
+    return pipeline::block_text(copy, pipeline::PipelineDoc{});
+}
+
+std::vector<const pipeline::BlockDef*> with_callees(const pipeline::BlockDef& def, const std::function<const pipeline::BlockDef*(std::string_view)>& find) {
+    std::vector<const pipeline::BlockDef*> out;
+    const std::function<void(const pipeline::BlockDef&, std::size_t)> visit = [&](const pipeline::BlockDef& d, std::size_t depth) {
+        if (depth > kMaxNesting || std::ranges::find(out, &d) != out.end()) return;
+        for (const auto& n : d.nodes)
+            if (const auto* callee = find(n.type); callee && callee != &d) visit(*callee, depth + 1);
+        if (std::ranges::find(out, &d) == out.end()) out.push_back(&d);
+    };
+    visit(def, 0);
+    return out;
+}
+
+}  // namespace
+
+core::Result<std::string> PipelineModel::add_library_block(const pipeline::BlockDef& def, const std::vector<pipeline::BlockDef>& library) {
+    const auto from_library = [&](std::string_view name) -> const pipeline::BlockDef* {
+        const auto it = std::ranges::find(library, name, &pipeline::BlockDef::name);
+        return it == library.end() ? nullptr : &*it;
+    };
+    std::string call;
+    auto done = change([&](pipeline::PipelineDoc& body, pipeline::PipelineDoc& doc) -> core::Result<void> {
+        for (const auto* needed : with_callees(def, from_library)) {
+            if (const auto* here = pipeline::find_own_block(doc, needed->name)) {
+                if (normal_text(*here) == normal_text(*needed)) continue;
+                return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("tui.pipeline.block.library_clash")), fmt::arg("name", needed->name)));
+            }
+            if (pipeline::find_block_type(needed->name) || node_in(doc.nodes, needed->name) || std::ranges::any_of(doc.lets, [&](const auto& l) { return l.name == needed->name; }))
+                return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("tui.pipeline.block.name_taken")), fmt::arg("name", needed->name)));
+            auto copy = *needed;
+            copy.origin.clear();
+            doc.version = pipeline::kSigVersion;
+            doc.blocks.push_back(std::move(copy));
+            if (&body != &doc) body.blocks = doc.blocks;
+        }
+        call = def.name + "1";
+        for (int k = 2; node_in(body.nodes, call) || pipeline::find_own_block(doc, call); ++k) call = def.name + std::to_string(k);
+        body.nodes.push_back({call, def.name, {}, 0, false});
+        return {};
+    });
+    if (!done) return std::unexpected{done.error()};
+    selection = {Selection::Kind::node, call, {}};
+    return call;
+}
+
+core::Result<std::string> PipelineModel::save_block(std::string_view name, const std::filesystem::path& dir) const {
+    const auto* def = pipeline::find_own_block(doc_, name);
+    if (!def) return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("tui.pipeline.block.not_block")), fmt::arg("name", name)));
+    pipeline::PipelineDoc out;
+    out.version = pipeline::kSigVersion;
+    out.name = def->name;
+    bool relative = false;
+    for (const auto* needed : with_callees(*def, [&](std::string_view n) { return pipeline::find_own_block(doc_, n); })) {
+        auto copy = *needed;
+        copy.origin.clear();
+        for (const auto& n : copy.nodes)
+            if (const auto* type = pipeline::find_block_type(n.type))
+                for (const auto& spec : type->params)
+                    if (spec.kind == pipeline::ParamSpec::Kind::path)
+                        if (const auto it = n.params.find(spec.name); it != n.params.end() && !it->second.empty() && pipeline::utf8_path(it->second).is_relative()) relative = true;
+        out.blocks.push_back(std::move(copy));
+    }
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    const auto file = dir / pipeline::utf8_path(def->name + ".sig");
+    std::ofstream stream{file, std::ios::binary};
+    stream << pipeline::write_sig(out);
+    if (!stream) return core::make_error(core::Errc::io_error, fmt::format(fmt::runtime(tr("tui.pipeline.cannot_write")), fmt::arg("path", file.string())));
+    return relative ? fmt::format(fmt::runtime(tr("tui.pipeline.block.relative_paths")), fmt::arg("name", def->name)) : std::string{};
+}
+
+core::Result<void> PipelineModel::update_block(const pipeline::BlockDef& def) {
+    auto next = doc_;
+    const auto it = std::ranges::find(next.blocks, def.name, &pipeline::BlockDef::name);
+    if (it == next.blocks.end()) return core::make_error(core::Errc::invalid_argument, fmt::format(fmt::runtime(tr("tui.pipeline.block.not_block")), fmt::arg("name", def.name)));
+    *it = def;
+    it->origin.clear();
+    return commit(std::move(next));
+}
+
+std::vector<std::string> PipelineModel::differs_from(const std::vector<pipeline::BlockDef>& library) const {
+    std::vector<std::string> out;
+    for (const auto& b : doc_.blocks)
+        if (const auto it = std::ranges::find(library, b.name, &pipeline::BlockDef::name); it != library.end() && normal_text(*it) != normal_text(b)) out.push_back(b.name);
+    return out;
 }
 
 core::Result<std::string> PipelineModel::collapse(std::string name) {

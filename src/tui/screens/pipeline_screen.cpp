@@ -21,6 +21,7 @@
 #include "io/wav.hpp"
 #include "pipeline/examples.hpp"
 #include "pipeline/flatten.hpp"
+#include "pipeline/user_blocks.hpp"
 #include "pipeline/block.hpp"
 #include "pipeline/migrate.hpp"
 #include "pipeline/sig.hpp"
@@ -181,6 +182,8 @@ std::vector<Command> PipelineScreen::commands() {
     out.push_back({"pipeline.expand", tr("tui.pipeline.cmd.expand"), [this] { expand_selected(); }});
     out.push_back({"pipeline.enter", tr("tui.pipeline.cmd.enter"), [this] { enter_selected(); }});
     if (!model_->inside().empty()) out.push_back({"pipeline.leave", tr("tui.pipeline.cmd.leave"), [this] { model_->leave(); }});
+    out.push_back({"pipeline.save_block", tr("tui.pipeline.cmd.save_block"), [this] { save_to_library(); }});
+    out.push_back({"pipeline.update_block", tr("tui.pipeline.cmd.update_block"), [this] { update_from_library(); }});
     return out;
 }
 
@@ -238,6 +241,7 @@ void PipelineScreen::show_migration_notes() {
 
 void PipelineScreen::file_result(const core::Result<void>& r) {
     report(r);
+    if (r) check_library();
     if (r && ui_.session && model_->path()) ui_.session->remember(RecentKind::graph, *model_->path());
 }
 
@@ -489,11 +493,86 @@ ftxui::Element PipelineScreen::inspector_panel(int width, int height) {
     return frame_panel(kInspector, vbox(std::move(rows)), {}, tr("tui.pipeline.inspector"));
 }
 
+std::vector<Command> PipelineScreen::add_entries() const {
+    std::vector<Command> all;
+    const auto& doc = model_->doc();
+    for (const auto* list : {&doc.blocks, &doc.imported})
+        for (const auto& b : *list) all.push_back({b.name, b.name + " · " + tr("tui.pipeline.block.own"), {}});
+    for (const auto& b : library_)
+        if (!pipeline::find_own_block(doc, b.name)) all.push_back({std::string{kLibraryPrefix} + b.name, b.name + " · " + tr("tui.pipeline.block.library"), {}});
+    for (const auto& t : pipeline::block_types()) all.push_back({t.id, block_name(t.id), {}});
+    return all;
+}
+
+void PipelineScreen::own_block_about(const pipeline::BlockDef& def, const pipeline::PipelineDoc& doc, int width, ftxui::Elements& out) const {
+    using namespace ftxui;
+    const auto& th = ui_.theme;
+    for (const auto& line : def.comments.above) {
+        std::string_view text = line;
+        if (text.starts_with('#')) text.remove_prefix(1);
+        if (text.starts_with(' ')) text.remove_prefix(1);
+        for (const auto& part : wrap_words(std::string{text}, width)) out.push_back(ftxui::text(part) | fg(th.fg, ui_));
+    }
+    const auto types = pipeline::own_block_types(doc);
+    if (const auto t = std::ranges::find(types, def.name, &pipeline::BlockType::id); t != types.end()) {
+        auto ports = [](const std::vector<pipeline::PortSpec>& list) {
+            std::string s;
+            for (const auto& p : list) s += (s.empty() ? "" : ", ") + p.name + ": " + std::string{pipeline::to_string(p.type)};
+            return s.empty() ? std::string{"—"} : s;
+        };
+        for (const auto& line : wrap_words(ports(t->inputs) + " → " + ports(t->outputs), width)) out.push_back(ftxui::text(line) | fg(th.dim, ui_));
+    }
+}
+
+void PipelineScreen::load_library() { library_ = ui_.user_blocks.empty() ? std::vector<pipeline::BlockDef>{} : pipeline::load_user_blocks(ui_.user_blocks); }
+
+void PipelineScreen::check_library() {
+    load_library();
+    const auto names = model_->differs_from(library_);
+    if (names.empty()) return;
+    std::string list;
+    for (const auto& n : names) list += (list.empty() ? "" : ", ") + n;
+    notice_ = fmt::format(fmt::runtime(tr("tui.pipeline.block.library_differs")), fmt::arg("names", list));
+}
+
+void PipelineScreen::save_to_library() {
+    const auto* def = model_->inside_block();
+    if (const auto* n = selected_node(); n && !def) def = pipeline::find_own_block(model_->doc(), n->type->id);
+    if (!def) {
+        notice_ = tr("tui.pipeline.block.pick_call");
+        return;
+    }
+    const auto dir = ui_.user_blocks.empty() ? std::filesystem::path{"signals-blocks"} : ui_.user_blocks;
+    const auto saved = model_->save_block(def->name, dir);
+    if (!saved) return report(std::unexpected{saved.error()});
+    notice_ = fmt::format(fmt::runtime(tr("tui.pipeline.block.saved")), fmt::arg("name", def->name), fmt::arg("path", (dir / (def->name + ".sig")).string())) +
+              (saved->empty() ? std::string{} : " " + *saved);
+    load_library();
+}
+
+void PipelineScreen::update_from_library() {
+    load_library();
+    auto names = model_->differs_from(library_);
+    const auto* def = model_->inside_block();
+    if (const auto* n = selected_node(); n && !def) def = pipeline::find_own_block(model_->doc(), n->type->id);
+    if (def) std::erase_if(names, [&](const std::string& name) { return name != def->name; });
+    if (names.empty()) {
+        notice_ = tr("tui.pipeline.block.library_same");
+        return;
+    }
+    for (const auto& name : names) {
+        const auto it = std::ranges::find(library_, name, &pipeline::BlockDef::name);
+        if (auto ok = model_->update_block(*it); !ok) return report(ok);
+    }
+    std::string list;
+    for (const auto& n : names) list += (list.empty() ? "" : ", ") + n;
+    notice_ = fmt::format(fmt::runtime(tr("tui.pipeline.block.updated")), fmt::arg("names", list));
+}
+
 ftxui::Element PipelineScreen::add_panel(int width, int height) {
     using namespace ftxui;
     const auto& th = ui_.theme;
-    std::vector<Command> all;
-    for (const auto& t : pipeline::block_types()) all.push_back({t.id, block_name(t.id), {}});
+    const auto all = add_entries();
     const auto found = filter_commands(all, query_);
     pick_ = std::min(pick_, found.empty() ? 0 : found.size() - 1);
     Elements rows{hbox({text("/ " + query_) | fg(th.fg, ui_), text(ui_.caps.glyphs == GlyphMode::ascii ? "_" : "▏") | fg(th.accent, ui_), filler(),
@@ -510,7 +589,14 @@ ftxui::Element PipelineScreen::add_panel(int width, int height) {
                         reflect(add_rows_[k].second));
     }
     Elements about;
-    if (!found.empty())
+    const auto picked = found.empty() ? std::string{} : found[std::min(pick_, found.size() - 1)]->id;
+    if (const auto* own = pipeline::find_own_block(model_->doc(), picked)) {
+        own_block_about(*own, model_->doc(), width, about);
+    } else if (picked.starts_with(kLibraryPrefix)) {
+        pipeline::PipelineDoc library;
+        library.blocks = library_;
+        if (const auto* lib = pipeline::find_own_block(library, std::string_view{picked}.substr(kLibraryPrefix.size()))) own_block_about(*lib, library, width, about);
+    } else if (!found.empty())
         if (const auto* type = pipeline::find_block_type(found[std::min(pick_, found.size() - 1)]->id)) {
             if (const auto purpose = tr_opt("pipeline.about." + type->id))
                 for (const auto& line : wrap_words(*purpose, width)) about.push_back(text(line) | fg(th.fg, ui_));
@@ -532,8 +618,7 @@ ftxui::Element PipelineScreen::add_panel(int width, int height) {
 
 bool PipelineScreen::on_add_key(const ftxui::Event& e) {
     using ftxui::Event;
-    std::vector<Command> all;
-    for (const auto& t : pipeline::block_types()) all.push_back({t.id, block_name(t.id), {}});
+    const auto all = add_entries();
     const auto found = filter_commands(all, query_);
     if (e == Event::Escape) return adding_ = false, true;
     if (e.is_mouse()) {
@@ -569,6 +654,16 @@ bool PipelineScreen::on_add_key(const ftxui::Event& e) {
 
 void PipelineScreen::add_block(const std::string& type) {
     adding_ = false;
+    if (type.starts_with(kLibraryPrefix)) {
+        const auto name = std::string_view{type}.substr(kLibraryPrefix.size());
+        const auto it = std::ranges::find(library_, name, &pipeline::BlockDef::name);
+        if (it == library_.end()) return;
+        const auto call = model_->add_library_block(*it, library_);
+        if (!call) return report(std::unexpected{call.error()});
+        notice_ = fmt::format(fmt::runtime(tr("tui.pipeline.block.copied")), fmt::arg("name", name));
+        follow_ = true;
+        return;
+    }
     if (model_->selection.kind == Selection::Kind::wire) report(model_->insert_into_wire(model_->selection.wire, type));
     else if (const auto id = model_->add_node(type); !id.empty()) model_->selection = {Selection::Kind::node, id, {}};
     follow_ = true;
@@ -2008,6 +2103,7 @@ bool PipelineScreen::OnEvent(ftxui::Event e) {
         adding_ = true;
         query_.clear();
         pick_ = 0;
+        load_library();
         return true;
     }
     if (e == Event::Character('r')) {

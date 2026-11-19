@@ -74,6 +74,7 @@ struct UiContext {
     std::function<std::vector<ResourceSnapshot>()> history;
     std::filesystem::path prefs_file;
     std::filesystem::path user_filters;
+    std::filesystem::path user_blocks;
     bool first_run_check = false;
     bool first_run_start = false;
     audio::Player* player = nullptr;

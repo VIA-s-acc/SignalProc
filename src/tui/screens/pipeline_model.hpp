@@ -104,6 +104,10 @@ public:
     bool undo();
     bool redo();
 
+    core::Result<std::string> add_library_block(const pipeline::BlockDef& def, const std::vector<pipeline::BlockDef>& library);
+    core::Result<std::string> save_block(std::string_view name, const std::filesystem::path& dir) const;
+    core::Result<void> update_block(const pipeline::BlockDef& def);
+    std::vector<std::string> differs_from(const std::vector<pipeline::BlockDef>& library) const;
     core::Result<std::string> collapse(std::string name);
     core::Result<void> expand(std::string_view call);
     core::Result<void> enter(std::string_view call);

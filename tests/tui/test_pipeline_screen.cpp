@@ -1606,3 +1606,36 @@ TEST_CASE("m, b, i, Esc and u collapse, enter, leave and unfold a block on the s
         f.h.frame();
     }
 }
+
+TEST_CASE("the add list offers my blocks and opening a graph reports a different library copy", "[tui][pipeline_screen][blocks]") {
+    const auto lib = signals::test::temp_path("screen-library");
+    std::filesystem::remove_all(lib);
+    std::filesystem::create_directories(lib);
+    std::ofstream{lib / "halve.sig"} << "pipeline \"lib\" v2\n# Halves the level\nblock halve(db=-6) {\n    in x\n    out y\n    node g = gain(db=$db)\n    x -> g -> y\n}\n";
+    PipelineFixture f{150, 44, false};
+    f.ui->user_blocks = lib;
+    REQUIRE(f.model->load_text("g", "pipeline \"g\" v2\nnode s = samples(values=\"1 2 3 4\", rate=8)\n"));
+    f.h.send(ftxui::Event::Character('a'));
+    for (const char c : std::string{"halve"}) f.h.send(ftxui::Event::Character(c));
+    const auto list = f.h.frame();
+    CHECK_THAT(list, ContainsSubstring("halve"));
+    CHECK_THAT(list, ContainsSubstring("Halves the level"));
+    f.h.send(ftxui::Event::Return);
+    REQUIRE(f.model->doc().blocks.size() == 1);
+    CHECK(f.model->doc().blocks.front().name == "halve");
+    REQUIRE(f.model->connect(port("s"), port(f.model->selection.node)));
+    const auto graph = lib.parent_path() / "screen-library-graph.sig";
+    REQUIRE(f.model->save(graph));
+    std::ofstream{lib / "halve.sig"} << "pipeline \"lib\" v2\nblock halve(db=-9) {\n    in x\n    out y\n    node g = gain(db=$db)\n    x -> g -> y\n}\n";
+    f.ui->ask_text = [&](std::string, std::string, std::function<void(std::string)> done) { done(graph.string()); };
+    f.h.send(ftxui::Event::Character('o'));
+    CHECK_THAT(f.screen->notice(), ContainsSubstring("halve"));
+    bool found = false;
+    for (auto& c : f.screen->commands())
+        if (c.id == "pipeline.update_block") {
+            c.run();
+            found = true;
+        }
+    REQUIRE(found);
+    CHECK(f.model->doc().blocks.front().defaults.at("db") == "-9");
+}

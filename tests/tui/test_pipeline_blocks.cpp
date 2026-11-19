@@ -173,4 +173,25 @@ TEST_CASE("counting calls and unfolding stay bounded on a hostile graph", "[tui]
     const auto again = std::chrono::steady_clock::now();
     CHECK_FALSE(d.expand("c"));
     CHECK(std::chrono::steady_clock::now() - again < std::chrono::seconds{2});
+    std::string empty = "pipeline \"e\" v2\nblock big {\n    in x\n    out y\n    let a0 = \"\"\n";
+    for (int k = 1; k <= 40; ++k) empty += "    let a" + std::to_string(k) + " = \"$a" + std::to_string(k - 1) + "$a" + std::to_string(k - 1) + "\"\n";
+    empty += "    node g = gain(db=\"1$a40\")\n    x -> g -> y\n}\nnode s = samples(values=\"1\", rate=8)\nnode c = big()\ns -> c\n";
+    PipelineModel e;
+    REQUIRE(e.load_text("empty", empty));
+    const auto third = std::chrono::steady_clock::now();
+    (void)e.expand("c");
+    CHECK(std::chrono::steady_clock::now() - third < std::chrono::seconds{2});
+    std::string chain = "pipeline \"c\" v2\nblock big {\n    in x\n    out y\n    let a0 = 1\n";
+    for (int k = 1; k <= 5000; ++k) chain += "    let a" + std::to_string(k) + " = $a" + std::to_string(k - 1) + "\n";
+    chain += "    node g = gain(db=$a5000)\n    x -> g -> y\n}\nnode s = samples(values=\"1\", rate=8)\nnode c = big()\ns -> c\n";
+    PipelineModel ch;
+    REQUIRE(ch.load_text("chain", chain));
+    (void)ch.expand("c");
+    std::string deep = "pipeline \"d\" v2\nblock b0 {\n    in x\n    out y\n    node g = gain()\n    x -> g -> y\n}\n";
+    for (int k = 1; k <= 3000; ++k)
+        deep += "block b" + std::to_string(k) + " {\n    in x\n    out y\n    node c = b" + std::to_string(k - 1) + "()\n    x -> c -> y\n}\n";
+    deep += "node s = samples(values=\"1\", rate=8)\nnode top = b3000()\ns -> top\n";
+    PipelineModel dp;
+    REQUIRE(dp.load_text("deep", deep));
+    CHECK(dp.calls_of("b0") == 0);
 }
