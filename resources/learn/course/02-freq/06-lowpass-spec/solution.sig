@@ -1,4 +1,4 @@
-pipeline "lowpass_spec" v1
+pipeline "lowpass_spec" v2
 
 node g1 = gen(kind=sine, freq=500, amplitude=1, rate=8000, duration=1)
 node g2 = gen(kind=sine, freq=3000, amplitude={{a2}}, rate=8000, duration=1)

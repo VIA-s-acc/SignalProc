@@ -80,27 +80,40 @@ core::Result<void> PipelineModel::commit(pipeline::PipelineDoc next) {
     return {};
 }
 
+std::optional<std::string> PipelineModel::take_migration_notice() {
+    if (!migration_pending_) return std::nullopt;
+    migration_pending_ = false;
+    return fmt::format(fmt::runtime(tr("pipeline.migrate.notice")), fmt::arg("from", migrated_from_), fmt::arg("to", pipeline::kSigVersion),
+                       fmt::arg("n", migration_notes_.size()));
+}
+
+void PipelineModel::accept(pipeline::Loaded loaded) {
+    remember();
+    migrated_from_ = loaded.from_version;
+    migration_notes_ = std::move(loaded.notes);
+    migration_pending_ = migrated_from_ < pipeline::kSigVersion;
+    doc_ = std::move(loaded.doc);
+}
+
 core::Result<void> PipelineModel::load(const std::filesystem::path& file) {
     std::ifstream in{file, std::ios::binary};
     if (!in) return core::make_error(core::Errc::io_error, fmt::format(fmt::runtime(tr("pipeline.cli.cannot_read")), fmt::arg("path", file.string())));
     const std::string text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
-    auto doc = pipeline::parse_sig(text);
-    if (!doc) return std::unexpected{sig_failure(file, doc.error())};
-    remember();
-    doc_ = std::move(*doc);
+    auto loaded = pipeline::load_sig(text);
+    if (!loaded) return std::unexpected{sig_failure(file, loaded.error())};
+    accept(std::move(*loaded));
     saved_ = doc_;
     path_ = file;
-    dirty_ = false;
+    dirty_ = migration_pending_;
     selection = {};
     rebuild();
     return {};
 }
 
 core::Result<void> PipelineModel::load_text(std::string_view name, std::string_view text) {
-    auto doc = pipeline::parse_sig(text);
-    if (!doc) return std::unexpected{sig_failure(std::filesystem::path{std::string{name} + ".sig"}, doc.error())};
-    remember();
-    doc_ = std::move(*doc);
+    auto loaded = pipeline::load_sig(text);
+    if (!loaded) return std::unexpected{sig_failure(std::filesystem::path{std::string{name} + ".sig"}, loaded.error())};
+    accept(std::move(*loaded));
     saved_ = {};
     path_.reset();
     dirty_ = true;

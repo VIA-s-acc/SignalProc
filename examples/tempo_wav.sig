@@ -1,4 +1,4 @@
-pipeline "tempo_wav" v1
+pipeline "tempo_wav" v2
 
 # свой WAV: медленнее без смены тона, выше без смены темпа, быстрее как пластинка
 node x    = wav(path="../resources/samples/test.wav")

@@ -1,4 +1,4 @@
-pipeline "tempo" v1
+pipeline "tempo" v2
 
 # пила 220 Гц тремя способами: растяжение не меняет тон, сдвиг высоты не меняет длину, скорость меняет и то и другое
 node x      = osc(kind=sawtooth, freq=220, duration=2, rate=22050)

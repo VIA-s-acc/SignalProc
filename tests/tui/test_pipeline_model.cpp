@@ -347,7 +347,7 @@ TEST_CASE("the CLI line is withheld when the graph structure changed", "[tui][pi
 
 TEST_CASE("a probe takes a name, keeps its last value and an empty name restores the default", "[tui][pipeline_model][probe_name]") {
     PipelineModel m;
-    REQUIRE(m.load_text("conv", "pipeline \"conv\" v1\n"
+    REQUIRE(m.load_text("conv", "pipeline \"conv\" v2\n"
                                 "node x = samples(values=\"2 -1 3 1\", rate=1)\n"
                                 "node y = fir_taps(taps=\"0.5 -0.5\")\n"
                                 "x -> y\n"
@@ -374,7 +374,7 @@ TEST_CASE("a probe takes a name, keeps its last value and an empty name restores
 
 TEST_CASE("a node is duplicated with its parameters and comments but without wires", "[tui][pipeline_model][probe_tools]") {
     PipelineModel m;
-    REQUIRE(m.load_text("g", "pipeline \"g\" v1\n\nnode x = samples(values=\"1 2\", rate=8)\nnode g = gain(db=-6)  # quieter\n\nx -> g\n"));
+    REQUIRE(m.load_text("g", "pipeline \"g\" v2\n\nnode x = samples(values=\"1 2\", rate=8)\nnode g = gain(db=-6)  # quieter\n\nx -> g\n"));
     const auto id = m.duplicate_node("g");
     CHECK(id == "gain");
     const auto& doc = m.doc();

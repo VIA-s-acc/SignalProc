@@ -117,7 +117,7 @@ TEST_CASE("learn check passes the solution and fails the start with exit 3", "[c
     CHECK(p.tasks.at("1.2").state == TaskState::solved);
     CHECK(p.tasks.at("1.2").attempts == 2);
     CHECK(std::filesystem::exists(env.dir / "learn" / "1.2.sig"));
-    std::ofstream{env.dir / "broken.sig"} << "pipeline \"t\" v1\nnode = 1\n";
+    std::ofstream{env.dir / "broken.sig"} << "pipeline \"t\" v2\nnode = 1\n";
     CHECK(env.run({"check", "1.2", (env.dir / "broken.sig").string()}).code == 1);
     CHECK(env.run({"check", "1.2", (env.dir / "missing.sig").string()}).code == 1);
 }

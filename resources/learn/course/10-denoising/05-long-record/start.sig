@@ -1,4 +1,4 @@
-pipeline "long_record" v1
+pipeline "long_record" v2
 
 node x = gen(kind=harmonics, freq=220, amplitude=1, rate=8000, duration=4)
 node w = gen(kind=white, amplitude={{a}}, rate=8000, duration=4, seed={{seed}})

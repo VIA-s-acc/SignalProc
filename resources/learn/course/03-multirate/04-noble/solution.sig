@@ -1,4 +1,4 @@
-pipeline "noble" v1
+pipeline "noble" v2
 
 node x  = samples(values="{{x}}", rate=8)
 node ha = fir_taps(taps="{{h0}} 0 {{h1}} 0 {{h2}}")

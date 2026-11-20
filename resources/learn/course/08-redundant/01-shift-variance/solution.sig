@@ -1,4 +1,4 @@
-pipeline "shift_variance" v1
+pipeline "shift_variance" v2
 
 node x   = samples(values="{{x}}", rate=16)
 node s   = shift(samples=1, mode=circular)

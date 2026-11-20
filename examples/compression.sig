@@ -1,4 +1,4 @@
-pipeline "compression" v1
+pipeline "compression" v2
 
 node x    = wav(path="../resources/samples/test.wav")
 node dwt  = dwt(wavelet=db4, levels=5, ext=periodization)

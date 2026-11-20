@@ -1,4 +1,4 @@
-pipeline "toeplitz_entry" v1
+pipeline "toeplitz_entry" v2
 
 node e = gen(kind=impulse, rate=8, duration=0.5)
 node d = delay(samples={{j}})

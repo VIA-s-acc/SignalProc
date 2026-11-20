@@ -976,7 +976,7 @@ TEST_CASE("the probe footer fits its panel or ends with an ellipsis", "[tui][pip
 
 TEST_CASE("long report field names keep a gap before their values", "[tui][pipeline_screen][fit]") {
     PipelineFixture f{150, 44, false};
-    REQUIRE(f.model->load_text("stats", "pipeline \"stats\" v1\n"
+    REQUIRE(f.model->load_text("stats", "pipeline \"stats\" v2\n"
                                         "node x = osc(freq=440, duration=0.2, rate=8000)\n"
                                         "node st = duplicate()\n"
                                         "node m = stats()\n"
@@ -1058,7 +1058,7 @@ bool has_row(const std::string& frame, const std::vector<std::string>& row) {
     return false;
 }
 
-const std::string kConvolution = "pipeline \"conv\" v1\n"
+const std::string kConvolution = "pipeline \"conv\" v2\n"
                                  "node x = samples(values=\"2 -1 3 1\", rate=1)\n"
                                  "node xp = pad(after=1)\n"
                                  "node y1 = fir_taps(taps=\"0.5 -0.5\")\n"
@@ -1104,7 +1104,7 @@ TEST_CASE("v cycles the probe through time, spectrum and the sample values", "[t
 
 TEST_CASE("the values view scrolls by rows, pages and the wheel and keeps left and right for probes", "[tui][pipeline_screen][values][scroll]") {
     PipelineFixture f{150, 44, false};
-    run_text(f, "pipeline \"ramp\" v1\n"
+    run_text(f, "pipeline \"ramp\" v2\n"
                 "node x = samples(values=\"" + ramp(100, 10) + "\", rate=1)\n"
                 "node d = duplicate()\n"
                 "x -> d\n"
@@ -1151,7 +1151,7 @@ TEST_CASE("the values view scrolls by rows, pages and the wheel and keeps left a
 
 TEST_CASE("channels that do not fit the values view are counted, not cut", "[tui][pipeline_screen][values][fit]") {
     PipelineFixture f{80, 24, false};
-    run_text(f, "pipeline \"wide\" v1\n"
+    run_text(f, "pipeline \"wide\" v2\n"
                 "node x = samples(values=\"0.123457 -0.654321 0.5\", rate=1)\n"
                 "node d = duplicate(channels=12)\n"
                 "x -> d\n"
@@ -1218,7 +1218,7 @@ TEST_CASE("n names the probe in the panel or on the selected node", "[tui][pipel
 
 TEST_CASE("a stereo graph shows its shape on nodes and in the inspector, and the probe draws every channel", "[tui][pipeline_screen][multichannel]") {
     PipelineFixture f{150, 44, false};
-    run_text(f, "pipeline \"st\" v1\n"
+    run_text(f, "pipeline \"st\" v2\n"
                 "node x = samples(values=\"" + ramp(64, 1) + " | " + ramp(64, 2) + "\", rate=8)\n"
                 "node d = dwt(wavelet=haar, levels=2)\n"
                 "x -> d\n"
@@ -1284,7 +1284,7 @@ TEST_CASE("the probe plot menu exports the plot to svg and csv", "[tui][pipeline
 
 TEST_CASE("the palette asks which plot to export and the shell says where it went", "[tui][pipeline_screen][export]") {
     PipelineFixture f{150, 44, false};
-    run_text(f, "pipeline \"st\" v1\n"
+    run_text(f, "pipeline \"st\" v2\n"
                 "node x = samples(values=\"" + ramp(64, 1) + " | " + ramp(64, 2) + "\", rate=8)\n"
                 "probe x as \"x\"\n");
     f.h.send(ftxui::Event::Character('k'));
@@ -1319,7 +1319,7 @@ TEST_CASE("S sweeps a parameter of the selected node and the probe panel shows t
         prefill = std::move(p);
         answer = std::move(done);
     };
-    run_text(f, "pipeline \"g\" v1\n"
+    run_text(f, "pipeline \"g\" v2\n"
                 "node x = samples(values=\"1 -2 3 -4\", rate=8)\n"
                 "node g = gain(db=0)\n"
                 "node s = stats()\n"
@@ -1384,7 +1384,7 @@ std::string read_file(const std::filesystem::path& p) {
     return {std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
 }
 
-constexpr const char* kTwoChannels = "pipeline \"t\" v1\n"
+constexpr const char* kTwoChannels = "pipeline \"t\" v2\n"
                                      "node x = samples(values=\"0.125 -0.5 | 1 0.333333333333\", rate=8)\n"
                                      "node g = gain(db=0)\n"
                                      "x -> g\n"
@@ -1467,7 +1467,7 @@ TEST_CASE("a short probe is drawn as stems at its exact samples", "[tui][pipelin
 
 TEST_CASE("w compares the shown probe with another one and w again stops", "[tui][pipeline_screen][probe_tools]") {
     PipelineFixture f{150, 44, false};
-    run_text(f, "pipeline \"c\" v1\n"
+    run_text(f, "pipeline \"c\" v2\n"
                 "node a = samples(values=\"1 2 3 4\", rate=8)\n"
                 "node b = samples(values=\"1 2 3 3\", rate=8)\n"
                 "node ga = gain(db=0)\n"
@@ -1495,7 +1495,7 @@ TEST_CASE("w compares the shown probe with another one and w again stops", "[tui
 
 TEST_CASE("comparing probes also gives the correlation and how far b is shifted", "[tui][pipeline_screen][probe_tools]") {
     PipelineFixture f{150, 44, false};
-    run_text(f, "pipeline \"d\" v1\n"
+    run_text(f, "pipeline \"d\" v2\n"
                 "node a = samples(values=\"0 1 0.5 0 0 0\", rate=8)\n"
                 "node b = samples(values=\"0 0 0 1 0.5 0\", rate=8)\n"
                 "node ga = gain(db=0)\n"
@@ -1552,7 +1552,7 @@ TEST_CASE("x saves a signal probe to npy and any probe to npz", "[tui][pipeline_
     const auto npz = signals::io::read_npz(dir / "g.npz");
     REQUIRE(npz);
     CHECK(signals::io::np_find(*npz, "rate"));
-    run_text(f, "pipeline \"c\" v1\nnode x = samples(values=\"0.5 0.25 -0.125 1\", rate=8)\nnode d = dwt(wavelet=haar, levels=1)\nx -> d\nprobe d as \"d\"\n");
+    run_text(f, "pipeline \"c\" v2\nnode x = samples(values=\"0.5 0.25 -0.125 1\", rate=8)\nnode d = dwt(wavelet=haar, levels=1)\nx -> d\nprobe d as \"d\"\n");
     answer = (dir / "d.npz").string();
     f.h.send(ftxui::Event::Character('x'));
     CHECK(prefill == "d.npz");

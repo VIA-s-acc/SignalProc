@@ -91,7 +91,7 @@ TEST_CASE("graph: an unconnected required input is reported at its node", "[pipe
 }
 
 TEST_CASE("graph: an unknown block type suggests the nearest one", "[pipeline][graph]") {
-    const auto e = error_of("pipeline \"x\" v1\nnode s = gne()\n");
+    const auto e = error_of("pipeline \"x\" v2\nnode s = gne()\n");
     CHECK(e.line == 2);
     CHECK_THAT(e.message, ContainsSubstring("gne"));
     CHECK_THAT(e.message, ContainsSubstring("gen"));
@@ -172,7 +172,7 @@ TEST_CASE("graph: probes resolve to wires and keep their names", "[pipeline][gra
 }
 
 TEST_CASE("graph: the spec example builds", "[pipeline][graph]") {
-    const auto g = build(R"(pipeline "denoise" v1
+    const auto g = build(R"(pipeline "denoise" v2
 
 node src  = wav(path="test.wav")
 node ch   = split(mode=lr)

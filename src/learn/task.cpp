@@ -302,6 +302,7 @@ core::Result<FileMap> read_course_dir(const std::filesystem::path& dir) {
         if (!it->is_regular_file()) continue;
         const auto ext = it->path().extension().string();
         if (ext != ".toml" && ext != ".md" && ext != ".sig") continue;
+        if (it->path().filename().string().ends_with(".v1.sig")) continue;
         std::ifstream in{it->path(), std::ios::binary};
         std::ostringstream text;
         text << in.rdbuf();

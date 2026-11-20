@@ -14,6 +14,7 @@
 #include "learn/variant.hpp"
 #include "pipeline/cache.hpp"
 #include "pipeline/graph.hpp"
+#include "pipeline/migrate.hpp"
 
 namespace signals::learn {
 
@@ -72,9 +73,9 @@ std::string say(std::string_view key, Args&&... args) {
 }
 
 core::Result<pipeline::PipelineDoc> parse(std::string_view text) {
-    auto doc = pipeline::parse_sig(text);
-    if (!doc) return task_error(say("learn.check.graph_error", fmt::arg("line", doc.error().line), fmt::arg("message", doc.error().message)));
-    return std::move(*doc);
+    auto loaded = pipeline::load_sig(text);
+    if (!loaded) return task_error(say("learn.check.graph_error", fmt::arg("line", loaded.error().line), fmt::arg("message", loaded.error().message)));
+    return std::move(loaded->doc);
 }
 
 core::Result<pipeline::RunResult> run(const pipeline::PipelineDoc& doc, const std::filesystem::path& base, const core::CancelToken& cancel) {

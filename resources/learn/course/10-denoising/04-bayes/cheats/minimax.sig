@@ -1,4 +1,4 @@
-pipeline "bayes_shrink" v1
+pipeline "bayes_shrink" v2
 
 node x = gen(kind=bumps, rate=2048, duration=1)
 node n = add_noise(color=white, snr_db=2, seed={{seed}})

@@ -1,4 +1,4 @@
-pipeline "first_steps" v1
+pipeline "first_steps" v2
 
 node x       = gen(kind=doppler, rate=8000, duration=0.25)
 node noisy   = add_noise(color=white, snr_db=10, seed=1)

@@ -1,4 +1,4 @@
-pipeline "haar_bank_wav" v1
+pipeline "haar_bank_wav" v2
 
 node x   = wav(path="../resources/samples/test.wav")
 node h0  = convolve(filter=haar.h0, method=direct)

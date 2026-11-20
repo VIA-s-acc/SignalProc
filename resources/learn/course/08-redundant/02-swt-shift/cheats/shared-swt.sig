@@ -1,4 +1,4 @@
-pipeline "swt_shift" v1
+pipeline "swt_shift" v2
 
 node x  = samples(values="{{x}}", rate=16)
 node sa = shift(samples=1, mode=circular)

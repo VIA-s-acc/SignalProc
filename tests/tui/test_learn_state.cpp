@@ -78,6 +78,23 @@ TEST_CASE("start writes the work graph once and keeps the student's edits", "[tu
     CHECK(f.routes == std::vector<std::string>{"signal"});
 }
 
+TEST_CASE("a v1 work graph migrates when it is opened and saves as v2", "[tui][learn_state]") {
+    Fixture f{"learn-state-v1-work"};
+    f.learn->select("1.2");
+    f.learn->start(*f.ui);
+    const auto work = learn::work_path(f.dir, "1.2", 1);
+    auto old = learn::solution_graph(*mini().find("1.2"), 1);
+    const auto header = old.find("\" v");
+    REQUIRE(header != std::string::npos);
+    old.replace(header + 3, 1, "1");
+    std::ofstream{work} << old;
+    REQUIRE(f.pipeline->load(work).has_value());
+    CHECK(f.pipeline->migrated_from() == 1);
+    CHECK(f.pipeline->dirty());
+    REQUIRE(f.pipeline->save(work).has_value());
+    CHECK(read(work).find("\" v2") != std::string::npos);
+}
+
 TEST_CASE("a pipeline run of the work graph triggers a check", "[tui][learn_state]") {
     Fixture f{"learn-state-auto"};
     f.learn->select("1.2");

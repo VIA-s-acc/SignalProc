@@ -1,4 +1,4 @@
-pipeline "keep_few" v1
+pipeline "keep_few" v2
 
 node x    = gen(kind=doppler, rate=1024, duration=1)
 node w    = dwt(wavelet=haar, levels=5, ext=periodization)

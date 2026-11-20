@@ -1,4 +1,4 @@
-pipeline "delayed" v1
+pipeline "delayed" v2
 
 node x = samples(values="{{x}}", rate=8)
 node y = delay(samples=1)

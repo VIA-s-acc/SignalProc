@@ -1,4 +1,4 @@
-pipeline "haar_entry" v1
+pipeline "haar_entry" v2
 
 node e = gen(kind=impulse, rate=8, duration=1)
 node d = delay(samples={{c}})

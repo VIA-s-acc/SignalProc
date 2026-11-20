@@ -26,6 +26,7 @@ add_library(signals_pipeline STATIC
   blocks_analysis.cpp
   blocks_tempo.cpp
   sig.cpp
+  migrate.cpp
   graph.cpp
   cache.cpp
   executor.cpp

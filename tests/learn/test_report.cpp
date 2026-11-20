@@ -19,7 +19,7 @@ TEST_CASE("the report matches the golden file", "[learn][report]") {
     p.tasks["1.2"] = {TaskState::revealed, 4, 1, "2026-11-13 18:40", "", {"err = 0", "", ""}};
     p.tasks["2.2"] = {TaskState::open, 1, 0, "", "", {}};
     const auto graph = [](std::string_view id) -> std::optional<std::string> {
-        if (id == "1.2") return std::string{"pipeline \"double\" v1\n\nnode x = samples(values=\"1 2\", rate=8)\nnode y = add()\n\nx -> y.a\nx -> y.b\n"};
+        if (id == "1.2") return std::string{"pipeline \"double\" v2\n\nnode x = samples(values=\"1 2\", rate=8)\nnode y = add()\n\nx -> y.a\nx -> y.b\n"};
         return std::nullopt;
     };
     signals::LanguageScope ru{signals::Language::ru};

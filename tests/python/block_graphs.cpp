@@ -84,7 +84,7 @@ std::map<std::string, std::string, std::less<>> base_params(const pipeline::Bloc
 std::string graph_text(const pipeline::BlockType& t, const std::string& name, const std::map<std::string, std::string, std::less<>>& params,
                        const std::string& source = {}) {
     const auto prod = producer_for(t, params, source);
-    std::string text = "pipeline \"" + name + "\" v1\n" + kSources + prod.lines + "node b = " + t.id + "(";
+    std::string text = "pipeline \"" + name + "\" v2\n" + kSources + prod.lines + "node b = " + t.id + "(";
     bool first = true;
     for (const auto& [k, v] : params) text += (first ? "" : ", ") + k + "=" + v, first = false;
     text += ")\n";
@@ -97,7 +97,7 @@ std::string graph_text(const pipeline::BlockType& t, const std::string& name, co
 
 void prepare_block_files(const std::filesystem::path& dir) {
     std::filesystem::create_directories(dir);
-    const auto doc = pipeline::parse_sig(std::string{"pipeline \"c\" v1\n"} + kSources + "node c = dwt(wavelet=db2, levels=3)\nx -> c\nprobe c as \"c\"\nprobe x as \"x\"\n");
+    const auto doc = pipeline::parse_sig(std::string{"pipeline \"c\" v2\n"} + kSources + "node c = dwt(wavelet=db2, levels=3)\nx -> c\nprobe c as \"c\"\nprobe x as \"x\"\n");
     REQUIRE(doc);
     const auto graph = pipeline::build_graph(*doc, dir);
     REQUIRE(graph);
@@ -163,7 +163,7 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
         out.push_back({t.id + "-bypass", std::move(text)});
     }
     if (t.id == "sst_band" || t.id == "sst_ridge") {
-        std::string text = "pipeline \"" + t.id + "-long\" v1\nnode x = gen(kind=harmonics, freq=220, rate=8000, duration=5)\nnode b = " + t.id + "()\nx -> b\n";
+        std::string text = "pipeline \"" + t.id + "-long\" v2\nnode x = gen(kind=harmonics, freq=220, rate=8000, duration=5)\nnode b = " + t.id + "()\nx -> b\n";
         for (const auto& port : t.outputs) text += "probe b." + port.name + " as \"" + port.name + "\"\n";
         out.push_back({t.id + "-long", std::move(text)});
     }

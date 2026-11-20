@@ -313,7 +313,7 @@
 Текстовый, читаемый, удобный для diff. Позиции узлов не хранятся, только ручные закрепления.
 
 ```text
-pipeline "denoise" v1
+pipeline "denoise" v2
 
 node src  = wav(path="test.wav")
 node ch   = split(mode=lr)

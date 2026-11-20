@@ -115,7 +115,7 @@ TEST_CASE("run --npz on a failing graph writes nothing", "[cli-npz]") {
     const auto sig = temp_path("broken.sig");
     {
         std::ofstream f{sig};
-        f << "pipeline \"broken\" v1\nnode x = gen(kind=sine, rate=8000, duration=0.01)\nnode y = cut(begin=500, end=100)\nx -> y\nprobe y as \"y\"\n";
+        f << "pipeline \"broken\" v2\nnode x = gen(kind=sine, rate=8000, duration=0.01)\nnode y = cut(begin=500, end=100)\nx -> y\nprobe y as \"y\"\n";
     }
     const auto out = temp_path("broken.npz");
     std::filesystem::remove(out);

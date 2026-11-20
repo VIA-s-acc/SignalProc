@@ -131,7 +131,7 @@ src -> chk.ref
 
 TEST_CASE("graph draws every node within 120 columns and ASCII stays ASCII", "[cli][pipeline]") {
     const auto dir = fresh_dir("cli-graph");
-    const auto path = write_sig(dir, R"(pipeline "spec" v1
+    const auto path = write_sig(dir, R"(pipeline "spec" v2
 node src  = wav(path="test.wav")
 node ch   = split(mode=lr)
 node dwt  = dwt(wavelet=db2, levels=6, ext=symmetric)
@@ -173,7 +173,7 @@ TEST_CASE("paths with spaces and Cyrillic work from the .sig to the output and p
 
 TEST_CASE("run prints the samples of a short probe and puts them into the JSON", "[cli][pipeline][values]") {
     const auto dir = fresh_dir("cli-run-values");
-    const auto path = write_sig(dir, R"(pipeline "conv" v1
+    const auto path = write_sig(dir, R"(pipeline "conv" v2
 node x = samples(values="2 -1 3 1", rate=1)
 node xp = pad(after=1)
 node y1 = fir_taps(taps="0.5 -0.5")
@@ -222,7 +222,7 @@ TEST_CASE("the prak1 example graphs give the numbers of the notebook", "[cli][pi
 
 TEST_CASE("run shows the shape of every node and of a stereo probe", "[cli][pipeline][multichannel]") {
     const auto dir = fresh_dir("cli-run-shape");
-    const auto path = write_sig(dir, R"(pipeline "stereo" v1
+    const auto path = write_sig(dir, R"(pipeline "stereo" v2
 node x = samples(values="1 2 3 | 4 5 6", rate=8)
 node g = gain(db=0)
 x -> g
@@ -244,7 +244,7 @@ probe g as "g"
 
 TEST_CASE("run --report writes a markdown report with plots next to it", "[cli][pipeline][export]") {
     const auto dir = fresh_dir("cli-run-report");
-    const auto path = write_sig(dir, R"(pipeline "report" v1
+    const auto path = write_sig(dir, R"(pipeline "report" v2
 node x = samples(values="1 2 3 | 4 5 6", rate=8)
 node g = gain(db=0)
 node tone = gen(duration=0.1)
@@ -333,7 +333,7 @@ TEST_CASE("explain describes a block, its ports, its parameters with their value
 
 TEST_CASE("run --values N prints the first N samples of every signal probe", "[cli][pipeline][values]") {
     const auto dir = fresh_dir("cli-run-values");
-    const auto sig = write_sig(dir, "pipeline \"v\" v1\nnode x = samples(values=\"1 2 3 4 5 6 7 8\", rate=8)\nprobe x as \"x\"\n").string();
+    const auto sig = write_sig(dir, "pipeline \"v\" v2\nnode x = samples(values=\"1 2 3 4 5 6 7 8\", rate=8)\nprobe x as \"x\"\n").string();
     const auto all = run({"signals", "run", sig});
     CHECK(all.out.find("ch0: 1 2 3 4 5 6 7 8") != std::string::npos);
     const auto three = run({"signals", "run", sig, "--values", "3"});
@@ -349,7 +349,7 @@ TEST_CASE("run --values N prints the first N samples of every signal probe", "[c
 TEST_CASE("watch reruns when the graph or an input changes and never because of an output", "[cli][pipeline][watch]") {
     namespace fs = std::filesystem;
     const auto dir = fresh_dir("cli-watch");
-    const auto sig = write_sig(dir, "pipeline \"w\" v1\nnode src = wav(path=\"in.wav\")\nnode out = wav_out(path=\"out.wav\")\nsrc -> out\n");
+    const auto sig = write_sig(dir, "pipeline \"w\" v2\nnode src = wav(path=\"in.wav\")\nnode out = wav_out(path=\"out.wav\")\nsrc -> out\n");
     std::ofstream{dir / "in.wav"} << "x";
     std::ofstream{dir / "out.wav"} << "x";
     const auto files = signals::cli::watched_files(sig);
@@ -364,6 +364,21 @@ TEST_CASE("watch reruns when the graph or an input changes and never because of 
                                                    if (ticks == 5) fs::last_write_time(sig, start + std::chrono::seconds{30});
                                                });
     CHECK(code == 0);
+    CHECK(runs == 3);
+}
+
+TEST_CASE("watch notices an edit that keeps the file time", "[cli][pipeline][watch]") {
+    namespace fs = std::filesystem;
+    const auto dir = fresh_dir("cli-watch-same-time");
+    const auto sig = write_sig(dir, "pipeline \"w\" v2\nnode x = gain(db=-6)\n");
+    const auto start = fs::last_write_time(sig);
+    int runs = 0, ticks = 0;
+    signals::cli::watch_loop([&] { return ++runs, 0; }, [&] { return signals::cli::watched_files(sig); }, [&] { return ticks < 8; }, [&] {
+        ++ticks;
+        if (ticks == 2) write_sig(dir, "pipeline \"w\" v2\n");
+        if (ticks == 5) write_sig(dir, "pipeline \"x\" v2\n");
+        fs::last_write_time(sig, start);
+    });
     CHECK(runs == 3);
 }
 
@@ -439,7 +454,7 @@ bool same_json(const nlohmann::json& a, const nlohmann::json& b) {
     return a == b;
 }
 
-constexpr const char* kWatched = "pipeline \"w\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode y = gain(db=-6)\nx -> y\nprobe y as \"y\"\n";
+constexpr const char* kWatched = "pipeline \"w\" v2\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode y = gain(db=-6)\nx -> y\nprobe y as \"y\"\n";
 
 }  // namespace
 
@@ -456,12 +471,36 @@ TEST_CASE("watch json prints one document per line on stdout", "[cli-watch]") {
         }
     });
     const auto lines = lines_of(out);
-    REQUIRE(lines.size() == 2);
+    REQUIRE(lines.size() >= 2);
     for (const auto& line : lines) {
         INFO(line);
         const auto j = nlohmann::json::parse(line);
         CHECK(j.contains("nodes"));
         CHECK(j.at("pipeline") == "w");
+    }
+}
+
+TEST_CASE("watch skips a half-written file", "[cli-watch]") {
+    const auto dir = fresh_dir("cli-watch-partial");
+    const auto sig = write_sig(dir, kWatched);
+    const auto npz = dir / "y.npz";
+    const auto out = watch_json({"signals", "run", sig.string(), "--watch", "--json", "--npz", npz.string()}, [&] {
+        wait_for([&] { return std::filesystem::exists(npz); });
+        { std::ofstream truncated{sig, std::ios::binary | std::ios::trunc}; }
+        std::this_thread::sleep_for(std::chrono::milliseconds{900});
+        const auto before = std::filesystem::last_write_time(npz);
+        write_sig(dir, std::string{kWatched}.replace(std::string{kWatched}.find("-6"), 2, "-12"));
+        for (int k = 0; k < 25 && std::filesystem::last_write_time(npz) == before; ++k) std::this_thread::sleep_for(std::chrono::milliseconds{400});
+    });
+    const auto lines = lines_of(out);
+    INFO(out);
+    CHECK(lines.size() >= 2);
+    for (const auto& line : lines) {
+        INFO(line);
+        const auto j = nlohmann::json::parse(line);
+        CHECK_FALSE(j.contains("error"));
+        CHECK(j.value("pipeline", std::string{}) == "w");
+        CHECK_FALSE(j.value("nodes", nlohmann::json::array()).empty());
     }
 }
 
@@ -498,7 +537,7 @@ TEST_CASE("the vscode fixture matches the current output", "[cli-watch]") {
 
 TEST_CASE("run json lists the bands of a coefficient probe", "[cli-pipeline]") {
     const auto dir = fresh_dir("cli-json-bands");
-    const auto sig = write_sig(dir, "pipeline \"b\" v1\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode c = dwt(wavelet=db2, levels=2)\nx -> c\nprobe c as \"c\"\n");
+    const auto sig = write_sig(dir, "pipeline \"b\" v2\nnode x = gen(kind=sine, freq=440, rate=8000, duration=0.01)\nnode c = dwt(wavelet=db2, levels=2)\nx -> c\nprobe c as \"c\"\n");
     const auto r = run({"signals", "run", sig.string(), "--json"});
     REQUIRE(r.code == 0);
     const auto bands = nlohmann::json::parse(r.out).at("probes").at("c").at("bands");

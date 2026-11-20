@@ -112,11 +112,11 @@ TEST_CASE("a deleted input node is reported", "[learn][checker]") {
 
 TEST_CASE("a graph that does not build gives an error with a line", "[learn][checker]") {
     const auto& dbl = task("1.2");
-    const auto r = check_graph(dbl, "pipeline \"t\" v1\n\nnode x = samples(values=\"1 2\", rate=8)\nnode y = nosuchblock()\nx -> y\n");
+    const auto r = check_graph(dbl, "pipeline \"t\" v2\n\nnode x = samples(values=\"1 2\", rate=8)\nnode y = nosuchblock()\nx -> y\n");
     CHECK_FALSE(r.passed);
     REQUIRE(r.error.has_value());
     CHECK(r.error->find("4") != std::string::npos);
-    const auto broken = check_graph(dbl, "pipeline \"t\" v1\nnode x = = 1\n");
+    const auto broken = check_graph(dbl, "pipeline \"t\" v2\nnode x = = 1\n");
     REQUIRE(broken.error.has_value());
     CHECK(broken.error->find("2") != std::string::npos);
 }
@@ -163,7 +163,7 @@ TEST_CASE("a cancelled check stops", "[learn][checker]") {
 TEST_CASE("a check over the time limit reports a timeout", "[learn][checker]") {
     const auto& dbl = task("1.2");
     signals::core::CancelToken cancel;
-    const auto heavy = "pipeline \"t\" v1\nnode x = samples(values=\"1 2\", rate=8)\nnode g = gen(kind=white, rate=48000, duration=60)\n"
+    const auto heavy = "pipeline \"t\" v2\nnode x = samples(values=\"1 2\", rate=8)\nnode g = gen(kind=white, rate=48000, duration=60)\n"
                        "node m = moving_average(length=4000)\nnode y = add()\ng -> m\nx -> y.a\nx -> y.b\n";
     auto r = check_task(dbl, 1, {.sig = heavy, .base_dir = "."}, cancel, 0.01);
     REQUIRE(r.has_value());
@@ -193,7 +193,7 @@ TEST_CASE("measure fields take variant parameters", "[learn][checker]") {
 TEST_CASE("a student probe with the checker's name cannot replace the measured output", "[learn][checker]") {
     const auto& bank = task("2.2");
     const auto x = draw_params(bank.params, bank.id, 1).at("x");
-    const auto sig = "pipeline \"bank\" v1\nnode x = samples(values=\"" + x + "\", rate=8)\nnode d = downsample(m=2, anti_alias=no, phase=1)\n"
+    const auto sig = "pipeline \"bank\" v2\nnode x = samples(values=\"" + x + "\", rate=8)\nnode d = downsample(m=2, anti_alias=no, phase=1)\n"
                      "node u = upsample(m=2, anti_image=no)\nnode sum = gain(db=0)\nx -> d -> u -> sum\nprobe x as \"__learn:sum\"\n";
     const auto r = check_graph(bank, sig);
     CHECK_FALSE(r.passed);

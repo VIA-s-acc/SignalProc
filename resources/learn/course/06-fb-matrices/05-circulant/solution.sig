@@ -1,4 +1,4 @@
-pipeline "circulant" v1
+pipeline "circulant" v2
 
 node s0 = samples(values="1 1 1 1 1 1 1 1 1 1 1 1", rate=4)
 node s2 = samples(values="1 -1 1 -1 1 -1 1 -1 1 -1 1 -1", rate=4)

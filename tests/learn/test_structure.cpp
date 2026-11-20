@@ -69,21 +69,21 @@ TEST_CASE("counting blocks", "[learn][structure]") {
 }
 
 TEST_CASE("locked nodes report changed type and params but ignore the input values", "[learn][structure]") {
-    const auto start = sig_doc(R"(pipeline "t" v1
+    const auto start = sig_doc(R"(pipeline "t" v2
 node x = samples(values="1 2 3", rate=8)
 node c = check(kind=pr, tol=1e-12)
 )");
     const std::vector<std::string> locked{"x", "c"};
     CHECK(locked_changes(start, start, locked, "x").empty());
-    CHECK(locked_changes(start, sig_doc(R"(pipeline "t" v1
+    CHECK(locked_changes(start, sig_doc(R"(pipeline "t" v2
 node x = samples(values="9 9 9", rate=8)
 node c = check(kind=pr, tol=1e-12, delay=0)
 )"), locked, "x").empty());
-    CHECK(locked_changes(start, sig_doc(R"(pipeline "t" v1
+    CHECK(locked_changes(start, sig_doc(R"(pipeline "t" v2
 node x = samples(values="1 2 3", rate=16)
 node c = check(kind=pr, tol=1)
 )"), locked, "x").size() == 2);
-    const auto gone = locked_changes(start, sig_doc(R"(pipeline "t" v1
+    const auto gone = locked_changes(start, sig_doc(R"(pipeline "t" v2
 node x = gen(kind=sine)
 )"), locked, "x");
     REQUIRE(gone.size() == 2);

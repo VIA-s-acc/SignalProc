@@ -1,4 +1,4 @@
-pipeline "effects_chain" v1
+pipeline "effects_chain" v2
 
 node src  = chirp(method=log, f0=50, f1=4000, rate=16000, duration=0.5)
 node env  = osc(kind=sawtooth, freq=3, rate=16000, duration=0.5)

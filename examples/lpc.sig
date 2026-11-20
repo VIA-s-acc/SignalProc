@@ -1,4 +1,4 @@
-pipeline "lpc" v1
+pipeline "lpc" v2
 
 node x   = wav(path="../resources/samples/test.wav")
 node lpc = lpc(order=16)

@@ -1,4 +1,4 @@
-pipeline "dwt_levels" v1
+pipeline "dwt_levels" v2
 
 node x    = gen(kind=heavisine, rate=8000, duration=0.25, amplitude=0.5)
 node dwt  = dwt(wavelet=db4, levels=3, ext=symmetric)

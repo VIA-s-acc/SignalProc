@@ -1,4 +1,4 @@
-pipeline "hum" v1
+pipeline "hum" v2
 
 node tone = gen(kind=sine, freq=440, amplitude=1, rate=8000, duration=1)
 node hum  = gen(kind=sine, freq=50, amplitude={{a}}, rate=8000, duration=1)

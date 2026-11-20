@@ -12,7 +12,7 @@ using namespace signals::theory;
 
 TEST_CASE("the theory book splits into 149 sections", "[theory][sections]") {
     const auto& s = sections();
-    CHECK(s.size() == 160);
+    CHECK(s.size() == 161);
     const auto* dwt = find_section("dwt-mallat");
     REQUIRE(dwt);
     CHECK(dwt->number == "11.1");
@@ -91,7 +91,7 @@ TEST_CASE("the .sig format reference is the last chapter in both languages", "[t
         const auto* format = find_section("sig-format");
         REQUIRE(format);
         CHECK(format->level == 2);
-        for (const char* id : {"sig-lines", "sig-ports", "sig-values", "sig-checks", "sig-cli", "sig-blocks"}) {
+        for (const char* id : {"sig-lines", "sig-ports", "sig-values", "sig-checks", "sig-cli", "sig-versions", "sig-blocks"}) {
             INFO(id);
             const auto* s = find_section(id);
             REQUIRE(s);

@@ -1,4 +1,4 @@
-pipeline "circular" v1
+pipeline "circular" v2
 
 node x = samples(values="{{x}}", rate=8)
 node p = pad(after=2)

@@ -17,6 +17,7 @@
 #include "pipeline/cache.hpp"
 #include "pipeline/executor.hpp"
 #include "pipeline/graph.hpp"
+#include "pipeline/migrate.hpp"
 #include "pipeline/sig.hpp"
 #include "pipeline/sweep.hpp"
 #include "tui/jobs/jobs.hpp"
@@ -73,6 +74,9 @@ public:
     const pipeline::Graph* graph() const { return graph_ ? &*graph_ : nullptr; }
     std::filesystem::path base_dir() const;
     std::size_t undo_depth() const { return undo_.size(); }
+    int migrated_from() const { return migrated_from_; }
+    const std::vector<std::string>& migration_notes() const { return migration_notes_; }
+    std::optional<std::string> take_migration_notice();
 
     core::Result<void> load(const std::filesystem::path& file);
     core::Result<void> load_text(std::string_view name, std::string_view text);
@@ -116,6 +120,7 @@ private:
     Snapshot snapshot() const { return {doc_, path_, saved_}; }
     void restore(Snapshot s);
     void remember();
+    void accept(pipeline::Loaded loaded);
     std::vector<Snapshot> undo_, redo_;
     std::optional<pipeline::Graph> graph_;
     std::optional<pipeline::SigError> problem_;
@@ -135,6 +140,9 @@ private:
     };
     std::shared_ptr<SweepState> sweep_ = std::make_shared<SweepState>();
     std::shared_ptr<pipeline::ResultCache> cache_;
+    int migrated_from_ = pipeline::kSigVersion;
+    std::vector<std::string> migration_notes_;
+    bool migration_pending_ = false;
 };
 
 bool same_port(const pipeline::PortRef& a, const pipeline::PortRef& b);

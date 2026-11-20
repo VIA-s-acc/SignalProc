@@ -13,7 +13,7 @@ using signals::test::sig_doc;
 
 namespace {
 
-const char* kGraph = R"(pipeline "t" v1
+const char* kGraph = R"(pipeline "t" v2
 node x = samples(values="1 2 3", rate=8)
 node y = samples(values="1 2 3.25", rate=8)
 node c = check(kind=error, tol=10)

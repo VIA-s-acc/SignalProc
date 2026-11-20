@@ -1,4 +1,4 @@
-pipeline "quantize_bits" v1
+pipeline "quantize_bits" v2
 
 node x = gen(kind=doppler, rate={{n}}, duration=1)
 node w = dwt(wavelet=db4, levels=5, ext=periodization)

@@ -1,4 +1,4 @@
-pipeline "analysis" v1
+pipeline "analysis" v2
 
 node x     = gen(kind=harmonics, freq=220, rate=16000, duration=1)
 node pitch = pitch(fmin=60, fmax=1000)

@@ -1,4 +1,4 @@
-pipeline "lengths" v1
+pipeline "lengths" v2
 
 node x  = gen(kind=white, rate={{n}}, duration=1)
 node wp = dwt(wavelet=db{{p}}, levels=1, ext=periodization)

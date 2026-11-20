@@ -1,4 +1,4 @@
-pipeline "db2_bank" v1
+pipeline "db2_bank" v2
 
 node x   = samples(values="{{x}}", rate=16)
 node h0  = convolve(filter=db2.h0, method=direct)

@@ -125,7 +125,7 @@ TEST_CASE("bridge scripts agree with Signals", "[bridge]") {
             return b;
         }, [] { return std::vector<std::string>{"my_bank"}; });
         const auto sig = root / "sig" / "user-bank.sig";
-        std::ofstream{sig} << "pipeline \"user-bank\" v1\nnode s1 = gen(kind=harmonics, freq=220, rate=8000, duration=0.25, channels=2, amplitude=0.5)\n"
+        std::ofstream{sig} << "pipeline \"user-bank\" v2\nnode s1 = gen(kind=harmonics, freq=220, rate=8000, duration=0.25, channels=2, amplitude=0.5)\n"
                               "node c = dwt(wavelet=my_bank, levels=3)\nnode t = threshold(rule=sure)\nnode y = idwt()\ns1 -> c -> t -> y\nprobe c as \"c\"\nprobe y as \"y\"\n";
         generate(sig, "user-bank");
         core::set_user_wavelets({}, {});
@@ -162,7 +162,7 @@ TEST_CASE("bridge files open in numpy and pywt", "[bridge]") {
     std::filesystem::remove_all(root);
     std::filesystem::create_directories(root / "banks");
     const auto doc = pipeline::parse_sig(
-        "pipeline \"f\" v1\nnode s1 = gen(kind=harmonics, freq=220, rate=8000, duration=0.25, channels=2, amplitude=0.5)\n"
+        "pipeline \"f\" v2\nnode s1 = gen(kind=harmonics, freq=220, rate=8000, duration=0.25, channels=2, amplitude=0.5)\n"
         "node s2 = gen(kind=white, rate=8000, duration=0.25, channels=2, amplitude=0.1, seed=5)\nnode x = add()\ns1 -> x.a\ns2 -> x.b\n"
         "node d = dwt(wavelet=db4, levels=4, ext=periodization)\nnode s = swt(wavelet=db2, levels=3, norm=yes)\nnode w = wpt(wavelet=db3, levels=3, basis=full)\n"
         "x -> d\nx -> s\nx -> w\nprobe x as \"x\"\nprobe d as \"d\"\nprobe s as \"s\"\nprobe w as \"w\"\n");

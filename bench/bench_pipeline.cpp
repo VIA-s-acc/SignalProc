@@ -10,6 +10,7 @@
 #include "io/wav.hpp"
 #include "pipeline/executor.hpp"
 #include "pipeline/graph.hpp"
+#include "pipeline/migrate.hpp"
 #include "pipeline/sig.hpp"
 
 namespace {
@@ -17,12 +18,12 @@ namespace {
 using namespace signals;
 
 pipeline::Graph graph_of(const std::string& text, const std::filesystem::path& dir) {
-    auto doc = pipeline::parse_sig(text);
-    if (!doc) {
-        std::fprintf(stderr, "bench: %s\n", doc.error().message.c_str());
+    auto loaded = pipeline::load_sig(text);
+    if (!loaded) {
+        std::fprintf(stderr, "bench: %s\n", loaded.error().message.c_str());
         std::exit(1);
     }
-    auto g = pipeline::build_graph(*doc, dir);
+    auto g = pipeline::build_graph(loaded->doc, dir);
     if (!g) {
         std::fprintf(stderr, "bench: %s\n", g.error().message.c_str());
         std::exit(1);

@@ -1,4 +1,4 @@
-pipeline "mad_sigma" v1
+pipeline "mad_sigma" v2
 
 node x  = gen(kind={{sig}}, rate=2048, duration=1)
 node n  = add_noise(color=white, snr_db={{snr}}, seed={{seed}})

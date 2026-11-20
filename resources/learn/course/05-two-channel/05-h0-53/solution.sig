@@ -1,4 +1,4 @@
-pipeline "h0_53" v1
+pipeline "h0_53" v2
 
 node imp = samples(values="1 0 0 0 0 0", rate=8)
 node h0  = convolve(filter=bior2.2.h0, method=direct)

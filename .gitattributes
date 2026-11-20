@@ -2,3 +2,4 @@
 * text=auto
 *.wav binary
 *.sh text eol=lf
+tests/fixtures/sig/v1/crlf_bom.sig -text

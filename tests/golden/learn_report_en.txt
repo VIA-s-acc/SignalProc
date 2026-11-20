@@ -30,7 +30,7 @@ Goals:
 Graph:
 
 ```sig
-pipeline "double" v1
+pipeline "double" v2
 
 node x = samples(values="1 2", rate=8)
 node y = add()

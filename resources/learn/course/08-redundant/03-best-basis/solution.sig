@@ -1,4 +1,4 @@
-pipeline "best_basis" v1
+pipeline "best_basis" v2
 
 node x  = gen(kind=heavisine, rate=256, duration=1)
 node w  = wpt(wavelet=db4, levels=4, basis=best, ext=periodization)
