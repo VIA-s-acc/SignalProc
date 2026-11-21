@@ -8,6 +8,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -71,7 +72,12 @@ public:
     const std::optional<std::filesystem::path>& path() const { return path_; }
     bool dirty() const { return dirty_; }
     std::optional<pipeline::SigError> problem() const { return problem_; }
-    const pipeline::Graph* graph() const { return graph_ ? &*graph_ : nullptr; }
+    const pipeline::Graph* graph() const { return view_ ? &*view_ : nullptr; }
+    const pipeline::Graph* full_graph() const { return graph_ ? &*graph_ : nullptr; }
+    const pipeline::PipelineDoc& view_doc() const { return inside_.empty() ? doc_ : view_doc_; }
+    const std::string& inside() const { return inside_; }
+    const pipeline::BlockDef* inside_block() const;
+    std::size_t calls_of(std::string_view block) const;
     std::filesystem::path base_dir() const;
     std::size_t undo_depth() const { return undo_.size(); }
     int migrated_from() const { return migrated_from_; }
@@ -98,6 +104,15 @@ public:
     bool undo();
     bool redo();
 
+    core::Result<std::string> add_library_block(const pipeline::BlockDef& def, const std::vector<pipeline::BlockDef>& library);
+    core::Result<std::string> save_block(std::string_view name, const std::filesystem::path& dir) const;
+    core::Result<void> update_block(const pipeline::BlockDef& def, const std::vector<pipeline::BlockDef>& library);
+    std::vector<std::string> differs_from(const std::vector<pipeline::BlockDef>& library) const;
+    core::Result<std::string> collapse(std::string name);
+    core::Result<void> expand(std::string_view call);
+    core::Result<void> enter(std::string_view call);
+    bool leave();
+
     void run(JobRunner& jobs);
     void cancel(JobRunner& jobs);
     RunView run_view() const;
@@ -106,11 +121,15 @@ public:
     std::size_t cache_bytes() const;
 
     Selection selection;
+    std::set<std::string, std::less<>> marked;
     std::function<void(const pipeline::NodeStatus&)> run_listener;
     std::function<void(const FinishedRun&)> finish_listener;
 
 private:
     core::Result<void> commit(pipeline::PipelineDoc next);
+    core::Result<void> change(const std::function<core::Result<void>(pipeline::PipelineDoc& body, pipeline::PipelineDoc& doc)>& edit);
+    std::string scoped(std::string_view id) const { return inside_.empty() ? std::string{id} : inside_ + "/" + std::string{id}; }
+    bool taken_in_scope(const pipeline::PipelineDoc& body, const pipeline::PipelineDoc& doc, std::string_view id) const;
     void rebuild();
 
     pipeline::PipelineDoc doc_;
@@ -126,7 +145,9 @@ private:
     void remember();
     void accept(pipeline::Loaded loaded);
     std::vector<Snapshot> undo_, redo_;
-    std::optional<pipeline::Graph> graph_;
+    std::optional<pipeline::Graph> graph_, view_;
+    pipeline::PipelineDoc view_doc_;
+    std::string inside_;
     std::optional<pipeline::SigError> problem_;
     pipeline::PipelineDoc saved_;
 

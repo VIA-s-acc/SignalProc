@@ -2,7 +2,7 @@
 
 # Signals
 
-Filter banks, wavelets and Toeplitz matrices in C++ with an interactive terminal interface. It shows filter responses, the bank's block diagram, every band of a decomposition, each processing step and the theory behind each method, and 66 auto-checked tasks lead from convolution to denoising.
+Filter banks, wavelets and Toeplitz matrices in C++ with an interactive terminal interface. It shows filter responses, the bank's block diagram, every band of a decomposition, each processing step and the theory behind each method, and 68 auto-checked tasks lead from convolution to denoising.
 
 ![The Signals tabs one by one](docs/images/en/tour.svg)
 
@@ -147,7 +147,7 @@ Explain walks the Haar bank step by step with the numbers in every node. Under t
 
 ![The Tasks tab](docs/images/en/learn.svg)
 
-The learning path: 66 tasks in 12 chapters, each checked by the program itself. `F2` checks the current task from any tab, `F3` opens a hint.
+The learning path: 68 tasks in 12 chapters, each checked by the program itself. `F2` checks the current task from any tab, `F3` opens a hint.
 
 ![Checking an answer](docs/images/en/learn-check.svg)
 

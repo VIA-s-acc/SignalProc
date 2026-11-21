@@ -197,9 +197,10 @@ struct Expansion {
     std::vector<NodeDecl> nodes;
     std::vector<Edge> edges;
     std::vector<ProbeDecl> probes;
-    std::set<std::string, std::less<>> pseudo;
+    std::set<std::string, std::less<>> pseudo, bypassed;
     std::vector<std::string> stack;
     bool calls = true;
+    bool partial = false;
     std::size_t budget = kMaxTotal;
     std::size_t items = 0;
 };
@@ -248,13 +249,15 @@ std::string inside(const Frame& f, int line, const std::string& message) {
                        fmt::arg("message", message));
 }
 
-void check_ports(const BlockDef& def) {
+void check_ports(const BlockDef& def, bool partial) {
     for (const auto& in : def.ins)
-        if (std::ranges::none_of(def.edges, [&](const Edge& e) { return e.from.node == in.name; }))
+        if (!partial && std::ranges::none_of(def.edges, [&](const Edge& e) { return e.from.node == in.name; }))
             stop(in.line, fmt::format(fmt::runtime(tr("pipeline.blocks.unused_input")), fmt::arg("block", def.name), fmt::arg("port", in.name)));
-    for (const auto& out : def.outs)
-        if (std::ranges::count_if(def.edges, [&](const Edge& e) { return e.to.node == out.name; }) != 1)
+    for (const auto& out : def.outs) {
+        const auto wires = std::ranges::count_if(def.edges, [&](const Edge& e) { return e.to.node == out.name; });
+        if (wires > 1 || (wires == 0 && !partial))
             stop(out.line, fmt::format(fmt::runtime(tr("pipeline.blocks.output_wires")), fmt::arg("block", def.name), fmt::arg("port", out.name)));
+    }
 }
 
 std::string port_of(const std::vector<std::string>& ports, const std::string& asked, const std::string& call, int line) {
@@ -321,7 +324,7 @@ void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame
             stop(line, inside(f, n.line, fmt::format(fmt::runtime(tr("pipeline.blocks.recursion")), fmt::arg("chain", chain + def.name))));
         }
         if (f.depth + 1 > kMaxBlockDepth) stop(line, inside(f, n.line, fmt::format(fmt::runtime(tr("pipeline.blocks.too_deep")), fmt::arg("limit", kMaxBlockDepth))));
-        check_ports(def);
+        check_ports(def, x.partial);
         Scope inner;
         std::set<std::string, std::less<>> reached;
         std::vector<std::string> todo;
@@ -358,6 +361,7 @@ void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame
         for (const auto& p : ports.outs) x.pseudo.insert(base + p);
         calls.emplace(n.id, ports);
         if (n.bypass) {
+            x.bypassed.insert(f.prefix + n.id);
             if (ports.ins.size() != 1 || ports.outs.size() != 1)
                 stop(line, inside(f, n.line, fmt::format(fmt::runtime(tr("pipeline.blocks.bypass")), fmt::arg("node", n.id), fmt::arg("block", def.name))));
             grow(x, line);
@@ -389,7 +393,7 @@ void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame
             if (wires > 1)
                 stop(f.def ? f.call_line : call.line,
                      inside(f, call.line, fmt::format(fmt::runtime(tr("pipeline.blocks.second_wire")), fmt::arg("call", id), fmt::arg("port", port.name))));
-            if (wires == 0 && !port.optional && !unnamed)
+            if (wires == 0 && !port.optional && !unnamed && !x.partial)
                 stop(f.def ? f.call_line : call.line,
                      inside(f, call.line, fmt::format(fmt::runtime(tr("pipeline.blocks.missing_input")), fmt::arg("call", id), fmt::arg("port", port.name))));
         }
@@ -400,6 +404,7 @@ void expand_body(Expansion& x, const Body& body, const Scope& scope, const Frame
     for (const auto& p : body.probes) {
         ProbeDecl out = p;
         out.at = from_ref(p.at);
+        if (std::ranges::any_of(x.bypassed, [&](const std::string& b) { return out.at.node.starts_with(b + "/"); })) continue;
         const auto name = p.name.empty() ? ref_name(p.at) : p.name;
         out.name = f.def ? f.instance + "/" + name : name;
         grow(x, f.def ? f.call_line : p.at.line);
@@ -456,12 +461,35 @@ std::expected<PipelineDoc, SigError> flatten(const PipelineDoc& doc, const Flatt
     if (doc.version < 2) return out;
     const auto scope = resolve_lets(doc.lets);
     if (!scope) return std::unexpected{scope.error()};
+    for (auto& p : out.probes) {
+        if (p.at.node.find('/') == std::string::npos) continue;
+        const std::vector<NodeDecl>* nodes = &doc.nodes;
+        const BlockDef* def = nullptr;
+        for (std::size_t at = 0; at <= p.at.node.size();) {
+            const auto end = std::min(p.at.node.find('/', at), p.at.node.size());
+            const auto it = std::ranges::find(*nodes, std::string_view{p.at.node}.substr(at, end - at), &NodeDecl::id);
+            def = nullptr;
+            if (it == nodes->end()) break;
+            for (const auto* list : {&doc.imported, &doc.blocks})
+                if (const auto d = std::ranges::find(*list, it->type, &BlockDef::name); d != list->end()) def = &*d;
+            if (!def) break;
+            nodes = &def->nodes;
+            at = end + 1;
+        }
+        if (!def || def->outs.empty()) continue;
+        const auto port = p.at.port.empty() ? def->outs.front().name : p.at.port;
+        if (std::ranges::none_of(def->outs, [&](const PortDecl& d) { return d.name == port; })) continue;
+        if (p.name.empty()) p.name = p.at.port.empty() ? p.at.node : p.at.node + "." + p.at.port;
+        p.at.node += "/" + port;
+        p.at.port.clear();
+    }
     Expansion x;
     x.calls = options.calls;
+    x.partial = options.partial;
     for (const auto* list : {&doc.imported, &doc.blocks})
         for (const auto& b : *list) x.defs.insert_or_assign(b.name, &b);
     try {
-        expand_body(x, doc, *scope, Frame{});
+        expand_body(x, out, *scope, Frame{});
         contract(x);
     } catch (const SigError& e) {
         return std::unexpected{e};

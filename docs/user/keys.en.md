@@ -260,6 +260,11 @@ Generated from the screens' hints (`hints()`). Do not edit by hand: a test check
 | `L` | layout and view |
 | `drag ● → ○` | connect |
 | `c/C` | connect: c — output, arrows, Enter; C — list of inputs |
+| `m` | mark a node |
+| `b` | collapse the marked nodes into a block |
+| `u` | unfold a call |
+| `i` | enter a block |
+| `Esc` | leave the block |
 
 ### Variables panel
 

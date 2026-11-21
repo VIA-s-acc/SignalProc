@@ -167,6 +167,8 @@ add_executable(signals_tests
   tui/test_strip_rows.cpp
   tui/test_pipeline_migrate.cpp
   tui/test_pipeline_vars.cpp
+  tui/test_pipeline_blocks.cpp
+  tui/test_user_blocks.cpp
   theory/test_latex.cpp
   theory/test_math_layout.cpp
   theory/test_markdown.cpp

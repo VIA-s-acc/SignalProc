@@ -48,6 +48,10 @@ pipeline::Params resolved(const pipeline::NodeDecl& n, std::string_view input_no
 
 NodeSet live_nodes(const pipeline::PipelineDoc& doc, std::span<const std::string> outputs) {
     NodeSet live{outputs.begin(), outputs.end()};
+    for (const auto& out : outputs)
+        if (!node_of(doc, out))
+            for (const auto& n : doc.nodes)
+                if (n.id.starts_with(out + "/")) live.insert(n.id);
     for (bool grew = true; grew;) {
         grew = false;
         for (const auto& e : doc.edges)

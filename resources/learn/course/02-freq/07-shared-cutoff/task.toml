@@ -1,0 +1,48 @@
+kind = "graph"
+open = "pipeline"
+theory = ["sig-vars", "cls-window-method", "freq-band-metrics"]
+locked = ["g1", "g2", "x"]
+
+[[param]]
+name = "a2"
+kind = "real"
+min = 1
+max = 4
+decimals = 1
+
+[[measure]]
+name = "lo_pass"
+kind = "gain_db"
+a = "lo"
+b = "x"
+freq = 500
+
+[[measure]]
+name = "lo_stop"
+kind = "gain_db"
+a = "lo"
+b = "x"
+freq = 3000
+
+[[measure]]
+name = "hi_pass"
+kind = "gain_db"
+a = "hi"
+b = "x"
+freq = 3000
+
+[[measure]]
+name = "hi_stop"
+kind = "gain_db"
+a = "hi"
+b = "x"
+freq = 500
+
+[[goal]]
+when = "lo_pass >= -1 && lo_stop <= -40"
+
+[[goal]]
+when = "hi_pass >= -1 && hi_stop <= -40"
+
+[[goal]]
+variable = { uses = 2 }
