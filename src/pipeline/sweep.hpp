@@ -42,6 +42,7 @@ struct SweepResult {
 
 using SweepProgress = std::function<void(std::size_t done, std::size_t total)>;
 
+std::string axis_name(const SweepAxis& axis);
 core::Result<SweepAxis> parse_vary(std::string_view text);
 core::Result<Measure> parse_measure(std::string_view text);
 core::Result<SweepResult> run_sweep(const PipelineDoc& doc, const std::filesystem::path& base_dir, SweepAxis axis, std::vector<Measure> measures,

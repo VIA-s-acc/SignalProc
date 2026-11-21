@@ -1,6 +1,6 @@
 const TEXT = require('./data/preview.json');
 
-const MIN_VERSION = [0, 9, 0];
+const SIG_FORMAT = 2;
 const PLOT_WIDTH = 640;
 const PLOT_HEIGHT = 120;
 
@@ -29,12 +29,13 @@ function diagnostics(error, uri) {
   return { uri, range: { start: { line, character: 0 }, end: { line, character: Number.MAX_SAFE_INTEGER } }, message: error.message, severity: 'error' };
 }
 
-function versionOk(text) {
-  const m = /(\d+)\.(\d+)\.(\d+)/.exec(text || '');
-  if (!m) return false;
-  const v = m.slice(1, 4).map(Number);
-  for (let k = 0; k < 3; ++k) if (v[k] !== MIN_VERSION[k]) return v[k] > MIN_VERSION[k];
-  return true;
+function formatOk(text) {
+  try {
+    const j = JSON.parse(text || '');
+    return Boolean(j && j.formats && Number(j.formats.sig) >= SIG_FORMAT);
+  } catch {
+    return false;
+  }
 }
 
 function programPath(setting) {
@@ -150,4 +151,4 @@ function renderNote(text) {
   return page('Signals', `<p class="dim">${escapeHtml(text)}</p>`);
 }
 
-module.exports = { say, parseLine, diagnostics, versionOk, programPath, resolveProgram, followProcess, renderPanel, renderError, renderNote };
+module.exports = { say, parseLine, diagnostics, formatOk, programPath, resolveProgram, followProcess, renderPanel, renderError, renderNote };

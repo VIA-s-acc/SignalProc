@@ -34,6 +34,7 @@ probe sum as "x̂"
 One statement per line. The order of lines does not matter: a wire may come before the nodes it connects. Blank lines and indentation are allowed.
 
 - `pipeline "name" v2` — the header: the graph name in quotes and the format version. The current version is `v2`. The program reads `v1` files itself and migrates them to `v2` when it opens them (section «Format versions»).
+- `let name = value` — a variable (section «Variables»).
 - `node id = block(param=value, …)` — a node. The id consists of Latin letters, digits and underscores and starts with a letter or `_`; ids are unique. Parameters are comma-separated in any order; omitted ones take their defaults, so `add()` and plain `add` are the same. A line may break inside the parentheses.
 - `node id = block(…) bypass` — the node is bypassed: its input goes straight to its output and the block is not computed. Only blocks whose input and output have the same type can be bypassed.
 - `a -> b -> c` — a chain of wires: the output of `a` into `b`, the output of `b` into `c`. A port follows a dot: `x -> pr.ref`, `sum -> pr.in`, `lms.e -> out`. A port is not allowed in the middle of a chain; split such a chain into two lines.
@@ -57,7 +58,7 @@ A `coeffs` output has bands: `dwt.a` — the approximation of the last level, `d
 ### Parameter values {#sig-values}
 
 - **Numbers:** `440`, `0.25`, `-3`, `1e-12` — with a point, not a comma.
-- **Expressions instead of numbers:** a numeric parameter may be an expression in quotes: `db="20*log10(2)"`, `m="2^3"`, `cutoff="44100/4"` (there are no names such as `fs`). It supports `+ - * / ^`, parentheses, `abs min max sqrt log10` and `pi`. The file keeps the text of the expression and the run uses its value; an integer parameter needs a whole value.
+- **Expressions instead of numbers:** a numeric parameter may be an expression in quotes: `db="20*log10(2)"`, `m="2^3"`, `cutoff="44100/4"`; a bare name such as `fs/4` does not work, but `cutoff="$fs/4"` with a variable `fs` does. It supports `+ - * / ^`, parentheses, `abs min max sqrt log10` and `pi`. The file keeps the text of the expression and the run uses its value; an integer parameter needs a whole value.
 - **Durations and samples:** some parameters take a number of samples or seconds with an `s` suffix — `cut.begin`/`end`, `delay.samples`, `pad.before`/`after`, `fade.fade_in`/`fade_out`, `sample_hold.hold`, `impulse_train.period`/`offset` and others (the inspector shows where): `begin=4410`, `begin=0.1s`. Other integer parameters, such as `shift.samples`, take samples only.
 - **Levels:** one number or a range `1..4`.
 - **Choices:** a word from the parameter's list: `ext=symmetric`, `anti_alias=no`, `kind=pr`.
@@ -67,6 +68,37 @@ A `coeffs` output has bands: `dwt.a` — the approximation of the last level, `d
 - **Paths:** a relative path is resolved against the folder of the `.sig` file.
 
 Values are checked at once: a number out of range, an unknown choice or an unreadable number gives an error naming the node and the parameter.
+
+### Variables {#sig-vars}
+
+A variable gives several nodes one value: `let name = value`, and `$name` in a parameter.
+
+```sig
+let fs = 8000
+let levels = 3
+let quiet = "-6*2"
+node x = gen(kind=sine, freq="$fs/16", rate=$fs, duration=0.5)
+node g = gain(db=$quiet)
+node d = dwt(wavelet=db4, levels=$levels)
+x -> g -> d
+probe d.a as "a"
+```
+
+- **Name and value.** A name is Latin letters, digits and `_`, starting with a letter or `_`; a name is declared once. The value is written like a parameter value: a number, a word or text in quotes. A `let` line may stand anywhere in the file.
+- **Variables that use variables.** A variable may use others (`let half = "$fs/2"`) in any line order, but not in a circle: the program names the whole circle, for example `a → b → a`.
+- **Numbers.** In a numeric parameter a variable is part of an expression: `freq="$fs/16"`. An expression value goes in parentheses: with `let a = "1+1"`, `"$a*2"` gives 4, not 3.
+- **Choices, ranges, samples, sigmas** take only a whole variable: `wavelet=$w` works, `wavelet="$w.5"` does not.
+- **Text and paths.** Substitution is textual: `path="$dir/a.wav"`.
+- **The `$` sign.** A literal `$` is written `$$`: `path="cost$$1.wav"` reads the file `cost$1.wav`.
+- **Errors.** An unknown variable is an error that suggests the nearest name. An error names the `let` line or the node and parameter.
+- **Limits.** Nesting is at most 64 levels deep, one value is at most 65,536 characters after substitution, and the whole graph at most 8 MiB of substitutions. So a file whose variables use each other many times over cannot hang the program.
+
+Where else variables show:
+
+- **Command line.** `--set name=value` (no dot) changes a variable, and `signals sweep … --vary name=values` sweeps it; every node that uses it changes together.
+- **«Pipeline».** The «Variables» panel (reach it with `Tab`): `↑↓` choose, `Enter` edits the value, `+` adds one (`name = value`), `Del` removes it, `S` sweeps it. The program does not remove a variable in use and names its nodes. Nodes that use the chosen variable are highlighted in the graph. The inspector shows such a parameter as `$lv → 2`; the `←→` arrows leave it alone and `Enter` edits the text.
+- **Python.** `signals python` lists the variables at the top of the script, and the notebook in the «Graph parameters» cell.
+- **VS Code.** The extension highlights `let` and `$name`, offers the file's variables after `$` and shows the `let` line on hover.
 
 ### Graph checks {#sig-checks}
 
@@ -93,7 +125,7 @@ Before a run the whole graph is checked, and every error names its line:
 ### Command line {#sig-cli}
 
 - `signals run graph.sig` — run the graph and print the stages, time and memory of every node and the check reports.
-  - `--set node.param=value` — override a parameter, may repeat: `--set x.path=other.wav --set dwt.levels=5`;
+  - `--set node.param=value` — override a parameter, may repeat: `--set x.path=other.wav --set dwt.levels=5`; `--set name=value` without a dot changes a variable;
   - `-o out.wav` — where to write the first `wav_out`;
   - `--probe-dir folder` — save the probes: signals as WAV, the rest as JSON;
   - `--values N` — print the first N samples of every signal probe (`0` for none); without it, all samples of signals up to 64 long are printed;
@@ -102,7 +134,7 @@ Before a run the whole graph is checked, and every error names its line:
   - `--json` — the run report as JSON.
   
   Exit code `0` — everything passed, `3` — some `check` or `assert` failed, `1` — an error in the file or during the run, `130` — the run was interrupted with Ctrl+C.
-- `signals sweep graph.sig --vary node.param=values --measure measure` — a parameter sweep: the graph runs once for every value of the parameter, and each run prints a row of measures.
+- `signals sweep graph.sig --vary node.param=values --measure measure` — a parameter sweep: the graph runs once for every value of the parameter, and each run prints a row of measures. A variable can be swept instead of `node.param`: `--vary levels=1:5:1`.
   - Values: `0:1:0.1` (from, to, step), `1:100@5` (5 evenly spaced points), `1:100@5log` (5 points on a log scale), `haar,db4,sym8` (a list, which also works for choices). More than 1000 values are rejected.
   - Measure: a report field `node.field` (for example `chk.snr_db`) or a measure of a node's output `node:rms`, `node:peak`, `node:energy`, `node:mean`, `node:length`. `--measure` may repeat.
   - `--set` as in `run`; `--csv table.csv` and `--svg plot.svg` save the result, `--json` prints it as JSON.

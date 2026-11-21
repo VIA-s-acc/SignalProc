@@ -12,7 +12,7 @@ using namespace signals::theory;
 
 TEST_CASE("the theory book splits into 149 sections", "[theory][sections]") {
     const auto& s = sections();
-    CHECK(s.size() == 162);
+    CHECK(s.size() == 163);
     const auto* dwt = find_section("dwt-mallat");
     REQUIRE(dwt);
     CHECK(dwt->number == "11.1");

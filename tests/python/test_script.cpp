@@ -361,3 +361,21 @@ TEST_CASE("the size of an exported text file is checked loosely", "[py-script]")
         CHECK(s->text.find("verify(\"e · bytes\", e[\"bytes\"], D[\"ref.e.bytes\"], 1e-02, \"e\")") != std::string::npos);
     }
 }
+
+TEST_CASE("variables are listed at the top of the script", "[py-script]") {
+    const std::string text = "pipeline \"v\" v2\n"
+                             "let lv = 2\n"
+                             "let half = \"$lv/2\"\n"
+                             "node x = gen(kind=sine, freq=440, rate=8000, duration=0.05)\n"
+                             "node d = dwt(wavelet=db2, levels=$lv)\n"
+                             "x -> d\n"
+                             "probe d.a as \"a\"\n";
+    const auto s = script_for(text, "vars");
+    INFO((s ? std::string{} : s.error().message));
+    REQUIRE(s);
+    const auto head = s->text.substr(0, s->text.find("import sys"));
+    CHECK(head.find(tr("python.header.vars")) != std::string::npos);
+    CHECK(head.find("#   lv = 2\n") != std::string::npos);
+    CHECK(head.find("#   half = $lv/2 → 1\n") != std::string::npos);
+    CHECK(script_for(kTiny, "tiny")->text.find(tr("python.header.vars")) == std::string::npos);
+}

@@ -50,7 +50,7 @@ inline constexpr int kGraphZoomDefault = 2, kGraphZoomMax = 3;
 GraphMetrics graph_metrics(int zoom);
 
 GraphPicture draw_pipeline(const pipeline::Graph& g, const pipeline::PipelineDoc& doc, const RunView& run, const Selection& selection,
-                           GlyphMode mode, int zoom = kGraphZoomDefault);
+                           GlyphMode mode, int zoom = kGraphZoomDefault, const std::vector<std::string>& marked = {});
 std::string block_name(std::string_view type);
 
 }  // namespace signals::tui

@@ -17,6 +17,12 @@ std::string table(const std::vector<Hint>& hints) {
     return out + "\n";
 }
 
+std::string modes(const TabScreen& s) {
+    std::string out;
+    for (const auto& group : s.mode_hints()) out += "### " + group.title + "\n\n" + table(group.hints);
+    return out;
+}
+
 }  // namespace
 
 std::string keys_markdown() {
@@ -32,7 +38,7 @@ std::string keys_markdown() {
         auto& s = *screens[t];
         const auto heading = std::to_string(t + 1) + " " + s.tab_label();
         if (!s.active_child()) {
-            out += "## " + heading + "\n\n" + table(s.hints());
+            out += "## " + heading + "\n\n" + table(s.hints()) + modes(s);
             continue;
         }
         std::set<std::string> seen;
@@ -40,7 +46,7 @@ std::string keys_markdown() {
             s.select_child(c);
             const auto child = s.active_child();
             if (!child || !seen.insert(child->tab_label()).second) break;
-            out += "## " + heading + " ▸ " + child->tab_label() + "\n\n" + table(s.hints());
+            out += "## " + heading + " ▸ " + child->tab_label() + "\n\n" + table(s.hints()) + modes(s);
         }
         s.select_child(0);
     }

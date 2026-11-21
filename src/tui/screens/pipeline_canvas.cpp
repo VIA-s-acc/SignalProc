@@ -160,7 +160,8 @@ GraphMetrics graph_metrics(int zoom) {
     }
 }
 
-GraphPicture draw_pipeline(const pipeline::Graph& g, const pipeline::PipelineDoc& doc, const RunView& run, const Selection& selection, GlyphMode mode, int zoom) {
+GraphPicture draw_pipeline(const pipeline::Graph& g, const pipeline::PipelineDoc& doc, const RunView& run, const Selection& selection, GlyphMode mode, int zoom,
+                           const std::vector<std::string>& marked) {
     GraphPicture picture;
     if (g.nodes.empty()) return picture;
     const auto metrics = graph_metrics(zoom);
@@ -251,7 +252,8 @@ GraphPicture draw_pipeline(const pipeline::Graph& g, const pipeline::PipelineDoc
         const auto state = it == run.nodes.end() ? pipeline::NodeState::waiting : it->second.status.state;
         const bool chosen = selection.kind == Selection::Kind::node && selection.node == n.id;
         const bool slow = it != run.nodes.end() && it->second.bottleneck;
-        const auto frame = chosen ? CellStyle::selected : state == pipeline::NodeState::failed ? CellStyle::err : slow ? CellStyle::warn : CellStyle::plain;
+        const bool mark = std::find(marked.begin(), marked.end(), n.id) != marked.end();
+        const auto frame = chosen ? CellStyle::selected : mark ? CellStyle::accent : state == pipeline::NodeState::failed ? CellStyle::err : slow ? CellStyle::warn : CellStyle::plain;
         const std::string h = n.bypass ? (ascii ? "." : "┄") : ascii ? "-" : "─", vert = n.bypass ? (ascii ? ":" : "┆") : ascii ? "|" : "│";
         std::string top = ascii ? "+" : "┌", bottom = ascii ? "+" : "└";
         for (int k = 0; k < kNodeWidth - 2; ++k) top += h, bottom += h;

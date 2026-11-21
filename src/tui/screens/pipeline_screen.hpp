@@ -33,6 +33,7 @@ public:
 
     std::string tab_label() const override;
     std::vector<Hint> hints() const override;
+    std::vector<HintGroup> mode_hints() const override;
     void set_breakpoint(Breakpoint b) override { breakpoint_ = b; }
     bool capturing_text() const override { return adding_; }
     std::optional<TheoryLink> theory_link() const override;
@@ -54,7 +55,7 @@ public:
     std::pair<int, int> view_offset() const { return {ox_, oy_}; }
 
 private:
-    enum Panel { kGraph, kProbe, kInspector, kRun, kText, panel_count };
+    enum Panel { kGraph, kProbe, kInspector, kVars, kRun, kText, panel_count };
 
     ftxui::Element frame_panel(Panel p, ftxui::Element body, std::vector<Chip> chips, std::string title);
     ftxui::Element toolbar() const;
@@ -67,6 +68,14 @@ private:
     ftxui::Element add_panel(int width, int height);
     bool on_add_key(const ftxui::Event& e);
     bool on_inspector_key(const ftxui::Event& e);
+    ftxui::Element vars_panel(int width, int height);
+    std::vector<Hint> vars_hints() const;
+    std::vector<Hint> add_hints() const;
+    int vars_height() const;
+    bool on_vars_key(const ftxui::Event& e);
+    void ask_new_variable();
+    void sweep_variable();
+    std::vector<std::string> marked_nodes() const;
     void edit_param(int step);
     void report(const core::Result<void>& r);
     void file_result(const core::Result<void>& r);
@@ -85,7 +94,7 @@ private:
     void export_python();
     void take_python_result();
     void duplicate_selected();
-    void ask_sweep_values(const std::string& node, const pipeline::ParamSpec& spec, const std::string& current);
+    void ask_sweep_values(const std::string& target, const pipeline::ParamSpec& spec, const std::string& current);
     void choose_sweep_measure(pipeline::SweepAxis axis);
     bool has_sweep() const;
     ftxui::Element sweep_body(const SweepView& sweep, int width, int rows);
@@ -128,7 +137,9 @@ private:
     };
     std::shared_ptr<PythonResult> python_result_ = std::make_shared<PythonResult>();
     std::vector<std::pair<std::string, ftxui::Box>> add_rows_;
-    Scroll text_scroll_, run_scroll_, add_scroll_, inspector_scroll_, probe_text_scroll_;
+    Scroll text_scroll_, run_scroll_, add_scroll_, inspector_scroll_, probe_text_scroll_, vars_scroll_;
+    std::vector<ftxui::Box> var_boxes_;
+    std::size_t var_ = 0, var_follow_ = static_cast<std::size_t>(-1);
     std::vector<ftxui::Box> probe_chip_boxes_;
     std::array<ftxui::Box, 3> probe_view_boxes_{};
     std::vector<ftxui::Box> param_boxes_;

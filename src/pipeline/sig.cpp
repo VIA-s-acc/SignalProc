@@ -45,7 +45,8 @@ public:
 
     PipelineDoc run() {
         PipelineDoc doc;
-        std::map<std::string, int, std::less<>> declared;
+        doc.version = 1;
+        std::map<std::string, int, std::less<>> declared, lets;
         for (;;) {
             if (peek() == '\n') advance();
             leading();
@@ -102,7 +103,24 @@ public:
                 probe.comments = take_comments();
                 doc.probes.push_back(std::move(probe));
             } else if (directive_ahead(word, rest_of_line())) {
-                fail(line, column, fmt::format(fmt::runtime(tr(version_ < 2 ? "pipeline.sig.v2_directive" : "pipeline.sig.unknown_directive")), fmt::arg("word", word)));
+                if (version_ < 2) fail(line, column, fmt::format(fmt::runtime(tr("pipeline.sig.v2_directive")), fmt::arg("word", word)));
+                if (word != "let") fail(line, column, fmt::format(fmt::runtime(tr("pipeline.sig.unknown_directive")), fmt::arg("word", word)));
+                skip(false);
+                LetDecl let;
+                let.line = line;
+                const int nl = line_, nc = column_;
+                let.name = ident();
+                if (const auto it = lets.find(let.name); it != lets.end())
+                    fail(nl, nc, fmt::format(fmt::runtime(tr("pipeline.vars.duplicate")), fmt::arg("name", let.name), fmt::arg("line", it->second)));
+                lets.emplace(let.name, line);
+                skip(false);
+                expect('=');
+                skip(false);
+                if (done() || peek() == '\n') fail(line_, column_, tr("pipeline.sig.expected_value"));
+                let.value = peek() == '"' ? string_value() : bare_value();
+                end_of_line();
+                let.comments = take_comments();
+                doc.lets.push_back(std::move(let));
             } else {
                 PortRef prev{word, {}, line, column};
                 if (peek() == '.') {
@@ -338,7 +356,7 @@ private:
 
 bool bare_safe(const std::string& v) {
     if (v.empty()) return false;
-    return std::all_of(v.begin(), v.end(), [](char c) { return ident_char(c) || c == '.' || c == '-' || c == '+'; });
+    return std::all_of(v.begin(), v.end(), [](char c) { return ident_char(c) || c == '.' || c == '-' || c == '+' || c == '$'; });
 }
 
 std::string quoted(const std::string& v) {
@@ -404,6 +422,13 @@ std::string unescape_dollars(std::string_view value) {
     return out;
 }
 
+std::string escape_dollars(std::string_view value) {
+    std::string out;
+    out.reserve(value.size());
+    for (const char c : value) out += c == '$' ? std::string_view{"$$"} : std::string_view{&c, 1};
+    return out;
+}
+
 std::string write_sig(const PipelineDoc& doc) {
     std::string out;
     for (const auto& line : doc.preamble) out += line + "\n";
@@ -415,10 +440,18 @@ std::string write_sig(const PipelineDoc& doc) {
         for (const auto& line : c.above) out += line + "\n";
         first = false;
     };
+    if (!doc.lets.empty()) {
+        out += "\n";
+        for (const auto& l : doc.lets) {
+            above(l.comments);
+            out += "let " + l.name + " = " + (bare_safe(l.value) ? l.value : quoted(l.value)) + after(l.comments.after) + "\n";
+        }
+    }
     if (!doc.nodes.empty()) {
         std::size_t width = 0;
         for (const auto& n : doc.nodes) width = std::max(width, n.id.size());
         out += "\n";
+        first = true;
         for (const auto& n : doc.nodes) {
             above(n.comments);
             out += node_line(n, width) + after(n.comments.after) + "\n";
@@ -502,6 +535,20 @@ core::Result<void> apply_set(PipelineDoc& doc, std::string_view assignment) {
     if (eq == std::string_view::npos) return bad();
     const auto target = assignment.substr(0, eq);
     const auto dot = target.find('.');
+    if (dot == std::string_view::npos && !target.empty() && doc.version >= 2) {
+        std::string value{assignment.substr(eq + 1)};
+        if (value.size() >= 2 && value.front() == '"' && value.back() == '"') value = value.substr(1, value.size() - 2);
+        for (auto& l : doc.lets)
+            if (l.name == target) {
+                l.value = std::move(value);
+                return {};
+            }
+        std::vector<std::string> names;
+        for (const auto& l : doc.lets) names.push_back(l.name);
+        const auto hint = nearest_name(target, names);
+        return std::unexpected{set_error(hint ? fmt::format(fmt::runtime(tr("pipeline.set.unknown_variable_hint")), fmt::arg("name", target), fmt::arg("hint", *hint))
+                                              : fmt::format(fmt::runtime(tr("pipeline.set.unknown_variable")), fmt::arg("name", target)))};
+    }
     if (dot == std::string_view::npos || dot == 0 || dot + 1 == target.size()) return bad();
     const std::string node_id{target.substr(0, dot)}, param{target.substr(dot + 1)};
     std::string value{assignment.substr(eq + 1)};

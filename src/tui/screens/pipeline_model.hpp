@@ -88,6 +88,10 @@ public:
     void disconnect(const pipeline::Edge& wire);
     void remove_node(std::string_view id);
     core::Result<void> set_param(std::string_view node, std::string_view param, std::string_view value);
+    core::Result<void> set_variable(std::string_view name, std::string_view value);
+    core::Result<void> add_variable(std::string_view name, std::string_view value);
+    core::Result<void> remove_variable(std::string_view name);
+    std::vector<std::string> uses_of(std::string_view name) const;
     core::Result<void> toggle_bypass(std::string_view node);
     void toggle_probe(const pipeline::PortRef& at);
     core::Result<void> rename_probe(const pipeline::PortRef& at, std::string name);

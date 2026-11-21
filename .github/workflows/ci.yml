@@ -35,9 +35,9 @@ jobs:
         run: ctest --preset ${{ matrix.preset }}
       - name: Graphs are in the current format
         run: build/${{ matrix.preset }}/app/signals migrate --check examples resources/learn tests/fixtures/learn tests/fixtures/noise
-      - name: VS Code preview
+      - name: VS Code extension
         if: runner.os == 'Linux' && matrix.preset == 'release'
-        run: node --test editors/vscode/test/preview.test.js
+        run: node --test editors/vscode/test/*.test.js
       - name: Install script
         if: matrix.preset == 'release'
         run: |

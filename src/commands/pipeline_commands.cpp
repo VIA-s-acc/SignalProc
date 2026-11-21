@@ -530,7 +530,7 @@ public:
         std::signal(SIGINT, previous);
         g_cancel.store(nullptr);
         if (!result) return report_error(err, result.error()), result.error().code == core::Errc::cancelled ? 130 : 1;
-        const auto param = result->axis.node + "." + result->axis.param;
+        const auto param = pipeline::axis_name(result->axis);
         if (!csv_.empty())
             if (auto ok = io::write_file_atomic(csv_, sweep_csv(*result)); !ok) return report_error(err, ok.error()), 1;
         if (!svg_.empty())
@@ -575,7 +575,7 @@ public:
 
 private:
     static std::string sweep_csv(const pipeline::SweepResult& r) {
-        std::string out = r.axis.node + "." + r.axis.param;
+        std::string out = pipeline::axis_name(r.axis);
         for (const auto& m : r.measures) out += "," + m.text;
         out += "\n";
         for (const auto& row : r.rows) {
@@ -588,7 +588,7 @@ private:
 
     static svg::Chart sweep_chart(const pipeline::SweepResult& r) {
         svg::Chart c;
-        c.title = r.axis.node + "." + r.axis.param;
+        c.title = pipeline::axis_name(r.axis);
         std::vector<double> xs;
         bool numeric_axis = true;
         for (std::size_t k = 0; k < r.rows.size(); ++k) {

@@ -26,6 +26,8 @@ struct GraphNode {
     std::vector<std::optional<Source>> sources;
     int line = 0;
     bool bypass = false;
+    Params source = {};
+    std::string instance = {};
 };
 
 struct Probe {

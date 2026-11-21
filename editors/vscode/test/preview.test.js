@@ -53,10 +53,11 @@ test('shows coefficient bands and escapes text', () => {
 });
 
 test('refuses a signals older than 0.9.0', () => {
-  assert.strictEqual(preview.versionOk('signals 0.8.0'), false);
-  assert.strictEqual(preview.versionOk('signals 0.9.0'), true);
-  assert.strictEqual(preview.versionOk('signals 1.2.3\n'), true);
-  assert.strictEqual(preview.versionOk('garbage'), false);
+  assert.strictEqual(preview.formatOk('{"version":"1.0.0","formats":{"sig":2}}'), true);
+  assert.strictEqual(preview.formatOk('{"version":"1.2.0","formats":{"sig":3}}'), true);
+  assert.strictEqual(preview.formatOk('signals 0.9.0'), false);
+  assert.strictEqual(preview.formatOk(null), false);
+  assert.strictEqual(preview.formatOk('{"version":"0.9.0"}'), false);
 });
 
 test('takes the program only from user settings, never from the workspace', () => {
