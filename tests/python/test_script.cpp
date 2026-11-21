@@ -68,17 +68,12 @@ TEST_CASE("script for a tiny graph matches its golden text", "[py-script]") {
     signals::test::check_golden_text("python/tiny_en", without_version(s->text));
 }
 
-TEST_CASE("the data file holds draws, not noise", "[py-script]") {
+TEST_CASE("noise is drawn in the script, not stored", "[py-script]") {
     const auto s = script_for("pipeline \"n\" v2\nnode x = gen(kind=white, rate=8000, duration=0.01, seed=3, channels=2)\nprobe x as \"x\"\n", "n");
     REQUIRE(s);
-    const auto* draws = io::np_find(s->data, "x.draws");
-    REQUIRE(draws);
-    CHECK(draws->shape == std::vector<std::size_t>{2, 80});
-    auto want = io::normal_draws(80, 3);
-    const auto second = io::normal_draws(80, 4);
-    want.insert(want.end(), second.begin(), second.end());
-    CHECK(std::get<std::vector<double>>(draws->data) == want);
-    CHECK(s->text.find("noise_from_draws(d, \"white\"") != std::string::npos);
+    CHECK_FALSE(io::np_find(s->data, "x.draws"));
+    CHECK(s->text.find("x = np.stack([noise_from_draws(portable_random(3 + c, x_n), \"white\", 1) for c in range(2)])") != std::string::npos);
+    CHECK(s->text.find("def portable_random(") != std::string::npos);
 }
 
 TEST_CASE("the check covers probes, reports and side-effect inputs", "[py-script]") {
@@ -362,7 +357,7 @@ TEST_CASE("the size of an exported text file is checked loosely", "[py-script]")
     }
 }
 
-TEST_CASE("variables are listed at the top of the script", "[py-script]") {
+TEST_CASE("variables are assigned at the top of the script", "[py-script]") {
     const std::string text = "pipeline \"v\" v2\n"
                              "let lv = 2\n"
                              "let half = \"$lv/2\"\n"
@@ -373,9 +368,9 @@ TEST_CASE("variables are listed at the top of the script", "[py-script]") {
     const auto s = script_for(text, "vars");
     INFO((s ? std::string{} : s.error().message));
     REQUIRE(s);
-    const auto head = s->text.substr(0, s->text.find("import sys"));
-    CHECK(head.find(tr("python.header.vars")) != std::string::npos);
-    CHECK(head.find("#   lv = 2\n") != std::string::npos);
-    CHECK(head.find("#   half = $lv/2 → 1\n") != std::string::npos);
-    CHECK(script_for(kTiny, "tiny")->text.find(tr("python.header.vars")) == std::string::npos);
+    const auto imports = s->text.find("import numpy as np");
+    const auto vars = s->text.find("# " + tr("python.header.vars") + "\nlv = 2\nhalf = lv / 2\n");
+    CHECK(imports < vars);
+    CHECK(vars < s->text.find("HERE = Path"));
+    CHECK(script_for(kTiny, "tiny")->text.find("GRAPH") == std::string::npos);
 }

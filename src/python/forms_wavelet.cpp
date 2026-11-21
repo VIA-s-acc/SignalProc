@@ -46,13 +46,24 @@ void put_dtcwt_filters(Emitter& em, const std::string& biort, const std::string&
     }
 }
 
-core::Result<std::string> dtcwt(const NodeIo& io, Emitter& em) {
+void put_all_dtcwt_filters(const NodeIo& io, Emitter& em) {
+    const auto choices = [&](std::string_view name) {
+        for (const auto& s : io.node.type->params)
+            if (s.name == name) return s.choices;
+        return std::vector<std::string>{};
+    };
     const auto& p = io.node.params;
-    const auto& b = param_text(p, "biort");
-    const auto& q = param_text(p, "qshift");
-    put_dtcwt_filters(em, b, q);
+    const auto biorts = uses_variable(io, "biort") ? choices("biort") : std::vector<std::string>{param_text(p, "biort")};
+    const auto qshifts = uses_variable(io, "qshift") ? choices("qshift") : std::vector<std::string>{param_text(p, "qshift")};
+    for (const auto& b : biorts)
+        for (const auto& q : qshifts) put_dtcwt_filters(em, b, q);
+}
+
+core::Result<std::string> dtcwt(const NodeIo& io, Emitter& em) {
+    put_all_dtcwt_filters(io, em);
     em.function("dtcwt");
-    return fmt::format("{} = dtcwt({}, {}, {}, {}, D)", io.out[0], io.in[0], param_int(p, "levels"), py_str(b), py_str(q));
+    return fmt::format("{0} = dtcwt({1}, {2}, {3}, {4}, D)\n{0}_meta = {{\"transform\": \"dtcwt\", \"biort\": {3}, \"qshift\": {4}, \"length\": {1}.shape[1], \"rate\": {5}, \"norm\": False}}",
+                       io.out[0], io.in[0], em.expr(io, "levels"), em.expr(io, "biort"), em.expr(io, "qshift"), io.in_fs[0]);
 }
 
 core::Result<std::string> idtcwt(const NodeIo& io, Emitter& em) {
@@ -61,58 +72,58 @@ core::Result<std::string> idtcwt(const NodeIo& io, Emitter& em) {
     const auto plus = w.find('+');
     put_dtcwt_filters(em, w.substr(0, plus), w.substr(plus + 1));
     em.function("dtcwt");
-    return fmt::format("{} = idtcwt({}, {}, {}, D, {})", io.out[0], io.in[0], py_str(w.substr(0, plus)), py_str(w.substr(plus + 1)), length_of(c));
+    return fmt::format("{0} = idtcwt({1}, {1}_meta[\"biort\"], {1}_meta[\"qshift\"], D, {1}_meta[\"length\"])\n{0}_fs = {1}_meta[\"rate\"]", io.out[0], io.in[0]);
 }
 
 core::Result<std::string> lift53(const NodeIo& io, Emitter& em) {
     em.function("lift");
-    const bool integer = param_text(io.node.params, "integer") == "yes";
-    return fmt::format("{} = lift({}, {}, {})", io.out[0], io.in[0], param_int(io.node.params, "levels"), integer ? "\"lift53i\"" : "\"lift53\"");
+    const auto kind = uses_variable(io, "integer") ? "(\"lift53i\" if " + em.expr(io, "integer") + " == \"yes\" else \"lift53\")"
+                                                   : std::string{param_text(io.node.params, "integer") == "yes" ? "\"lift53i\"" : "\"lift53\""};
+    return fmt::format("{0} = lift({1}, {2}, {3})\n{0}_meta = {{\"transform\": {3}, \"length\": {1}.shape[1], \"rate\": {4}, \"norm\": False}}", io.out[0], io.in[0],
+                       em.expr(io, "levels"), kind, io.in_fs[0]);
 }
 
 core::Result<std::string> lift97(const NodeIo& io, Emitter& em) {
     em.function("lift");
-    return fmt::format("{} = lift({}, {}, \"lift97\", {})", io.out[0], io.in[0], param_int(io.node.params, "levels"), constants97(em));
+    return fmt::format("{0} = lift({1}, {2}, \"lift97\", {3})\n{0}_meta = {{\"transform\": \"lift97\", \"length\": {1}.shape[1], \"rate\": {4}, \"norm\": False}}", io.out[0], io.in[0],
+                       em.expr(io, "levels"), constants97(em), io.in_fs[0]);
 }
 
 core::Result<std::string> ilift(const NodeIo& io, Emitter& em) {
     em.function("lift");
     const auto* c = coeffs_of(io.in_values[0]);
-    const std::string kind = c ? c->transform : io.node.type->id == "ilift97" ? std::string{"lift97"} : std::string{"lift53"};
-    return fmt::format("{} = unlift({}, {}{})", io.out[0], io.in[0], py_str(kind), kind == "lift97" ? ", " + constants97(em) : std::string{});
+    const bool k97 = c ? c->transform == "lift97" : io.node.type->id == "ilift97";
+    return fmt::format("{0} = unlift({1}, {1}_meta[\"transform\"]{2})\n{0}_fs = {1}_meta[\"rate\"]", io.out[0], io.in[0], k97 ? ", " + constants97(em) : std::string{});
 }
 
 core::Result<std::string> wpt(const NodeIo& io, Emitter& em) {
-    const auto& p = io.node.params;
-    const auto& basis = param_text(p, "basis");
-    const auto* c = coeffs_of(io.out_values[0]);
+    const auto w = em.wavelet_of(io, "wavelet");
+    const auto mode = em.expr(io, "ext");
     em.function("wpt");
     em.import_line("import pywt");
-    const auto which = basis == "best" || !c ? py_str(basis) : paths_of(*c);
-    return fmt::format("{0}, {0}_paths = wpt({1}, {2}, {3}, {4}, {5})", io.out[0], io.in[0], em.wavelet(param_text(p, "wavelet")), py_str(param_text(p, "ext")),
-                       param_int(p, "levels"), which);
+    return fmt::format("{0}, {0}_paths = wpt({1}, {2}, {3}, {4}, {5})\n"
+                       "{0}_meta = {{\"transform\": \"wpt\", \"wavelet\": {2}, \"mode\": {3}, \"length\": {1}.shape[1], \"rate\": {6}, \"norm\": False, \"paths\": {0}_paths}}",
+                       io.out[0], io.in[0], w, mode, em.expr(io, "levels"), em.expr(io, "basis"), io.in_fs[0]);
 }
 
 core::Result<std::string> iwpt(const NodeIo& io, Emitter& em) {
-    const auto* c = coeffs_of(io.in_values[0]);
     em.function("wpt");
     em.import_line("import pywt");
-    return fmt::format("{} = iwpt({}, {}, {}, {}, {})", io.out[0], io.in[0], c ? paths_of(*c) : io.in[0] + "_paths", em.wavelet(c ? c->wavelet : std::string{"db2"}),
-                       py_str(c ? std::string{core::to_string(c->mode)} : std::string{"symmetric"}), length_of(c));
+    return fmt::format("{0} = iwpt({1}, {1}_meta[\"paths\"], {1}_meta[\"wavelet\"], {1}_meta[\"mode\"], {1}_meta[\"length\"])\n{0}_fs = {1}_meta[\"rate\"]", io.out[0], io.in[0]);
 }
 
 core::Result<std::string> keep_largest(const NodeIo& io, Emitter& em) {
     const auto& p = io.node.params;
     em.function("keep_largest");
-    return fmt::format("{} = keep_largest({}, {}, {}, {})", io.out[0], io.in[0], param_text(p, "mode") == "percent" ? "True" : "False", em.number(param_real(p, "amount")),
-                       param_text(p, "keep_approx") == "yes" ? 1 : 0);
+    const auto percent = uses_variable(io, "mode") ? "(" + em.expr(io, "mode") + " == \"percent\")" : std::string{param_text(p, "mode") == "percent" ? "True" : "False"};
+    const auto approx = uses_variable(io, "keep_approx") ? "int(" + em.expr(io, "keep_approx") + " == \"yes\")" : std::string{param_text(p, "keep_approx") == "yes" ? "1" : "0"};
+    return fmt::format("{0} = keep_largest({1}, {2}, {3}, {4})\n{0}_meta = {1}_meta", io.out[0], io.in[0], percent, em.expr(io, "amount"), approx);
 }
 
 core::Result<std::string> coeff_quantize(const NodeIo& io, Emitter& em) {
-    const auto& p = io.node.params;
     em.function("coeff_quantize");
-    return fmt::format("{} = coeff_quantize({}, {}, {}, {})", io.out[0], io.in[0], param_text(p, "mode") == "bits" ? "True" : "False", param_int(p, "bits"),
-                       em.number(param_real(p, "step")));
+    const auto bits = uses_variable(io, "mode") ? "(" + em.expr(io, "mode") + " == \"bits\")" : std::string{param_text(io.node.params, "mode") == "bits" ? "True" : "False"};
+    return fmt::format("{0} = coeff_quantize({1}, {2}, {3}, {4})\n{0}_meta = {1}_meta", io.out[0], io.in[0], bits, em.expr(io, "bits"), em.expr(io, "step"));
 }
 
 core::Result<std::string> polyphase(const NodeIo& io, Emitter&) {
@@ -123,37 +134,36 @@ core::Result<std::string> ipolyphase(const NodeIo& io, Emitter&) {
     return fmt::format("{0} = np.zeros(({1}.shape[0], {1}.shape[1] + {2}.shape[1]))\n{0}[:, 0::2] = {1}\n{0}[:, 1::2] = {2}", io.out[0], io.in[0], io.in[1]);
 }
 
-std::string inverse_expr(const pipeline::Coeffs& c, const std::string& var, Emitter& em) {
-    const auto n = length_of(&c);
-    if (c.transform == "dwt") return fmt::format("pywt.waverec({}, {}, mode={}, axis=-1)[:, :{}]", var, em.wavelet(c.wavelet), py_str(std::string{core::to_string(c.mode)}), n);
-    if (c.transform == "swt") return fmt::format("pywt.iswt({}, {}, norm={}, axis=-1)[:, :{}]", var, em.wavelet(c.wavelet), c.norm ? "True" : "False", n);
+std::string inverse_expr(const pipeline::Coeffs& c, const std::string& var, const std::string& meta, Emitter& em) {
+    const auto at = [&](const char* key) { return meta + "[\"" + key + "\"]"; };
+    if (c.transform == "dwt") return fmt::format("pywt.waverec({}, {}, mode={}, axis=-1)[:, :{}]", var, at("wavelet"), at("mode"), at("length"));
+    if (c.transform == "swt") return fmt::format("pywt.iswt({}, {}, norm={}, axis=-1)[:, :{}]", var, at("wavelet"), at("norm"), at("length"));
     if (c.transform == "wpt") {
         em.function("wpt");
-        return fmt::format("iwpt({}, {}, {}, {}, {})", var, paths_of(c), em.wavelet(c.wavelet), py_str(std::string{core::to_string(c.mode)}), n);
+        return fmt::format("iwpt({}, {}, {}, {}, {})", var, at("paths"), at("wavelet"), at("mode"), at("length"));
     }
     if (c.transform == "dtcwt") {
         em.function("dtcwt");
         const auto plus = c.wavelet.find('+');
         put_dtcwt_filters(em, c.wavelet.substr(0, plus), c.wavelet.substr(plus + 1));
-        return fmt::format("idtcwt({}, {}, {}, D, {})", var, py_str(c.wavelet.substr(0, plus)), py_str(c.wavelet.substr(plus + 1)), n);
+        return fmt::format("idtcwt({}, {}, {}, D, {})", var, at("biort"), at("qshift"), at("length"));
     }
     em.function("lift");
-    return fmt::format("unlift({}, {}{})", var, py_str(c.transform), c.transform == "lift97" ? ", " + constants97(em) : std::string{});
+    return fmt::format("unlift({}, {}{})", var, at("transform"), c.transform == "lift97" ? ", " + constants97(em) : std::string{});
 }
 
 core::Result<std::string> mra(const NodeIo& io, Emitter& em) {
     const auto* c = coeffs_of(io.in_values[0]);
     if (!c) return fmt::format("{} = {}", io.out[0], io.in[0]);
-    const auto keep = pipeline::band_index(*c, param_text(io.node.params, "component"));
-    if (!keep) return std::unexpected{unsupported(io, "component")};
     em.import_line("import pywt");
-    return fmt::format("{0}_only = [band if k == {1} else np.zeros_like(band) for k, band in enumerate({2})]\n{0} = {3}", io.out[0], *keep, io.in[0],
-                       inverse_expr(*c, io.out[0] + "_only", em));
+    em.function("band_index");
+    return fmt::format("{0}_only = [band if k == band_index({2}, {2}_meta, {1}) else np.zeros_like(band) for k, band in enumerate({2})]\n{0} = {3}\n{0}_fs = {2}_meta[\"rate\"]", io.out[0],
+                       em.expr(io, "component"), io.in[0], inverse_expr(*c, io.out[0] + "_only", io.in[0] + "_meta", em));
 }
 
 core::Result<std::string> coeffs_file(const NodeIo& io, Emitter& em) {
     const auto* c = coeffs_of(io.out_values[0]);
-    if (!c) return fmt::format("{} = []", io.out[0]);
+    if (!c) return fmt::format("{0} = []\n{0}_meta = None", io.out[0]);
     auto path = pipeline::utf8_path(param_text(io.node.params, "path"));
     if (path.is_relative()) path = io.base_dir / path;
     const auto keys = pipeline::band_keys(*c);
@@ -165,10 +175,28 @@ core::Result<std::string> coeffs_file(const NodeIo& io, Emitter& em) {
                                py_str("re_" + keys[k]), py_str("im_" + keys[k]));
         bands += (k ? ", " : "") + band;
     }
+    const auto file = em.preview() ? core::Result<io::NpzEntries>{io::NpzEntries{}} : io::read_npz(path);
+    const auto in_file = [&](std::string_view key) { return file && io::np_find(*file, key) != nullptr; };
+    const auto from_file = [&](std::string_view param, const std::string& value) {
+        if (uses_variable(io, param) && !in_file(param)) return "(" + em.expr(io, param) + " or " + value + ")";
+        return value;
+    };
+    std::string wavelet = c->transform == "dtcwt" ? py_str(c->wavelet) : em.wavelet(c->wavelet);
+    if (uses_variable(io, "wavelet") && c->transform != "dtcwt" && !in_file("wavelet")) {
+        (void)em.wavelet_of(io, "wavelet");
+        wavelet = "wavelet(" + em.expr(io, "wavelet") + " or " + py_str(c->wavelet) + ")";
+    }
     std::string text = fmt::format("{0}_f = np.load({1}, allow_pickle=False)\n{0} = [{2}]", io.out[0], em.file(path), bands);
     if (c->transform == "dwt" || c->transform == "swt")
         text += fmt::format("\nif \"detail_sign\" in {0}_f and str({0}_f[\"detail_sign\"]) == \"signals\":\n    {0} = [{0}[0]] + [-b for b in {0}[1:]]", io.out[0]);
     if (c->transform == "wpt") text += fmt::format("\n{}_paths = {}", io.out[0], paths_of(*c));
+    const auto plus = c->wavelet.find('+');
+    const auto dtcwt_names = c->transform == "dtcwt" && plus != std::string::npos
+                                 ? fmt::format(", \"biort\": {}, \"qshift\": {}", py_str(c->wavelet.substr(0, plus)), py_str(c->wavelet.substr(plus + 1)))
+                                 : std::string{};
+    text += fmt::format("\n{0}_meta = {{\"transform\": {1}, \"wavelet\": {2}, \"mode\": {3}, \"length\": {4}, \"rate\": {5}, \"norm\": {6}{7}{8}}}", io.out[0], py_str(c->transform), wavelet,
+                        from_file("mode", py_str(std::string{core::to_string(c->mode)})), length_of(c), from_file("rate", em.number(c->rate)), c->norm ? "True" : "False",
+                        c->transform == "wpt" ? ", \"paths\": " + io.out[0] + "_paths" : std::string{}, dtcwt_names);
     return text;
 }
 

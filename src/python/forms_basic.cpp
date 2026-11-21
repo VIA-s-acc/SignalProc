@@ -22,38 +22,34 @@ using pipeline::param_real;
 using pipeline::param_text;
 
 core::Result<std::string> gen(const NodeIo& io, Emitter& em) {
-    const auto& p = io.node.params;
-    const double rate = static_cast<double>(param_int(p, "rate"));
-    const auto n = static_cast<std::size_t>(std::llround(param_real(p, "duration") * rate));
-    const auto& kind = param_text(p, "kind");
-    const double f = param_real(p, "freq"), a = param_real(p, "amplitude");
-    const auto channels = static_cast<std::size_t>(param_int(p, "channels"));
     const auto& y = io.out[0];
-    const auto fs = em.number(rate), num = std::to_string(n);
+    const auto f = em.expr(io, "freq"), a = em.expr(io, "amplitude"), fs = em.expr(io, "rate"), channels = em.expr(io, "channels");
+    if (uses_variable(io, "kind")) {
+        em.function("gen_signal");
+        return fmt::format("{} = gen_signal({}, freq={}, f1={}, amplitude={}, fs={}, duration={}, seed={}, channels={})", y, em.expr(io, "kind"), f, em.expr(io, "f1"), a, fs,
+                           em.expr(io, "duration"), em.expr(io, "seed"), channels);
+    }
+    const auto& kind = param_text(io.node.params, "kind");
+    em.function("samples_count");
+    const auto n = y + "_n";
+    const auto head = fmt::format("{} = samples_count({}, {})\n", n, em.expr(io, "duration"), fs);
     if (kind == "white" || kind == "pink") {
+        em.function("portable_random");
         em.function("noise_from_draws");
-        std::vector<std::vector<double>> draws;
-        if (!em.preview())
-            for (std::size_t c = 0; c < channels; ++c) draws.push_back(io::normal_draws(n, static_cast<std::uint64_t>(param_int(p, "seed")) + c));
-        const auto data = em.data("draws", io::np_matrix(draws));
-        return fmt::format("{} = np.stack([noise_from_draws(d, {}, {}) for d in {}])", y, py_str(kind), em.number(a), data);
+        return head + fmt::format("{} = np.stack([noise_from_draws(portable_random({} + c, {}), {}, {}) for c in range({})])", y, em.expr(io, "seed"), n, py_str(kind), a, channels);
     }
     std::string x;
-    if (kind == "sine") x = fmt::format("{} * np.sin(2 * np.pi * {} * np.arange({}) / {})", em.number(a), em.number(f), num, fs);
-    else if (kind == "sweep") em.function("sweep"), x = fmt::format("sweep({}, {}, True, {}, {})", em.number(f), em.number(param_real(p, "f1")), fs, num);
-    else if (kind == "impulse") x = fmt::format("(np.arange({}) == 0) * 1.0", num);
-    else if (kind == "step") x = fmt::format("np.ones({})", num);
-    else if (kind == "harmonics") {
-        std::string sum;
-        for (int h = 0; h < 4; ++h)
-            sum += (h ? " + " : "") + fmt::format("{} * np.sin(2 * np.pi * {} * np.arange({}) / {})", em.number(a / std::ldexp(1.0, h)), em.number((h + 1) * f), num, fs);
-        x = sum;
-    } else {
+    if (kind == "sine") x = fmt::format("{} * np.sin(2 * np.pi * {} * np.arange({}) / {})", a, f, n, fs);
+    else if (kind == "sweep") em.function("sweep"), x = fmt::format("sweep({}, {}, True, {}, {})", f, em.expr(io, "f1"), fs, n);
+    else if (kind == "impulse") x = fmt::format("(np.arange({}) == 0) * 1.0", n);
+    else if (kind == "step") x = fmt::format("np.ones({})", n);
+    else if (kind == "harmonics") x = fmt::format("sum({} / 2 ** h * np.sin(2 * np.pi * ((h + 1) * {}) * np.arange({}) / {}) for h in range(4))", a, f, n, fs);
+    else {
         if (kind != "doppler" && kind != "blocks" && kind != "bumps" && kind != "heavisine") return std::unexpected{unsupported(io, "kind")};
         em.function("donoho_johnstone");
-        x = fmt::format("donoho_johnstone({}, {}) * {}", py_str(kind), num, em.number(a));
+        x = fmt::format("donoho_johnstone({}, {}) * {}", py_str(kind), n, a);
     }
-    return fmt::format("{} = np.tile({}, ({}, 1))", y, x, channels);
+    return head + fmt::format("{} = np.tile({}, ({}, 1))", y, x, channels);
 }
 
 double in_rate(const NodeIo& io, std::size_t k = 0) {
@@ -65,13 +61,6 @@ double in_rate(const NodeIo& io, std::size_t k = 0) {
 std::size_t samples_param(const NodeIo& io, std::string_view name) {
     const auto n = pipeline::param_samples(io.node.params, name, in_rate(io));
     return n ? *n : 0;
-}
-
-std::string rows_literal(const NodeIo& io, Emitter& em, const std::string& key, const std::vector<std::vector<double>>& rows) {
-    std::string out = "np.array([";
-    for (std::size_t c = 0; c < rows.size(); ++c) out += (c ? ", " : "") + em.numbers(key + std::to_string(c), rows[c]);
-    (void)io;
-    return out + "], dtype=np.float64)";
 }
 
 bool scipy_reads(const std::filesystem::path& path, const io::WavInfo& info) {
@@ -96,6 +85,7 @@ core::Result<std::string> wav(const NodeIo& io, Emitter& em) {
         in.get(b);
         const bool npy = static_cast<unsigned char>(b) == 0x93;
         if (npy) return fmt::format("{} = read_audio_array({}, None)", y, em.file(path));
+        if (uses_variable(io, "key")) return fmt::format("{} = read_audio_array({}, {})", y, em.file(path), em.expr(io, "key"));
         const auto picked = io::array_audio_key(path, key);
         if (!picked) return std::unexpected{picked.error()};
         return fmt::format("{} = read_audio_array({}, {})", y, em.file(path), py_str(*picked));
@@ -112,10 +102,8 @@ core::Result<std::string> wav(const NodeIo& io, Emitter& em) {
 }
 
 core::Result<std::string> samples(const NodeIo& io, Emitter& em) {
-    std::vector<std::vector<double>> rows;
-    if (io.out_values[0])
-        if (const auto* a = std::get_if<core::AudioBuffer>(io.out_values[0])) rows = a->channels;
-    return fmt::format("{} = {}", io.out[0], rows_literal(io, em, "values", rows));
+    em.function("samples_signal");
+    return fmt::format("{} = samples_signal({})", io.out[0], em.expr(io, "values"));
 }
 
 core::Result<std::string> add(const NodeIo& io, Emitter& em) {
@@ -347,23 +335,21 @@ core::Result<std::string> add_noise(const NodeIo& io, Emitter& em) {
                        em.number(param_real(p, "snr_db")), py_str(param_text(p, "color")), em.data("draws", io::np_matrix(draws)));
 }
 
-std::size_t source_length(const pipeline::Params& p) {
-    return static_cast<std::size_t>(std::llround(param_real(p, "duration") * static_cast<double>(param_int(p, "rate"))));
-}
-
 core::Result<std::string> chirp(const NodeIo& io, Emitter& em) {
-    const auto& p = io.node.params;
     em.function("sweep");
-    return fmt::format("{} = (sweep({}, {}, {}, {}, {}) * {})[np.newaxis, :]", io.out[0], em.number(param_real(p, "f0")), em.number(param_real(p, "f1")),
-                       param_text(p, "method") == "log" ? "True" : "False", em.number(static_cast<double>(param_int(p, "rate"))), source_length(p), em.number(param_real(p, "amplitude")));
+    em.function("samples_count");
+    const auto log = uses_variable(io, "method") ? "(" + em.expr(io, "method") + " == \"log\")" : std::string{param_text(io.node.params, "method") == "log" ? "True" : "False"};
+    const auto fs = em.expr(io, "rate");
+    return fmt::format("{} = (sweep({}, {}, {}, {}, samples_count({}, {})) * {})[np.newaxis, :]", io.out[0], em.expr(io, "f0"), em.expr(io, "f1"), log, fs, em.expr(io, "duration"), fs,
+                       em.expr(io, "amplitude"));
 }
 
 core::Result<std::string> osc(const NodeIo& io, Emitter& em) {
-    const auto& p = io.node.params;
     em.function("osc");
-    return fmt::format("{} = (osc({}, {}, {}, {}, {}, {}) * {})[np.newaxis, :]", io.out[0], py_str(param_text(p, "kind")), em.number(param_real(p, "freq")),
-                       em.number(param_real(p, "duty")), em.number(param_real(p, "width")), em.number(static_cast<double>(param_int(p, "rate"))), source_length(p),
-                       em.number(param_real(p, "amplitude")));
+    em.function("samples_count");
+    const auto fs = em.expr(io, "rate");
+    return fmt::format("{} = (osc({}, {}, {}, {}, {}, samples_count({}, {})) * {})[np.newaxis, :]", io.out[0], em.expr(io, "kind"), em.expr(io, "freq"), em.expr(io, "duty"),
+                       em.expr(io, "width"), fs, em.expr(io, "duration"), fs, em.expr(io, "amplitude"));
 }
 
 core::Result<std::string> gain(const NodeIo& io, Emitter& em) {

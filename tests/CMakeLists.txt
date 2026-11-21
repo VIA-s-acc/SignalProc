@@ -176,6 +176,9 @@ add_executable(signals_tests
   python/test_bridge.cpp
   python/test_forms_complete.cpp
   python/test_notebook.cpp
+  python/test_live_core.cpp
+  python/test_portable_random.cpp
+  python/test_live.cpp
   python/block_graphs.cpp
   support/golden.cpp
   support/banks.cpp

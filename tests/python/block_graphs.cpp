@@ -108,12 +108,19 @@ void prepare_block_files(const std::filesystem::path& dir) {
     const auto entries = pipeline::coeffs_entries(std::get<pipeline::Coeffs>(run->probes.at("c")));
     REQUIRE(entries);
     REQUIRE(io::write_npz(dir / "coeffs.npz", *entries));
+    io::NpzEntries bare;
+    for (const auto& [key, array] : *entries)
+        if (key.starts_with("cA") || key.starts_with("cD")) bare.emplace_back(key, array);
+    REQUIRE(io::write_npz(dir / "coeffs-bare.npz", bare));
     const auto& x = std::get<core::AudioBuffer>(run->probes.at("x"));
-    REQUIRE(io::write_npz(dir / "only.npz", {{"arr_0", io::NpArray{{x.channels.size(), x.frames()}, [&] {
-                                                 std::vector<double> flat;
-                                                 for (const auto& c : x.channels) flat.insert(flat.end(), c.begin(), c.end());
-                                                 return flat;
-                                             }()}}}));
+    const auto flat = [&](double scale) {
+        std::vector<double> out;
+        for (const auto& c : x.channels)
+            for (const double v : c) out.push_back(scale * v);
+        return io::NpArray{{x.channels.size(), x.frames()}, out};
+    };
+    REQUIRE(io::write_npz(dir / "only.npz", {{"arr_0", flat(1.0)}}));
+    REQUIRE(io::write_npz(dir / "two.npz", {{"first", flat(1.0)}, {"second", flat(0.5)}}));
 }
 
 std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::filesystem::path& dir) {
@@ -131,6 +138,15 @@ std::vector<BlockGraph> block_graphs(const pipeline::BlockType& t, const std::fi
         }
     }
     if (t.id == "wav") out.push_back({"wav-npz-only", graph_text(t, "wav-npz-only", {{"path", quoted(dir / "only.npz")}, {"rate", "8000"}})});
+    if (t.id == "resample") out.push_back({"resample-3-2", graph_text(t, "resample-3-2", {{"l", "3"}, {"m", "2"}})});
+    if (t.id == "fir_taps") out.push_back({"fir_taps-three", graph_text(t, "fir_taps-three", {{"taps", "\"0.25, 0.5, 0.25\""}})});
+    if (t.id == "onsets")
+        out.push_back({"onsets-blocks", "pipeline \"onsets-blocks\" v2\nnode x = gen(kind=blocks, rate=8000, duration=0.5)\nnode o = onsets()\nx -> o\nprobe o as \"o\"\n"});
+    if (t.id == "check") out.push_back({"check-loose", graph_text(t, "check-loose", {{"tol", "2"}})});
+    if (t.id == "coeffs_file")
+        out.push_back({"coeffs_file-bare", "pipeline \"coeffs_file-bare\" v2\nnode c = coeffs_file(path=" + quoted(dir / "coeffs-bare.npz") +
+                                               ", wavelet=db2, mode=symmetric, rate=8000)\nnode y = idwt()\nnode f = fir(cutoff=1000)\nc -> y -> f\nprobe f as \"out\"\n"});
+    if (t.id == "wav") out.push_back({"wav-npz-key", graph_text(t, "wav-npz-key", {{"path", quoted(dir / "two.npz")}, {"key", "first"}, {"rate", "8000"}})});
     if (t.id == "wav")
         for (const char* f : {"s16_stereo.wav", "s32_mono.wav", "u8_mono.wav", "f32_stereo.wav", "f64_mono.wav", "alaw_mono.wav", "mulaw_mono.wav", "s16_6ch_extensible.wav"}) {
             const auto name = std::string{"wav-"} + f;

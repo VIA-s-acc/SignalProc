@@ -111,7 +111,7 @@ TEST_CASE("listen becomes an audio widget in the notebook only", "[py-notebook]"
     const auto nb = build(graph, python::ScriptKind::notebook, "nb.ipynb").text;
     CHECK(script.find("IPython") == std::string::npos);
     CHECK(nb.find("from IPython.display import Audio, display") != std::string::npos);
-    CHECK(nb.find("display(Audio(y, rate=8000") != std::string::npos);
+    CHECK(nb.find("display(Audio(y, rate=y_fs") != std::string::npos);
 }
 
 TEST_CASE("signals python writes a notebook for an .ipynb path", "[py-notebook]") {
@@ -130,7 +130,7 @@ TEST_CASE("signals python writes a notebook for an .ipynb path", "[py-notebook]"
     CHECK(out.find("nb-cli.ipynb") != std::string::npos);
 }
 
-TEST_CASE("the notebook opens with a table of the graph variables", "[py-notebook]") {
+TEST_CASE("the notebook gives the graph variables their own cell", "[py-notebook]") {
     const std::string text = "pipeline \"nb\" v2\n"
                              "let db = -6\n"
                              "node x = gen(kind=sine, freq=440, rate=8000, duration=0.05)\n"
@@ -139,11 +139,9 @@ TEST_CASE("the notebook opens with a table of the graph variables", "[py-noteboo
                              "probe y as \"quiet\"\n";
     const auto nb = nlohmann::json::parse(build(text, python::ScriptKind::notebook, "vars.ipynb").text);
     const auto& cells = nb.at("cells");
-    REQUIRE(cells.size() > 2);
-    const auto table = joined(cells.at(1));
-    CHECK(cells.at(1).at("cell_type") == "markdown");
-    CHECK(table.find(tr("python.notebook.vars")) != std::string::npos);
-    CHECK(table.find("| `db` | `-6` | -6 |") != std::string::npos);
+    REQUIRE(cells.size() > 3);
+    CHECK(joined(cells.at(2)).find(tr("python.notebook.vars")) != std::string::npos);
+    CHECK(joined(cells.at(3)).find("db = -6\nGRAPH = {\"db\": -6}") != std::string::npos);
     const auto plain = nlohmann::json::parse(build(kGraph, python::ScriptKind::notebook, "plain.ipynb").text);
-    CHECK(joined(plain.at("cells").at(1)).find(tr("python.notebook.vars")) == std::string::npos);
+    for (const auto& c : plain.at("cells")) CHECK(joined(c).find("GRAPH") == std::string::npos);
 }

@@ -9,6 +9,11 @@ from pathlib import Path
 import numpy as np
 
 
+def samples_count(seconds, fs):
+    x = seconds * fs
+    q = np.floor(x)
+    return int(q) + (1 if x - q >= 0.5 else 0)
+
 _verify_rows = []
 
 
@@ -54,10 +59,13 @@ HERE = Path(__file__).resolve().parent
 D = np.load(HERE / "tiny.npz", allow_pickle=False)
 
 # node x = gen(kind=sine, freq=440, rate=8000, duration=0.01)
-x = np.tile(1 * np.sin(2 * np.pi * 440 * np.arange(80) / 8000), (1, 1))
+x_n = samples_count(0.01, 8000)
+x = np.tile(1 * np.sin(2 * np.pi * 440 * np.arange(x_n) / 8000), (1, 1))
+x_fs = 8000
 
 # node y = gain(db=-6)
 y = x * 10 ** (-6 / 20)
+y_fs = x_fs
 
 # Check against Signals
 verify("y", y, D["ref.y.x"], 1e-12, "")

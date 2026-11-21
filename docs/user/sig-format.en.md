@@ -97,7 +97,7 @@ Where else variables show:
 
 - **Command line.** `--set name=value` (no dot) changes a variable, and `signals sweep … --vary name=values` sweeps it; every node that uses it changes together.
 - **«Pipeline».** The «Variables» panel (reach it with `Tab`): `↑↓` choose, `Enter` edits the value, `+` adds one (`name = value`), `Del` removes it, `S` sweeps it. The program does not remove a variable in use and names its nodes. Nodes that use the chosen variable are highlighted in the graph. The inspector shows such a parameter as `$lv → 2`; the `←→` arrows leave it alone and `Enter` edits the text.
-- **Python.** `signals python` lists the variables at the top of the script, and the notebook in the «Graph parameters» cell.
+- **Python.** `signals python` writes the variables at the top of the script as Python variables (`lv = 3`), and the notebook in the «Graph parameters» cell; parameters given by a variable refer to it (`level=lv`). Change a value and the script skips the check against the program and computes with the new values.
 - **VS Code.** The extension highlights `let` and `$name`, offers the file's variables after `$` and shows the `let` line on hover.
 
 ### Graph checks {#sig-checks}

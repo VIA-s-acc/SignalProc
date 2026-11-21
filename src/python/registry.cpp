@@ -63,7 +63,7 @@ std::string python_preview(const pipeline::BlockType& t, const pipeline::Params&
     em.set_node("y");
     const auto code = form->emit(io, em);
     if (!code) return {};
-    return code->substr(0, code->find('\n'));
+    return *code;
 }
 
 }  // namespace signals::python

@@ -15,6 +15,10 @@ def _wpt_node(tree, path):
 
 
 def wpt(x, wavelet, mode, levels, basis):
+    if basis == "full":
+        basis = [format(n ^ (n >> 1), f"0{levels}b").replace("0", "a").replace("1", "d") if levels else "" for n in range(2 ** levels)]
+    elif basis == "dwt":
+        basis = ["a" * levels] + ["a" * (j - 1) + "d" for j in range(levels, 0, -1)] if levels else [""]
     trees = [pywt.WaveletPacket(row, wavelet, mode=mode, maxlevel=levels) for row in x]
     if basis == "best":
         norm2 = []
