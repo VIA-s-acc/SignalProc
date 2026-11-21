@@ -12,6 +12,7 @@
 #include "pipeline/migrate.hpp"
 #include "pipeline/npz_values.hpp"
 #include "pipeline/sig.hpp"
+#include "support/timing.hpp"
 #include "tui/jobs/jobs.hpp"
 #include "tui/screens/pipeline_model.hpp"
 
@@ -167,7 +168,7 @@ TEST_CASE("counting calls and unfolding stay bounded on a hostile graph", "[tui]
     PipelineModel m;
     REQUIRE(m.load_text("wide", wide));
     CHECK(m.calls_of("b0") <= 100000);
-    CHECK(std::chrono::steady_clock::now() - started < std::chrono::seconds{3});
+    CHECK(std::chrono::steady_clock::now() - started < test::time_budget(std::chrono::seconds{3}));
     std::string doubling = "pipeline \"d\" v2\nblock big {\n    in x\n    out y\n    let a0 = \"0123456789\"\n";
     for (int k = 1; k <= 24; ++k) doubling += "    let a" + std::to_string(k) + " = \"$a" + std::to_string(k - 1) + "$a" + std::to_string(k - 1) + "\"\n";
     doubling += "    node g = gain(db=$a24)\n    x -> g -> y\n}\nnode s = samples(values=\"1\", rate=8)\nnode c = big()\ns -> c\n";
@@ -175,7 +176,7 @@ TEST_CASE("counting calls and unfolding stay bounded on a hostile graph", "[tui]
     REQUIRE(d.load_text("doubling", doubling));
     const auto again = std::chrono::steady_clock::now();
     CHECK_FALSE(d.expand("c"));
-    CHECK(std::chrono::steady_clock::now() - again < std::chrono::seconds{2});
+    CHECK(std::chrono::steady_clock::now() - again < test::time_budget(std::chrono::seconds{2}));
     std::string empty = "pipeline \"e\" v2\nblock big {\n    in x\n    out y\n    let a0 = \"\"\n";
     for (int k = 1; k <= 40; ++k) empty += "    let a" + std::to_string(k) + " = \"$a" + std::to_string(k - 1) + "$a" + std::to_string(k - 1) + "\"\n";
     empty += "    node g = gain(db=\"1$a40\")\n    x -> g -> y\n}\nnode s = samples(values=\"1\", rate=8)\nnode c = big()\ns -> c\n";
@@ -183,7 +184,7 @@ TEST_CASE("counting calls and unfolding stay bounded on a hostile graph", "[tui]
     REQUIRE(e.load_text("empty", empty));
     const auto third = std::chrono::steady_clock::now();
     (void)e.expand("c");
-    CHECK(std::chrono::steady_clock::now() - third < std::chrono::seconds{2});
+    CHECK(std::chrono::steady_clock::now() - third < test::time_budget(std::chrono::seconds{2}));
     std::string chain = "pipeline \"c\" v2\nblock big {\n    in x\n    out y\n    let a0 = 1\n";
     for (int k = 1; k <= 5000; ++k) chain += "    let a" + std::to_string(k) + " = $a" + std::to_string(k - 1) + "\n";
     chain += "    node g = gain(db=$a5000)\n    x -> g -> y\n}\nnode s = samples(values=\"1\", rate=8)\nnode c = big()\ns -> c\n";

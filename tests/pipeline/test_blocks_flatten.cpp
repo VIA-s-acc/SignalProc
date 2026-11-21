@@ -19,6 +19,7 @@
 #include "pipeline/migrate.hpp"
 #include "pipeline/npz_values.hpp"
 #include "support/paths.hpp"
+#include "support/timing.hpp"
 
 using namespace signals;
 using namespace signals::pipeline;
@@ -315,7 +316,7 @@ TEST_CASE("a large expansion is refused quickly and a deep one is fast", "[block
     INFO((ok ? std::string{} : ok.error().message));
     REQUIRE(ok);
     CHECK(ok->nodes.size() == 4097);
-    CHECK(std::chrono::steady_clock::now() - started < std::chrono::seconds{3});
+    CHECK(std::chrono::steady_clock::now() - started < test::time_budget(std::chrono::seconds{3}));
 }
 
 TEST_CASE("one library reached twice is loaded once", "[blocks-flatten][review]") {
@@ -336,7 +337,7 @@ TEST_CASE("one library reached twice is loaded once", "[blocks-flatten][review]"
     const auto deep = load_sig("pipeline \"m\" v2\nuse \"l0.sig\"\n", {dir});
     INFO((deep ? std::string{} : deep.error().message));
     REQUIRE(deep);
-    CHECK(std::chrono::steady_clock::now() - started < std::chrono::seconds{2});
+    CHECK(std::chrono::steady_clock::now() - started < test::time_budget(std::chrono::seconds{2}));
 }
 
 TEST_CASE("a call input takes one wire and a port wired to itself is an error", "[blocks-flatten][review]") {
