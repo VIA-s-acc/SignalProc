@@ -14,6 +14,7 @@
 #include "pipeline/npz_values.hpp"
 #include "pipeline/sig.hpp"
 #include "pipeline/sweep.hpp"
+#include "support/timing.hpp"
 
 using namespace signals;
 using namespace signals::pipeline;
@@ -144,7 +145,7 @@ TEST_CASE("a variable that doubles itself on every level is refused quickly", "[
     const auto start = std::chrono::steady_clock::now();
     const auto graph = build_graph(doc_of(text), ".", {.partial = true});
     CHECK_FALSE(graph);
-    CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds{2});
+    CHECK(std::chrono::steady_clock::now() - start < test::time_budget(std::chrono::seconds{2}));
 }
 
 TEST_CASE("variables nested deeper than the limit are refused", "[vars]") {
@@ -172,7 +173,7 @@ TEST_CASE("a variable shared by many nodes and variables keeps its value", "[var
     INFO((flat ? std::string{} : flat.error().message));
     REQUIRE(flat);
     CHECK(flat->nodes.at(99).params.at("db").size() > 15000);
-    CHECK(std::chrono::steady_clock::now() - start < std::chrono::milliseconds{50});
+    CHECK(std::chrono::steady_clock::now() - start < test::time_budget(std::chrono::milliseconds{50}));
 }
 
 TEST_CASE("a deep chain is refused even when its tail was expanded before", "[vars]") {

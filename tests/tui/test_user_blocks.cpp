@@ -10,6 +10,7 @@
 #include "pipeline/sig.hpp"
 #include "pipeline/user_blocks.hpp"
 #include "support/paths.hpp"
+#include "support/timing.hpp"
 #include "tui/screens/pipeline_model.hpp"
 
 using namespace signals;
@@ -114,5 +115,5 @@ TEST_CASE("library helpers stay fast on blocks that call each other", "[tui][use
     PipelineModel other;
     REQUIRE(other.load_text("g", kGraph));
     if (!library.empty()) (void)other.add_library_block(library.front(), library);
-    CHECK(std::chrono::steady_clock::now() - started < std::chrono::seconds{2});
+    CHECK(std::chrono::steady_clock::now() - started < test::time_budget(std::chrono::seconds{2}));
 }
