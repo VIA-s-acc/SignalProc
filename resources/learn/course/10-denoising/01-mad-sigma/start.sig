@@ -1,10 +1,10 @@
 pipeline "mad_sigma" v2
 
-node x  = gen(kind={{sig}}, rate=2048, duration=1)
-node n  = add_noise(color=white, snr_db={{snr}}, seed={{seed}})
+node x  = gen(kind="{{sig}}", rate=2048, duration=1)
+node n  = add_noise(color=white, snr_db="{{snr}}", seed="{{seed}}")
 node d  = dwt(wavelet=db4, levels=3)
 node a  = abs()
-node m  = median(kernel=1027)
+node m  = median(length=1027)
 node c  = cut(begin=513, end=514)
 node st = stats()
 

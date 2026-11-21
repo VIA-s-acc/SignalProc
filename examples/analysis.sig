@@ -1,7 +1,7 @@
 pipeline "analysis" v2
 
 node x     = gen(kind=harmonics, freq=220, rate=16000, duration=1)
-node pitch = pitch(fmin=60, fmax=1000)
+node pitch = pitch(min_hz=60, max_hz=1000)
 node mfcc  = mfcc(n_mfcc=13)
 node feat  = spectral_features()
 node peaks = spectrum_peaks(count=6)

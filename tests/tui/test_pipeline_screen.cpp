@@ -369,7 +369,7 @@ TEST_CASE("a pipeline built in the editor writes what the CLI writes", "[tui][pi
     m.add_node("idwt");
     m.add_node("wav_out");
     REQUIRE(m.set_param("wav_out", "path", (dir / "tui.wav").string()));
-    REQUIRE(m.set_param("wav_out", "dither", "none"));
+    REQUIRE(m.set_param("wav_out", "dither", "no"));
     REQUIRE(m.connect(port("wav"), port("dwt")));
     REQUIRE(m.connect(port("dwt"), port("threshold")));
     REQUIRE(m.connect(port("threshold"), port("idwt")));

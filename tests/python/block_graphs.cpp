@@ -77,7 +77,7 @@ std::map<std::string, std::string, std::less<>> path_params(const pipeline::Bloc
 std::map<std::string, std::string, std::less<>> base_params(const pipeline::BlockType& t, const std::filesystem::path& dir) {
     auto params = path_params(t, dir);
     if (t.id == "pitch" || t.id == "mfcc" || t.id == "spectral_features") params["frame"] = "512", params["hop"] = "128";
-    if (t.id == "time_stretch" || t.id == "pitch_shift") params["n_fft"] = "512", params["hop"] = "128";
+    if (t.id == "time_stretch" || t.id == "pitch_shift") params["frame"] = "512", params["hop"] = "128";
     return params;
 }
 

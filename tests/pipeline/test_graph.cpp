@@ -57,7 +57,7 @@ TEST_CASE("graph: default ports connect a chain", "[pipeline][graph]") {
 }
 
 TEST_CASE("graph: a bare wire goes to the only required input", "[pipeline][graph]") {
-    const auto g = build("node a = gen()\nnode m = multiply(factor=2)\nnode o = wav_out(path=\"x.wav\")\na -> m -> o\n");
+    const auto g = build("node a = gen()\nnode m = multiply(scale=2)\nnode o = wav_out(path=\"x.wav\")\na -> m -> o\n");
     const auto& m = node(g, "m");
     REQUIRE(m.sources[0]);
     CHECK_FALSE(m.sources[1]);
@@ -180,7 +180,7 @@ node dwt  = dwt(wavelet=db2, levels=6, ext=symmetric)
 node thr  = threshold(rule=bayes, mode=soft, levels=1..4, sigma=mad_d1)
 node idwt = idwt(wavelet=db2, ext=symmetric)
 node chk  = check(kind=pr, tol=1e-12)
-node out  = wav_out(path="out.wav", bits=24, dither=tpdf)
+node out  = wav_out(path="out.wav", bits=24, dither=yes)
 
 src -> ch
 ch.l -> dwt -> thr -> idwt -> out

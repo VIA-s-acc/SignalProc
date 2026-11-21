@@ -1,5 +1,7 @@
 #include "learn/lint.hpp"
 
+#include "pipeline/migrate.hpp"
+
 #include <fmt/format.h>
 
 #include "core/expr.hpp"
@@ -82,6 +84,16 @@ void lint_answer(const Task& t, int variant, std::vector<LintIssue>& out) {
 
 std::vector<LintIssue> lint_task(const Task& t, std::span<const int> variants) {
     std::vector<LintIssue> out;
+    bool old_format = false;
+    const auto check_format = [&](const std::string& sig) {
+        if (sig.empty()) return;
+        if (const auto loaded = pipeline::load_sig(sig); loaded && loaded->from_version < pipeline::kSigVersion) old_format = true;
+    };
+    check_format(t.start_sig);
+    check_format(t.solution_sig);
+    for (const auto& cheat : t.cheats) check_format(cheat.second);
+    if (old_format) out.push_back({t.id, say("learn.lint.old_format"), true});
+    for (const auto& rename : t.old_names) out.push_back({t.id, say("learn.lint.old_name", fmt::arg("rename", rename)), true});
     for (const auto& id : t.theory)
         if (!theory::find_section(id) && !theory::find_card(id)) out.push_back({t.id, say("learn.lint.no_section", fmt::arg("id", id))});
     for (const auto* text : {&t.ru, &t.en}) {

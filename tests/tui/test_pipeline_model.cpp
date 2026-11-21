@@ -42,7 +42,7 @@ void build_denoise(PipelineModel& m, const std::string& wav_path) {
     REQUIRE(m.set_param("check", "kind", "snr"));
     REQUIRE(m.set_param("check", "tol", "0"));
     REQUIRE(m.add_node("wav_out") == "wav_out");
-    REQUIRE(m.set_param("wav_out", "dither", "none"));
+    REQUIRE(m.set_param("wav_out", "dither", "no"));
     REQUIRE(m.connect(port("wav"), port("dwt")));
     REQUIRE(m.connect(port("dwt"), port("threshold")));
     REQUIRE(m.connect(port("threshold"), port("idwt")));

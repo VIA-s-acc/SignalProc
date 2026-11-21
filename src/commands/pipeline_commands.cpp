@@ -34,6 +34,7 @@
 #include "pipeline/layout.hpp"
 #include "pipeline/docs.hpp"
 #include "pipeline/migrate.hpp"
+#include "pipeline/report_fields.hpp"
 #include "pipeline/sig.hpp"
 #include "theory/cards.hpp"
 #include "theory/pipeline_cards.hpp"
@@ -456,6 +457,11 @@ public:
             return text.empty() ? std::string{"—"} : text;
         };
         out << '\n' << tr("cli.explain.inputs") << ' ' << ports(type->inputs) << '\n' << tr("cli.explain.outputs") << ' ' << ports(type->outputs) << '\n';
+        if (const auto fields = pipeline::report_fields(type->id); !fields.empty()) {
+            std::string list;
+            for (const auto f : fields) list += (list.empty() ? "" : ", ") + std::string{f};
+            out << tr("cli.explain.fields") << ' ' << list << '\n';
+        }
         if (!type->params.empty()) out << tr("cli.explain.params") << '\n';
         for (const auto& p : type->params) {
             std::string head = "  " + p.name + " = " + (p.fallback.empty() ? std::string{"—"} : p.fallback);

@@ -93,7 +93,7 @@ TEST_CASE("pad, concat, fade and trim_silence shape the time axis", "[pipeline][
 
 TEST_CASE("multiply takes a second signal or a constant", "[pipeline][blocks]") {
     const auto a = buffer(8, {{1, 2, 3}, {-1, -2, -3}});
-    CHECK(audio(run("multiply", {a, Value{}}, {{"factor", "2"}})[0]).channels[1] == std::vector<double>{-2, -4, -6});
+    CHECK(audio(run("multiply", {a, Value{}}, {{"scale", "2"}})[0]).channels[1] == std::vector<double>{-2, -4, -6});
     const auto product = audio(run("multiply", {a, buffer(8, {{2, 0.5}})})[0]);
     CHECK(product.channels[0] == std::vector<double>{2, 1, 0});
     CHECK(product.channels[1] == std::vector<double>{-2, -1, 0});
@@ -118,7 +118,7 @@ TEST_CASE("sample-wise blocks follow numpy", "[pipeline][blocks]") {
     CHECK(mono(run("invert", {x})[0]) == std::vector<double>{2, -0.5, -3});
     CHECK(mono(run("abs", {x})[0]) == std::vector<double>{2, 0.5, 3});
     CHECK(mono(run("square", {x})[0]) == std::vector<double>{4, 0.25, 9});
-    CHECK(mono(run("dc_offset", {x}, {{"value", "1"}})[0]) == std::vector<double>{-1, 1.5, 4});
+    CHECK(mono(run("dc_offset", {x}, {{"offset", "1"}})[0]) == std::vector<double>{-1, 1.5, 4});
     const auto in = golden_input();
     CHECK(close(mono(run("cumsum", {in})[0]), vec(golden()["cumsum"])) < 1e-12);
     CHECK(close(mono(run("diff", {in})[0]), vec(golden()["diff"])) < 1e-15);
@@ -195,10 +195,10 @@ TEST_CASE("fir, median, moving_average and emphasis match scipy", "[pipeline][bl
     }
     CHECK_FALSE(attempt("fir", {in}, {{"numtaps", "30"}, {"pass_zero", "no"}}));
     for (const auto& c : golden()["median"])
-        CHECK(close(mono(run("median", {in}, {{"kernel", std::to_string(c["kernel"].get<int>())}})[0]), vec(c["y"])) == 0);
-    CHECK(error_of("median", {in}, {{"kernel", "4"}}).find("4") != std::string::npos);
+        CHECK(close(mono(run("median", {in}, {{"length", std::to_string(c["kernel"].get<int>())}})[0]), vec(c["y"])) == 0);
+    CHECK(error_of("median", {in}, {{"length", "4"}}).find("4") != std::string::npos);
     for (const auto& c : golden()["moving_average"]) {
-        const Params p{{"length", std::to_string(c["length"].get<int>())}, {"centred", c["centred"].get<bool>() ? "yes" : "no"}};
+        const Params p{{"length", std::to_string(c["length"].get<int>())}, {"compensate", c["centred"].get<bool>() ? "yes" : "no"}};
         CHECK(close(mono(run("moving_average", {in}, p)[0]), vec(c["y"])) < 1e-12);
     }
     CHECK(close(mono(run("preemphasis", {in})[0]), vec(golden()["preemphasis"])) < 1e-15);
@@ -281,7 +281,7 @@ TEST_CASE("stats and loudness report measurements", "[pipeline][blocks]") {
     std::vector<double> sine(48000);
     for (std::size_t n = 0; n < sine.size(); ++n) sine[n] = std::sin(2 * std::numbers::pi * 1000 * static_cast<double>(n) / 48000);
     const auto loud = std::get<Report>(run("loudness", {buffer(48000, {sine})})[0]);
-    CHECK(field(loud, "windows") == 7);
+    CHECK(field(loud, "frames") == 7);
     CHECK(std::abs(field(loud, "max_dbfs") + 10 * std::log10(2.0)) < 1e-9);
     CHECK(std::abs(field(loud, "mean_dbfs") + 10 * std::log10(2.0)) < 1e-9);
     CHECK(field(std::get<Report>(run("loudness", {buffer(48000, {std::vector<double>(100, 0.0)})})[0]), "max_dbfs") == -200);

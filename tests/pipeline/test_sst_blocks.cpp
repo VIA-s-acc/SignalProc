@@ -53,8 +53,8 @@ TEST_CASE("sst_band pulls one tone out of each stereo channel", "[pipeline][sst]
     in.sample_rate = kRate;
     in.channels = {std::vector<double>(n), std::vector<double>(n)};
     for (std::size_t k = 0; k < n; ++k) in.channels[0][k] = low0[k] + high0[k], in.channels[1][k] = low1[k] + high1[k];
-    const auto low = run_block("sst_band", {in}, {{"lo", "300"}, {"hi", "600"}});
-    const auto high = run_block("sst_band", {in}, {{"lo", "1200"}, {"hi", "2000"}});
+    const auto low = run_block("sst_band", {in}, {{"min_hz", "300"}, {"max_hz", "600"}});
+    const auto high = run_block("sst_band", {in}, {{"min_hz", "1200"}, {"max_hz", "2000"}});
     REQUIRE(low);
     REQUIRE(high);
     const auto& a = std::get<core::AudioBuffer>(low->front());
@@ -78,7 +78,7 @@ TEST_CASE("sst_ridge tracks a chirp in hertz and reports its amplitude", "[pipel
         const double t = static_cast<double>(k) / kRate;
         in.channels[0][k] = a * std::sin(2 * std::numbers::pi * (f0 * t + (f1 - f0) * t * t / 2));
     }
-    const auto out = run_block("sst_ridge", {in}, {{"lo", "100"}, {"hi", "2000"}});
+    const auto out = run_block("sst_ridge", {in}, {{"min_hz", "100"}, {"max_hz", "2000"}});
     REQUIRE(out);
     REQUIRE(out->size() == 3);
     const auto& report = std::get<Report>((*out)[0]);
@@ -105,16 +105,16 @@ TEST_CASE("sst_band and sst_ridge refuse a bad band, a missing rate and broken s
     in.channels.push_back(sine(512, 500, 1.0));
     for (const std::string id : {"sst_band", "sst_ridge"}) {
         INFO(id);
-        CHECK_FALSE(run_block(id, {in}, {{"lo", "600"}, {"hi", "500"}}));
-        CHECK_FALSE(run_block(id, {in}, {{"lo", "100"}, {"hi", "4500"}}));
+        CHECK_FALSE(run_block(id, {in}, {{"min_hz", "600"}, {"max_hz", "500"}}));
+        CHECK_FALSE(run_block(id, {in}, {{"min_hz", "100"}, {"max_hz", "4500"}}));
         auto silent = in;
         silent.sample_rate = 0;
-        CHECK_FALSE(run_block(id, {silent}, {{"lo", "100"}, {"hi", "1000"}}));
+        CHECK_FALSE(run_block(id, {silent}, {{"min_hz", "100"}, {"max_hz", "1000"}}));
         auto broken = in;
         broken.channels[0][7] = NAN;
-        CHECK_FALSE(run_block(id, {broken}, {{"lo", "100"}, {"hi", "1000"}}));
+        CHECK_FALSE(run_block(id, {broken}, {{"min_hz", "100"}, {"max_hz", "1000"}}));
         auto empty = in;
         empty.channels[0].clear();
-        CHECK_FALSE(run_block(id, {empty}, {{"lo", "100"}, {"hi", "1000"}}));
+        CHECK_FALSE(run_block(id, {empty}, {{"min_hz", "100"}, {"max_hz", "1000"}}));
     }
 }

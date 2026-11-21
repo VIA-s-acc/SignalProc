@@ -8,6 +8,7 @@
 #include <fmt/format.h>
 
 #include "i18n/i18n.hpp"
+#include "pipeline/renames.hpp"
 
 namespace signals::pipeline {
 namespace {
@@ -517,6 +518,8 @@ core::Result<void> apply_set(PipelineDoc& doc, std::string_view assignment) {
         std::vector<std::string> names;
         for (const auto& spec : type->params) names.push_back(spec.name);
         if (std::find(names.begin(), names.end(), param) == names.end()) {
+            if (auto now = renamed(v1_renames(), Rename::Kind::param, type->id, param))
+                return std::unexpected{set_error(fmt::format(fmt::runtime(tr("pipeline.set.renamed")), fmt::arg("block", type->id), fmt::arg("old", param), fmt::arg("new", *now)))};
             const auto hint = nearest_name(param, names);
             return std::unexpected{set_error(
                 hint ? fmt::format(fmt::runtime(tr("pipeline.error.unknown_param_hint")), fmt::arg("block", type->id), fmt::arg("param", param), fmt::arg("hint", *hint))

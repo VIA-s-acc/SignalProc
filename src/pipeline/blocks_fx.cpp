@@ -252,12 +252,12 @@ void register_fx_blocks(std::vector<BlockType>& out) {
     out.push_back(checked({"impulse_train",
                            {},
                            kOut,
-                           {{"period", Kind::samples, "100"}, {"offset", Kind::samples, "0"}, kAmplitude, kRate, kDuration},
+                           {{"period", Kind::samples, "100"}, {"begin", Kind::samples, "0"}, kAmplitude, kRate, kDuration},
                            [](const RunContext&, std::span<const Value>, const Params& p) -> Out {
                                const auto n = source_length(p);
                                if (!n) return std::unexpected{n.error()};
                                const auto fs = static_cast<double>(param_int(p, "rate"));
-                               const auto period = param_samples(p, "period", fs), offset = param_samples(p, "offset", fs);
+                               const auto period = param_samples(p, "period", fs), offset = param_samples(p, "begin", fs);
                                if (!period) return std::unexpected{period.error()};
                                if (!offset) return std::unexpected{offset.error()};
                                if (*period == 0) return fail(tr("pipeline.error.zero_samples"), fmt::arg("block", "impulse_train"), fmt::arg("param", "period"));

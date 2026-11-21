@@ -221,4 +221,6 @@ For every task and variants 1…N the command checks that:
 - `ru.md` and `en.md` have the same number of hints;
 - every book section and every placeholder resolves.
 
+Warnings do not fail the check: task graphs in an old `.sig` format and old names of blocks, parameters and fields in `task.toml` (section «What changed in v2» of the format appendix). Such a course works: the old names are replaced in memory when it loads. `signals migrate --write course-folder` rewrites both the graphs and `task.toml` — only the names change, comments and the rest of the text stay; a copy `task.v1.toml` is kept next to it.
+
 The built-in course passes the same check in the program's tests.

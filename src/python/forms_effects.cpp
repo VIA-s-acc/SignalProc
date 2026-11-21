@@ -72,7 +72,7 @@ core::Result<std::string> gausspulse(const NodeIo& io, Emitter& em) {
 
 core::Result<std::string> impulse_train(const NodeIo& io, Emitter& em) {
     const auto fs = rate_param(io);
-    const auto period = pipeline::param_samples(io.node.params, "period", fs), offset = pipeline::param_samples(io.node.params, "offset", fs);
+    const auto period = pipeline::param_samples(io.node.params, "period", fs), offset = pipeline::param_samples(io.node.params, "begin", fs);
     if (!period || !offset || *period == 0) return std::unexpected{unsupported(io, "period")};
     return fmt::format("{0} = np.zeros((1, {1}))\n{0}[0, {2}::{3}] = 1.0\n{0} = {0} * {4}", io.out[0], source_length(io), *offset, *period, real(em, io, "amplitude"));
 }
@@ -138,19 +138,19 @@ core::Result<std::string> mix(const NodeIo& io, Emitter& em) {
 
 core::Result<std::string> time_stretch(const NodeIo& io, Emitter& em) {
     em.function("time_stretch");
-    return fmt::format("{} = time_stretch({}, {}, {}, {}, {})", io.out[0], io.in[0], em.number(param_real(io.node.params, "rate")), py_str(param_text(io.node.params, "method")),
-                       param_int(io.node.params, "n_fft"), param_int(io.node.params, "hop"));
+    return fmt::format("{} = time_stretch({}, {}, {}, {}, {})", io.out[0], io.in[0], em.number(param_real(io.node.params, "factor")), py_str(param_text(io.node.params, "method")),
+                       param_int(io.node.params, "frame"), param_int(io.node.params, "hop"));
 }
 
 core::Result<std::string> pitch_shift(const NodeIo& io, Emitter& em) {
     em.function("pitch_shift");
     return fmt::format("{} = pitch_shift({}, {}, {}, {}, {})", io.out[0], io.in[0], em.number(param_real(io.node.params, "semitones")),
-                       py_str(param_text(io.node.params, "method")), param_int(io.node.params, "n_fft"), param_int(io.node.params, "hop"));
+                       py_str(param_text(io.node.params, "method")), param_int(io.node.params, "frame"), param_int(io.node.params, "hop"));
 }
 
 core::Result<std::string> speed(const NodeIo& io, Emitter& em) {
     em.function("speed");
-    return fmt::format("{} = speed({}, {})", io.out[0], io.in[0], em.number(param_real(io.node.params, "rate")));
+    return fmt::format("{} = speed({}, {})", io.out[0], io.in[0], em.number(param_real(io.node.params, "factor")));
 }
 
 }  // namespace

@@ -134,7 +134,7 @@ TEST_CASE("gausspulse and impulse_train sources match scipy and numpy", "[pipeli
         CHECK(close(mono(run("gausspulse", {}, p)[0]), vec(c["y"])) < 1e-12);
     }
     CHECK(mono(run("gausspulse", {}, {{"duration", "0"}})[0]).empty());
-    const auto train = mono(run("impulse_train", {}, {{"period", "33"}, {"offset", "7"}, {"amplitude", "0.5"}, {"rate", "8000"}, {"duration", "0.05"}})[0]);
+    const auto train = mono(run("impulse_train", {}, {{"period", "33"}, {"begin", "7"}, {"amplitude", "0.5"}, {"rate", "8000"}, {"duration", "0.05"}})[0]);
     CHECK(train == vec(golden()["impulse_train"]));
     const auto timed = mono(run("impulse_train", {}, {{"period", "0.001s"}, {"rate", "4000"}, {"duration", "0.003"}})[0]);
     CHECK(timed == std::vector<double>{1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0});

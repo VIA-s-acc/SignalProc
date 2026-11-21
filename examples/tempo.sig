@@ -1,10 +1,10 @@
 pipeline "tempo" v2
 
 # пила 220 Гц тремя способами: растяжение не меняет тон, сдвиг высоты не меняет длину, скорость меняет и то и другое
-node x      = osc(kind=sawtooth, freq=220, duration=2, rate=22050)
-node slow   = time_stretch(rate=0.5, method=locked)
+node x      = osc(kind=sawtooth, freq=220, rate=22050, duration=2)
+node slow   = time_stretch(factor=0.5, method=locked)
 node up     = pitch_shift(semitones=12)
-node rec    = speed(rate=2)
+node rec    = speed(factor=2)
 node f_x    = pitch()
 node f_slow = pitch()
 node f_up   = pitch()

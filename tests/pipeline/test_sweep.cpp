@@ -123,3 +123,13 @@ g -> w
     CHECK(std::filesystem::exists(dir / "out.csv"));
 }
 
+
+TEST_CASE("a sweep names the new name of a renamed report field", "[pipeline][sweep]") {
+    const auto doc = doc_of("pipeline \"l\" v2\nnode x = gen(kind=sine, rate=8000, duration=0.1)\nnode ld = loudness()\nx -> ld\n");
+    auto axis = parse_vary("x.duration=0.1,0.2");
+    REQUIRE(axis);
+    core::CancelToken cancel;
+    const auto r = run_sweep(doc, ".", *axis, {*parse_measure("ld.windows")}, cancel, {});
+    REQUIRE_FALSE(r);
+    CHECK(r.error().message.find("frames") != std::string::npos);
+}

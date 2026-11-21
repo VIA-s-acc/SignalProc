@@ -2,9 +2,9 @@ pipeline "tempo_wav" v2
 
 # свой WAV: медленнее без смены тона, выше без смены темпа, быстрее как пластинка
 node x    = wav(path="../resources/samples/test.wav")
-node slow = time_stretch(rate=0.75, method=locked)
+node slow = time_stretch(factor=0.75, method=locked)
 node up   = pitch_shift(semitones=3)
-node rec  = speed(rate=1.25)
+node rec  = speed(factor=1.25)
 
 x -> slow
 x -> up

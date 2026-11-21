@@ -113,7 +113,7 @@ TEST_CASE("wav_out without dither writes what io::write_wav writes", "[pipeline]
     const auto x = test_wav();
     const auto dir = std::filesystem::temp_directory_path() / "signals-pipeline-wav-out";
     std::filesystem::create_directories(dir);
-    run("wav_out", {x}, {{"path", (dir / "a.wav").string()}, {"bits", "24"}, {"dither", "none"}});
+    run("wav_out", {x}, {{"path", (dir / "a.wav").string()}, {"bits", "24"}, {"dither", "no"}});
     io::WavWriteOptions o;
     o.format = io::SampleFormat::pcm_s24;
     o.dither = false;
@@ -559,7 +559,7 @@ TEST_CASE("m8a: the lms block cancels a correlated interference", "[pipeline][ad
     x.channels.push_back(s["x"].get<std::vector<double>>());
     d.channels.push_back(s["d"].get<std::vector<double>>());
     const auto& nlms = s["runs"][1];
-    const auto out = run("lms", {x, d}, {{"taps", "6"}, {"mu", "0.5"}, {"rule", "nlms"}});
+    const auto out = run("lms", {x, d}, {{"numtaps", "6"}, {"mu", "0.5"}, {"rule", "nlms"}});
     REQUIRE(out.size() == 2);
     CHECK(core::max_abs_error(audio(out[0]).channels[0], nlms["e"].get<std::vector<double>>()) < 1e-10);
     CHECK(core::max_abs_error(audio(out[1]).channels[0], nlms["y"].get<std::vector<double>>()) < 1e-10);
@@ -581,11 +581,11 @@ TEST_CASE("m8a: the wiener, spectral_subtract and deconvolve blocks match the co
     };
     const auto x = mono(g["x"].get<std::vector<double>>());
     const auto noise = mono(g["noise"].get<std::vector<double>>());
-    const auto w = run("wiener", {x}, {{"size", "11"}});
+    const auto w = run("wiener", {x}, {{"length", "11"}});
     CHECK(core::max_abs_error(audio(w[0]).channels[0], g["wiener"][1]["out"].get<std::vector<double>>()) < 1e-12);
-    const auto s = run("spectral_subtract", {x, noise}, {{"n", "64"}, {"alpha", "2"}, {"beta", "0.01"}});
+    const auto s = run("spectral_subtract", {x, noise}, {{"frame", "64"}, {"alpha", "2"}, {"beta", "0.01"}});
     CHECK(core::max_abs_error(audio(s[0]).channels[0], g["subtract"][0]["out"].get<std::vector<double>>()) < 1e-12);
-    const auto lead = run("spectral_subtract", {x, core::AudioBuffer{}}, {{"n", "64"}, {"noise_s", "0.02"}});
+    const auto lead = run("spectral_subtract", {x, core::AudioBuffer{}}, {{"frame", "64"}, {"noise_s", "0.02"}});
     core::SpectralSubtraction o;
     o.n = 64;
     o.hop = 16;
@@ -597,7 +597,7 @@ TEST_CASE("m8a: the wiener, spectral_subtract and deconvolve blocks match the co
     CHECK(core::max_abs_error(audio(d[0]).channels[0], g["deconvolve"][1]["out"].get<std::vector<double>>()) < 1e-12);
     const auto* sub = find_block_type("spectral_subtract");
     const std::vector<Value> too_short{x, core::AudioBuffer{}};
-    const auto r = sub->run(RunContext{}, too_short, *resolve_params(*sub, {{"n", "4096"}}));
+    const auto r = sub->run(RunContext{}, too_short, *resolve_params(*sub, {{"frame", "4096"}}));
     REQUIRE_FALSE(r);
 }
 

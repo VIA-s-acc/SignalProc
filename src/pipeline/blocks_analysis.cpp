@@ -45,8 +45,8 @@ std::optional<core::Error> pair_checks(std::string_view block, const core::Audio
     return std::nullopt;
 }
 
-const std::vector<ParamSpec> kSstParams{{"lo", Kind::real, "100", {}, 1, 400000},
-                                        {"hi", Kind::real, "4000", {}, 1, 400000},
+const std::vector<ParamSpec> kSstParams{{"min_hz", Kind::real, "100", {}, 1, 400000},
+                                        {"max_hz", Kind::real, "4000", {}, 1, 400000},
                                         {"voices", Kind::integer, "32", {}, 4, 64},
                                         {"mu", Kind::real, "6", {}, 3, 20}};
 
@@ -60,7 +60,7 @@ core::Result<SstBand> sst_band_of(std::string_view block, const core::AudioBuffe
     if (auto e = finite_input(block, a)) return std::unexpected{*e};
     if (std::ranges::any_of(a.channels, [](const Samples& c) { return c.empty(); }))
         return fail(tr("pipeline.error.sst_empty"), fmt::arg("block", block));
-    const double lo = param_real(p, "lo"), hi = param_real(p, "hi"), nyquist = a.sample_rate / 2;
+    const double lo = param_real(p, "min_hz"), hi = param_real(p, "max_hz"), nyquist = a.sample_rate / 2;
     if (!(lo < hi) || hi > nyquist)
         return fail(tr("pipeline.error.sst_band"), fmt::arg("block", block), fmt::arg("lo", lo), fmt::arg("hi", hi), fmt::arg("nyquist", nyquist));
     const double l = lo / a.sample_rate, h = hi / a.sample_rate;
@@ -209,8 +209,8 @@ void register_analysis_blocks(std::vector<BlockType>& out) {
     out.push_back(checked({"pitch",
                            kIn,
                            {{"report", PortType::report}, {"f0", PortType::signal}},
-                           {{"fmin", Kind::real, "60", {}, 1, 20000},
-                            {"fmax", Kind::real, "1000", {}, 1, 100000},
+                           {{"min_hz", Kind::real, "60", {}, 1, 20000},
+                            {"max_hz", Kind::real, "1000", {}, 1, 100000},
                             {"frame", Kind::integer, "2048", {}, 32, 65536},
                             {"hop", Kind::integer, "512", {}, 1, 65536},
                             {"threshold", Kind::real, "0.1", {}, 0.001, 1}},
@@ -218,14 +218,14 @@ void register_analysis_blocks(std::vector<BlockType>& out) {
                                const auto& a = audio(in);
                                if (auto e = needs_rate("pitch", a)) return std::unexpected{*e};
                                if (auto e = finite_input("pitch", a)) return std::unexpected{*e};
-                               const double fmin = param_real(p, "fmin"), fmax = param_real(p, "fmax");
-                               if (!(fmin < fmax)) return fail(tr("pipeline.error.pitch_range"), fmt::arg("fmin", fmin), fmt::arg("fmax", fmax));
+                               const double fmin = param_real(p, "min_hz"), fmax = param_real(p, "max_hz");
+                               if (!(fmin < fmax)) return fail(tr("pipeline.error.pitch_range"), fmt::arg("min_hz", fmin), fmt::arg("max_hz", fmax));
                                const core::YinOptions o{static_cast<std::size_t>(param_int(p, "frame")), static_cast<std::size_t>(param_int(p, "hop")), fmin, fmax,
                                                         param_real(p, "threshold")};
                                if (!(a.sample_rate / fmin <= kMaxSamples)) return fail(tr("pipeline.error.rate_too_high"), fmt::arg("block", "pitch"), fmt::arg("rate", a.sample_rate));
                                const auto tau_max = static_cast<std::size_t>(std::ceil(a.sample_rate / fmin));
                                if (tau_max > o.frame - o.frame / 2)
-                                   return fail(tr("pipeline.error.pitch_frame"), fmt::arg("frame", o.frame), fmt::arg("fmin", fmin), fmt::arg("rate", a.sample_rate),
+                                   return fail(tr("pipeline.error.pitch_frame"), fmt::arg("frame", o.frame), fmt::arg("min_hz", fmin), fmt::arg("rate", a.sample_rate),
                                                fmt::arg("min", 2 * tau_max));
                                Report r;
                                core::AudioBuffer track;

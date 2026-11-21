@@ -70,6 +70,7 @@ struct Task {
     std::string start_sig = {}, solution_sig = {};
     std::vector<std::pair<std::string, std::string>> cheats = {};
     TaskText ru = {}, en = {};
+    std::vector<std::string> old_names = {};
     const TaskText& text() const;
 };
 

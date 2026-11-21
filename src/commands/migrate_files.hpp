@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "pipeline/renames.hpp"
+
 namespace signals::cli {
 
 struct FileReport {
@@ -17,6 +19,7 @@ struct FileReport {
 };
 
 bool is_migration_backup(const std::filesystem::path& file);
-std::vector<FileReport> migrate_paths(std::span<const std::filesystem::path> paths, bool write, bool backup);
+std::vector<FileReport> migrate_paths(std::span<const std::filesystem::path> paths, bool write, bool backup,
+                                      std::span<const pipeline::Rename> renames = pipeline::v1_renames());
 
 }  // namespace signals::cli

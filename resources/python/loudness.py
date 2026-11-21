@@ -15,4 +15,4 @@ def loudness(x, window, hop):
         start += hop
         count += 1
     db = lambda p: max(-200.0, 10 * math.log10(p)) if p > 0 else -200.0
-    return {"windows": float(count), "max_dbfs": db(loudest), "mean_dbfs": db(total / count if count else 0.0)}
+    return {"frames": float(count), "max_dbfs": db(loudest), "mean_dbfs": db(total / count if count else 0.0)}

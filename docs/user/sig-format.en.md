@@ -135,12 +135,43 @@ The number in the header is the version of the format, not of the program. The c
   - `--write` — rewrite old files. A copy `name.v1.sig` is kept next to each; `--no-backup` skips it.
   - `--check` — exit code 1 if any file is in an old format: CI uses it to check that a repository is migrated.
   
-  A file that does not parse is reported with its line, and the other files are still migrated. The command skips `*.v1.sig` copies, and an own course does not count them as tasks.
-- **What the `v1` → `v2` migration changes.** In `v2` the `$` sign starts a variable, so a literal `$` in a parameter value is written as `$$`. The migration does it: `path="a$b.wav"` becomes `path="a$$b.wav"`, and the program still reads the file `a$b.wav`.
+  In a course folder the command also migrates `task.toml`: the names of blocks, parameters and fields (the copy is `task.v1.toml`). A file that does not parse is reported with its line, and the other files are still migrated. The command skips `*.v1.sig` and `*.v1.toml` copies, and an own course does not count them as tasks.
+- **What the `v1` → `v2` migration changes.** In `v2` the `$` sign starts a variable, so a literal `$` in a parameter value is written as `$$`. The migration does it: `path="a$b.wav"` becomes `path="a$$b.wav"`, and the program still reads the file `a$b.wav`. The migration also replaces old names of parameters, choices and report fields with the new ones — they are listed in section «What changed in v2».
 - **Encoding and line endings.** A file with a UTF-8 byte order mark (BOM) and with Windows line endings (CRLF) reads like any other. The program writes UTF-8 without a BOM and LF line endings.
 - **A file newer than the program.** This program does not open a `v3` file and asks you to update Signals.
 
 The rule for the future: every change of the format is a new version and a migration step. Old versions are always read, and samples of each are kept in the tests (`tests/fixtures/sig/v1`): the migration must give the same text and the same numbers.
+
+### What changed in v2 {#sig-v2-changes}
+
+Before the format is frozen, the names of blocks, parameters, choices, ports and report fields were checked against one rule: one meaning, one name in every block. Only names that called the same thing differently or misled were changed. `v1` files with the old names migrate by themselves: in nodes, in `assert(expr=…)`, in course `task.toml`; `--set` and `--measure` with an old name give the new one.
+
+| Block | Was | Now | Why |
+|---|---|---|---|
+| `speed` | `rate` | `factor` | `rate` is the sample rate everywhere else; here it says how many times faster |
+| `time_stretch` | `rate` | `factor` | `rate` is the sample rate everywhere else; here it says how many times faster |
+| `lms` | `taps` | `numtaps` | the number of taps is `numtaps` everywhere; `taps` of `fir_taps` are the taps themselves |
+| `pitch` | `fmin` | `min_hz` | frequency bounds in hertz are `min_hz` and `max_hz` everywhere |
+| `pitch` | `fmax` | `max_hz` | frequency bounds in hertz are `min_hz` and `max_hz` everywhere |
+| `sst_band` | `lo` | `min_hz` | frequency bounds in hertz are `min_hz` and `max_hz` everywhere |
+| `sst_band` | `hi` | `max_hz` | frequency bounds in hertz are `min_hz` and `max_hz` everywhere |
+| `sst_ridge` | `lo` | `min_hz` | frequency bounds in hertz are `min_hz` and `max_hz` everywhere |
+| `sst_ridge` | `hi` | `max_hz` | frequency bounds in hertz are `min_hz` and `max_hz` everywhere |
+| `loudness` | `window` | `frame` | the analysis frame length with a `hop` is `frame` everywhere |
+| `spectral_subtract` | `n` | `frame` | the analysis frame length with a `hop` is `frame` everywhere |
+| `onsets` | `n` | `frame` | the analysis frame length with a `hop` is `frame` everywhere |
+| `time_stretch` | `n_fft` | `frame` | the analysis frame length with a `hop` is `frame` everywhere |
+| `pitch_shift` | `n_fft` | `frame` | the analysis frame length with a `hop` is `frame` everywhere |
+| `savgol` | `window` | `length` | the smoothing window length is `length` everywhere; `window` of `fir` is the window shape |
+| `median` | `kernel` | `length` | the smoothing window length is `length` everywhere; `window` of `fir` is the window shape |
+| `wiener` | `size` | `length` | the smoothing window length is `length` everywhere; `window` of `fir` is the window shape |
+| `moving_average` | `centred` | `compensate` | removing the filter delay is `compensate` everywhere |
+| `multiply` | `factor` | `scale` | the constant factor of `affine` is `scale` |
+| `dc_offset` | `value` | `offset` | the added constant of `affine` is `offset` |
+| `impulse_train` | `offset` | `begin` | a start position is `begin` everywhere; `offset` is an added constant |
+| `wav_out` | `dither=tpdf` | `dither=yes` | `quantize` has the same choice as `yes` or `no` |
+| `wav_out` | `dither=none` | `dither=no` | `quantize` has the same choice as `yes` or `no` |
+| `loudness` | field `windows` | field `frames` | the number of analysis frames is `frames` everywhere; `assert` and `--measure` migrate with the graph |
 
 ### Where to look up blocks {#sig-blocks}
 

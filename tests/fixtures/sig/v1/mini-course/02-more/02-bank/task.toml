@@ -1,0 +1,30 @@
+kind = "graph"
+theory = ["haar-walkthrough"]
+locked = ["x"]
+
+[[param]]
+name = "x"
+kind = "ints"
+count = 8
+min = -9
+max = 9
+
+[input]
+node = "x"
+hidden = 3
+
+[[measure]]
+name = "err"
+kind = "max_error"
+a = "sum"
+b = "x"
+delay = "auto"
+
+[[goal]]
+when = "err <= 1e-12"
+
+[[goal]]
+through = { from = "x", to = "sum", block = "downsample" }
+
+[[goal]]
+forbid = ["dwt", "idwt"]

@@ -55,9 +55,9 @@ void register_level_blocks(std::vector<BlockType>& out) {
     out.push_back(checked({"multiply",
                            {{"a", PortType::signal}, {"b", PortType::signal, true}},
                            kOut,
-                           {{"factor", Kind::real, "1", {}, -1e6, 1e6}},
+                           {{"scale", Kind::real, "1", {}, -1e6, 1e6}},
                            [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {
-                               const double factor = param_real(p, "factor");
+                               const double factor = param_real(p, "scale");
                                const auto& b = audio(in, 1);
                                if (b.channels.empty()) return each_sample(in, [factor](double x) { return factor * x; });
                                return pairwise("multiply", audio(in, 0), b, [factor](const Samples& x, const Samples& y) -> core::Result<Samples> {
@@ -127,8 +127,8 @@ void register_level_blocks(std::vector<BlockType>& out) {
                                const double drive = param_real(p, "drive");
                                return each_sample(in, [drive](double x) { return std::tanh(drive * x); });
                            }}));
-    out.push_back(checked({"dc_offset", kIn, kOut, {{"value", Kind::real, "0", {}, -1e6, 1e6}}, [](const RunContext&, std::span<const Value> in, const Params& p) {
-                               const double value = param_real(p, "value");
+    out.push_back(checked({"dc_offset", kIn, kOut, {{"offset", Kind::real, "0", {}, -1e6, 1e6}}, [](const RunContext&, std::span<const Value> in, const Params& p) {
+                               const double value = param_real(p, "offset");
                                return each_sample(in, [value](double x) { return x + value; });
                            }}));
     out.push_back(checked({"trim_silence", kIn, kOut, {{"threshold_db", Kind::real, "-60", {}, -200, 0}}, [](const RunContext&, std::span<const Value> in, const Params& p) -> Out {

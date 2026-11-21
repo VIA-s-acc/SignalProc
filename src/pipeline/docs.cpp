@@ -1,5 +1,7 @@
 #include "pipeline/docs.hpp"
 
+#include "pipeline/report_fields.hpp"
+
 #include <cmath>
 
 #include <fmt/format.h>
@@ -73,6 +75,15 @@ std::string blocks_markdown() {
             for (const auto& v : p.choices) out += "  - `" + v + "` — " + tr_opt("pipeline.param." + b.id + "." + p.name + "." + v).value_or("—") + "\n";
         }
     }
+    out += "\n## " + tr("docs.blocks.fields_title") + "\n\n" + tr("docs.blocks.fields_legend") + "\n";
+    for (const auto& b : block_types()) {
+        const auto fields = report_fields(b.id);
+        if (fields.empty()) continue;
+        out += "\n### `" + b.id + "` — " + block_title(b) + "\n\n";
+        std::string list;
+        for (const auto f : fields) list += (list.empty() ? "" : ", ") + ("`" + std::string{f} + "`");
+        out += list + "\n";
+    }
     return out;
 }
 
@@ -97,6 +108,7 @@ std::string blocks_json(const std::function<std::string(const BlockType&)>& pyth
         }
         nlohmann::json block{{"id", b.id}, {"title", block_title(b)}, {"about", tr_opt("pipeline.about." + b.id).value_or("")}, {"inputs", ports_json(b.inputs)},
                              {"outputs", ports_json(b.outputs)}, {"params", std::move(params_json)}};
+        if (const auto fields = report_fields(b.id); !fields.empty()) block["fields"] = std::vector<std::string>(fields.begin(), fields.end());
         if (python) block["python"] = python(b);
         out.push_back(std::move(block));
     }

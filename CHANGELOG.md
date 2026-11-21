@@ -6,6 +6,12 @@
 
 - Формат `.sig` v2 и перевод старых файлов (M12). Заголовок `pipeline "имя" v2`; файлы `v1` открываются везде — в «Конвейере», `run`, `watch`, `sweep`, `graph`, `python`, заданиях курса и работах учеников — и переводятся в памяти, файл на диске не меняется. «Конвейер» сообщает о переводе и показывает список изменений, `Ctrl+S` сохраняет в `v2`; CLI пишет строку в stderr, в JSON и NDJSON — поля `migrated_from` и `migration_notes`. Новая команда `signals migrate ПУТЬ…` показывает изменения, `--write` переписывает файлы с копией `имя.v1.sig`, `--check` проверяет репозиторий в CI. Файл новее программы отклоняется с просьбой обновить Signals. Все графы репозитория — в `v2`.
 
+### Changed
+
+- Имена сверены перед заморозкой формата (M12): одно значение — одно имя во всех блоках. `speed` и `time_stretch`: `rate` → `factor`; `lms`: `taps` → `numtaps`; `pitch`, `sst_band`, `sst_ridge`: границы частот → `min_hz`/`max_hz`; длина кадра анализа → `frame` (`loudness`, `spectral_subtract`, `onsets`, `time_stretch`, `pitch_shift`); длина окна сглаживания → `length` (`savgol`, `median`, `wiener`); `moving_average.centred` → `compensate`; `multiply.factor` → `scale`; `dc_offset.value` → `offset`; `impulse_train.offset` → `begin`; `wav_out.dither` — `yes`/`no`; поле отчёта `loudness.windows` → `frames`. Старые файлы, `assert` и `task.toml` курсов переводятся сами, `--set` и `--measure` со старым именем называют новое; полный список — в разделе «Что изменилось в v2» приложения о формате.
+- Справочник блоков, `blocks --json` и `signals explain` перечисляют поля отчёта каждого блока.
+- `signals learn lint` предупреждает о графах в старом формате и о старых именах в `task.toml`, но не проваливает проверку; `signals migrate` переводит и `task.toml` в папке курса.
+
 ### Fixed
 
 - `.sig` с меткой UTF-8 в начале (BOM) больше не даёт ошибку «непонятное начало строки».

@@ -221,7 +221,7 @@ core::Result<std::string> concat(const NodeIo& io, Emitter& em) {
 }
 
 core::Result<std::string> multiply(const NodeIo& io, Emitter& em) {
-    const auto factor = em.number(param_real(io.node.params, "factor"));
+    const auto factor = em.number(param_real(io.node.params, "scale"));
     if (io.in.size() < 2 || io.in[1].empty()) return fmt::format("{} = {} * {}", io.out[0], factor, io.in[0]);
     em.function("pairwise");
     em.function("padded");
@@ -255,7 +255,7 @@ core::Result<std::string> softclip(const NodeIo& io, Emitter& em) {
 }
 
 core::Result<std::string> dc_offset(const NodeIo& io, Emitter& em) {
-    return fmt::format("{} = {} + {}", io.out[0], io.in[0], em.number(param_real(io.node.params, "value")));
+    return fmt::format("{} = {} + {}", io.out[0], io.in[0], em.number(param_real(io.node.params, "offset")));
 }
 
 core::Result<std::string> trim_silence(const NodeIo& io, Emitter& em) {
@@ -373,7 +373,7 @@ core::Result<std::string> gain(const NodeIo& io, Emitter& em) {
 core::Result<std::string> wav_out(const NodeIo& io, Emitter& em) {
     const auto& p = io.node.params;
     const auto& bits = param_text(p, "bits");
-    const bool dither = param_text(p, "dither") == "tpdf" && bits != "f32";
+    const bool dither = param_text(p, "dither") == "yes" && bits != "f32";
     std::string dither_expr = "None";
     if (dither) {
         std::size_t count = 0;

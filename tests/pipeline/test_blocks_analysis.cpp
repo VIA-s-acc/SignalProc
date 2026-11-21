@@ -107,7 +107,7 @@ TEST_CASE("fir_taps convolves like numpy and compensates the delay", "[pipeline]
 
 TEST_CASE("savgol matches scipy savgol_filter in every edge mode", "[pipeline][blocks][analysis]") {
     for (const auto& c : golden()["savgol"]) {
-        const Params p{{"window", std::to_string(c["window"].get<int>())}, {"polyorder", std::to_string(c["polyorder"].get<int>())},
+        const Params p{{"length", std::to_string(c["window"].get<int>())}, {"polyorder", std::to_string(c["polyorder"].get<int>())},
                        {"deriv", std::to_string(c["deriv"].get<int>())}, {"mode", c["mode"].get<std::string>()}};
         INFO(c["window"].get<int>() << " " << c["polyorder"].get<int>() << " " << c["deriv"].get<int>() << " " << c["mode"].get<std::string>());
         const auto y = mono(run("savgol", {input()}, p)[0]);
@@ -118,14 +118,14 @@ TEST_CASE("savgol matches scipy savgol_filter in every edge mode", "[pipeline][b
     }
     for (const auto& c : golden()["savgol_short"]) {
         INFO(c["mode"].get<std::string>());
-        CHECK(close(mono(run("savgol", {buffer(rate(), {vec(c["x"])})}, {{"window", "11"}, {"polyorder", "2"}, {"mode", c["mode"].get<std::string>()}})[0]),
+        CHECK(close(mono(run("savgol", {buffer(rate(), {vec(c["x"])})}, {{"length", "11"}, {"polyorder", "2"}, {"mode", c["mode"].get<std::string>()}})[0]),
                     vec(c["y"])) < 1e-12);
     }
-    CHECK(error_of("savgol", {input()}, {{"window", "10"}}).find("10") != std::string::npos);
-    CHECK(error_of("savgol", {input()}, {{"window", "5"}, {"polyorder", "5"}}).find("5") != std::string::npos);
+    CHECK(error_of("savgol", {input()}, {{"length", "10"}}).find("10") != std::string::npos);
+    CHECK(error_of("savgol", {input()}, {{"length", "5"}, {"polyorder", "5"}}).find("5") != std::string::npos);
     CHECK(error_of("savgol", {input()}, {{"polyorder", "2"}, {"deriv", "3"}}).find("3") != std::string::npos);
     CHECK(error_of("savgol", {buffer(rate(), {{1, 2, 3}})}).find("11") != std::string::npos);
-    CHECK_FALSE(attempt("savgol", {buffer(0, {{1, 2, 3, 4, 5}})}, {{"window", "5"}, {"deriv", "1"}}));
+    CHECK_FALSE(attempt("savgol", {buffer(0, {{1, 2, 3, 4, 5}})}, {{"length", "5"}, {"deriv", "1"}}));
     std::vector<double> ramp(50);
     for (std::size_t i = 0; i < ramp.size(); ++i) ramp[i] = 0.5 * static_cast<double>(i) / 1000;
     const auto slope = run("savgol", {buffer(1000, {ramp})}, {{"deriv", "1"}});
@@ -168,7 +168,7 @@ TEST_CASE("remez and firls design in Hz and filter like scipy", "[pipeline][bloc
 
 TEST_CASE("pitch follows a straightforward YIN and reports voiced frames", "[pipeline][blocks][analysis]") {
     const auto& g = golden()["pitch"];
-    const Params p{{"fmin", "80"}, {"fmax", "600"}, {"frame", "512"}, {"hop", "128"}, {"threshold", "0.15"}};
+    const Params p{{"min_hz", "80"}, {"max_hz", "600"}, {"frame", "512"}, {"hop", "128"}, {"threshold", "0.15"}};
     const auto out = run("pitch", {input("tone")}, p);
     const auto& track = audio(out[1]);
     CHECK(track.sample_rate == rate() / 128);
@@ -178,8 +178,8 @@ TEST_CASE("pitch follows a straightforward YIN and reports voiced frames", "[pip
     CHECK(near(field(report(out[0]), "f0_median_hz"), g["f0_median_hz"].get<double>(), 1e-10));
     CHECK(field(report(out[0]), "voiced_fraction") == g["voiced_fraction"].get<double>());
     CHECK(field(report(out[0]), "frames") == g["frames"].get<double>());
-    CHECK(error_of("pitch", {input("tone")}, {{"fmin", "10"}, {"frame", "512"}}).find("1600") != std::string::npos);
-    CHECK_FALSE(attempt("pitch", {input("tone")}, {{"fmin", "500"}, {"fmax", "400"}}));
+    CHECK(error_of("pitch", {input("tone")}, {{"min_hz", "10"}, {"frame", "512"}}).find("1600") != std::string::npos);
+    CHECK_FALSE(attempt("pitch", {input("tone")}, {{"min_hz", "500"}, {"max_hz", "400"}}));
     const auto silent = run("pitch", {buffer(8000, {std::vector<double>(4096, 0.0)})});
     CHECK(field(report(silent[0]), "voiced_fraction") == 0);
     CHECK(field(report(silent[0]), "f0_median_hz") == 0);
