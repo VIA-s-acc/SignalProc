@@ -4,6 +4,7 @@
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <set>
 #include <string>
 #include <variant>
 #include <vector>
@@ -137,17 +138,21 @@ core::Result<void> write_run_report(const std::filesystem::path& report, const p
     }
     md += "\n";
     if (!result.probes.empty()) md += "## " + tr("pipeline.report.probes") + "\n\n";
+    std::set<std::string, std::less<>> stems;
     for (const auto& [name, value] : result.probes) {
         md += "### " + name + "\n\n";
+        auto stem = slug(name);
+        for (int k = 2; stems.contains(stem); ++k) stem = slug(name) + "-" + std::to_string(k);
+        stems.insert(stem);
         if (const auto* a = std::get_if<core::AudioBuffer>(&value)) {
             md += fmt::format(fmt::runtime(tr("pipeline.report.signal")), fmt::arg("channels", a->channels.size()), fmt::arg("frames", a->frames()),
                               fmt::arg("rate", cell(a->sample_rate))) +
                   "\n\n";
-            auto time = plot(time_chart(*a, name + " · " + tr("pipeline.report.time")), folder, folder_name, slug(name) + "_time");
+            auto time = plot(time_chart(*a, name + " · " + tr("pipeline.report.time")), folder, folder_name, stem + "_time");
             if (!time) return std::unexpected{time.error()};
             md += *time;
             if (const auto chart = spectrum_chart(*a, name + " · " + tr("pipeline.report.spectrum"))) {
-                auto spectrum = plot(*chart, folder, folder_name, slug(name) + "_spectrum");
+                auto spectrum = plot(*chart, folder, folder_name, stem + "_spectrum");
                 if (!spectrum) return std::unexpected{spectrum.error()};
                 md += *spectrum;
             }

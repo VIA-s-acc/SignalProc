@@ -1,6 +1,7 @@
 #pragma once
 
 #include <expected>
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <string>
@@ -29,6 +30,8 @@ struct NodeDecl {
     Comments comments = {};
     Params source = {};
     std::string instance = {};
+    std::string block = {};
+    int def_line = 0;
 };
 
 struct LetDecl {
@@ -53,6 +56,34 @@ struct ProbeDecl {
     Comments comments = {};
 };
 
+struct PortDecl {
+    std::string name;
+    bool optional = false;
+    int line = 0;
+    Comments comments = {};
+};
+
+struct BlockDef {
+    std::string name;
+    Params defaults;
+    std::vector<std::string> order = {};
+    std::vector<PortDecl> ins = {}, outs = {};
+    std::vector<LetDecl> lets = {};
+    std::vector<NodeDecl> nodes = {};
+    std::vector<Edge> edges = {};
+    std::vector<ProbeDecl> probes = {};
+    int line = 0;
+    Comments comments = {};
+    Comments closing = {};
+    std::filesystem::path origin = {};
+};
+
+struct UseDecl {
+    std::string path;
+    int line = 0;
+    Comments comments = {};
+};
+
 struct PipelineDoc {
     std::string name;
     int version = kSigVersion;
@@ -60,6 +91,9 @@ struct PipelineDoc {
     std::vector<NodeDecl> nodes;
     std::vector<Edge> edges;
     std::vector<ProbeDecl> probes;
+    std::vector<BlockDef> blocks = {};
+    std::vector<UseDecl> uses = {};
+    std::vector<BlockDef> imported = {};
     std::vector<std::string> preamble = {};
     std::string header_comment = {};
     Comments tail = {};
@@ -74,6 +108,8 @@ std::expected<PipelineDoc, SigError> parse_sig(std::string_view text);
 std::string unescape_dollars(std::string_view value);
 std::string escape_dollars(std::string_view value);
 std::string write_sig(const PipelineDoc& doc);
+std::string block_text(const BlockDef& block, const PipelineDoc& doc);
+const BlockDef* find_own_block(const PipelineDoc& doc, std::string_view name);
 void remove_edges(PipelineDoc& doc, const std::function<bool(const Edge&)>& gone);
 void remove_node(PipelineDoc& doc, std::string_view id);
 core::Result<void> apply_set(PipelineDoc& doc, std::string_view assignment);

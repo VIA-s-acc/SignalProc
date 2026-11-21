@@ -3,6 +3,8 @@
 #include <expected>
 #include <filesystem>
 #include <functional>
+#include <map>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -18,8 +20,12 @@ struct Loaded {
     std::vector<std::string> notes;
 };
 
+using LibraryCache = std::map<std::filesystem::path, std::vector<BlockDef>>;
+
 struct LoadOptions {
     std::filesystem::path base_dir = {};
+    std::vector<std::filesystem::path> using_chain = {};
+    std::shared_ptr<LibraryCache> cache = {};
 };
 
 struct MigrationStep {
@@ -30,5 +36,6 @@ struct MigrationStep {
 std::span<const MigrationStep> migration_steps();
 std::vector<std::string> migrate_doc(PipelineDoc& doc);
 std::expected<Loaded, SigError> load_sig(std::string_view text, const LoadOptions& options = {});
+std::vector<std::filesystem::path> used_files(std::string_view text, const std::filesystem::path& base_dir);
 
 }  // namespace signals::pipeline

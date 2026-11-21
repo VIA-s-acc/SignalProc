@@ -183,3 +183,11 @@ TEST_CASE("a deep chain is refused even when its tail was expanded before", "[va
     REQUIRE_FALSE(flat);
     CHECK(flat.error().line == 66);
 }
+
+TEST_CASE("set on a node checks its other params with variables substituted", "[vars]") {
+    auto doc = doc_of("pipeline \"v\" v2\nlet r = 8\nnode x = samples(values=\"1 2 3 4\", rate=$r)\n");
+    const auto ok = apply_set(doc, "x.values=\"4 3 2 1\"");
+    INFO((ok ? std::string{} : ok.error().message));
+    CHECK(ok);
+    CHECK_FALSE(apply_set(doc, "x.rate=fast"));
+}

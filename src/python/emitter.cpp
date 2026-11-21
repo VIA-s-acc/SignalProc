@@ -253,6 +253,34 @@ std::string Emitter::variable(std::string_view sig_name, bool integer_literal) {
     return name;
 }
 
+void Emitter::enter_scope(std::set<std::string, std::less<>> taken) {
+    scopes_.push_back({std::move(taken_), std::move(vars_), std::move(int_vars_)});
+    taken_ = std::move(taken);
+    vars_.clear();
+    int_vars_.clear();
+}
+
+void Emitter::leave_scope() {
+    auto& outer = scopes_.back();
+    taken_ = std::move(outer.taken);
+    vars_ = std::move(outer.vars);
+    int_vars_ = std::move(outer.int_vars);
+    scopes_.pop_back();
+}
+
+std::string Emitter::global_name(std::string_view id) {
+    if (scopes_.empty()) return name_for(id);
+    const auto free = [&](const std::string& name) {
+        if (taken_.contains(name) || std::ranges::any_of(scopes_, [&](const NameScope& s) { return s.taken.contains(name); })) return false;
+        return py_name(name, {}) == name;
+    };
+    std::string name{id};
+    while (!free(name)) name += '_';
+    scopes_.front().taken.insert(name);
+    taken_.insert(name);
+    return name;
+}
+
 std::string Emitter::py_var(std::string_view sig_name) const {
     if (const auto it = vars_.find(sig_name); it != vars_.end()) return it->second;
     return py_name(sig_name, {});
@@ -462,7 +490,7 @@ std::string Emitter::wavelet(std::string_view name) {
     if (const auto it = wavelets_.find(name); it != wavelets_.end()) return it->second;
     const auto bank = core::wavelet(name);
     if (!bank) return py_str(name);
-    const auto var = name_for("w_" + std::string{name});
+    const auto var = global_name("w_" + std::string{name});
     std::string list;
     for (const auto& [key, array] : pipeline::bank_entries(*bank)) {
         if (key == "name") continue;

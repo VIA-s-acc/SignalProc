@@ -48,6 +48,7 @@ add_executable(signals_tests
   learn/test_structure.cpp
   learn/test_answer.cpp
   learn/test_checker.cpp
+  learn/test_blocks_goals.cpp
   learn/test_progress.cpp
   learn/test_report.cpp
   learn/test_course.cpp
@@ -63,6 +64,7 @@ add_executable(signals_tests
   cli/test_cli_docs.cpp
   cli/test_cli_audio.cpp
   cli/test_cli_tui.cpp
+  cli/test_cli_blocks.cpp
   tui/test_npz_exports.cpp
   tui/test_harness.cpp
   tui/test_format.cpp
@@ -114,6 +116,7 @@ add_executable(signals_tests
   tui/harness.cpp
   audio/test_player.cpp
   theory/test_sections.cpp
+  theory/test_block_card.cpp
   pipeline/test_npz_values.cpp
   pipeline/test_blocks_npz.cpp
   pipeline/test_blocks_basic.cpp
@@ -139,6 +142,8 @@ add_executable(signals_tests
   pipeline/test_renames.cpp
   pipeline/test_report_fields.cpp
   pipeline/test_vars.cpp
+  pipeline/test_blocks_parse.cpp
+  pipeline/test_blocks_flatten.cpp
   learn/test_migrate_course.cpp
   docs/test_doc_snippets.cpp
   docs/test_old_names.cpp
@@ -177,6 +182,7 @@ add_executable(signals_tests
   python/test_forms_complete.cpp
   python/test_notebook.cpp
   python/test_live_core.cpp
+  python/test_block_functions.cpp
   python/test_portable_random.cpp
   python/test_live.cpp
   python/block_graphs.cpp

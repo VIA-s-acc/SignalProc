@@ -13,6 +13,7 @@
 #include "learn/structure.hpp"
 #include "learn/variant.hpp"
 #include "pipeline/cache.hpp"
+#include "pipeline/flatten.hpp"
 #include "pipeline/graph.hpp"
 #include "pipeline/migrate.hpp"
 
@@ -72,8 +73,8 @@ std::string say(std::string_view key, Args&&... args) {
     return fmt::format(fmt::runtime(tr(key)), std::forward<Args>(args)...);
 }
 
-core::Result<pipeline::PipelineDoc> parse(std::string_view text) {
-    auto loaded = pipeline::load_sig(text);
+core::Result<pipeline::PipelineDoc> parse(std::string_view text, const std::filesystem::path& base_dir = {}) {
+    auto loaded = pipeline::load_sig(text, {base_dir});
     if (!loaded) return task_error(say("learn.check.graph_error", fmt::arg("line", loaded.error().line), fmt::arg("message", loaded.error().message)));
     return std::move(loaded->doc);
 }
@@ -144,8 +145,8 @@ core::NameLookup names_of(const Measures& measures, const ParamValues& params) {
     };
 }
 
-core::Result<GoalResult> evaluate(const Goal& g, const pipeline::PipelineDoc& doc, const Measures& measures, const ParamValues& params,
-                                   const NodeSet& live) {
+core::Result<GoalResult> evaluate(const Goal& g, const pipeline::PipelineDoc& source, const pipeline::PipelineDoc& doc, const Measures& measures,
+                                   const ParamValues& params, const NodeSet& live) {
     GoalResult r;
     if (!g.when.empty()) {
         auto e = core::parse_expr(g.when);
@@ -193,6 +194,14 @@ core::Result<GoalResult> evaluate(const Goal& g, const pipeline::PipelineDoc& do
         }
         return r;
     }
+    if (g.defines > 0 || g.variable > 0) {
+        const auto need = g.defines > 0 ? g.defines : g.variable;
+        const auto got = (g.defines > 0 ? most_called_block(source) : most_used_variable(source)).second;
+        r.passed = static_cast<int>(got) >= need;
+        r.value = static_cast<double>(got);
+        if (!r.passed) r.detail = say(g.defines > 0 ? "learn.check.defines" : "learn.check.variable", fmt::arg("need", need), fmt::arg("got", got));
+        return r;
+    }
     r.passed = std::ranges::any_of(doc.probes, [&](const auto& p) { return p.name == g.probe; });
     if (!r.passed) r.detail = say("learn.check.no_probe", fmt::arg("name", g.probe));
     return r;
@@ -220,7 +229,9 @@ core::Result<Measures> solution_measures(const Task& t, int variant, const core:
     add_measure_probes(*doc, t.measures, true);
     auto result = run(*doc, ".", cancel);
     if (!result) return std::unexpected{result.error()};
-    return measure_all(t, *doc, *result, &*result, draw_params(t.params, t.id, variant));
+    const auto flat = pipeline::flatten(*doc);
+    if (!flat) return task_error(flat.error().message);
+    return measure_all(t, *flat, *result, &*result, draw_params(t.params, t.id, variant));
 }
 
 }  // namespace
@@ -298,7 +309,7 @@ core::Result<CheckResult> check_task(const Task& t, int variant, const Submissio
     if (!start) return std::unexpected{start.error()};
     auto solution = parse(solution_graph(t, variant));
     if (!solution) return std::unexpected{solution.error()};
-    auto work = parse(s.sig.value_or(""));
+    auto work = parse(s.sig.value_or(""), s.base_dir);
     if (!work) return failed(t, work.error().message, seconds());
     if (const auto changes = locked_changes(*start, *work, t.locked, t.input ? t.input->node : ""); !changes.empty()) {
         std::string message;
@@ -350,11 +361,13 @@ core::Result<CheckResult> check_task(const Task& t, int variant, const Submissio
             }
             reference = std::move(*r);
         }
-        auto measures = measure_all(t, w, *result, reference ? &*reference : nullptr, params);
+        const auto flat = pipeline::flatten(w);
+        if (!flat) return failed(t, flat.error().message, seconds());
+        auto measures = measure_all(t, *flat, *result, reference ? &*reference : nullptr, params);
         if (!measures) return failed(t, measures.error().message, seconds());
-        const auto live = live_nodes(w, outputs);
+        const auto live = live_nodes(*flat, outputs);
         for (std::size_t i = 0; i < t.goals.size(); ++i) {
-            auto g = evaluate(t.goals[i], w, *measures, params, live);
+            auto g = evaluate(t.goals[i], w, *flat, *measures, params, live);
             if (!g) return std::unexpected{g.error()};
             if (settled[i]) continue;
             if (!g->passed) {

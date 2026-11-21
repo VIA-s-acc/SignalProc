@@ -30,6 +30,8 @@ add_library(signals_pipeline STATIC
   renames.cpp
   report_fields.cpp
   flatten.cpp
+  probe_files.cpp
+  user_blocks.cpp
   graph.cpp
   cache.cpp
   executor.cpp

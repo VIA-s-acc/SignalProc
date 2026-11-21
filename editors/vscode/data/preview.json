@@ -28,7 +28,9 @@
     "old": "Предпросмотру нужна Signals, которая читает формат .sig v2 (1.0.0 или новее), а найдена «{version}». Обновите её: curl -fsSL https://raw.githubusercontent.com/VIA-s-acc/SignalProc/main/install.sh | sh",
     "stopped": "Signals остановилась (код {code}). Откройте предпросмотр снова.",
     "untrusted": "Предпросмотр выполняет граф, а граф может записывать файлы. Доверьте папку (Workspaces: Manage Workspace Trust), чтобы его открыть.",
-    "unknownVariable": "Переменная `${name}` не объявлена: добавьте строку `let {name} = …`"
+    "unknownVariable": "Переменная `${name}` не объявлена: добавьте строку `let {name} = …`",
+    "ownBlock": "свой блок, строка {line}",
+    "ownPorts": "входы: {ins}; выходы: {outs}"
   },
   "en": {
     "title": "Preview: {name}",
@@ -59,6 +61,8 @@
     "old": "The preview needs a Signals that reads the .sig v2 format (1.0.0 or newer), found \"{version}\". Update it: curl -fsSL https://raw.githubusercontent.com/VIA-s-acc/SignalProc/main/install.sh | sh",
     "stopped": "Signals stopped (code {code}). Open the preview again.",
     "untrusted": "The preview runs the graph, and a graph can write files. Trust the folder (Workspaces: Manage Workspace Trust) to open it.",
-    "unknownVariable": "The variable `${name}` is not declared: add a line `let {name} = …`"
+    "unknownVariable": "The variable `${name}` is not declared: add a line `let {name} = …`",
+    "ownBlock": "your block, line {line}",
+    "ownPorts": "inputs: {ins}; outputs: {outs}"
   }
 }

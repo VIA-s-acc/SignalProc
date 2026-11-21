@@ -133,7 +133,8 @@ void add_measure_probes(pipeline::PipelineDoc& doc, std::span<const Measure> mea
         if (endpoint.empty()) return;
         const auto name = probe_name(endpoint);
         if (std::ranges::any_of(doc.probes, [&](const auto& p) { return p.name == name; })) return;
-        if (std::ranges::none_of(doc.nodes, [&](const auto& n) { return n.id == port_of(endpoint).node; })) return;
+        const auto node = port_of(endpoint).node;
+        if (node.find('/') == std::string::npos && std::ranges::none_of(doc.nodes, [&](const auto& n) { return n.id == node; })) return;
         doc.probes.push_back({port_of(endpoint), name});
     };
     static constexpr std::string_view kSignalKinds[] = {"max_error", "snr", "delay", "tone_db", "gain_db", "max_abs", "energy", "rms_db", "length", "kept", "samples"};

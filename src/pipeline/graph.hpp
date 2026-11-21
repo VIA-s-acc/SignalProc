@@ -2,6 +2,7 @@
 
 #include <expected>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -41,10 +42,12 @@ struct Graph {
     std::vector<std::size_t> order;
     std::vector<Probe> probes;
     std::filesystem::path base_dir;
+    std::shared_ptr<const std::vector<BlockType>> own_types = {};
 };
 
 struct BuildOptions {
     bool partial = false;
+    bool collapse = false;
 };
 
 std::expected<Graph, SigError> build_graph(const PipelineDoc& doc, std::filesystem::path base_dir, BuildOptions options = {});

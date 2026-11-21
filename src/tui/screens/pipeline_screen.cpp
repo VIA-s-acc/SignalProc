@@ -1027,7 +1027,7 @@ void PipelineScreen::export_python() {
             return;
         }
         const auto source = pipeline::write_sig(model_->doc());
-        auto loaded = pipeline::load_sig(source);
+        auto loaded = pipeline::load_sig(source, {model_->base_dir()});
         if (!loaded) {
             notice_ = loaded.error().message;
             return;

@@ -134,7 +134,9 @@ core::Result<Goal> parse_goal(const toml::table& t, const std::string& path) {
     if (const auto* req = t["require"].as_table())
         for (const auto& [k, v] : *req) g.require.emplace_back(std::string{k.str()}, static_cast<int>(v.value_or(1LL)));
     g.probe = t["probe"].value_or(std::string{});
-    const int kinds = !g.when.empty() + g.through.has_value() + !g.forbid.empty() + !g.require.empty() + !g.probe.empty();
+    if (const auto* d = t["defines"].as_table()) g.defines = std::max(1, static_cast<int>((*d)["calls"].value_or(1LL)));
+    if (const auto* v = t["variable"].as_table()) g.variable = std::max(1, static_cast<int>((*v)["uses"].value_or(1LL)));
+    const int kinds = !g.when.empty() + g.through.has_value() + !g.forbid.empty() + !g.require.empty() + !g.probe.empty() + (g.defines > 0) + (g.variable > 0);
     if (kinds != 1) return fail_at(path, line_of(t), tr("learn.error.goal_kind"));
     return g;
 }

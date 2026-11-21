@@ -83,6 +83,27 @@ Change a graph variable at the top of the script and it recomputes everything th
 
 In the Pipeline tab `P` or the palette item "Pipeline: export to Python…" does the same: a `.py` path gives a script, an `.ipynb` path a notebook. The graph open in the editor is exported, unsaved edits included. The inspector shows an "In Python" line for the selected node, and `signals explain <block>` shows the Python form of the block with the default parameters.
 
+### Your own blocks
+
+Each `block` definition becomes one Python function with the same name, and the calls call it with their own arguments:
+
+```python
+def bank_level(x, x_fs, wavelet_="haar"):
+    ...
+    return sum_, sum__fs, da, da_fs, dd, dd_fs
+
+lv1_y, lv1_y_fs, lv1_a, lv1_a_fs, lv1_d, lv1_d_fs = bank_level(x, x_fs)
+lv2_y, lv2_y_fs, lv2_a, lv2_a_fs, lv2_d, lv2_d_fs = bank_level(lv1_a, lv1_a_fs, wavelet_="db2")
+```
+
+- **Arguments.** Each input is two arguments: the value and its rate (`x`, `x_fs`), or for coefficients their details (`c`, `c_meta`). The block's params are keyword arguments with the definition's defaults. The function returns its outputs the same way, in pairs.
+- **The function body** computes everything from its arguments, like the live script: one function serves both `bank_level()` and `bank_level(wavelet=db2)`. Nested blocks are calls of their functions; the called block's function comes earlier in the script.
+- **Inner probes.** If the graph has probes inside calls (`probe lv2/h0` or a probe in the definition), the function gets an optional `trace` dictionary and puts those values in it under `call/node` names; after the call the script takes them out (`lv2_h0 = trace["lv2/h0"]`), and the check compares them like the other probes. Without such probes there is no dictionary.
+- **The notebook** keeps the block functions in one cell with the other functions, and each call is a cell of its own.
+- **Variants.** A function is written from the first call. A call with another set of wired optional inputs, other input types or other files (`path=` inside the block) gets a variant of its own: `mod_2`.
+- **Block variables** (`let` inside the definition) and defaults that refer to other params (`db="$base*3"`) are computed at the start of the function.
+- **Limit.** A graph where a call's output comes back to its own input through other nodes cannot be written as a function; the command says so.
+
 ### A Jupyter notebook
 
 ```bash
