@@ -64,10 +64,22 @@ The script depends on numpy, scipy and PyWavelets only and follows the graph nod
 
 The `.npz` holds only what Python cannot repeat:
 
-- random samples (the noise of `gen` and `add_noise`, the dither of `quantize` and `wav_out`) before scaling, so the scaling formula and the noise spectrum shape stay in the script;
 - audio scipy does not read into the same numbers: FLAC, MP3, µ-law and A-law;
-- parameter lists longer than 64 numbers and the symlet filters (see below);
+- parameter lists longer than 64 numbers and the filters of wavelets where pywt differs from Signals: the symlets (see below) and your own banks;
 - the values to check against.
+
+The script draws the noise (`gen`, `add_noise`) and the dither (`quantize`, `wav_out`) itself with the generator the program uses — `mt19937_64` and the polar method rewritten in numpy give the same numbers bit for bit.
+
+### A live script
+
+The script does not replay the run as numbers; it computes it again: every node parameter and every graph variable is a Python value, and everything derived from them is computed in the script.
+
+- **Parameters are Python values.** A block form writes a parameter as a literal (`0.5`), a variable (`fs`) or an expression (`fs / 8`). Lengths are computed in the script (`samples_count(0.25, 8000)`), seconds become samples at the input rate (`as_samples("0.1s", x_fs)`), scipy designs the filters, numpy builds the windows and frequency grids.
+- **Rates and coefficient details.** Every signal has its rate `x_fs`, coefficients have a `c_meta` dict: wavelet, extension mode, length, rate. The inverse transform, the threshold and the band tools take them from there, so a new rate or a new wavelet upstream reaches every node downstream.
+- **A wavelet from a variable** is written `wavelet(name)`. The function takes the Signals filters from the `.npz` when the graph had that wavelet or it is a symlet, `pywt.Wavelet(name)` otherwise, and stops with a clear error for a name found nowhere.
+- **What stays data.** Only external files: audio scipy does not read itself, `.npy`/`.npz` arrays and the filters of «My filters». To take another file, replace the path or the array.
+
+Change a graph variable at the top of the script and it recomputes everything that depends on it and skips the check (see `GRAPH` above). A number in a node line can be edited too, and everything downstream is recomputed, but then the check shows the difference from the program: it compares with the run of the graph. CI checks this: for every parameter of every block the test makes the parameter a variable, puts a second value into the script and compares the result with `signals run --set` at that value. Eight parameters cannot be checked this way; they are listed with their reasons in `tests/python/live_exceptions.txt`: `idwt.wavelet` and `iswt.wavelet` only check the coefficients, `idwt.ext` matters only for `periodization`, `mid_side` encodes and decodes with the same matrix, `wav_out.bits`, `dither` and `seed` change only the written file, and the `assert.expr` condition is translated into a Python code line when the script is made — change it there.
 
 In the Pipeline tab `P` or the palette item "Pipeline: export to Python…" does the same: a `.py` path gives a script, an `.ipynb` path a notebook. The graph open in the editor is exported, unsaved edits included. The inspector shows an "In Python" line for the selected node, and `signals explain <block>` shows the Python form of the block with the default parameters.
 

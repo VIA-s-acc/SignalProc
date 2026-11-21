@@ -12,15 +12,8 @@
 namespace signals::python {
 namespace {
 
-using pipeline::param_int;
 using pipeline::param_real;
 using pipeline::param_text;
-
-double input_rate(const NodeIo& io, std::size_t k = 0) {
-    if (k < io.in_values.size() && io.in_values[k])
-        if (const auto* a = std::get_if<core::AudioBuffer>(io.in_values[k])) return a->sample_rate;
-    return 44100;
-}
 
 core::Result<std::string> stats(const NodeIo& io, Emitter& em) {
     em.function("stats");
@@ -28,11 +21,8 @@ core::Result<std::string> stats(const NodeIo& io, Emitter& em) {
 }
 
 core::Result<std::string> loudness(const NodeIo& io, Emitter& em) {
-    const auto fs = input_rate(io);
-    const auto window = pipeline::param_samples(io.node.params, "frame", fs), hop = pipeline::param_samples(io.node.params, "hop", fs);
-    if (!window || !hop || *window == 0 || *hop == 0) return std::unexpected{unsupported(io, "frame")};
     em.function("loudness");
-    return fmt::format("{0} = loudness({1}, {2}, {3})\n{0}_ok = True", io.out[0], io.in[0], *window, *hop);
+    return fmt::format("{0} = loudness({1}, {2}, {3})\n{0}_ok = True", io.out[0], io.in[0], count_expr(io, em, "frame"), count_expr(io, em, "hop"));
 }
 
 struct PyExpr {
@@ -124,31 +114,31 @@ core::Result<std::string> assert_block(const NodeIo& io, Emitter& em) {
 
 core::Result<std::string> lms(const NodeIo& io, Emitter& em) {
     em.function("lms");
-    return fmt::format("{}, {} = lms({}, {}, {}, {}, {})", io.out[0], io.out[1], io.in[0], io.in[1], param_int(io.node.params, "numtaps"), em.number(param_real(io.node.params, "mu")),
-                       param_text(io.node.params, "rule") == "lms" ? "False" : "True");
+    return fmt::format("{}, {} = lms({}, {}, {}, {}, {})", io.out[0], io.out[1], io.in[0], io.in[1], count_expr(io, em, "numtaps"), em.expr(io, "mu"),
+                       uses_variable(io, "rule") ? "(" + em.expr(io, "rule") + " != \"lms\")" : std::string{param_text(io.node.params, "rule") == "lms" ? "False" : "True"});
 }
 
 core::Result<std::string> wiener(const NodeIo& io, Emitter& em) {
     em.function("wiener");
-    return fmt::format("{} = wiener({}, {}, {})", io.out[0], io.in[0], param_int(io.node.params, "length"), em.number(param_real(io.node.params, "noise")));
+    return fmt::format("{} = wiener({}, {}, {})", io.out[0], io.in[0], count_expr(io, em, "length"), em.expr(io, "noise"));
 }
 
 core::Result<std::string> spectral_subtract(const NodeIo& io, Emitter& em) {
     em.function("spectral_subtract");
-    const auto lead = std::llround(param_real(io.node.params, "noise_s") * input_rate(io));
+    em.function("samples_count");
     const auto noise = io.in.size() > 1 && !io.in[1].empty() ? io.in[1] : std::string{"None"};
-    return fmt::format("{} = spectral_subtract({}, {}, {}, {}, {}, {})", io.out[0], io.in[0], noise, lead, param_int(io.node.params, "frame"),
-                       em.number(param_real(io.node.params, "alpha")), em.number(param_real(io.node.params, "beta")));
+    return fmt::format("{} = spectral_subtract({}, {}, samples_count({}, {}), {}, {}, {})", io.out[0], io.in[0], noise, em.expr(io, "noise_s"), io.in_fs[0], count_expr(io, em, "frame"),
+                       em.expr(io, "alpha"), em.expr(io, "beta"));
 }
 
 core::Result<std::string> deconvolve(const NodeIo& io, Emitter& em) {
     em.function("deconvolve");
-    return fmt::format("{} = deconvolve({}, {}, {})", io.out[0], io.in[0], io.in[1], em.number(param_real(io.node.params, "snr_db")));
+    return fmt::format("{} = deconvolve({}, {}, {})", io.out[0], io.in[0], io.in[1], em.expr(io, "snr_db"));
 }
 
 core::Result<std::string> lpc(const NodeIo& io, Emitter& em) {
     em.function("lpc");
-    return fmt::format("{0}, {1} = lpc({2}, {3})\n{1}_ok = True", io.out[0], io.out[1], io.in[0], param_int(io.node.params, "order"));
+    return fmt::format("{0}, {1} = lpc({2}, {3})\n{1}_ok = True", io.out[0], io.out[1], io.in[0], count_expr(io, em, "order"));
 }
 
 core::Result<std::string> lpc_synth(const NodeIo& io, Emitter& em) {
@@ -158,26 +148,26 @@ core::Result<std::string> lpc_synth(const NodeIo& io, Emitter& em) {
 
 core::Result<std::string> spectrum_peaks(const NodeIo& io, Emitter& em) {
     em.function("spectrum_peaks");
-    return fmt::format("{0} = spectrum_peaks({1}, {2}, {3}, {4}, {5})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_int(io.node.params, "count"),
-                       param_int(io.node.params, "segment"), em.number(param_real(io.node.params, "prominence_db")));
+    return fmt::format("{0} = spectrum_peaks({1}, {2}, {3}, {4}, {5})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], count_expr(io, em, "count"),
+                       count_expr(io, em, "segment"), em.expr(io, "prominence_db"));
 }
 
 core::Result<std::string> band_power(const NodeIo& io, Emitter& em) {
     em.function("band_power");
-    return fmt::format("{0} = band_power({1}, {2}, {3}, {4})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_text(io.node.params, "bands") == "third" ? "True" : "False",
-                       param_int(io.node.params, "segment"));
+    return fmt::format("{0} = band_power({1}, {2}, {3}, {4})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], flag(io, em, "bands", "third"),
+                       count_expr(io, em, "segment"));
 }
 
-std::string real_param(const NodeIo& io, Emitter& em, const char* name) { return em.number(param_real(io.node.params, name)); }
+std::string real_param(const NodeIo& io, Emitter& em, const char* name) { return em.expr(io, name); }
 
 core::Result<std::string> pitch(const NodeIo& io, Emitter& em) {
     em.function("pitch");
-    return fmt::format("{0}, {1} = pitch({2}, {3}, {4}, {5}, {6}, {7}, {8})\n{0}_ok = True", io.out[0], io.out[1], io.in[0], io.in_fs[0], param_int(io.node.params, "frame"),
-                       param_int(io.node.params, "hop"), real_param(io, em, "min_hz"), real_param(io, em, "max_hz"), real_param(io, em, "threshold"));
+    return fmt::format("{0}, {1} = pitch({2}, {3}, {4}, {5}, {6}, {7}, {8})\n{0}_ok = True", io.out[0], io.out[1], io.in[0], io.in_fs[0], count_expr(io, em, "frame"),
+                       count_expr(io, em, "hop"), real_param(io, em, "min_hz"), real_param(io, em, "max_hz"), real_param(io, em, "threshold"));
 }
 
 std::string sst_args(const NodeIo& io, Emitter& em) {
-    return fmt::format("{}, {}, {}, {}, {}, {}", io.in[0], io.in_fs[0], real_param(io, em, "min_hz"), real_param(io, em, "max_hz"), param_int(io.node.params, "voices"), real_param(io, em, "mu"));
+    return fmt::format("{}, {}, {}, {}, {}, {}", io.in[0], io.in_fs[0], real_param(io, em, "min_hz"), real_param(io, em, "max_hz"), count_expr(io, em, "voices"), real_param(io, em, "mu"));
 }
 
 core::Result<std::string> sst_band(const NodeIo& io, Emitter& em) {
@@ -192,26 +182,29 @@ core::Result<std::string> sst_ridge(const NodeIo& io, Emitter& em) {
 
 core::Result<std::string> mfcc(const NodeIo& io, Emitter& em) {
     em.function("mfcc");
-    return fmt::format("{0} = mfcc({1}, {2}, {3}, {4}, {5}, {6})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_int(io.node.params, "n_mfcc"),
-                       param_int(io.node.params, "n_mels"), param_int(io.node.params, "frame"), param_int(io.node.params, "hop"));
+    return fmt::format("{0} = mfcc({1}, {2}, {3}, {4}, {5}, {6})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], count_expr(io, em, "n_mfcc"),
+                       count_expr(io, em, "n_mels"), count_expr(io, em, "frame"), count_expr(io, em, "hop"));
 }
 
 core::Result<std::string> spectral_features(const NodeIo& io, Emitter& em) {
     em.function("spectral_features");
-    return fmt::format("{0} = spectral_features({1}, {2}, {3}, {4}, {5})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], param_int(io.node.params, "frame"),
-                       param_int(io.node.params, "hop"), real_param(io, em, "rolloff_pct"));
+    return fmt::format("{0} = spectral_features({1}, {2}, {3}, {4}, {5})\n{0}_ok = True", io.out[0], io.in[0], io.in_fs[0], count_expr(io, em, "frame"),
+                       count_expr(io, em, "hop"), real_param(io, em, "rolloff_pct"));
 }
 
 core::Result<std::string> histogram(const NodeIo& io, Emitter& em) {
     const auto& text = param_text(io.node.params, "range");
     std::string limits = "None";
-    if (text != "auto") {
+    if (uses_variable(io, "range")) {
+        em.function("number_list");
+        limits = fmt::format("(None if {0} == \"auto\" else tuple(number_list({0})))", em.expr(io, "range"));
+    } else if (text != "auto") {
         const auto v = pipeline::blocks::parse_numbers("histogram", "range", text);
         if (!v || v->size() != 2) return std::unexpected{unsupported(io, "range")};
         limits = "(" + em.number((*v)[0]) + ", " + em.number((*v)[1]) + ")";
     }
     em.function("histogram");
-    return fmt::format("{0} = histogram({1}, {2}, {3})\n{0}_ok = True", io.out[0], io.in[0], param_int(io.node.params, "bins"), limits);
+    return fmt::format("{0} = histogram({1}, {2}, {3})\n{0}_ok = True", io.out[0], io.in[0], em.expr(io, "bins"), limits);
 }
 
 core::Result<std::string> delay_estimate(const NodeIo& io, Emitter& em) {

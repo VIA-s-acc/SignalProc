@@ -377,6 +377,32 @@ bool uses_variable(const NodeIo& io, std::string_view param) {
     return raw != io.node.source.end() && !pipeline::variables_in(raw->second).empty();
 }
 
+std::string flag(const NodeIo& io, Emitter& em, std::string_view param, std::string_view yes) {
+    if (uses_variable(io, param)) return "(" + em.expr(io, param) + " == " + py_str(yes) + ")";
+    const auto it = io.node.params.find(std::string{param});
+    return it != io.node.params.end() && it->second == yes ? "True" : "False";
+}
+
+std::string samples_expr(const NodeIo& io, Emitter& em, std::string_view param, const std::string& fs) {
+    if (uses_variable(io, param)) {
+        em.function("as_samples");
+        return "as_samples(" + em.expr(io, param) + ", " + fs + ")";
+    }
+    const auto& value = pipeline::param_text(io.node.params, param);
+    if (value.ends_with('s')) {
+        em.function("as_samples");
+        return "as_samples(" + py_str(value) + ", " + fs + ")";
+    }
+    return std::to_string(pipeline::param_int(io.node.params, param));
+}
+
+std::string count_expr(const NodeIo& io, Emitter& em, std::string_view param) {
+    const auto& params = io.node.type->params;
+    const auto spec = std::ranges::find_if(params, [&](const pipeline::ParamSpec& s) { return s.name == param; });
+    if (spec != params.end() && spec->kind == pipeline::ParamSpec::Kind::samples) return samples_expr(io, em, param, io.in_fs.empty() ? std::string{"fs"} : io.in_fs[0]);
+    return em.expr(io, param);
+}
+
 std::string Emitter::numbers(std::string key, std::span<const double> v) {
     if (v.size() > 64) return data(std::move(key), io::np_vector({v.begin(), v.end()}));
     std::string out = "[";

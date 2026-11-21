@@ -2,3 +2,8 @@
 idwt.wavelet — only checks the coefficients: auto or their own wavelet give the same result, any other wavelet is an error in the program and in the script
 iswt.wavelet — only checks the coefficients: auto or their own wavelet give the same result, any other wavelet is an error in the program and in the script
 idwt.ext — the inverse depends on the extension only for periodization, and periodization refuses coefficients made with another extension
+mid_side.direction — the normalized mid/side matrix is its own inverse, so encode and decode give the same numbers
+wav_out.bits — live in the script, but it changes only the written file, which the check does not read back
+wav_out.dither — live in the script, but it changes only the written file, which the check does not read back
+wav_out.seed — live in the script, but it changes only the written file, which the check does not read back
+assert.expr — the condition is translated into Python code when the script is made; to change it in the script, edit that code line
